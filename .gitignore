@@ -18,6 +18,8 @@ build/
 .next/
 artifacts/
 cache/
+typechain-types/
+ignition/deployments/
 
 # IDE
 .vscode/

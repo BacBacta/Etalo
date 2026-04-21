@@ -1,3 +1,4 @@
+import "dotenv/config";
 import hardhatToolboxViemPlugin from "@nomicfoundation/hardhat-toolbox-viem";
 import { configVariable, defineConfig } from "hardhat/config";
 
@@ -6,10 +7,10 @@ export default defineConfig({
   solidity: {
     profiles: {
       default: {
-        version: "0.8.28",
+        version: "0.8.24",
       },
       production: {
-        version: "0.8.28",
+        version: "0.8.24",
         settings: {
           optimizer: {
             enabled: true,
@@ -28,11 +29,41 @@ export default defineConfig({
       type: "edr-simulated",
       chainType: "op",
     },
-    sepolia: {
+    celoSepolia: {
       type: "http",
       chainType: "l1",
-      url: configVariable("SEPOLIA_RPC_URL"),
-      accounts: [configVariable("SEPOLIA_PRIVATE_KEY")],
+      url: "https://celo-sepolia.drpc.org",
+      accounts: [configVariable("PRIVATE_KEY")],
     },
+    celoMainnet: {
+      type: "http",
+      chainType: "op",
+      url: "https://forno.celo.org",
+      accounts: [configVariable("PRIVATE_KEY")],
+    },
+  },
+  etherscan: {
+    apiKey: {
+      celoSepolia: process.env.CELOSCAN_API_KEY ?? "",
+      celoMainnet: process.env.CELOSCAN_API_KEY ?? "",
+    },
+    customChains: [
+      {
+        network: "celoSepolia",
+        chainId: 11142220,
+        urls: {
+          apiURL: "https://api.etherscan.io/v2/api",
+          browserURL: "https://sepolia.celoscan.io",
+        },
+      },
+      {
+        network: "celoMainnet",
+        chainId: 42220,
+        urls: {
+          apiURL: "https://api.celoscan.io/api",
+          browserURL: "https://celoscan.io",
+        },
+      },
+    ],
   },
 });

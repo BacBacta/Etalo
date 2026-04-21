@@ -1,0 +1,13 @@
+{
+  "network": "celoSepolia",
+  "chainId": 11142220,
+  "deployer": "0x66bD37325cf41dAd0035398854f209785C9bC4C2",
+  "treasury": "0x66bD37325cf41dAd0035398854f209785C9bC4C2",
+  "contracts": {
+    "MockUSDT": "0x4212d248fc28c7aa0ae0e5982051b5e9d2a12dc6",
+    "EtaloReputation": "0xc9d3f823a4c985bd126899573864dba4a6601ef4",
+    "EtaloEscrow": "0x652e0278f4a1b7915dc89f53ab3e5c35696cb455",
+    "EtaloDispute": "0x438ed447c5467abb6395b56a88bfec7a80c489e9"
+  },
+  "deployedAt": "2026-04-21T19:56:27.542Z"
+}
