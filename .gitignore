@@ -1,0 +1,32 @@
+# Secrets - JAMAIS committer
+.env
+.env.local
+.env.*.local
+**/.env
+!**/.env.example
+
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build outputs
+dist/
+build/
+.next/
+artifacts/
+cache/
+
+# IDE
+.vscode/
+.idea/
+.cursor/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
