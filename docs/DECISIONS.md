@@ -23,6 +23,44 @@ new baseline (React 19, TypeScript 6).
 
 ---
 
+## 2026-04-22 — MiniPay native deep-link deferred
+
+**Context**: Block 6 ships the public product page. The "Buy" CTA
+needs to route a buyer into the Mini App. The MiniPay-native deep-link
+scheme (`minipay://` or a universal link) is not yet confirmed in our
+docs at the time of implementation.
+
+**Decision**: Use a plain HTTPS link to `${NEXT_PUBLIC_MINIAPP_URL}/
+checkout/{productId}`. Inside the MiniPay WebView the link opens the
+Mini App directly; in a regular browser it lands on the Mini App's
+landing page which itself shows the "Open in MiniPay" prompt.
+
+**Why it's acceptable**: The UX loss is minor — one extra tap for
+users who arrive from social shares outside MiniPay. No functional
+regression.
+
+**Replacement plan**: When the official MiniPay deep-link format is
+confirmed, swap `BuyButton.tsx`'s href for the native scheme. ~5 LOC
+change, no architectural impact.
+
+---
+
+## 2026-04-22 — Raw IPFS og:image for V1
+
+**Context**: The Next.js product page needs `og:image` for social
+previews. Ideal spec is 1200x630 with the product + shop branding.
+
+**Decision**: Use the product's first IPFS image URL as-is. Social
+networks (WhatsApp, Instagram, Twitter) resize on their side, so the
+raw image still renders, just not at optimal framing.
+
+**Replacement plan (V1.5)**: Implement a dynamic OG image generator
+at `web/src/app/[handle]/[slug]/opengraph-image.tsx` using Next's
+built-in `ImageResponse` — composes the product photo, shop name,
+and price into a 1200x630 frame.
+
+---
+
 ## 2026-04-22 — X-Wallet-Address header temporary for /sellers/me
 
 **Context**: Block 3 of Sprint J2 introduces `GET /api/v1/sellers/me` but

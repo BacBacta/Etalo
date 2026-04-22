@@ -36,3 +36,28 @@ class ProductRead(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ProductPublicSeller(BaseModel):
+    shop_handle: str
+    shop_name: str
+    logo_url: str | None = None
+    country: str | None = None
+
+
+class ProductPublic(BaseModel):
+    """
+    Public view of a product, suitable for the SSR product page.
+    Exposes pre-resolved gateway URLs (IPFS hashes stripped) and the
+    minimum seller info needed to render the page.
+    """
+
+    id: UUID
+    title: str
+    slug: str
+    description: str | None = None
+    price_usdt: Decimal
+    stock: int
+    status: str
+    image_urls: list[str]
+    seller: ProductPublicSeller

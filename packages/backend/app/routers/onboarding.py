@@ -8,6 +8,7 @@ from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
 from app.routers.sellers import get_current_wallet
+from app.services.slug import build_unique_slug
 from app.schemas.onboarding import (
     OnboardingCompleteProduct,
     OnboardingCompleteRequest,
@@ -77,9 +78,15 @@ def complete_onboarding(
         db.add(profile)
         db.flush()
 
+        # No siblings exist yet (seller is brand-new), so the first
+        # product's slug cannot collide with anything in this seller's
+        # namespace. Pass empty `existing` — collisions only matter
+        # for the 2nd+ product, handled by future product-create flows.
+        product_slug = build_unique_slug(body.first_product.title, set())
         product = Product(
             seller_id=profile.id,
             title=body.first_product.title,
+            slug=product_slug,
             description=body.first_product.description,
             price_usdt=body.first_product.price_usdt,
             stock=body.first_product.stock,

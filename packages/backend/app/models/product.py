@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-from sqlalchemy import DateTime, ForeignKey, Index, Numeric, SmallInteger, String, Text
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, SmallInteger, String, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import ARRAY, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,6 +15,7 @@ class Product(Base):
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     seller_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("seller_profiles.id"), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    slug: Mapped[str] = mapped_column(String(60), nullable=False, index=True)
     description: Mapped[str | None] = mapped_column(Text)
     price_usdt: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
     stock: Mapped[int] = mapped_column(SmallInteger, default=0)
@@ -29,6 +30,7 @@ class Product(Base):
 
     __table_args__ = (
         Index("ix_products_status", "status"),
+        UniqueConstraint("seller_id", "slug", name="uq_products_seller_slug"),
     )
 
 

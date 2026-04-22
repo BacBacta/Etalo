@@ -1,0 +1,36 @@
+import type { Metadata } from "next";
+
+import "./globals.css";
+
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+
+export const metadata: Metadata = {
+  metadataBase: new URL(BASE_URL),
+  title: {
+    default: "Etalo — Your digital stall, open 24/7",
+    template: "%s · Etalo",
+  },
+  description:
+    "Non-custodial social commerce for African sellers. Secure payments, buyer protection, no middleman.",
+  openGraph: {
+    type: "website",
+    title: "Etalo",
+    siteName: "Etalo",
+    description:
+      "Non-custodial social commerce for African sellers. Secure payments, buyer protection, no middleman.",
+  },
+  twitter: { card: "summary_large_image" },
+};
+
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
+  return (
+    <html lang="en">
+      <body className="min-h-screen bg-white text-neutral-900 antialiased">
+        {children}
+      </body>
+    </html>
+  );
+}
