@@ -59,7 +59,7 @@ async def upload_to_ipfs(
             detail="Empty file.",
         )
 
-    has_creds = bool(settings.pinata_api_key and settings.pinata_secret_key)
+    has_creds = bool(settings.pinata_api_key and settings.pinata_api_secret)
 
     if not has_creds:
         logger.warning(

@@ -13,7 +13,7 @@ class IPFSService:
     def __init__(self):
         self._headers = {
             "pinata_api_key": settings.pinata_api_key,
-            "pinata_secret_api_key": settings.pinata_secret_key,
+            "pinata_secret_api_key": settings.pinata_api_secret,
         }
 
     async def upload_json(self, data: dict) -> str:

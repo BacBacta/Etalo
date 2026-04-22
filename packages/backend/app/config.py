@@ -27,7 +27,8 @@ class Settings(BaseSettings):
 
     # Pinata IPFS
     pinata_api_key: str = ""
-    pinata_secret_key: str = ""
+    pinata_api_secret: str = ""  # was pinata_secret_key — matches Pinata's own naming
+    pinata_jwt: str = ""  # preferred auth; kept for future migration of IPFSService
     pinata_gateway_url: str = "https://gateway.pinata.cloud/ipfs"
 
     # Twilio WhatsApp
