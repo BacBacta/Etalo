@@ -55,7 +55,7 @@ etalo/
 | 5     | Seller dashboard (6 cards) + analytics endpoints   | 2h    | Done      |
 | 6     | Public web scaffold + product SSR + slug migration | 1h25  | Done      |
 | 7     | Checkout flow (3-tx USDT) + orders backend         | 2h    | Done      |
-| 8     | QA mobile device + ngrok                           | 1h    | Deferred  |
+| 8     | QA mobile device + ngrok                           | 1h    | Done      |
 | 9     | Documentation + final commit                       | 30m   | This block|
 | Total |                                                    | ~12h  |           |
 
@@ -73,6 +73,7 @@ etalo/
 | `8857179` | feat(miniapp): seller dashboard 6 cards + analytics endpoints            |
 | `170d5cc` | feat(web): scaffold + product page SSR + slug migration                  |
 | `14f9d2d` | feat(miniapp): checkout USDT flow + orders backend                       |
+| `ba28969` | fix(miniapp): display seller logo in ShopHandle (dashboard + checkout)   |
 
 ---
 
@@ -125,6 +126,7 @@ public launch. Order roughly by urgency.
 | On-chain event indexer                          | new service         | DB can drift from chain state if the frontend crashes after fundOrder.  |
 | Reputation on-chain indexing                    | `ReputationBlock`   | Dashboard shows `badge: new_seller` for everyone until wired.           |
 | Buyer country at first checkout                 | Mini App            | Intra-Africa buyers are taxed as cross-border until they set country.   |
+| Landing design polish (logo, palette, hero, type)| `web/app/page.tsx` | Flagged "basique, pas premium" during Block 8 QA — P1 for Proof of Ship.|
 
 ### P2 — polish
 
@@ -135,6 +137,7 @@ public launch. Order roughly by urgency.
 | CIP-64 fee-in-USDT                              | `lib/tx.ts`         | Buyers without CELO currently depend on MiniPay's sponsorship.          |
 | MiniPay native deep-link scheme                 | web `BuyButton`     | Plain HTTPS works but adds one tap for social-share arrivals.           |
 | `createAndFund` wrapper contract                | new Solidity        | Would cut checkout from 3 txs to 2.                                     |
+| Checkout UI end-to-end with 2 wallets           | manual QA           | On-chain flow already green via `e2e-checkout.ts`; UI self-buy blocked by 409 + escrow `require(seller != msg.sender)`. Needs a second MiniPay wallet as buyer. |
 
 ---
 
@@ -220,6 +223,53 @@ Block 8 is **QA on a real MiniPay Android device over ngrok**. Prereqs:
 
 ---
 
+## Block 8 — Validation
+
+**Date**: April 22, 2026
+**Device**: Android with MiniPay (testnet mode)
+**ngrok URL**: `https://upright-henna-armless.ngrok-free.dev` (tunnel → Vite `:5173`)
+
+### Setup
+
+- ngrok 3.38.0 installed and configured (free account)
+- Vite config: `allowedHosts` + proxy `/api/*` → `localhost:8000`
+- Mint MockUSDT: 100 mUSDT on MiniPay wallet
+  `0x3154835dEAf9DF60A7aCaf45955236e73aD84502`
+
+### Bug discovered and fixed in live conditions
+
+- **Bug**: shop logo never rendered in `ShopHandle` (text-only component).
+- **Fix**: added `logoIpfsHash` prop to `ShopHandle`, propagated through
+  `SellerHome` and `CheckoutSummary`.
+- **Backend**: added `logo_ipfs_hash` to `OrderInitiateResponse.seller`
+  (optional, non-breaking).
+- **Commit**: `ba28969` — `fix(miniapp): display seller logo in ShopHandle (dashboard + checkout)`.
+
+### Validated tests
+
+- **Onboarding 3 steps**: full flow on Android MiniPay, Supabase DB written.
+- **Dashboard `/seller`**: 6 cards empty-state OK, logo visible in header.
+- **Page `/checkout/:productId`**: loads correctly, self-buy 409 correctly surfaced.
+- **Terminology audit** (Landing / Dashboard / Onboarding 3 steps):
+  no "gas", "crypto", "token", or raw `0x…` addresses visible.
+- **Dashboard design audit**: OK.
+
+### Partial / deferred tests
+
+- **Checkout end-to-end** (approve + createOrder + fundOrder):
+  blocked by self-buy protection (only one MiniPay wallet available).
+  On-chain flow already validated in Block 7 via `e2e-checkout.ts`.
+  UI pass needs a second buyer wallet.
+- **Landing design**: judged "basic, not premium" — polish scheduled
+  for a dedicated J3 session.
+
+### Tech debt identified during Block 8
+
+1. Landing design polish (logo, palette, hero image, typography) — **P1** for Proof of Ship.
+2. Checkout UI end-to-end with two wallets — **P2** (on-chain already green).
+
+---
+
 ## Final Checklist J2
 
 - [x] Mini App scaffolded, routes wired, guards in place
@@ -232,7 +282,7 @@ Block 8 is **QA on a real MiniPay Android device over ngrok**. Prereqs:
 - [x] Alembic slug migration applied with live backfill
 - [x] Real Pinata uploads validated
 - [x] docs/DECISIONS.md logs all non-trivial J2 choices
-- [ ] Block 8: mobile device QA (deferred to tomorrow)
+- [x] Block 8: mobile device QA on Android MiniPay
 
 ---
 
