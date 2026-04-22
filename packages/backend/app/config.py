@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     escrow_contract_address: str = ""
     dispute_contract_address: str = ""
     reputation_contract_address: str = ""
+    # MockUSDT on testnet; swap for Celo mainnet USDT
+    # (0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e) in prod.
+    usdt_contract_address: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:

@@ -23,6 +23,134 @@ new baseline (React 19, TypeScript 6).
 
 ---
 
+## 2026-04-22 — Checkout flow uses 3 txs; createAndFund wrapper deferred V1.5
+
+**Context**: The deployed `EtaloEscrow` splits order creation and USDT
+funding into two distinct functions — `createOrder` (metadata only) and
+`fundOrder` (pulls USDT via `transferFrom`). Combined with the ERC-20
+`approve` step, the checkout flow requires up to 3 sequential txs the
+buyer must sign in MiniPay.
+
+**Decision**: Accept the 3-tx UX for MVP. The `approve` step is skipped
+when the buyer's existing allowance covers the order amount, reducing
+to 2 txs on repeat purchases.
+
+**Replacement plan (V1.5)**: Deploy a thin `EtaloEscrowWrapper` that
+exposes `createAndFund(seller, amount, isCrossBorder)` internally
+calling both. Reduces the on-chain trip to `approve + createAndFund`
+(2 txs, 1 if pre-approved). No change to the core escrow contract.
+
+---
+
+## 2026-04-22 — CIP-64 (fee in USDT) deferred V1.5
+
+**Context**: Celo supports paying gas in ERC-20 (CIP-64, tx type 0x7b)
+via the USDT adapter at `0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72`.
+This means buyers without CELO could still pay gas if we built the tx
+with `feeCurrency` set to the adapter.
+
+**Decision**: Keep fees native (CELO) for Block 7. We rely on MiniPay's
+own gas sponsorship / funding for users. Viem v2 does not support CIP-64
+out of the box; wiring it requires a custom `signTransaction` path.
+
+**Risk**: Users without CELO on Celo Sepolia would fail. Mitigated by
+MiniPay which typically sponsors or funds CELO for its users.
+
+**Replacement plan (V1.5)**: Add a `feeCurrency` option to
+`asLegacyTx()` helper that emits type `0x7b` when set. Requires raw
+signing via viem serializers.
+
+---
+
+## 2026-04-22 — On-chain event indexing deferred V1.5
+
+**Context**: After a successful checkout, the Mini App POSTs tx hashes
+to `/api/v1/orders/confirm`. The backend writes the DB Order row
+trusting the frontend — there is no on-chain verification today.
+
+**Decision**: Frontend-driven sync is acceptable for MVP. An attacker
+that forges tx hashes produces a DB row inconsistent with on-chain
+state, but the on-chain escrow remains the source of truth (the
+attacker's order doesn't actually hold any USDT).
+
+**Replacement plan (V1.5)**: Background indexer (polling or The Graph
+subgraph) that subscribes to `OrderCreated`, `OrderFunded`,
+`OrderShipped`, `OrderCompleted`, `OrderDisputed` events and
+reconciles the DB. Makes the DB eventually consistent with the chain.
+
+---
+
+## 2026-04-22 — Buyer country defaults to cross-border
+
+**Context**: `is_cross_border` determines commission (2.7% vs 1.8%)
+and auto-release window (7 vs 3 days). The backend needs both buyer
+and seller countries to compute it — but new buyer wallets have no
+`User.country` field set yet (country only lands at onboarding, which
+is a seller-flow).
+
+**Decision**: When buyer country is unknown, default to
+`is_cross_border = true`. Higher commission, longer auto-release —
+safer pessimistic default for the protocol and buyer (more time to
+dispute).
+
+**Risk**: Intra-Africa buyers who never onboarded are over-taxed
+(2.7% instead of 1.8%) until they set their country.
+
+**Replacement plan (V1.5)**: Add a buyer-side onboarding step at first
+checkout that captures country. Frontend hook `useBuyerCountryGate()`
+shows a one-time country picker before `/orders/initiate`.
+
+---
+
+## 2026-04-22 — Checkout uses 1 confirmation on Celo Sepolia
+
+**Context**: `waitForTransactionReceipt` accepts a `confirmations`
+param. Too low = optimistic UX at risk of reorg rollback; too high =
+slow UX.
+
+**Decision**: `confirmations: 1` on Celo Sepolia. Celo L2 has fast
+finality for testnet purposes.
+
+**Replacement plan (mainnet)**: Bump to 2–3 confirmations before mainnet
+launch. Re-evaluate when observing real mainnet finality times.
+
+---
+
+## 2026-04-22 — MockUSDT allowance-to-allowance works; real USDT may not
+
+**Context**: MockUSDT inherits OpenZeppelin ERC-20 → `approve(spender,
+newAmount)` overwrites freely. The original Tether USDT on Ethereum
+mainnet requires `approve(0)` before changing from a non-zero value
+(race-condition prevention).
+
+**Decision**: On testnet (MockUSDT) we skip the reset-to-zero dance.
+Code path in `useCheckout` calls `approve(newAmount)` directly when
+current allowance is not enough.
+
+**Guard before mainnet**: Verify whether the Celo mainnet USDT at
+`0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` requires the reset
+(bridged USDT behavior varies). If yes, add the extra
+`approve(0)` tx when `0 < currentAllowance < amount`.
+
+---
+
+## 2026-04-22 — WhatsApp order notifications are stored, not sent
+
+**Context**: Block 7 creates a `Notification` row (type
+`order_created`) for the seller on every successful checkout, but the
+Twilio WhatsApp integration is not wired.
+
+**Decision**: Persist the notification with `sent=false` and empty
+`sent_at`. A future worker picks up unsent rows and dispatches via
+Twilio.
+
+**Replacement plan**: Dedicated block to wire `TWILIO_ACCOUNT_SID`,
+`TWILIO_AUTH_TOKEN`, `TWILIO_WHATSAPP_FROM` from env, build
+`services/whatsapp.py`, and a background worker polling
+`notifications WHERE sent=false` every 30s.
+
+---
+
 ## 2026-04-22 — MiniPay native deep-link deferred
 
 **Context**: Block 6 ships the public product page. The "Buy" CTA

@@ -2,9 +2,11 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 
 import { RequireSellerProfile } from "@/components/guards/RequireSellerProfile";
 import { RequireWallet } from "@/components/guards/RequireWallet";
+import Checkout from "@/pages/Checkout";
 import Landing from "@/pages/Landing";
 import NotFound from "@/pages/NotFound";
 import Onboarding from "@/pages/Onboarding";
+import Order from "@/pages/Order";
 import SellerHome from "@/pages/SellerHome";
 
 export default function App() {
@@ -27,6 +29,22 @@ export default function App() {
           element={
             <RequireWallet>
               <Onboarding />
+            </RequireWallet>
+          }
+        />
+        <Route
+          path="/checkout/:productId"
+          element={
+            <RequireWallet>
+              <Checkout />
+            </RequireWallet>
+          }
+        />
+        <Route
+          path="/order/:orderId"
+          element={
+            <RequireWallet>
+              <Order />
             </RequireWallet>
           }
         />
