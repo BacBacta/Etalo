@@ -13,6 +13,12 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 60
 
+    # SECURITY: when false, the backend accepts the temporary
+    # X-Wallet-Address header as proof of identity for routes that
+    # would otherwise require a JWT. MUST be true before any deployment.
+    # See docs/DECISIONS.md — "X-Wallet-Address header temporary".
+    enforce_jwt_auth: bool = False
+
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
 

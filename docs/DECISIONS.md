@@ -23,6 +23,33 @@ new baseline (React 19, TypeScript 6).
 
 ---
 
+## 2026-04-22 — X-Wallet-Address header temporary for /sellers/me
+
+**Context**: Block 3 of Sprint J2 introduces `GET /api/v1/sellers/me` but
+the JWT auth dependency (produced by `/auth/verify`) is not yet wired.
+
+**Decision**: Accept the caller's wallet address through a non-standard
+`X-Wallet-Address` HTTP header as a **development-only** stand-in for
+JWT auth. The backend setting `ENFORCE_JWT_AUTH=false` enables this
+path; setting it to `true` causes the endpoint to return 501 until
+proper JWT verification is implemented.
+
+**Risk**: Any caller can impersonate any wallet by setting the header
+themselves. **Never deploy with `ENFORCE_JWT_AUTH=false`.**
+
+**Replacement plan**: A dedicated "auth JWT wiring" block must land
+before any deployment (staging or prod). That block replaces
+`get_current_wallet()` in `packages/backend/app/routers/sellers.py`
+with a JWT-backed dependency, and the Mini App's `apiFetch()` wrapper
+(packages/miniapp/src/lib/api.ts) swaps `X-Wallet-Address` for
+`Authorization: Bearer <jwt>`.
+
+**Scope of the shortcut**: Currently used by `/sellers/me` only. Any
+new endpoint that needs the caller's identity should reuse the same
+`get_current_wallet` dependency so we have one place to upgrade.
+
+---
+
 ## 2026-04-22 — Wagmi v2 retained (not v3, despite CLAUDE.md)
 
 **Context**: CLAUDE.md v1 specifies Wagmi v3. Wagmi v3 has shipped, but
