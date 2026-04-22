@@ -36,3 +36,9 @@ class SellersMeResponse(BaseModel):
     """
 
     profile: SellerProfilePublic | None
+
+
+class HandleAvailabilityResponse(BaseModel):
+    handle: str
+    available: bool
+    reason: str | None = None  # "format" | "taken" | None

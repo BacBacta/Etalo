@@ -30,7 +30,8 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const { wallet, headers, ...rest } = options;
   const finalHeaders = new Headers(headers);
-  if (!finalHeaders.has("Content-Type") && rest.body) {
+  const isFormData = rest.body instanceof FormData;
+  if (!finalHeaders.has("Content-Type") && rest.body && !isFormData) {
     finalHeaders.set("Content-Type", "application/json");
   }
   if (wallet) {
