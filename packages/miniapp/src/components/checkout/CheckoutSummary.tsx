@@ -28,6 +28,7 @@ export function CheckoutSummary({
             <ShopHandle
               handle={initiate.seller.shop_handle}
               name={initiate.seller.shop_name}
+              logoIpfsHash={initiate.seller.logo_ipfs_hash}
               className="text-sm"
             />
           </div>

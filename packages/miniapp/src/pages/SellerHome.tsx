@@ -31,6 +31,7 @@ export default function SellerHome() {
           <ShopHandle
             handle={profile.shop_handle}
             name={profile.shop_name}
+            logoIpfsHash={profile.logo_ipfs_hash}
           />
           <Button
             type="button"

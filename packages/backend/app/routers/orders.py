@@ -128,6 +128,7 @@ def initiate_order(
             shop_name=seller_profile.shop_name,
             address=seller_user.wallet_address,
             country=seller_user.country,
+            logo_ipfs_hash=seller_profile.logo_ipfs_hash,
         ),
         amount_raw=str(amount_raw),
         is_cross_border=is_cross_border,

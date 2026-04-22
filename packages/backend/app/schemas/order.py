@@ -53,6 +53,7 @@ class OrderInitiateSeller(BaseModel):
     shop_name: str
     address: str
     country: str | None = None
+    logo_ipfs_hash: str | None = None
 
 
 class OrderInitiateContracts(BaseModel):

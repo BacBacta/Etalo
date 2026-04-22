@@ -15,6 +15,7 @@ export interface OrderInitiateResponse {
     shop_name: string;
     address: string;
     country: string | null;
+    logo_ipfs_hash: string | null;
   };
   amount_raw: string;
   is_cross_border: boolean;
