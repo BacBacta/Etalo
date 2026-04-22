@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npx hardhat:*)"
+      "Bash(npx hardhat:*)",
+      "Bash(curl -s -o - -w \"\\\\nHTTP %{http_code}\\\\n\" http://127.0.0.1:8000/api/v1/sellers/me)",
+      "Bash(curl -s -o - -w \"\\\\nHTTP %{http_code}\\\\n\" -H \"X-Wallet-Address: 0xabcdef0000000000000000000000000000000001\" http://127.0.0.1:8000/api/v1/sellers/me)",
+      "Bash(curl -s -o - -w \"\\\\nHTTP %{http_code}\\\\n\" http://127.0.0.1:8000/api/v1/health)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"/ HTTP %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"/ HTTP %{http_code}\\\\n\" http://localhost:5174/)",
+      "Bash(curl -s -o /dev/null -w \"/ HTTP %{http_code}\\\\n\" http://localhost:5175/)",
+      "Bash(curl *)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   }
 }
