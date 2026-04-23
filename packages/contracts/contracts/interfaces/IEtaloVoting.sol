@@ -19,7 +19,12 @@ interface IEtaloVoting {
         uint256 forSeller
     );
 
-    /// @notice Opens a new vote on behalf of EtaloDispute.
+    /// @notice Opens a new vote on behalf of EtaloDispute. The
+    /// `eligibleVoters` list is passed per-vote by the dispute
+    /// contract — EtaloVoting itself holds no global mediator
+    /// registry. This keeps voter scoping flexible (e.g. excluding a
+    /// mediator who is a party to the dispute) and EtaloVoting's
+    /// storage lean.
     /// @param disputeId source dispute id
     /// @param eligibleVoters snapshot of addresses allowed to vote
     /// @param votingPeriod duration in seconds (14 days per V1 spec)

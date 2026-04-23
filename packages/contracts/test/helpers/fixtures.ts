@@ -49,6 +49,28 @@ export async function deployStake(viem: any) {
   };
 }
 
+export async function deployVoting(viem: any) {
+  const publicClient = await viem.getPublicClient();
+  const walletClients = await viem.getWalletClients();
+  const [deployer, nonEligible, voter1, voter2, voter3] = walletClients;
+
+  const voting = await viem.deployContract("EtaloVoting");
+  const mockDispute = await viem.deployContract("MockEtaloDispute");
+
+  await voting.write.setDisputeContract([mockDispute.address]);
+
+  return {
+    voting,
+    mockDispute,
+    deployer,
+    nonEligible,
+    voter1,
+    voter2,
+    voter3,
+    publicClient,
+  };
+}
+
 export async function grantTopSeller(reputation: any, seller: any) {
   for (let i = 0; i < 50; i++) {
     await reputation.write.recordCompletedOrder([
