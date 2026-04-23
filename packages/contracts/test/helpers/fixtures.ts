@@ -71,6 +71,62 @@ export async function deployVoting(viem: any) {
   };
 }
 
+export async function deployDispute(viem: any) {
+  const publicClient = await viem.getPublicClient();
+  const walletClients = await viem.getWalletClients();
+  const [deployer, buyer, seller, mediator, mediator2, nonParty] = walletClients;
+
+  const mockUSDT = await viem.deployContract("MockUSDT");
+  const reputation = await viem.deployContract("EtaloReputation");
+  const stake = await viem.deployContract("EtaloStake", [mockUSDT.address]);
+  const voting = await viem.deployContract("EtaloVoting");
+  const mockEscrow = await viem.deployContract("MockEtaloEscrow");
+  const dispute = await viem.deployContract("EtaloDispute");
+
+  // Wire all cross-contract refs via setters (post-deploy pattern).
+  await dispute.write.setEscrow([mockEscrow.address]);
+  await dispute.write.setStake([stake.address]);
+  await dispute.write.setVoting([voting.address]);
+  await dispute.write.setReputation([reputation.address]);
+
+  await voting.write.setDisputeContract([dispute.address]);
+  await stake.write.setDisputeContract([dispute.address]);
+  await stake.write.setReputationContract([reputation.address]);
+  await reputation.write.setAuthorizedCaller([dispute.address, true]);
+
+  // Approve both mediators.
+  await dispute.write.approveMediator([mediator.account.address, true]);
+  await dispute.write.approveMediator([mediator2.account.address, true]);
+
+  // Seller stakes at Tier 1 (10 USDT).
+  await mockUSDT.write.mint([seller.account.address, toUSDT(100)]);
+  await mockUSDT.write.approve([stake.address, toUSDT(100)], { account: seller.account });
+  await stake.write.depositStake([1], { account: seller.account });
+
+  // Configure mock order: orderId irrelevant, buyer/seller, itemPrice 50 USDT.
+  await mockEscrow.write.setOrder([
+    buyer.account.address,
+    seller.account.address,
+    toUSDT(50),
+  ]);
+
+  return {
+    deployer,
+    buyer,
+    seller,
+    mediator,
+    mediator2,
+    nonParty,
+    publicClient,
+    mockUSDT,
+    reputation,
+    stake,
+    voting,
+    mockEscrow,
+    dispute,
+  };
+}
+
 export async function grantTopSeller(reputation: any, seller: any) {
   for (let i = 0; i < 50; i++) {
     await reputation.write.recordCompletedOrder([

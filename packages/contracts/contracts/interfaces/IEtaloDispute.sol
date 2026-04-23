@@ -60,6 +60,13 @@ interface IEtaloDispute {
 
     /// @notice N3 callback from EtaloVoting.finalizeVote. Applies the
     /// community decision and unfreezes item and stake.
+    /// @dev N3 intentionally does NOT auto-slash the seller's stake
+    /// even when the community rules for the buyer. Stake slashing is
+    /// the N2 mediator's responsibility — only a human who has
+    /// examined the case should set a slash amount. N3 resolves only
+    /// the refund direction (buyer gets the item price, or seller
+    /// gets released) and does not attempt to price a punitive
+    /// penalty from a boolean vote outcome.
     function resolveFromVote(uint256 voteId, bool buyerWon) external;
 
     // ===== Views =====
