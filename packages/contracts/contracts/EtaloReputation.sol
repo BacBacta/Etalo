@@ -61,6 +61,9 @@ contract EtaloReputation is IEtaloReputation, Ownable {
         SellerReputation storage rep = _reputations[seller];
         require(rep.status == SellerStatus.Active, "Seller not active");
 
+        if (rep.ordersCompleted == 0) {
+            rep.firstOrderAt = block.timestamp;   // stamped once on the very first completed order
+        }
         rep.ordersCompleted++;
         rep.totalVolume += amount;
         _recalculateScore(seller);

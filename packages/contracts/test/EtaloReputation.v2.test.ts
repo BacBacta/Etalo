@@ -158,6 +158,24 @@ describe("EtaloReputation V2", async function () {
     });
   });
 
+  // ── firstOrderAt (ADR-020 Tier 2 seniority) ───────────────
+  describe("firstOrderAt", function () {
+    it("should stamp firstOrderAt on the first order and not mutate on later orders", async function () {
+      const { reputation, seller, publicClient } = await deployReputation(viem);
+
+      await reputation.write.recordCompletedOrder([seller.account.address, 0n, toUSDT(50)]);
+      const afterFirst = await reputation.read.getReputation([seller.account.address]);
+      const firstTs = afterFirst.firstOrderAt;
+      assert.ok(firstTs > 0n);
+
+      await increaseTime(publicClient, 3600);
+      await reputation.write.recordCompletedOrder([seller.account.address, 1n, toUSDT(50)]);
+      const afterSecond = await reputation.read.getReputation([seller.account.address]);
+      assert.equal(afterSecond.firstOrderAt, firstTs);
+      assert.equal(afterSecond.ordersCompleted, 2n);
+    });
+  });
+
   // ── getAutoReleaseDays ────────────────────────────────────
   describe("getAutoReleaseDays", function () {
     it("returns 3 intra / 2 intra Top Seller / 7 cross-border", async function () {

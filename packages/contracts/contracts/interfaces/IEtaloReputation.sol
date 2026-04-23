@@ -23,6 +23,7 @@ interface IEtaloReputation {
         bool isTopSeller;
         SellerStatus status;
         uint256 lastSanctionAt;     // V2: timestamp of most recent non-Active status change (ADR-020)
+        uint256 firstOrderAt;       // V2: timestamp of first recordCompletedOrder, used by EtaloStake for Tier 2 seniority (ADR-020)
     }
 
     // ===== Events (V1 verbatim) =====
