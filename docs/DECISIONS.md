@@ -1006,3 +1006,50 @@ released portions stay with the seller.
   to assess fraud properly in N2 before deferring to community vote.
 - Block 8 integration scenario 10 validates the fix end-to-end as
   the permanent regression guard for this class of bug.
+
+---
+
+## ADR-030 · 2026-04-23 — EtaloDispute is sole authority for dispute reputation events
+
+**Status**: Accepted
+
+**Context**: During Block 8 integration testing, a double-counting
+bug was detected in `reputation.recordDispute`. Both
+`EtaloDispute._applyResolution` and `EtaloEscrow.resolveItemDispute`
+were calling `recordDispute` on every dispute resolution, causing
+`disputesLost` to increment by 2 instead of 1. Unit tests missed this
+because each contract uses mocks for the other
+(`MockEtaloEscrow` in Dispute tests, `fakeDispute` EOA in Escrow
+tests). Only the Block 8 end-to-end flow wires both real contracts
+together and exposes the duplication.
+
+**Decision**: `EtaloDispute` is the sole authority for dispute-related
+reputation events. `EtaloEscrow.resolveItemDispute` no longer calls
+`reputation.recordDispute` or `reputation.checkAndUpdateTopSeller`.
+Other Escrow terminal paths (`confirmItemDelivery`,
+`triggerAutoReleaseForItem`) continue to call
+`reputation.recordCompletedOrder` as they represent normal
+completions, not disputes.
+
+**Rationale**:
+- Separation of concerns: Dispute owns dispute lifecycle, Escrow
+  owns settlement mechanics. Each reputation event belongs with the
+  contract that semantically owns the transition it represents.
+- Disputes resolved with `refundAmount == 0` (seller wins) still
+  need `recordDispute(sellerLost=false)` so the seller's history of
+  disputes-faced is complete. Removing the call from Dispute (the
+  alternative) would drop that record. Removing from Escrow keeps
+  both resolution paths instrumented via the authoritative source.
+- Future-proofing: if `resolveItemDispute` is ever reused from other
+  Escrow-internal paths (e.g. a V2.5 automated dispute resolver),
+  the caller would decide whether a reputation event fires, not the
+  settlement layer.
+
+**Impact**:
+- Four lines removed from `EtaloEscrow.resolveItemDispute`, replaced
+  by a comment pointing at ADR-030.
+- `EtaloEscrow.resolveItemDispute` NatSpec now documents the
+  no-reputation contract.
+- Block 8 integration scenario 4 (seller fraud → stake slashed)
+  becomes the permanent regression guard: it asserts
+  `rep.disputesLost == 1` after a single dispute resolution.

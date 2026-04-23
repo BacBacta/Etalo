@@ -786,7 +786,10 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IEtaloEscrow
-    /// @notice Called by EtaloDispute to settle a disputed item.
+    /// @notice Called by EtaloDispute to settle a disputed item. Does
+    /// NOT emit reputation events — EtaloDispute is the sole authority
+    /// for dispute reputation tracking (ADR-030); emitting here too
+    /// would double-count disputesLost on every resolution.
     /// @dev Accounting (Q3 Block 7): the item's remainingInEscrow =
     /// itemPrice - item.releasedAmount (works with any prior partial
     /// release because the unpaid commission is still sitting in
@@ -868,10 +871,10 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
 
         emit ItemDisputeResolved(orderId, itemId, refundAmount);
 
-        if (address(reputation) != address(0)) {
-            reputation.recordDispute(order.seller, orderId, refundAmount > 0);
-            reputation.checkAndUpdateTopSeller(order.seller);
-        }
+        // Reputation events on dispute resolution are emitted by
+        // EtaloDispute._applyResolution, which is the sole authority
+        // for dispute-related reputation tracking (ADR-030). Calling
+        // recordDispute here too would double-count disputesLost.
 
         _checkOrderCompletion(orderId);
     }
