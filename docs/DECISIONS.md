@@ -4,9 +4,31 @@ This file tracks significant technical decisions and deviations from
 CLAUDE.md. Each entry is short and dated (YYYY-MM-DD). When CLAUDE.md
 and this file disagree, this file wins until CLAUDE.md is updated.
 
+## Format
+
+Each entry follows:
+
+```
+## ADR-XXX · YYYY-MM-DD — Short title
+
+**Status**: Accepted | Superseded by ADR-YYY | Deprecated
+
+**Context**: ...
+**Decision**: ...
+**Rationale**: ...
+**Impact**: ...
+```
+
+Additional sections (`Risk`, `Replacement plan`, `Guard before mainnet`) are
+used when they add context. ADRs are numbered in chronological order of
+acceptance; renumbering is forbidden once an ADR is published — supersede
+instead.
+
 ---
 
-## 2026-04-22 — React 19 accepted (overrides CLAUDE.md v1)
+## ADR-001 · 2026-04-22 — React 19 accepted (overrides CLAUDE.md v1)
+
+**Status**: Accepted
 
 **Context**: CLAUDE.md v1 specifies React 18. Vite 8's `react-ts` template
 scaffolds with React 19 + TypeScript 6.
@@ -23,7 +45,9 @@ new baseline (React 19, TypeScript 6).
 
 ---
 
-## 2026-04-22 — Checkout flow uses 3 txs; createAndFund wrapper deferred V1.5
+## ADR-002 · 2026-04-22 — Checkout flow uses 3 txs; createAndFund wrapper deferred V1.5
+
+**Status**: Accepted
 
 **Context**: The deployed `EtaloEscrow` splits order creation and USDT
 funding into two distinct functions — `createOrder` (metadata only) and
@@ -42,7 +66,9 @@ calling both. Reduces the on-chain trip to `approve + createAndFund`
 
 ---
 
-## 2026-04-22 — CIP-64 (fee in USDT) deferred V1.5
+## ADR-003 · 2026-04-22 — CIP-64 (fee in USDT) deferred V1.5
+
+**Status**: Accepted
 
 **Context**: Celo supports paying gas in ERC-20 (CIP-64, tx type 0x7b)
 via the USDT adapter at `0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72`.
@@ -62,7 +88,9 @@ signing via viem serializers.
 
 ---
 
-## 2026-04-22 — On-chain event indexing deferred V1.5
+## ADR-004 · 2026-04-22 — On-chain event indexing deferred V1.5
+
+**Status**: Accepted
 
 **Context**: After a successful checkout, the Mini App POSTs tx hashes
 to `/api/v1/orders/confirm`. The backend writes the DB Order row
@@ -80,7 +108,9 @@ reconciles the DB. Makes the DB eventually consistent with the chain.
 
 ---
 
-## 2026-04-22 — Buyer country defaults to cross-border
+## ADR-005 · 2026-04-22 — Buyer country defaults to cross-border
+
+**Status**: Accepted
 
 **Context**: `is_cross_border` determines commission (2.7% vs 1.8%)
 and auto-release window (7 vs 3 days). The backend needs both buyer
@@ -102,7 +132,9 @@ shows a one-time country picker before `/orders/initiate`.
 
 ---
 
-## 2026-04-22 — Checkout uses 1 confirmation on Celo Sepolia
+## ADR-006 · 2026-04-22 — Checkout uses 1 confirmation on Celo Sepolia
+
+**Status**: Accepted
 
 **Context**: `waitForTransactionReceipt` accepts a `confirmations`
 param. Too low = optimistic UX at risk of reorg rollback; too high =
@@ -116,7 +148,9 @@ launch. Re-evaluate when observing real mainnet finality times.
 
 ---
 
-## 2026-04-22 — MockUSDT allowance-to-allowance works; real USDT may not
+## ADR-007 · 2026-04-22 — MockUSDT allowance-to-allowance works; real USDT may not
+
+**Status**: Accepted
 
 **Context**: MockUSDT inherits OpenZeppelin ERC-20 → `approve(spender,
 newAmount)` overwrites freely. The original Tether USDT on Ethereum
@@ -134,7 +168,9 @@ current allowance is not enough.
 
 ---
 
-## 2026-04-22 — WhatsApp order notifications are stored, not sent
+## ADR-008 · 2026-04-22 — WhatsApp order notifications are stored, not sent
+
+**Status**: Accepted
 
 **Context**: Block 7 creates a `Notification` row (type
 `order_created`) for the seller on every successful checkout, but the
@@ -151,7 +187,9 @@ Twilio.
 
 ---
 
-## 2026-04-22 — MiniPay native deep-link deferred
+## ADR-009 · 2026-04-22 — MiniPay native deep-link deferred
+
+**Status**: Accepted
 
 **Context**: Block 6 ships the public product page. The "Buy" CTA
 needs to route a buyer into the Mini App. The MiniPay-native deep-link
@@ -173,7 +211,9 @@ change, no architectural impact.
 
 ---
 
-## 2026-04-22 — Raw IPFS og:image for V1
+## ADR-010 · 2026-04-22 — Raw IPFS og:image for V1
+
+**Status**: Accepted
 
 **Context**: The Next.js product page needs `og:image` for social
 previews. Ideal spec is 1200x630 with the product + shop branding.
@@ -189,7 +229,9 @@ and price into a 1200x630 frame.
 
 ---
 
-## 2026-04-22 — X-Wallet-Address header temporary for /sellers/me
+## ADR-011 · 2026-04-22 — X-Wallet-Address header temporary for /sellers/me
+
+**Status**: Accepted
 
 **Context**: Block 3 of Sprint J2 introduces `GET /api/v1/sellers/me` but
 the JWT auth dependency (produced by `/auth/verify`) is not yet wired.
@@ -216,7 +258,9 @@ new endpoint that needs the caller's identity should reuse the same
 
 ---
 
-## 2026-04-22 — Wagmi v2 retained (not v3, despite CLAUDE.md)
+## ADR-012 · 2026-04-22 — Wagmi v2 retained (not v3, despite CLAUDE.md)
+
+**Status**: Accepted
 
 **Context**: CLAUDE.md v1 specifies Wagmi v3. Wagmi v3 has shipped, but
 documentation and community examples are still sparse.
@@ -230,3 +274,586 @@ documentation and community examples are still sparse.
 
 **Impact**: CLAUDE.md line 15 currently reads "Wagmi v3" — to be corrected
 in the same commit as the React 19 update.
+
+---
+
+## ADR-013 · 2026-04-23 — Proof of Ship submission deferred to June 2026
+
+**Status**: Accepted
+
+**Context**: Initial plan targeted the April 26, 2026 Proof of Ship monthly
+submission. The V1 scope at that time was a single-product checkout. The
+April 23 redesign concluded that V1 should be a multi-product Boutique
+with cart, dual-mode marketplace, and asset generator (see ADR-014).
+Shipping the original scope on April 26 would have meant submitting a
+non-representative version or rushing the new scope at the cost of quality.
+
+**Decision**: Skip the April 2026 submission. Target the June 2026 Proof
+of Ship cycle instead.
+
+**Rationale**:
+- Proof of Ship cycles are monthly — the opportunity cost of skipping is
+  ~2 months.
+- A rushed April submission would misrepresent the product and waste
+  review capital.
+- The expanded V1 (Boutique + marketplace + asset generator) is a
+  stronger submission story once complete.
+
+**Impact**: Sprints J3–J11 shift to mid-May through June 2026. Grant
+application timelines (Celo Foundation, September 2026) remain unaffected.
+
+---
+
+## ADR-014 · 2026-04-23 — V1 pivot to multi-product Boutique model
+
+**Status**: Accepted
+
+**Context**: The original V1 was a single-product checkout: one URL →
+one item → one transaction. Target sellers (African informal vendors on
+Instagram, WhatsApp, TikTok) actually operate **catalogs** of 10–100
+items. Forcing a 1-item-per-checkout flow created buyer drop-off and
+mismatched the sellers' real commercial reality.
+
+**Decision**: Reframe V1 around three integrated pillars:
+1. **Per-seller Boutique** at `etalo.app/[handle]` — full catalog, cart,
+   single checkout for N items from the same seller.
+2. **Dual-mode MiniPay app** — buyer and seller modes in the same Mini
+   App, tapping MiniPay's 7M user base as a built-in buyer pool.
+3. **Asset generator (monetized)** — per-product content pack (5
+   platform-sized images + multilingual captions + hashtags) sold in
+   credits.
+
+**Rationale**:
+- Informal social-commerce sellers list catalogs, not single items.
+  Matching that reality removes structural friction.
+- Dual-mode surface taps MiniPay's native user base, reducing
+  acquisition cost.
+- Asset generator monetizes the escrow core via a complementary revenue
+  stream (credits at 0.15 USDT each — see `docs/PRICING_MODEL_CREDITS.md`).
+
+**Impact**:
+- Redefines every downstream sprint (J4–J11) around the Boutique model.
+- Introduces new contract surfaces (`EtaloStake`, `EtaloCredits`,
+  `EtaloVoting` for N3 dispute).
+- V1 deliverable is now a full social-commerce platform, not a checkout
+  primitive.
+
+---
+
+## ADR-015 · 2026-04-23 — Smart Contract V2 — Order / ShipmentGroups / Items hierarchy
+
+**Status**: Accepted
+
+**Context**: The V1 `EtaloEscrow` models each checkout as a single, flat
+Order. With V1 Boutique (ADR-014) a checkout now bundles **N items**
+from the same seller, sometimes shipped in one parcel, sometimes split
+across multiple shipments. The flat model cannot represent item-level
+disputes (e.g. buyer received 3 of 5 items) nor partial shipment
+progress.
+
+**Decision**: Restructure V2 around three nested concepts:
+- **Order** — the global checkout operation; holds buyer, seller, total
+  amount, commission.
+- **Items[]** — logical units; each item has its own price, commission
+  share, status, and is the **sole target of buyer disputes**.
+- **ShipmentGroups[]** — physical packaging; each group references a
+  subset of items sharing a single shipping proof, arrival proof, and
+  release timer.
+
+Items form the **logical** axis (what can be disputed). Groups form the
+**physical** axis (how things are shipped). Many items can share one
+group; one item belongs to exactly one group.
+
+**Rationale**:
+- Real-world shipping: a seller may combine 4 items into one parcel
+  (one shipment proof) but the buyer may dispute only 1.
+- Disputing at item level while tracking shipment state at group level
+  matches the actual operational flow.
+- Cleaner than modeling everything at the item level (duplicated
+  shipping proofs) or at the group level (coarse-grained disputes).
+
+**Impact**:
+- `EtaloEscrow.sol` requires a full rewrite (Sprint J4).
+- Replaces the 4×25% cross-border milestone system (see ADR-017).
+- Backend Order schema gains nested `items` and `shipment_groups`
+  arrays; migrations needed in Sprint J5.
+- Full technical specification lives in `docs/SPEC_SMART_CONTRACT_V2.md`
+  (1018 lines, commit `ceb2a8f`).
+
+---
+
+## ADR-016 · 2026-04-23 — MiniPay dual-mode app (buyer + seller)
+
+**Status**: Accepted
+
+**Context**: V1 initially envisioned two separate surfaces — a public web
+product page for buyers and a MiniPay Mini App for sellers. MiniPay's 7M
+weekly active users represent a large latent buyer base for African
+social commerce. Keeping buyers off the Mini App forfeits that audience.
+
+**Decision**: Ship a single Mini App operating in two modes:
+- **Buyer mode** — shop discovery, catalog browsing, cart, checkout,
+  order tracking, disputes.
+- **Seller mode** — shop dashboard, product management, order
+  fulfillment, stake management, credits.
+
+Mode switching is fluid; the same wallet can act as both buyer and
+seller without friction. Default landing depends on the user's primary
+role (seller-onboarded wallets land in seller mode; others land in
+buyer mode).
+
+**Rationale**:
+- Unifies acquisition: one URL, one install, two audiences.
+- Leverages MiniPay's 50M weekly impressions and 5M weekly app opens as
+  a built-in discovery surface.
+- Matches reality — many informal sellers also buy from peers; enforcing
+  a role split is artificial.
+
+**Impact**:
+- MiniApp routing and navigation need a mode-aware IA (Sprint J7).
+- Public SSR pages (`packages/web`) remain for SEO and shareable links
+  but become secondary acquisition paths.
+- Backend seller/buyer endpoints must tolerate a single wallet in both
+  roles.
+
+---
+
+## ADR-017 · 2026-04-23 — Cross-border 4×25% milestones removed in favor of items+groups
+
+**Status**: Accepted, supersedes the original V1 milestone design.
+
+**Context**: The V1 `EtaloEscrow` proposed a 4-milestone release schedule
+for cross-border orders (25% at funding, 25% at shipment, 25% at
+arrival, 25% at confirmation). This mechanism predated the
+Order/ShipmentGroups/Items hierarchy (ADR-015). Keeping both systems
+side-by-side creates redundant state machines and conflicting release
+math.
+
+**Decision**: Remove the 4×25% milestone scheme entirely. Cross-border
+release now happens in three stages driven by shipment group state
+transitions (see ADR-018). Item-level disputes override group-level
+releases when triggered.
+
+**Rationale**:
+- Items + groups already encode progress granularity better than fixed
+  milestones.
+- Fixed 25% buckets misalign with reality: real orders rarely split
+  work evenly across four phases.
+- One source of truth for release logic (shipment groups) simplifies
+  auditing and reasoning.
+
+**Impact**:
+- `releaseMilestone` function and related state removed from
+  `EtaloEscrow` V2.
+- Sprint J4 scope slightly reduced (less code to reimplement).
+- ADR-018 defines the replacement release schedule.
+
+---
+
+## ADR-018 · 2026-04-23 — Cross-border progressive release: 20% / 70% / 10%
+
+**Status**: Accepted
+
+**Context**: With the Items/ShipmentGroups hierarchy (ADR-015) and the
+removal of fixed milestones (ADR-017), cross-border orders need a
+replacement release schedule. These orders involve long transit times
+and the seller bearing upfront shipping cost, creating asymmetric risk
+between parties.
+
+**Decision**: Three-stage progressive release per shipment group:
+- **20%** on seller shipping proof upload (carrier receipt + photo,
+  hash stored on-chain).
+- **70%** on arrival in destination country + 72h without dispute
+  (majority release).
+- **10%** on buyer confirmation **or** auto-release 5 days after
+  majority release.
+
+**Rationale**:
+- The 20% upfront compensates the seller's real shipping expense and
+  cannot be triggered without a verifiable carrier receipt.
+- The 70% majority release rewards physical arrival in the buyer's
+  country while the 72h buffer gives a reasonable dispute window.
+- The final 10% incentivizes buyer confirmation while capping seller
+  risk if the buyer ghosts.
+
+**Impact**:
+- `EtaloEscrow` V2 constants (basis points): `SHIPPING_RELEASE_PCT =
+  2000`, `MAJORITY_RELEASE_PCT = 7000`, `FINAL_RELEASE_PCT = 1000`.
+- Timers: `MAJORITY_RELEASE_DELAY = 72 hours`, `AUTO_RELEASE_CROSS_FINAL
+  = 5 days`.
+- Requires `uploadShipmentProof(groupId, proofHash)` and
+  `markArrived(groupId, proofHash)` functions with events for off-chain
+  indexing.
+
+---
+
+## ADR-019 · 2026-04-23 — Strict seller inactivity deadlines (7d intra / 14d cross-border)
+
+**Status**: Accepted
+
+**Context**: Funds sitting in escrow while a seller fails to ship block
+the buyer's capital indefinitely. V1 had no code-enforced deadline —
+buyers had to rely on manual dispute opening with no hard bound.
+
+**Decision**: Code-enforced auto-refund deadlines:
+- **Intra-Africa**: 7 days after funding without any shipment group
+  created → automatic refund available.
+- **Cross-border**: 14 days after funding without any shipment group
+  created → automatic refund available.
+
+No extensions or admin overrides in V1 (simplicity and predictability).
+Trigger function `triggerAutoRefundIfInactive(orderId)` is
+**permissionless** — callable by anyone, including the buyer or a
+third-party helper.
+
+**Rationale**:
+- Predictable worst case for the buyer: capital returns within a week
+  (intra) or two (cross-border) if the seller ghosts.
+- Permissionless triggering avoids a centralized cron or admin
+  intervention; the protocol self-heals.
+- Asymmetric deadlines match reality — intra-Africa shipping should
+  dispatch within a week, cross-border logistics legitimately need more.
+- No extensions keeps the state machine auditable; edge cases fall back
+  to the dispute system.
+
+**Impact**:
+- `EtaloEscrow` V2 constants: `AUTO_REFUND_INACTIVE_INTRA = 7 days`,
+  `AUTO_REFUND_INACTIVE_CROSS = 14 days`.
+- Deadline applies at order level: if the seller has created zero
+  shipment groups by the deadline, the whole order refunds.
+- UI must surface a countdown to buyers in order tracking views.
+
+---
+
+## ADR-020 · 2026-04-23 — Cross-border seller stake — 3-tier structure
+
+**Status**: Accepted
+
+**Context**: ADR-018 releases 20% of cross-border funds to the seller
+before buyer-side arrival confirmation. A malicious seller could submit
+a fake shipping proof and abscond with that 20%. A seller stake creates
+a secondary recovery pool and aligns incentives with delivery.
+
+**Decision**: Sellers must deposit a stake to participate in cross-border
+orders. Three tiers:
+
+| Tier | Name | Stake | Max concurrent cross-border sales | Max order price | Eligibility |
+|------|------|-------|-----------------------------------|-----------------|-------------|
+| 1 | Starter | 10 USDT | 3 | 100 USDT | Automatic on first opt-in |
+| 2 | Established | 25 USDT | 10 | 200 USDT | 20+ completed sales + 60+ days active |
+| 3 | Top Seller | 50 USDT | Unlimited | Unlimited | Top Seller badge from `EtaloReputation` |
+
+Stake is held in a new contract `EtaloStake`. Slashable by
+`EtaloDispute` on proven fraud. Slashed amounts flow first to the
+victim buyer; surplus to `communityFund` (ADR-024).
+
+**Rationale**:
+- Progressive tiers let new sellers enter with low capital friction,
+  then scale exposure as reputation builds.
+- Caps on concurrent sales and order price bound the stake-to-exposure
+  ratio (Tier 1: 3×100 = 300 USDT exposure against 10 USDT stake — the
+  stake is a partial, not full, recovery mechanism; paired with dispute
+  system and architectural limits ADR-026).
+- Top Seller tier rewards proven operators with unlimited headroom.
+
+**Impact**:
+- New contract `EtaloStake.sol` in Sprint J4.
+- Cross-border `createOrder` reverts if the seller has not met the
+  applicable tier's stake.
+- `EtaloReputation` exposes Top Seller eligibility queries for Tier 3
+  gating.
+
+---
+
+## ADR-021 · 2026-04-23 — Stake withdrawal with 14-day cooldown and dispute freeze
+
+**Status**: Accepted
+
+**Context**: Sellers need an exit path (full withdrawal, tier downgrade,
+leaving the platform) but must not be able to cash out their stake right
+before a fraud dispute surfaces.
+
+**Decision**: Two-phase withdrawal:
+
+1. **`initiateWithdrawal(newTier)`** — `newTier = 0` for full exit,
+   `newTier < currentTier` for downgrade. Preconditions: zero active
+   cross-border sales. Starts a 14-day cooldown.
+2. **`executeWithdrawal()`** — callable after the 14-day cooldown
+   **and** no active dispute against the seller.
+
+Additional rules:
+- A dispute opened during cooldown **freezes** the cooldown (pure
+  freeze, no extension — timer resumes post-resolution).
+- `cancel` callable any time during cooldown; stake reactivates
+  immediately.
+- Downgrade returns the delta (e.g., Tier 2 → Tier 1 returns 15 USDT,
+  keeps 10).
+- Multiple downgrades over time are allowed; no annual cap.
+
+**Rationale**:
+- 14 days gives disputes time to surface after the seller's last sale
+  — a fraudulent seller cannot ship, get paid, and instantly exit.
+- Dispute-triggered freeze prevents a seller from running out the clock
+  while an open case exists.
+- Downgrade path preserves optionality — sellers can right-size their
+  exposure without full exit.
+- Cancel option lowers the psychological cost of initiating.
+
+**Impact**:
+- State machine in `EtaloStake.sol`: `Active → CooldownPending →
+  Withdrawable → Withdrawn` (with `Frozen` and `Cancelled` sub-states).
+- `EtaloDispute` requires cross-contract hooks: `pauseWithdrawal(seller)`
+  on dispute open, `resumeWithdrawal(seller)` on resolution.
+- Seller dashboard UI must display cooldown remaining and any active
+  dispute blocking withdrawal.
+
+---
+
+## ADR-022 · 2026-04-23 — Non-custodial positioning per Zenland / Circle standard
+
+**Status**: Accepted
+
+**Context**: Etalo uses a human mediator at level 2 of the dispute
+system, alongside automated smart contract logic. The question arose
+whether we can legitimately claim "non-custodial" status, or whether
+"self-custodial with escrow" would be more accurate. The term has
+marketing weight, regulatory signaling, and user-trust implications.
+
+**Decision**: Position Etalo officially as **non-custodial**, following
+the Zenland / Circle Refund Protocol / OpenSea standard. The claim rests
+on four criteria Etalo satisfies:
+
+1. Funds live in a public, verifiable smart contract on Celo.
+2. Code is publicly readable on CeloScan.
+3. Mediator power is **structurally bounded by code** — mediators can
+   only trigger refund or release along allowed paths; they cannot
+   seize funds or freeze them indefinitely.
+4. Automated deadlines (ADR-019) and restricted admin functions
+   (ADR-023) prevent indefinite freezing.
+
+Alternative "self-custodial with escrow" wording was rejected as too
+purist for market standard; it creates unnecessary positioning friction
+versus direct comparables.
+
+**Rationale**:
+- Market comparables (Zenland with staked mediator agents, Circle
+  Refund Protocol with limited-power arbiters, OpenSea) all operate
+  with similar human-in-the-loop models and use "non-custodial"
+  terminology.
+- The four criteria provide a concrete, auditable definition defensible
+  to technical reviewers.
+- Three-level dispute system (N1 amicable 48h → N2 human mediation 7
+  days → N3 on-chain community vote 14 days) guarantees every
+  escalation terminates in a code-enforced resolution.
+
+**Impact**:
+- All external-facing copy (landing, pitch, grants, Proof of Ship) uses
+  "non-custodial" without qualifier.
+- Technical FAQ documents the four criteria with CeloScan links.
+- Architectural limits (ADR-026) and `forceRefund` restriction
+  (ADR-023) reinforce this positioning — relaxing either would weaken
+  the claim.
+
+---
+
+## ADR-023 · 2026-04-23 — `forceRefund` restricted by three codified conditions
+
+**Status**: Accepted, supersedes V1's unrestricted `forceRefund`.
+
+**Context**: V1 `EtaloEscrow.forceRefund(uint256 orderId)` is gated only
+by `onlyOwner`, with no on-chain conditions — any admin call can refund
+any active order at will. Git history investigation (commit `d74bfe1`,
+Sprint J1) confirmed this was a defensive "break-glass" pattern
+introduced at day 0 without a documented use case, no NatSpec, no ADR,
+and minimal tests (happy path + non-owner rejection only). This is
+incompatible with the non-custodial positioning (ADR-022).
+
+**Decision**: Retain `forceRefund` in V2 but gate it behind three
+codified conditions, all of which must hold:
+1. **Dispute contract inactive** — `disputeContract == address(0)`
+2. **Prolonged order inactivity** — `block.timestamp >
+   order.lastActivityAt + 90 days`
+3. **Registered legal hold** — `legalHoldRegistry[orderId] != bytes32(0)`
+
+Required additions:
+- Event `ForceRefundExecuted(orderId, admin, amount, timestamp,
+  reasonHash)`
+- Function `registerLegalHold(orderId, bytes32 documentHash)` —
+  `onlyOwner`, publicly queryable, creates an on-chain paper trail
+- NatSpec documenting the three conditions and the intended use (legal
+  injunctions, genuinely stalled funds)
+- Exhaustive tests covering each condition in isolation and in
+  combination
+
+**Rationale**:
+- Preserves a true last-resort safety valve for edge cases outside
+  normal dispute flow (legal orders, lost keys, dispute contract
+  migration).
+- Bounds admin power by publicly verifiable on-chain conditions —
+  compatible with ADR-022.
+- 90-day inactivity threshold aligns with typical legal claim timelines.
+- Legal hold registry creates auditable public trace of any
+  `forceRefund` usage.
+
+**Impact**:
+- `EtaloEscrow` V2 state adds `legalHoldRegistry` mapping.
+- Admin cannot use `forceRefund` on active orders — they go through
+  the normal dispute flow.
+- Removes the "trust us" nature of V1's unrestricted admin function.
+
+---
+
+## ADR-024 · 2026-04-23 — Treasury architecture: three separated wallets
+
+**Status**: Accepted
+
+**Context**: V1 routed all commission revenue into a single `treasury`
+EOA. This mixes multiple revenue streams, risks confusion with the
+developer's personal wallets, and creates a single point of failure for
+all protocol revenue.
+
+**Decision**: Separate on-chain revenue flows into three dedicated
+wallets:
+- **`commissionTreasury`** — receives escrow commissions (1.8% intra,
+  2.7% cross-border, 1.2% Top Seller).
+- **`creditsTreasury`** — receives asset-generator credit sales (0.15
+  USDT × quantity).
+- **`communityFund`** — receives slashed-stake surplus after victim
+  buyer refund, plus future donations earmarked for community uses.
+
+Each wallet has its own `onlyOwner` setter emitting an indexed event
+(`CommissionTreasuryUpdated`, `CreditsTreasuryUpdated`,
+`CommunityFundUpdated`).
+
+Deferred to V3+ (out of V1 Boutique scope):
+- Multisig on any of the three wallets (premature for solo dev;
+  revisit at first co-founder or advisor of confidence).
+- On-chain automatic splits (adds complexity; manual allocation
+  suffices at early volumes).
+
+Communication: addresses are publicly verifiable on CeloScan but not
+proactively marketed. Minimal `SECURITY.md` to create later.
+
+**Rationale**:
+- Clear revenue-stream separation simplifies accounting and audit
+  traceability.
+- Separation from personal wallets removes ambiguity in "where does the
+  money go" — strengthens trust signals.
+- `communityFund` earmarks stake surplus for community uses (future N3
+  incentives, bug bounty, small grants), aligning with the protocol's
+  ethos.
+
+**Impact**:
+- V2 `EtaloEscrow`, `EtaloStake`, and `EtaloCredits` each reference the
+  appropriate treasury address.
+- Deployment playbook must configure three distinct Celo wallets
+  (ideally hardware wallets or secure key management).
+- V1 single-`treasury` references removed in the refactor.
+
+---
+
+## ADR-025 · 2026-04-23 — Pragmatic Africa-first audit strategy (phased)
+
+**Status**: Accepted
+
+**Context**: Standard smart-contract audits cost $40,000–$60,000 USD —
+unaffordable for a solo dev without revenue. Competitive analysis of
+direct African escrow players (Nigeria: Peppa, EscrowLock, AtaraPay,
+Vahlid, Vesicash; Kenya: Escroke, Empower Smart, JointPesa, Pansoko;
+Ghana: TuaSafe) revealed: all are 100% custodial bank-based services,
+none have published technical audits, and trust rests on banking
+licenses + branding + operating history. Smart-contract audit is a
+Web3-global standard, not an African escrow-industry standard.
+
+**Decision**: Phased audit strategy prioritizing code quality, open
+source, and peer review over paid audits until traction justifies the
+spend.
+
+- **Phase 1 (April–December 2026, budget $0)**: Free tooling (Slither,
+  Aderyn, Mythril, Foundry invariants). Test coverage target 85%+.
+  Full open-source repo. Contracts verified on CeloScan. Peer review
+  via Celo Discord and Farcaster.
+- **Phase 2 (September 2026)**: Apply for Celo Foundation audit grants
+  (`team@verda.ventures`, Celo Builder Fund, CeloPG).
+- **Phase 3 (Q4 2026 – Q1 2027)**: Audit competition (Cantina /
+  Sherlock / Code4rena, $8–15k prize pool) **or** audit firm if a grant
+  is obtained.
+- **Phase 4 (post-mainnet)**: Permanent bug bounty via Immunefi with
+  tiered rewards ($500–$10,000 per valid bug).
+
+Total budget before significant traction: **$0 – $15,000 USD**.
+
+**Rationale**:
+- Etalo's non-custodial positioning (ADR-022) is already the key
+  differentiator in the African market — no competitor has published
+  audits, so audit is a "plus" not a "must" for market entry.
+- Architectural limits (ADR-026) cap dollar-value at risk during the
+  unaudited phase, making opportunistic exploitation economically
+  unattractive.
+- Grants and competitions can deliver paid-audit quality without
+  upfront capital.
+- Spending $50k on an audit pre-traction would starve other critical
+  work (UX, marketing, user acquisition).
+
+**Impact**:
+- Sprint J4+ test discipline: 85%+ coverage target with Foundry
+  invariants.
+- Repository remains publicly readable; contracts CeloScan-verified
+  after every deployment.
+- Pre-mainnet (Q1 2027) gate: at least one external review completed
+  (grant, audit firm, or competition).
+- Enterprise partnerships (diaspora platforms, remittance companies)
+  that require a formal audit become triggers that can accelerate
+  Phase 3.
+
+---
+
+## ADR-026 · 2026-04-23 — Architectural limits hardcoded in the smart contract
+
+**Status**: Accepted
+
+**Context**: In the absence of an early formal audit (ADR-025), users
+need code-level assurance that the worst-case loss from any exploit or
+protocol failure is bounded. Uncapped exposure would make a single
+vulnerability potentially catastrophic and would undermine the
+non-custodial claim.
+
+**Decision**: Hardcode immutable limit constants in `EtaloEscrow` V2:
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| `MAX_TVL_USDT` | 50,000 USDT | Global TVL cap; new orders revert when exceeded |
+| `MAX_ORDER_USDT` | 500 USDT | Single order cap |
+| `MAX_SELLER_WEEKLY_VOLUME` | 5,000 USDT | Rolling 7-day cap per seller |
+| `EMERGENCY_PAUSE_MAX` | 7 days | Admin pause auto-expires after 7 days |
+| `EMERGENCY_PAUSE_COOLDOWN` | 30 days | Minimum gap between emergency pauses |
+| `MAX_ITEMS_PER_GROUP` | 20 | Gas-safety operational cap |
+| `MAX_ITEMS_PER_ORDER` | 50 | Gas-safety operational cap |
+
+These constants are **not admin-adjustable** in V1. Raising them
+requires a V2.1 contract deployment with explicit migration and user
+communication.
+
+**Rationale**:
+- Maximum possible protocol loss is bounded at 50,000 USDT —
+  manageable, potentially insurable, not existential.
+- Etalo becomes an uninteresting target for sophisticated attackers
+  (low upside relative to effort).
+- Architectural caps reinforce the non-custodial claim (ADR-022) —
+  the contract cannot be drained beyond these ceilings even by admin
+  action.
+- Progressive growth path: limits can be raised post-audit (ADR-025
+  Phase 3+) once stability is proven.
+- Bounded emergency pause prevents indefinite admin freezing; cooldown
+  prevents repeat abuse.
+
+**Impact**:
+- V1 Boutique intentionally targets small-volume markets (informal
+  sellers, mobile-first buyers) where 500 USDT per order is comfortable
+  headroom.
+- When weekly seller volume or TVL approaches a cap, this is a
+  product-market-fit signal triggering contract upgrade planning.
+- Pre-mainnet checklist must verify that current tests include
+  invariant coverage for each limit.
+- Upgrades require clear user communication (V1 contracts are **not
+  proxy-upgradable** — a new contract means a new address).
