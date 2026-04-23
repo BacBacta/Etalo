@@ -77,20 +77,33 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         usdt = IERC20(_usdt);
     }
 
+    // ===== Admin setter events =====
+    event ReputationContractUpdated(address indexed oldAddr, address indexed newAddr);
+    event DisputeContractUpdated(address indexed oldAddr, address indexed newAddr);
+    event EscrowContractUpdated(address indexed oldAddr, address indexed newAddr);
+    event CommunityFundUpdated(address indexed oldAddr, address indexed newAddr);
+
     // ===== Admin setters =====
     function setReputationContract(address _addr) external onlyOwner {
+        emit ReputationContractUpdated(address(reputation), _addr);
         reputation = IEtaloReputation(_addr);
     }
 
     function setDisputeContract(address _addr) external onlyOwner {
+        require(_addr != address(0), "Invalid dispute contract");
+        emit DisputeContractUpdated(disputeContract, _addr);
         disputeContract = _addr;
     }
 
     function setEscrowContract(address _addr) external onlyOwner {
+        require(_addr != address(0), "Invalid escrow contract");
+        emit EscrowContractUpdated(escrowContract, _addr);
         escrowContract = _addr;
     }
 
     function setCommunityFund(address _addr) external onlyOwner {
+        require(_addr != address(0), "Invalid community fund");
+        emit CommunityFundUpdated(communityFund, _addr);
         communityFund = _addr;
     }
 

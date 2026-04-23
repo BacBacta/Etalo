@@ -159,16 +159,19 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     // ============================================================
 
     function setCommissionTreasury(address newTreasury) external onlyOwner {
+        require(newTreasury != address(0), "Invalid treasury");
         emit CommissionTreasuryUpdated(commissionTreasury, newTreasury);
         commissionTreasury = newTreasury;
     }
 
     function setCreditsTreasury(address newTreasury) external onlyOwner {
+        require(newTreasury != address(0), "Invalid treasury");
         emit CreditsTreasuryUpdated(creditsTreasury, newTreasury);
         creditsTreasury = newTreasury;
     }
 
     function setCommunityFund(address newFund) external onlyOwner {
+        require(newFund != address(0), "Invalid fund");
         emit CommunityFundUpdated(communityFund, newFund);
         communityFund = newFund;
     }
@@ -839,6 +842,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     {
         EtaloTypes.Order storage order = _orders[orderId];
         EtaloTypes.Item storage item = _items[itemId];
+        // ── Checks ────────────────────────────────────────
         require(item.orderId == orderId, "Item not in order");
         require(
             item.status == EtaloTypes.ItemStatus.Disputed,
@@ -853,36 +857,29 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
             (remainingAfterRefund * item.itemCommission) / item.itemPrice;
         uint256 netShare = remainingAfterRefund - commissionShare;
 
+        if (commissionShare > 0) {
+            require(
+                commissionTreasury != address(0),
+                "Commission treasury not set"
+            );
+        }
+
+        // ── Effects (ADR-032 strict CEI) ──────────────────
         if (refundAmount == item.itemPrice) {
             item.status = EtaloTypes.ItemStatus.Refunded;
         } else {
             item.status = EtaloTypes.ItemStatus.Released;
             item.releasedAmount += netShare;
         }
-
         totalEscrowedAmount -= remainingInEscrow;
 
-        if (refundAmount > 0) {
-            require(
-                usdt.transfer(order.buyer, refundAmount),
-                "USDT buyer transfer failed"
-            );
-        }
-        if (netShare > 0) {
-            require(
-                usdt.transfer(order.seller, netShare),
-                "USDT seller transfer failed"
-            );
-        }
-        if (commissionShare > 0) {
-            require(
-                commissionTreasury != address(0),
-                "Commission treasury not set"
-            );
-            require(
-                usdt.transfer(commissionTreasury, commissionShare),
-                "USDT commission transfer failed"
-            );
+        (EtaloTypes.OrderStatus newStatus, bool shouldDecrementStake) =
+            _computeNewOrderStatus(orderId);
+        if (newStatus != order.globalStatus) {
+            order.globalStatus = newStatus;
+            if (newStatus == EtaloTypes.OrderStatus.Completed) {
+                emit OrderCompleted(orderId);
+            }
         }
 
         emit ItemDisputeResolved(orderId, itemId, refundAmount);
@@ -892,7 +889,32 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         // for dispute-related reputation tracking (ADR-030). Calling
         // recordDispute here too would double-count disputesLost.
 
-        _checkOrderCompletion(orderId);
+        // Cache storage-loaded addresses before external calls.
+        address buyer = order.buyer;
+        address seller = order.seller;
+
+        // ── Interactions ──────────────────────────────────
+        if (refundAmount > 0) {
+            require(
+                usdt.transfer(buyer, refundAmount),
+                "USDT buyer transfer failed"
+            );
+        }
+        if (netShare > 0) {
+            require(
+                usdt.transfer(seller, netShare),
+                "USDT seller transfer failed"
+            );
+        }
+        if (commissionShare > 0) {
+            require(
+                usdt.transfer(commissionTreasury, commissionShare),
+                "USDT commission transfer failed"
+            );
+        }
+        if (shouldDecrementStake && address(stake) != address(0)) {
+            stake.decrementActiveSales(seller);
+        }
     }
 
     // ============================================================
@@ -1010,61 +1032,91 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     /// seller, sends the full itemCommission to commissionTreasury,
     /// flips status to Released, records the sale in Reputation,
     /// and finally checks whether the order is now complete.
+    /// @dev Releases an item fully (ADR-032 strict CEI): Effects all
+    /// state writes (item, totalEscrowed, order.globalStatus) and
+    /// event emissions first; Interactions group USDT transfers,
+    /// Reputation hooks and the cross-border stake decrement at the
+    /// end. The split keeps the nonReentrant-guarded entry points
+    /// reentrancy-safe even if USDT or Reputation were ever
+    /// re-implemented with a transfer hook.
     function _releaseItemFully(uint256 orderId, uint256 itemId) internal {
         EtaloTypes.Order storage order = _orders[orderId];
         EtaloTypes.Item storage item = _items[itemId];
 
         uint256 itemNet = item.itemPrice - item.itemCommission;
         uint256 remainingNet = itemNet - item.releasedAmount;
+        uint256 payout = remainingNet + item.itemCommission;
 
+        // ── Effects ───────────────────────────────────────
         item.releasedAmount = itemNet;
         item.status = EtaloTypes.ItemStatus.Released;
-
-        uint256 payout = remainingNet + item.itemCommission;
         totalEscrowedAmount -= payout;
 
-        if (remainingNet > 0) {
-            require(
-                usdt.transfer(order.seller, remainingNet),
-                "USDT seller transfer failed"
-            );
-        }
-        if (item.itemCommission > 0) {
-            require(
-                commissionTreasury != address(0),
-                "Commission treasury not set"
-            );
-            require(
-                usdt.transfer(commissionTreasury, item.itemCommission),
-                "USDT commission transfer failed"
-            );
+        (EtaloTypes.OrderStatus newStatus, bool shouldDecrementStake) =
+            _computeNewOrderStatus(orderId);
+        if (newStatus != order.globalStatus) {
+            order.globalStatus = newStatus;
+            if (newStatus == EtaloTypes.OrderStatus.Completed) {
+                emit OrderCompleted(orderId);
+            }
         }
 
         emit ItemReleased(orderId, itemId, payout);
         emit ItemCompleted(orderId, itemId);
 
-        if (address(reputation) != address(0)) {
-            reputation.recordCompletedOrder(order.seller, orderId, item.itemPrice);
-            reputation.checkAndUpdateTopSeller(order.seller);
+        // Cache state-loaded values so we don't re-read after external calls.
+        address seller = order.seller;
+        uint256 itemCommission = item.itemCommission;
+        uint256 itemPrice = item.itemPrice;
+
+        if (itemCommission > 0) {
+            require(
+                commissionTreasury != address(0),
+                "Commission treasury not set"
+            );
         }
 
-        _checkOrderCompletion(orderId);
+        // ── Interactions ──────────────────────────────────
+        if (remainingNet > 0) {
+            require(
+                usdt.transfer(seller, remainingNet),
+                "USDT seller transfer failed"
+            );
+        }
+        if (itemCommission > 0) {
+            require(
+                usdt.transfer(commissionTreasury, itemCommission),
+                "USDT commission transfer failed"
+            );
+        }
+        if (address(reputation) != address(0)) {
+            reputation.recordCompletedOrder(seller, orderId, itemPrice);
+            reputation.checkAndUpdateTopSeller(seller);
+        }
+        if (shouldDecrementStake && address(stake) != address(0)) {
+            stake.decrementActiveSales(seller);
+        }
     }
 
-    /// @dev Walks the order's items; when every item has reached a
-    /// terminal state (Released or Refunded) promotes the order to
-    /// Completed (at least one Released) or Refunded (all Refunded),
-    /// and decrements the seller's cross-border active-sales count.
-    /// Not emitting OrderCompleted for the all-refunded case — that
-    /// path is announced by the refund trigger (auto/force/dispute).
-    function _checkOrderCompletion(uint256 orderId) internal {
+    /// @dev Pure view helper (ADR-032) that computes the target
+    /// globalStatus transition for an order based on its items'
+    /// statuses. Returns the new status (same as current if no
+    /// transition should fire) and a flag telling the caller whether
+    /// stake.decrementActiveSales must be invoked as part of the
+    /// Interactions phase — the external stake call never fires
+    /// from inside this helper.
+    function _computeNewOrderStatus(uint256 orderId)
+        internal
+        view
+        returns (EtaloTypes.OrderStatus newStatus, bool shouldDecrementStake)
+    {
         EtaloTypes.Order storage order = _orders[orderId];
         if (
             order.globalStatus == EtaloTypes.OrderStatus.Completed ||
             order.globalStatus == EtaloTypes.OrderStatus.Refunded ||
             order.globalStatus == EtaloTypes.OrderStatus.Cancelled
         ) {
-            return;
+            return (order.globalStatus, false);
         }
 
         uint256[] storage itemIds = _orderItems[orderId];
@@ -1083,18 +1135,12 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
 
         if (terminal == itemIds.length) {
             if (refunded == itemIds.length) {
-                order.globalStatus = EtaloTypes.OrderStatus.Refunded;
-            } else {
-                order.globalStatus = EtaloTypes.OrderStatus.Completed;
-                emit OrderCompleted(orderId);
+                return (EtaloTypes.OrderStatus.Refunded, order.isCrossBorder);
             }
-            if (
-                order.isCrossBorder && address(stake) != address(0)
-            ) {
-                stake.decrementActiveSales(order.seller);
-            }
+            return (EtaloTypes.OrderStatus.Completed, order.isCrossBorder);
         } else if (terminal > 0) {
-            order.globalStatus = EtaloTypes.OrderStatus.PartiallyDelivered;
+            return (EtaloTypes.OrderStatus.PartiallyDelivered, false);
         }
+        return (order.globalStatus, false);
     }
 }

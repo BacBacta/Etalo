@@ -38,9 +38,13 @@ contract EtaloVoting is IEtaloVoting, Ownable {
         _;
     }
 
+    event DisputeContractUpdated(address indexed oldAddr, address indexed newAddr);
+
     constructor() Ownable(msg.sender) {}
 
     function setDisputeContract(address _addr) external onlyOwner {
+        require(_addr != address(0), "Invalid dispute contract");
+        emit DisputeContractUpdated(disputeContract, _addr);
         disputeContract = _addr;
     }
 
