@@ -13,6 +13,68 @@ export async function deployReputation(viem: any) {
   return { reputation, deployer, buyer, seller, mediator, publicClient };
 }
 
+export async function deployStake(viem: any) {
+  const publicClient = await viem.getPublicClient();
+  const walletClients = await viem.getWalletClients();
+  const [deployer, buyer, seller, mediator, fakeDispute, fakeEscrow, communityFund] =
+    walletClients;
+
+  const mockUSDT = await viem.deployContract("MockUSDT");
+  const reputation = await viem.deployContract("EtaloReputation");
+  const stake = await viem.deployContract("EtaloStake", [mockUSDT.address]);
+
+  await stake.write.setReputationContract([reputation.address]);
+  await stake.write.setDisputeContract([fakeDispute.account.address]);
+  await stake.write.setEscrowContract([fakeEscrow.account.address]);
+  await stake.write.setCommunityFund([communityFund.account.address]);
+
+  // Mint 1000 USDT to seller and approve stake for the max
+  await mockUSDT.write.mint([seller.account.address, toUSDT(1000)]);
+  await mockUSDT.write.approve([stake.address, toUSDT(1000)], {
+    account: seller.account,
+  });
+
+  return {
+    deployer,
+    buyer,
+    seller,
+    mediator,
+    fakeDispute,
+    fakeEscrow,
+    communityFund,
+    publicClient,
+    mockUSDT,
+    reputation,
+    stake,
+  };
+}
+
+export async function grantTopSeller(reputation: any, seller: any) {
+  for (let i = 0; i < 50; i++) {
+    await reputation.write.recordCompletedOrder([
+      seller.account.address,
+      BigInt(i),
+      toUSDT(50),
+    ]);
+  }
+  await reputation.write.checkAndUpdateTopSeller([seller.account.address]);
+}
+
+export async function reachTier2Eligibility(
+  reputation: any,
+  seller: any,
+  publicClient: any
+) {
+  for (let i = 0; i < 20; i++) {
+    await reputation.write.recordCompletedOrder([
+      seller.account.address,
+      BigInt(i),
+      toUSDT(50),
+    ]);
+  }
+  await increaseTime(publicClient, 60 * 24 * 3600 + 1);
+}
+
 export async function increaseTime(publicClient: any, seconds: number) {
   await publicClient.request({
     method: "evm_increaseTime",

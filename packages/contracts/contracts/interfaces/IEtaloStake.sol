@@ -61,9 +61,11 @@ interface IEtaloStake {
     /// @notice Resumes the cooldown from the remaining duration.
     function resumeWithdrawal(address seller) external;
 
-    /// @notice Deducts `amount` from the seller's stake and sends it
-    /// to `recipient` (typically the victim buyer); any surplus beyond
-    /// the recipient share routes to the community fund per ADR-020.
+    /// @notice Deducts `amount` from the seller's stake and transfers
+    /// it to `recipient`. Reverts when `amount > getStake(seller)`.
+    /// For ADR-020 §6.5 two-way splits (victim buyer first, community
+    /// fund for surplus), EtaloDispute calls this twice sequentially
+    /// — once per recipient — rather than passing both to EtaloStake.
     function slashStake(
         address seller,
         uint256 amount,
@@ -98,9 +100,12 @@ interface IEtaloStake {
     /// freezing this seller's stake.
     function canWithdraw(address seller) external view returns (bool);
 
-    /// @notice True if the seller meets the active tier's concurrent-
-    /// sales cap AND per-order price cap for a cross-border sale of
-    /// `orderPrice`. Consumed by EtaloEscrow.createOrderWithItems.
+    /// @notice True when the seller meets the active tier's
+    /// concurrent-sales cap AND per-order price cap for a cross-border
+    /// sale of `orderPrice`, AND has no pending withdrawal. Returns
+    /// false for the entire 14-day cooldown window — the seller must
+    /// cancelWithdrawal to resume listing. Consumed by
+    /// EtaloEscrow.createOrderWithItems.
     function isEligibleForOrder(address seller, uint256 orderPrice)
         external
         view
