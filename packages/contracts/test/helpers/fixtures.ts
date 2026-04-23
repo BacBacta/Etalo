@@ -190,6 +190,96 @@ export async function deployEscrow(viem: any) {
   };
 }
 
+export async function deployIntegration(viem: any) {
+  const publicClient = await viem.getPublicClient();
+  const wallets = await viem.getWalletClients();
+  const [
+    deployer,
+    buyer,
+    seller,
+    seller2,
+    mediator,
+    mediator2,
+    mediator3,
+    commissionTreasury,
+    creditsTreasury,
+    communityFund,
+    nonParty,
+  ] = wallets;
+
+  const mockUSDT = await viem.deployContract("MockUSDT");
+  const reputation = await viem.deployContract("EtaloReputation");
+  const stake = await viem.deployContract("EtaloStake", [mockUSDT.address]);
+  const voting = await viem.deployContract("EtaloVoting");
+  const dispute = await viem.deployContract("EtaloDispute");
+  const escrow = await viem.deployContract("EtaloEscrow", [mockUSDT.address]);
+
+  // Wire Escrow
+  await escrow.write.setStakeContract([stake.address]);
+  await escrow.write.setDisputeContract([dispute.address]);
+  await escrow.write.setReputationContract([reputation.address]);
+  await escrow.write.setCommissionTreasury([commissionTreasury.account.address]);
+  await escrow.write.setCreditsTreasury([creditsTreasury.account.address]);
+  await escrow.write.setCommunityFund([communityFund.account.address]);
+
+  // Wire Stake
+  await stake.write.setReputationContract([reputation.address]);
+  await stake.write.setDisputeContract([dispute.address]);
+  await stake.write.setEscrowContract([escrow.address]);
+  await stake.write.setCommunityFund([communityFund.account.address]);
+
+  // Wire Voting
+  await voting.write.setDisputeContract([dispute.address]);
+
+  // Wire Dispute (short setter names per Block 6)
+  await dispute.write.setEscrow([escrow.address]);
+  await dispute.write.setStake([stake.address]);
+  await dispute.write.setVoting([voting.address]);
+  await dispute.write.setReputation([reputation.address]);
+  await dispute.write.approveMediator([mediator.account.address, true]);
+  await dispute.write.approveMediator([mediator2.account.address, true]);
+  await dispute.write.approveMediator([mediator3.account.address, true]);
+
+  // Reputation authorizes both Escrow and Dispute as callers
+  await reputation.write.setAuthorizedCaller([escrow.address, true]);
+  await reputation.write.setAuthorizedCaller([dispute.address, true]);
+
+  // Sellers: mint + approve Stake + deposit Tier 1
+  await mockUSDT.write.mint([seller.account.address, toUSDT(500)]);
+  await mockUSDT.write.approve([stake.address, toUSDT(500)], { account: seller.account });
+  await stake.write.depositStake([1], { account: seller.account });
+
+  await mockUSDT.write.mint([seller2.account.address, toUSDT(500)]);
+  await mockUSDT.write.approve([stake.address, toUSDT(500)], { account: seller2.account });
+  await stake.write.depositStake([1], { account: seller2.account });
+
+  // Buyer: mint + approve Escrow (generous headroom for TVL-cap test)
+  await mockUSDT.write.mint([buyer.account.address, toUSDT(200_000)]);
+  await mockUSDT.write.approve([escrow.address, toUSDT(200_000)], { account: buyer.account });
+
+  return {
+    deployer,
+    buyer,
+    seller,
+    seller2,
+    mediator,
+    mediator2,
+    mediator3,
+    commissionTreasury,
+    creditsTreasury,
+    communityFund,
+    nonParty,
+    wallets,
+    publicClient,
+    mockUSDT,
+    reputation,
+    stake,
+    voting,
+    dispute,
+    escrow,
+  };
+}
+
 export async function grantTopSeller(reputation: any, seller: any) {
   for (let i = 0; i < 50; i++) {
     await reputation.write.recordCompletedOrder([
