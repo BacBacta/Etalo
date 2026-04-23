@@ -506,18 +506,141 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IEtaloEscrow
-    function triggerMajorityRelease(uint256 /* orderId */, uint256 /* groupId */) external pure {
-        revert("Not yet implemented (Stage 3)");
+    /// @notice Permissionless — anyone may call after the 72h post-
+    /// arrival window. Releases 70% of each non-Disputed item's net
+    /// to the seller (commission stays in escrow). Items already in
+    /// Disputed state are skipped so sibling-item release continues
+    /// while the dispute runs (ADR-015 item-level isolation).
+    function triggerMajorityRelease(uint256 orderId, uint256 groupId)
+        external
+        nonReentrant
+        whenNotPaused
+        orderExistsCheck(orderId)
+        groupExistsCheck(groupId)
+    {
+        EtaloTypes.ShipmentGroup storage group = _groups[groupId];
+        require(group.orderId == orderId, "Group not in order");
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(order.isCrossBorder, "Intra order has no majority stage");
+        require(
+            group.status == EtaloTypes.ShipmentStatus.Arrived,
+            "Group not Arrived"
+        );
+        require(group.releaseStage == 1, "Majority already triggered or invalid stage");
+        require(
+            block.timestamp >= group.majorityReleaseAt,
+            "72h window not elapsed"
+        );
+
+        uint256 totalRelease = 0;
+        for (uint256 i = 0; i < group.itemIds.length; i++) {
+            uint256 itemId = group.itemIds[i];
+            if (_items[itemId].status == EtaloTypes.ItemStatus.Disputed) {
+                continue;
+            }
+            totalRelease += _accrueItemPartialRelease(itemId, MAJORITY_RELEASE_PCT);
+        }
+
+        group.releaseStage = 2;
+
+        if (totalRelease > 0) {
+            totalEscrowedAmount -= totalRelease;
+            require(
+                usdt.transfer(order.seller, totalRelease),
+                "USDT transfer failed"
+            );
+        }
+        emit PartialReleaseTriggered(orderId, groupId, 2, totalRelease);
     }
 
     /// @inheritdoc IEtaloEscrow
-    function triggerAutoReleaseForItem(uint256 /* orderId */, uint256 /* itemId */) external pure {
-        revert("Not yet implemented (Stage 3)");
+    /// @notice Permissionless — anyone may call once the item's
+    /// group-level finalReleaseAfter has elapsed. Releases the
+    /// item's remaining net to the seller plus the full itemCommission
+    /// to commissionTreasury and closes the item. For cross-border
+    /// orders the group must have reached Arrived state first.
+    function triggerAutoReleaseForItem(uint256 orderId, uint256 itemId)
+        external
+        nonReentrant
+        whenNotPaused
+        orderExistsCheck(orderId)
+        itemExistsCheck(itemId)
+    {
+        EtaloTypes.Item storage item = _items[itemId];
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(item.orderId == orderId, "Item not in order");
+        require(
+            item.status != EtaloTypes.ItemStatus.Released &&
+                item.status != EtaloTypes.ItemStatus.Refunded &&
+                item.status != EtaloTypes.ItemStatus.Disputed,
+            "Item not releasable"
+        );
+        require(item.shipmentGroupId != 0, "Item not shipped");
+
+        EtaloTypes.ShipmentGroup storage group = _groups[item.shipmentGroupId];
+        if (order.isCrossBorder) {
+            require(
+                group.status == EtaloTypes.ShipmentStatus.Arrived,
+                "Group not Arrived"
+            );
+        }
+        require(
+            group.finalReleaseAfter > 0 &&
+                block.timestamp >= group.finalReleaseAfter,
+            "Final release not yet"
+        );
+
+        _releaseItemFully(orderId, itemId);
+        emit AutoReleaseTriggered(orderId, itemId);
     }
 
     /// @inheritdoc IEtaloEscrow
-    function triggerAutoRefundIfInactive(uint256 /* orderId */) external pure {
-        revert("Not yet implemented (Stage 3)");
+    /// @notice Permissionless — anyone (buyer, keeper, helper bot)
+    /// may call once the seller-inactivity deadline has elapsed
+    /// without a single shipment group having been created. The
+    /// order's whole totalAmount refunds to the buyer, every item
+    /// flips to Refunded, the order flips to Refunded, and the
+    /// seller's cross-border active-sales counter is decremented.
+    /// ADR-019 deadlines: 7 days intra, 14 days cross-border.
+    function triggerAutoRefundIfInactive(uint256 orderId)
+        external
+        nonReentrant
+        whenNotPaused
+        orderExistsCheck(orderId)
+    {
+        EtaloTypes.Order storage order = _orders[orderId];
+        // A Funded status means no shipment group has been created
+        // yet — shipItemsGrouped promotes the order to PartiallyShipped
+        // or AllShipped, so this predicate also guards against refund
+        // once the seller has started fulfilment.
+        require(
+            order.globalStatus == EtaloTypes.OrderStatus.Funded,
+            "Not in Funded state"
+        );
+
+        uint256 deadline = order.isCrossBorder
+            ? order.fundedAt + AUTO_REFUND_INACTIVE_CROSS
+            : order.fundedAt + AUTO_REFUND_INACTIVE_INTRA;
+        require(block.timestamp > deadline, "Deadline not reached");
+
+        uint256[] storage itemIds = _orderItems[orderId];
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            _items[itemIds[i]].status = EtaloTypes.ItemStatus.Refunded;
+        }
+        order.globalStatus = EtaloTypes.OrderStatus.Refunded;
+
+        uint256 refundAmount = order.totalAmount;
+        totalEscrowedAmount -= refundAmount;
+
+        require(
+            usdt.transfer(order.buyer, refundAmount),
+            "USDT transfer failed"
+        );
+        if (order.isCrossBorder && address(stake) != address(0)) {
+            stake.decrementActiveSales(order.seller);
+        }
+
+        emit AutoRefundInactive(orderId, block.timestamp);
     }
 
     /// @inheritdoc IEtaloEscrow
@@ -541,8 +664,26 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IEtaloEscrow
-    function markItemDisputed(uint256 /* orderId */, uint256 /* itemId */) external pure {
-        revert("Not yet implemented (Stage 4)");
+    /// @notice Called by EtaloDispute when a buyer opens a dispute.
+    /// Flips the item's status to Disputed which blocks further
+    /// release (triggerMajorityRelease skips, triggerAutoReleaseForItem
+    /// reverts) until resolveItemDispute closes the case.
+    function markItemDisputed(uint256 orderId, uint256 itemId)
+        external
+        onlyDispute
+        orderExistsCheck(orderId)
+        itemExistsCheck(itemId)
+    {
+        EtaloTypes.Item storage item = _items[itemId];
+        require(item.orderId == orderId, "Item not in order");
+        require(
+            item.status != EtaloTypes.ItemStatus.Released &&
+                item.status != EtaloTypes.ItemStatus.Refunded &&
+                item.status != EtaloTypes.ItemStatus.Disputed,
+            "Item not disputable"
+        );
+        item.status = EtaloTypes.ItemStatus.Disputed;
+        emit ItemDisputed(orderId, itemId);
     }
 
     /// @inheritdoc IEtaloEscrow

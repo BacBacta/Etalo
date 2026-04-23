@@ -684,4 +684,243 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(treasuryAfter - treasuryBefore, expectedCommission);
     });
   });
+
+  // ── Stage 3 — permissionless triggers ─────────────────────
+  describe("triggerMajorityRelease", function () {
+    it("reverts before the 72h window; releases 70% net per item once elapsed", async function () {
+      const { escrow, mockUSDT, buyer, seller, publicClient } = await deployEscrow(viem);
+      // Cross-border 2 items × 40 USDT
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(40), toUSDT(40)], true],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0], itemIds[1]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+      await escrow.write.markGroupArrived(
+        [1n, 1n, "0x" + "bb".repeat(32)],
+        { account: buyer.account }
+      );
+
+      // Before 72h
+      await expectRevert(
+        escrow.write.triggerMajorityRelease([1n, 1n]),
+        "72h window not elapsed"
+      );
+
+      await increaseTime(publicClient, 72 * 3600 + 1);
+
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      await escrow.write.triggerMajorityRelease([1n, 1n]);
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+
+      // 70% of each item's net, summed for the 2 items
+      const commission = (toUSDT(40) * 270n) / 10000n;
+      const net = toUSDT(40) - commission;
+      const expected = ((net * 7000n) / 10000n) * 2n;
+      assert.equal(sellerAfter - sellerBefore, expected);
+
+      const group = await escrow.read.getShipmentGroup([1n]);
+      assert.equal(group.releaseStage, 2);
+    });
+
+    it("skips items in Disputed status (sibling-item isolation per ADR-015)", async function () {
+      const {
+        escrow,
+        mockUSDT,
+        buyer,
+        seller,
+        nonParty,
+        publicClient,
+      } = await deployEscrow(viem);
+      // Use nonParty as stand-in disputeContract so markItemDisputed passes.
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(40), toUSDT(40)], true],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0], itemIds[1]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+      await escrow.write.markGroupArrived(
+        [1n, 1n, "0x" + "bb".repeat(32)],
+        { account: buyer.account }
+      );
+
+      // Dispute item 2 before majority fires
+      await escrow.write.markItemDisputed([1n, itemIds[1]], {
+        account: nonParty.account,
+      });
+
+      await increaseTime(publicClient, 72 * 3600 + 1);
+
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      await escrow.write.triggerMajorityRelease([1n, 1n]);
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+
+      // Only item 1's 70% released (item 2 skipped)
+      const commission = (toUSDT(40) * 270n) / 10000n;
+      const net = toUSDT(40) - commission;
+      const expected = (net * 7000n) / 10000n; // 1 item only
+      assert.equal(sellerAfter - sellerBefore, expected);
+
+      const item1 = await escrow.read.getItem([itemIds[0]]);
+      const item2 = await escrow.read.getItem([itemIds[1]]);
+      // item1 releasedAmount bumped; item2 stays at 20%-ship level
+      assert.ok(item1.releasedAmount > item2.releasedAmount);
+    });
+  });
+
+  describe("triggerAutoReleaseForItem", function () {
+    it("releases the full net + commission for an intra item after 3 days", async function () {
+      const { escrow, mockUSDT, buyer, seller, commissionTreasury, publicClient } =
+        await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+
+      // Before 3d: revert
+      await expectRevert(
+        escrow.write.triggerAutoReleaseForItem([1n, itemIds[0]]),
+        "Final release not yet"
+      );
+
+      await increaseTime(publicClient, 3 * 24 * 3600 + 1);
+
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryBefore = await mockUSDT.read.balanceOf([commissionTreasury.account.address]);
+      await escrow.write.triggerAutoReleaseForItem([1n, itemIds[0]]);
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryAfter = await mockUSDT.read.balanceOf([commissionTreasury.account.address]);
+
+      const commission = (toUSDT(50) * 180n) / 10000n;
+      const net = toUSDT(50) - commission;
+      assert.equal(sellerAfter - sellerBefore, net);
+      assert.equal(treasuryAfter - treasuryBefore, commission);
+
+      const item = await escrow.read.getItem([itemIds[0]]);
+      assert.equal(item.status, ITEM_RELEASED);
+    });
+
+    it("releases the final 10% net + commission for a cross-border item after 5 days (post-majority)", async function () {
+      const { escrow, mockUSDT, buyer, seller, commissionTreasury, publicClient } =
+        await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], true],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+      await escrow.write.markGroupArrived(
+        [1n, 1n, "0x" + "bb".repeat(32)],
+        { account: buyer.account }
+      );
+
+      // Advance 72h, trigger majority (70% released), then to 5d and trigger final
+      await increaseTime(publicClient, 72 * 3600 + 1);
+      await escrow.write.triggerMajorityRelease([1n, 1n]);
+
+      // Advance the rest of the 5 days (already +72h from arrival;
+      // need +2d more ≈ 2*24*3600 + buffer)
+      await increaseTime(publicClient, 2 * 24 * 3600 + 60);
+
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryBefore = await mockUSDT.read.balanceOf([commissionTreasury.account.address]);
+      await escrow.write.triggerAutoReleaseForItem([1n, itemIds[0]]);
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryAfter = await mockUSDT.read.balanceOf([commissionTreasury.account.address]);
+
+      // Final 10% of net + full commission
+      const commission = (toUSDT(50) * 270n) / 10000n;
+      const net = toUSDT(50) - commission;
+      const finalNet = net - (net * 2000n) / 10000n - (net * 7000n) / 10000n;
+      assert.equal(sellerAfter - sellerBefore, finalNet);
+      assert.equal(treasuryAfter - treasuryBefore, commission);
+    });
+  });
+
+  describe("triggerAutoRefundIfInactive", function () {
+    it("refunds the buyer after 7 days for an intra order in Funded state", async function () {
+      const { escrow, mockUSDT, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+
+      await increaseTime(publicClient, 7 * 24 * 3600 + 1);
+
+      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
+      await escrow.write.triggerAutoRefundIfInactive([1n]);
+      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
+      assert.equal(buyerAfter - buyerBefore, toUSDT(50));
+
+      const order = await escrow.read.getOrder([1n]);
+      assert.equal(order.globalStatus, 7); // Refunded
+    });
+
+    it("refunds the buyer after 14 days for a cross-border order and decrements active sales", async function () {
+      const { escrow, stake, mockUSDT, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], true],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      assert.equal(await stake.read.getActiveSales([seller.account.address]), 1n);
+
+      await increaseTime(publicClient, 14 * 24 * 3600 + 1);
+
+      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
+      await escrow.write.triggerAutoRefundIfInactive([1n]);
+      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
+
+      assert.equal(buyerAfter - buyerBefore, toUSDT(50));
+      assert.equal(await stake.read.getActiveSales([seller.account.address]), 0n);
+    });
+
+    it("reverts before the deadline and after the order has been shipped", async function () {
+      const { escrow, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+
+      // Before 7d
+      await expectRevert(
+        escrow.write.triggerAutoRefundIfInactive([1n]),
+        "Deadline not reached"
+      );
+
+      // After ship, even past deadline, revert — state is no longer Funded
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+      await increaseTime(publicClient, 7 * 24 * 3600 + 1);
+      await expectRevert(
+        escrow.write.triggerAutoRefundIfInactive([1n]),
+        "Not in Funded state"
+      );
+    });
+  });
 });
