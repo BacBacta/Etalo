@@ -6,8 +6,17 @@ export default defineConfig({
   plugins: [hardhatToolboxViemPlugin],
   solidity: {
     profiles: {
+      // Optimizer enabled on default too so tests and deploys compile
+      // the same bytecode — necessary to stay under the 24,576-byte
+      // Spurious Dragon limit for EtaloEscrow V2 (Block 7 Sprint J4).
       default: {
         version: "0.8.24",
+        settings: {
+          optimizer: {
+            enabled: true,
+            runs: 200,
+          },
+        },
       },
       production: {
         version: "0.8.24",

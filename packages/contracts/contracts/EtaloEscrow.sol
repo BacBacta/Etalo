@@ -334,30 +334,175 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
 
     /// @inheritdoc IEtaloEscrow
     function shipItemsGrouped(
-        uint256 /* orderId */,
-        uint256[] calldata /* itemIds */,
-        bytes32 /* proofHash */
-    ) external pure returns (uint256) {
-        revert("Not yet implemented (Stage 2)");
+        uint256 orderId,
+        uint256[] calldata itemIds,
+        bytes32 proofHash
+    )
+        external
+        nonReentrant
+        whenNotPaused
+        orderExistsCheck(orderId)
+        returns (uint256 groupId)
+    {
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(msg.sender == order.seller, "Only seller");
+        require(
+            order.globalStatus == EtaloTypes.OrderStatus.Funded ||
+                order.globalStatus == EtaloTypes.OrderStatus.PartiallyShipped,
+            "Not in shippable state"
+        );
+        require(
+            itemIds.length > 0 && itemIds.length <= MAX_ITEMS_PER_GROUP,
+            "Invalid group size"
+        );
+        require(proofHash != bytes32(0), "Missing proof hash");
+
+        // Validate all items before mutating state.
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            EtaloTypes.Item storage item = _items[itemIds[i]];
+            require(item.orderId == orderId, "Item not in order");
+            require(item.status == EtaloTypes.ItemStatus.Pending, "Item not Pending");
+        }
+
+        groupId = ++_nextGroupId;
+
+        EtaloTypes.ShipmentGroup storage group = _groups[groupId];
+        group.groupId = groupId;
+        group.orderId = orderId;
+        group.shipmentProofHash = proofHash;
+        group.shippedAt = block.timestamp;
+        group.status = EtaloTypes.ShipmentStatus.Shipped;
+
+        // Intra orders get finalReleaseAfter set immediately; cross-
+        // border will set majorityReleaseAt + finalReleaseAfter at
+        // markGroupArrived when the parcel reaches the destination.
+        if (!order.isCrossBorder) {
+            group.finalReleaseAfter =
+                block.timestamp + _intraAutoReleaseDuration(order.seller);
+        }
+
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            group.itemIds.push(itemIds[i]);
+            EtaloTypes.Item storage item = _items[itemIds[i]];
+            item.shipmentGroupId = groupId;
+            item.status = EtaloTypes.ItemStatus.Shipped;
+        }
+
+        _orderGroups[orderId].push(groupId);
+        order.shipmentGroupCount++;
+
+        uint256 shippedSoFar = _itemsShippedCount[orderId] + itemIds.length;
+        _itemsShippedCount[orderId] = shippedSoFar;
+        if (shippedSoFar == order.itemCount) {
+            order.globalStatus = EtaloTypes.OrderStatus.AllShipped;
+        } else {
+            order.globalStatus = EtaloTypes.OrderStatus.PartiallyShipped;
+        }
+
+        emit ShipmentGroupCreated(orderId, groupId, itemIds, proofHash);
+
+        // Cross-border shipping proof triggers the 20% net release
+        // for every item in the group (commission stays in escrow
+        // until final release — Q2 arbitrage).
+        if (order.isCrossBorder) {
+            uint256 totalRelease = 0;
+            for (uint256 i = 0; i < itemIds.length; i++) {
+                totalRelease += _accrueItemPartialRelease(itemIds[i], SHIPPING_RELEASE_PCT);
+            }
+            group.releaseStage = 1;
+            if (totalRelease > 0) {
+                totalEscrowedAmount -= totalRelease;
+                require(
+                    usdt.transfer(order.seller, totalRelease),
+                    "USDT transfer failed"
+                );
+            }
+            emit PartialReleaseTriggered(orderId, groupId, 1, totalRelease);
+        }
     }
 
     /// @inheritdoc IEtaloEscrow
     function markGroupArrived(
-        uint256 /* orderId */,
-        uint256 /* groupId */,
-        bytes32 /* proofHash */
-    ) external pure {
-        revert("Not yet implemented (Stage 2)");
+        uint256 orderId,
+        uint256 groupId,
+        bytes32 proofHash
+    ) external whenNotPaused orderExistsCheck(orderId) groupExistsCheck(groupId) {
+        EtaloTypes.ShipmentGroup storage group = _groups[groupId];
+        require(group.orderId == orderId, "Group not in order");
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(order.isCrossBorder, "Intra order has no arrival step");
+        require(
+            msg.sender == order.buyer || msg.sender == order.seller,
+            "Not buyer or seller"
+        );
+        require(
+            group.status == EtaloTypes.ShipmentStatus.Shipped,
+            "Group not Shipped"
+        );
+        require(proofHash != bytes32(0), "Missing proof hash");
+
+        group.arrivedAt = block.timestamp;
+        group.arrivalProofHash = proofHash;
+        group.majorityReleaseAt = block.timestamp + MAJORITY_RELEASE_DELAY;
+        group.finalReleaseAfter = block.timestamp + AUTO_RELEASE_CROSS_FINAL;
+        group.status = EtaloTypes.ShipmentStatus.Arrived;
+
+        for (uint256 i = 0; i < group.itemIds.length; i++) {
+            EtaloTypes.Item storage item = _items[group.itemIds[i]];
+            if (item.status == EtaloTypes.ItemStatus.Shipped) {
+                item.status = EtaloTypes.ItemStatus.Arrived;
+            }
+        }
+
+        emit GroupArrived(orderId, groupId, proofHash, block.timestamp);
     }
 
     /// @inheritdoc IEtaloEscrow
-    function confirmItemDelivery(uint256 /* orderId */, uint256 /* itemId */) external pure {
-        revert("Not yet implemented (Stage 2)");
+    function confirmItemDelivery(uint256 orderId, uint256 itemId)
+        external
+        nonReentrant
+        whenNotPaused
+        orderExistsCheck(orderId)
+        itemExistsCheck(itemId)
+    {
+        EtaloTypes.Order storage order = _orders[orderId];
+        EtaloTypes.Item storage item = _items[itemId];
+        require(item.orderId == orderId, "Item not in order");
+        require(msg.sender == order.buyer, "Only buyer");
+        require(
+            item.status == EtaloTypes.ItemStatus.Shipped ||
+                item.status == EtaloTypes.ItemStatus.Arrived ||
+                item.status == EtaloTypes.ItemStatus.Delivered,
+            "Item not in confirmable state"
+        );
+
+        _releaseItemFully(orderId, itemId);
     }
 
     /// @inheritdoc IEtaloEscrow
-    function confirmGroupDelivery(uint256 /* orderId */, uint256 /* groupId */) external pure {
-        revert("Not yet implemented (Stage 2)");
+    function confirmGroupDelivery(uint256 orderId, uint256 groupId)
+        external
+        nonReentrant
+        whenNotPaused
+        orderExistsCheck(orderId)
+        groupExistsCheck(groupId)
+    {
+        EtaloTypes.ShipmentGroup storage group = _groups[groupId];
+        require(group.orderId == orderId, "Group not in order");
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(msg.sender == order.buyer, "Only buyer");
+
+        for (uint256 i = 0; i < group.itemIds.length; i++) {
+            uint256 itemId = group.itemIds[i];
+            EtaloTypes.ItemStatus status = _items[itemId].status;
+            if (
+                status == EtaloTypes.ItemStatus.Shipped ||
+                status == EtaloTypes.ItemStatus.Arrived ||
+                status == EtaloTypes.ItemStatus.Delivered
+            ) {
+                _releaseItemFully(orderId, itemId);
+            }
+        }
     }
 
     /// @inheritdoc IEtaloEscrow
@@ -491,5 +636,124 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
             "Seller weekly cap"
         );
         sellerWeeklyVolume[seller] += amount;
+    }
+
+    /// @dev Auto-release duration for intra orders — 2 days for a
+    /// current Top Seller, else 3 days. Evaluated at ship time (not
+    /// create time) so a seller who earns Top Seller between create
+    /// and ship enjoys the faster release window.
+    function _intraAutoReleaseDuration(address seller) internal view returns (uint256) {
+        if (
+            address(reputation) != address(0) && reputation.isTopSeller(seller)
+        ) {
+            return AUTO_RELEASE_TOP_SELLER;
+        }
+        return AUTO_RELEASE_INTRA;
+    }
+
+    /// @dev Credits a partial net release (e.g. 20% at ship or 70%
+    /// at majority) to an item's releasedAmount and returns the
+    /// amount so the caller can batch the USDT transfer. Commission
+    /// stays in escrow until final release (Q2).
+    function _accrueItemPartialRelease(uint256 itemId, uint256 bps)
+        internal
+        returns (uint256 portion)
+    {
+        EtaloTypes.Item storage item = _items[itemId];
+        uint256 itemNet = item.itemPrice - item.itemCommission;
+        portion = (itemNet * bps) / BPS_DENOMINATOR;
+        item.releasedAmount += portion;
+    }
+
+    /// @dev Closes out an item: releases any remaining net to the
+    /// seller, sends the full itemCommission to commissionTreasury,
+    /// flips status to Released, records the sale in Reputation,
+    /// and finally checks whether the order is now complete.
+    function _releaseItemFully(uint256 orderId, uint256 itemId) internal {
+        EtaloTypes.Order storage order = _orders[orderId];
+        EtaloTypes.Item storage item = _items[itemId];
+
+        uint256 itemNet = item.itemPrice - item.itemCommission;
+        uint256 remainingNet = itemNet - item.releasedAmount;
+
+        item.releasedAmount = itemNet;
+        item.status = EtaloTypes.ItemStatus.Released;
+
+        uint256 payout = remainingNet + item.itemCommission;
+        totalEscrowedAmount -= payout;
+
+        if (remainingNet > 0) {
+            require(
+                usdt.transfer(order.seller, remainingNet),
+                "USDT seller transfer failed"
+            );
+        }
+        if (item.itemCommission > 0) {
+            require(
+                commissionTreasury != address(0),
+                "Commission treasury not set"
+            );
+            require(
+                usdt.transfer(commissionTreasury, item.itemCommission),
+                "USDT commission transfer failed"
+            );
+        }
+
+        emit ItemReleased(orderId, itemId, payout);
+        emit ItemCompleted(orderId, itemId);
+
+        if (address(reputation) != address(0)) {
+            reputation.recordCompletedOrder(order.seller, orderId, item.itemPrice);
+            reputation.checkAndUpdateTopSeller(order.seller);
+        }
+
+        _checkOrderCompletion(orderId);
+    }
+
+    /// @dev Walks the order's items; when every item has reached a
+    /// terminal state (Released or Refunded) promotes the order to
+    /// Completed (at least one Released) or Refunded (all Refunded),
+    /// and decrements the seller's cross-border active-sales count.
+    /// Not emitting OrderCompleted for the all-refunded case — that
+    /// path is announced by the refund trigger (auto/force/dispute).
+    function _checkOrderCompletion(uint256 orderId) internal {
+        EtaloTypes.Order storage order = _orders[orderId];
+        if (
+            order.globalStatus == EtaloTypes.OrderStatus.Completed ||
+            order.globalStatus == EtaloTypes.OrderStatus.Refunded ||
+            order.globalStatus == EtaloTypes.OrderStatus.Cancelled
+        ) {
+            return;
+        }
+
+        uint256[] storage itemIds = _orderItems[orderId];
+        uint256 terminal = 0;
+        uint256 refunded = 0;
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            EtaloTypes.ItemStatus s = _items[itemIds[i]].status;
+            if (
+                s == EtaloTypes.ItemStatus.Released ||
+                s == EtaloTypes.ItemStatus.Refunded
+            ) {
+                terminal++;
+                if (s == EtaloTypes.ItemStatus.Refunded) refunded++;
+            }
+        }
+
+        if (terminal == itemIds.length) {
+            if (refunded == itemIds.length) {
+                order.globalStatus = EtaloTypes.OrderStatus.Refunded;
+            } else {
+                order.globalStatus = EtaloTypes.OrderStatus.Completed;
+                emit OrderCompleted(orderId);
+            }
+            if (
+                order.isCrossBorder && address(stake) != address(0)
+            ) {
+                stake.decrementActiveSales(order.seller);
+            }
+        } else if (terminal > 0) {
+            order.globalStatus = EtaloTypes.OrderStatus.PartiallyDelivered;
+        }
     }
 }
