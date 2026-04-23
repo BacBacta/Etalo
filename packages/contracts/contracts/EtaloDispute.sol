@@ -299,6 +299,14 @@ contract EtaloDispute is IEtaloDispute, Ownable, ReentrancyGuard {
         _applyResolution(disputeId, refundAmount, slashAmount);
     }
 
+    /// @notice Handles N3 vote finalization callback.
+    /// @dev buyerWon triggers a refund capped at remainingInEscrow
+    ///      (item.itemPrice - item.releasedAmount). Already-released
+    ///      portions (20% shipping release per ADR-018, 70% majority
+    ///      release per ADR-018) stay with seller as they compensate
+    ///      real shipping and arrival milestones. For fraud-based
+    ///      clawback beyond escrow, use N2 mediation with explicit
+    ///      stake slash (not N3 voting). See ADR-029.
     function resolveFromVote(uint256 voteId, bool buyerWon)
         external
         nonReentrant
@@ -310,12 +318,14 @@ contract EtaloDispute is IEtaloDispute, Ownable, ReentrancyGuard {
         require(!d.resolved, "Already resolved");
         require(d.level == LEVEL_N3, "Not at N3");
 
-        // N3 refund = full item price if buyer wins, else 0.
-        // No automatic slash at N3 — see IEtaloDispute NatSpec.
+        // N3 buyerWon refunds only the remainingInEscrow; already-
+        // released portions stay with the seller (ADR-029). For
+        // fraud-based clawback beyond escrow use the N2 stake-slash
+        // path; N3 is a tie-breaker, not a fraud determination.
         uint256 refundAmount = 0;
         if (buyerWon) {
             EtaloTypes.Item memory item = escrow.getItem(d.itemId);
-            refundAmount = item.itemPrice;
+            refundAmount = item.itemPrice - item.releasedAmount;
         }
         _applyResolution(disputeId, refundAmount, 0);
     }
