@@ -2,17 +2,31 @@
 
 ## What we're building
 
-Etalo is a non-custodial social commerce MiniPay Mini App for African sellers.
+Etalo is a non-custodial social commerce Mini App for African sellers,
+built on Celo and distributed via MiniPay.
+
 Target markets: Nigeria, Ghana, Kenya primary, diaspora secondary.
 Target user: informal sellers on Instagram/WhatsApp/TikTok who want a real
 24/7 shop with secure USDT payments and buyer protection.
 
+**V1 Boutique model** (see ADR-014): three integrated pillars:
+1. Per-seller Boutique at `etalo.app/[handle]` — full catalog, cart,
+   grouped checkout for N items from the same seller.
+2. Dual-mode MiniPay app — buyer and seller modes in the same Mini App.
+3. Asset generator (monetized) — per-product content pack sold in
+   credits (0.15 USDT/credit, see `docs/PRICING_MODEL_CREDITS.md`).
+
 Tagline: "Your digital stall, open 24/7"
 
-## Tech stack (locked, do not change)
+Positioning: "non-custodial" per the Zenland / Circle standard
+(ADR-022). Funds live in public smart contracts on Celo; mediator
+power is structurally bounded by code.
+
+## Tech stack (locked, do not change without an ADR)
 
 - Smart contracts: Solidity 0.8.24 + Hardhat + OpenZeppelin
-- Mini App frontend: React 18 + Wagmi v3 + Viem v2 + shadcn/ui + Tailwind
+- Mini App frontend: React 19 + TypeScript 6 + Wagmi v2 + Viem v2 +
+  shadcn/ui + Tailwind (see ADR-001, ADR-012)
 - Public product pages: Next.js 14 (App Router, SSR)
 - Backend: FastAPI + SQLAlchemy + PostgreSQL + Redis
 - IPFS: Pinata for product metadata and photos
@@ -33,18 +47,37 @@ Tagline: "Your digital stall, open 24/7"
 7. Connection states: silence unless error (no "Connecting..." or "Connected" messages)
 8. Transaction states: 4 precise states (Preparing / Confirming / Success / Error)
 9. Commit frequently with clear Conventional Commit messages
+10. Cross-border orders require seller stake (ADR-020) — `createOrder`
+    must revert if the seller has not met the applicable tier's stake
+11. Architectural limits are hardcoded (ADR-026) — never propose code
+    that bypasses: `MAX_ORDER = 500 USDT`, `MAX_TVL = 50_000 USDT`,
+    `MAX_SELLER_WEEKLY = 5_000 USDT`, `EMERGENCY_PAUSE_MAX = 7 days`
+12. `forceRefund` is gated by THREE codified conditions (ADR-023) —
+    dispute contract inactive + 90+ days order inactivity + registered
+    legal hold. Never remove or relax these.
+13. Treasury = 3 separated wallets (ADR-024) — `commissionTreasury`,
+    `creditsTreasury`, `communityFund`. Never merge into one.
 
 ## Key addresses (Celo mainnet)
 
 - USDT token: 0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e
 - USDT adapter (for gas fees): 0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72
 
-## Economics (locked)
+## Economics (locked, see ADRs for rationale)
 
 - Commission intra-Africa: 1.8%
 - Commission cross-border: 2.7%
+- Commission Top Seller (intra): 1.2%
 - Auto-release intra: 3 days (2 days for Top Seller)
-- Auto-release cross-border: 7 days
+- Cross-border release (ADR-018): 20% on shipping proof / 70% at
+  destination-country arrival + 72h without dispute / 10% at buyer
+  confirmation or auto-release 5 days after majority release
+- Seller inactivity deadlines (ADR-019): 7 days intra / 14 days
+  cross-border → permissionless auto-refund
+- Seller stake cross-border (ADR-020): Tier 1 Starter 10 USDT /
+  Tier 2 Established 25 USDT / Tier 3 Top Seller 50 USDT
+- Credits (ADR-014): 0.15 USDT/credit, 5 free/month, 10 welcome bonus,
+  no subscription (see `docs/PRICING_MODEL_CREDITS.md`)
 
 ## Developer
 
@@ -53,10 +86,24 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-See SPRINT_J1.md for today's mission.
-When user says "start Block N", read that block in SPRINT_J1.md and execute.
+Sprint J4 — smart contract V2 refactor. Primary spec:
+`docs/SPEC_SMART_CONTRACT_V2.md`. Sprint details in `docs/SPRINT_J4.md`
+when created.
+
+When user says "start Block N", read that block in the current sprint
+file and execute.
+
 Always propose a plan before executing, and wait for validation.
 Report what was done at the end of each block.
+
+## Decision log
+
+All architectural deviations from this file and all significant
+technical decisions are tracked in `docs/DECISIONS.md` using the
+ADR-XXX format. When deviating from this file or making a new
+architectural decision, add an entry there before implementing. When
+CLAUDE.md and DECISIONS.md disagree, DECISIONS.md wins until
+CLAUDE.md is updated.
 
 ## Design standards (from MiniPay official docs)
 
