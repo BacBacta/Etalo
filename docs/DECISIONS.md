@@ -955,3 +955,54 @@ on over-collat, `topUpStake` success and cap rejection,
 withdrawal-active rejection, orphan drain via `initiateWithdrawal
 (None → None)`, and free `upgradeTier` when already over-
 collateralized. Total Stake suite: 33 tests.
+
+---
+
+## ADR-029 · 2026-04-23 — N3 vote refund semantics with partial releases
+
+**Status**: Accepted
+
+**Context**: Before Block 8, the Dispute contract's
+`resolveFromVote` function set `refundAmount = itemPrice` on
+`buyerWon`. For cross-border orders with partial releases already
+triggered (20% at ship per ADR-018, 70% at arrival), this would
+revert in `Escrow.resolveItemDispute` because
+`refundAmount > remainingInEscrow`. The bug left disputes stuck in
+`N3_Voting` state indefinitely after finalization. It was not caught
+by Block 6 unit tests because those use `MockEtaloEscrow`, which
+silently accepts any `refundAmount` without the remaining-escrow cap.
+Only the Block 8 end-to-end integration flow (scenario 10) exercises
+the real Escrow↔Dispute↔Voting interaction with a prior partial
+release.
+
+**Decision**: N3 `buyerWon` vote refunds the `remainingInEscrow`
+(`itemPrice - releasedAmount`), not the full `itemPrice`. Already-
+released portions stay with the seller.
+
+**Rationale**:
+- ADR-018 defines the 20% shipping release as compensation for real
+  shipping expense, provable via carrier receipt. Even if the buyer
+  wins a dispute, the seller genuinely shipped and paid transport
+  costs.
+- The 70% majority release is conditioned on physical arrival in the
+  destination country — a legitimate arrival compensation.
+- For fraud-based clawback beyond escrow (e.g., seller shipped an
+  empty box and lied about shipping), the `stake.slashStake`
+  mechanism is the appropriate tool. It is invoked by an N2 mediator
+  who can assess fraud evidence directly. N3 voting is a tie-breaker
+  on unresolved disputes, not a fraud determination.
+- Capping N3 refund at `remainingInEscrow` preserves the layered
+  design: escrow releases are earned as milestones tick by, stake
+  slash is punitive and scoped to proven fraud.
+
+**Impact**:
+- `EtaloDispute.resolveFromVote` now reads `item.releasedAmount` via
+  `IEtaloEscrow.getItem()` (already present on the interface) to
+  compute the cap. 2-line logic change + NatSpec.
+- For cross-border orders where N3 rules for the buyer after partial
+  release and fraud is suspected but was not proven in N2: the
+  seller keeps the 20–90% already released. This is an acceptable
+  V1 trade-off given the approved-mediator pool has fiduciary duty
+  to assess fraud properly in N2 before deferring to community vote.
+- Block 8 integration scenario 10 validates the fix end-to-end as
+  the permanent regression guard for this class of bug.
