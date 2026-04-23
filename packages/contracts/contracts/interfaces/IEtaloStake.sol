@@ -28,6 +28,17 @@ interface IEtaloStake {
         address indexed recipient,
         uint256 disputeId
     );
+    event TierAutoDowngraded(
+        address indexed seller,
+        EtaloTypes.StakeTier oldTier,
+        EtaloTypes.StakeTier newTier,
+        uint256 remainingStake
+    );
+    event StakeToppedUp(
+        address indexed seller,
+        uint256 amount,
+        uint256 newStake
+    );
 
     // ===== Seller lifecycle =====
 
@@ -52,6 +63,14 @@ interface IEtaloStake {
     /// @notice Abort a pending withdrawal; the stake becomes fully
     /// available again immediately.
     function cancelWithdrawal() external;
+
+    /// @notice Add USDT to the seller's existing stake without
+    /// changing the tier. Useful after a slash auto-downgrade
+    /// (ADR-028) to restore coverage before a later `upgradeTier`.
+    /// Requires the seller's tier != None and no pending withdrawal;
+    /// `_stakes[seller] + amount` is capped at `TIER_3_STAKE` to
+    /// prevent typo-driven overfunding.
+    function topUpStake(uint256 amount) external;
 
     // ===== Dispute hooks (onlyDisputeContract) =====
 

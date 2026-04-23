@@ -900,3 +900,58 @@ ADR.
   when reading that block for Block 7 implementation.
 - Future sprints (J5 backend, J6 frontend) should bind to the SPEC
   names via the `IEtaloX` interfaces emitted from this sprint.
+
+---
+
+## ADR-028 · 2026-04-23 — Stake auto-downgrade after slash, topUpStake recovery, and orphan stake drain
+
+**Status**: Accepted
+
+**Context**: Three coupled gaps in `EtaloStake` surfaced after Block
+4: (1) if `slashStake` reduces a seller's stake below the tier
+amount, the seller nominally retains the tier with insufficient
+collateral, breaking the stake/exposure ratio guaranteed by ADR-020;
+(2) no UX path to restore coverage after a slash short of
+re-depositing from scratch; (3) a slash leaving a residual
+`0 < stake < TIER_1_STAKE` locks the seller at tier `None` with no
+withdrawal path — a contradiction with ADR-022's "funds cannot be
+frozen indefinitely".
+
+**Decision**:
+
+1. **Auto-downgrade in `slashStake`** — after reducing stake, set tier
+   to the highest tier supported via `_supportedTier(stake)` (possibly
+   `None`). Eligibility checks are skipped on this forced transition
+   because the slash is driven by dispute, not by the seller.
+
+2. **`topUpStake(amount)`** — new user-facing function. Adds USDT to
+   an existing stake without changing tier; capped at
+   `_stakes[seller] + amount <= TIER_3_STAKE` to prevent typo-driven
+   overfunding. Seller uses `upgradeTier` separately to climb tiers
+   (which enforces eligibility).
+
+3. **Orphan stake drain** — `initiateWithdrawal(newTier)` relaxed to
+   accept `newTier == None` when `currentTier == None && _stakes[seller]
+   > 0`. Same 14-day cooldown; `executeWithdrawal` transfers the
+   residual.
+
+4. **Refund math on `initiateWithdrawal` and `upgradeTier`** switches
+   from "tier-amount delta" to "actual-stake delta" so over-
+   collateralized stakes produced by auto-downgrade or `topUpStake`
+   are accounted correctly. `upgradeTier` becomes free when the
+   seller is already over-collateralized at the target tier
+   (delta = 0 → no transfer, just tier update).
+
+**Rationale**: Preserves stake-as-collateral after any slash and keeps
+ADR-022's non-custodial claim intact for every post-slash state,
+residuals included. Sellers aren't permanently blacklisted — they can
+`topUpStake` to restore coverage or drain the residual to exit
+cleanly.
+
+**Impact**: Two new events (`TierAutoDowngraded`, `StakeToppedUp`).
+Eight new Hardhat tests added to `EtaloStake.test.ts` covering
+exact-match / skip-tier / orphan auto-downgrade paths, no-downgrade
+on over-collat, `topUpStake` success and cap rejection,
+withdrawal-active rejection, orphan drain via `initiateWithdrawal
+(None → None)`, and free `upgradeTier` when already over-
+collateralized. Total Stake suite: 33 tests.

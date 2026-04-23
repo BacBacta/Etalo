@@ -103,6 +103,16 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         revert("Invalid tier");
     }
 
+    // ===== Supported tier helper (ADR-028) =====
+    /// @dev Returns the highest tier such that `stakeAmount` covers
+    /// its threshold. Used by slashStake for auto-downgrade.
+    function _supportedTier(uint256 stakeAmount) internal pure returns (EtaloTypes.StakeTier) {
+        if (stakeAmount >= TIER_3_STAKE) return EtaloTypes.StakeTier.TopSeller;
+        if (stakeAmount >= TIER_2_STAKE) return EtaloTypes.StakeTier.Established;
+        if (stakeAmount >= TIER_1_STAKE) return EtaloTypes.StakeTier.Starter;
+        return EtaloTypes.StakeTier.None;
+    }
+
     // ===== Eligibility =====
     function _checkTier2Eligibility(address seller) internal view {
         require(address(reputation) != address(0), "Reputation not set");
@@ -144,6 +154,10 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         emit StakeDeposited(msg.sender, amount, tier);
     }
 
+    /// @notice Tier up. Delta is based on actual stake (ADR-028) —
+    /// if the seller is already over-collateralized at `newTier`
+    /// (from a prior `topUpStake` or auto-downgrade), the call is
+    /// free (delta = 0, no transfer).
     function upgradeTier(EtaloTypes.StakeTier newTier) external nonReentrant {
         EtaloTypes.StakeTier currentTier = _tiers[msg.sender];
         require(currentTier != EtaloTypes.StakeTier.None, "Not staked");
@@ -151,28 +165,37 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         require(!_withdrawals[msg.sender].active, "Withdrawal active");
         _checkEligibility(msg.sender, newTier);
 
-        uint256 oldAmount = _tierAmount(currentTier);
+        uint256 currentStake = _stakes[msg.sender];
         uint256 newAmount = _tierAmount(newTier);
-        uint256 delta = newAmount - oldAmount;
+        uint256 delta = newAmount > currentStake ? newAmount - currentStake : 0;
 
-        require(usdt.transferFrom(msg.sender, address(this), delta), "USDT transfer failed");
-
-        _stakes[msg.sender] = newAmount;
+        if (delta > 0) {
+            require(usdt.transferFrom(msg.sender, address(this), delta), "USDT transfer failed");
+            _stakes[msg.sender] += delta;
+        }
         _tiers[msg.sender] = newTier;
 
         emit StakeUpgraded(msg.sender, currentTier, newTier, delta);
     }
 
+    /// @notice Start a 14-day cooldown to return stake. Refund is
+    /// based on actual stake (ADR-028), handling both normal
+    /// downgrades and over-collateralized stakes. When currentTier
+    /// is None and _stakes[seller] > 0 (orphan residual after a slash
+    /// that emptied tier eligibility), caller may pass newTier = None
+    /// to drain the residual — this is the only way to recover
+    /// sub-TIER_1 dust.
     function initiateWithdrawal(EtaloTypes.StakeTier newTier) external {
         EtaloTypes.StakeTier currentTier = _tiers[msg.sender];
-        require(currentTier != EtaloTypes.StakeTier.None, "Not staked");
-        require(uint8(newTier) < uint8(currentTier), "Not a downgrade");
+        uint256 currentStake = _stakes[msg.sender];
+        require(currentStake > 0, "No stake to withdraw");
+        require(uint8(newTier) <= uint8(currentTier), "Not a downgrade");
         require(_activeSales[msg.sender] == 0, "Active cross-border sales");
         require(!_withdrawals[msg.sender].active, "Withdrawal already pending");
 
-        uint256 currentAmount = _tierAmount(currentTier);
         uint256 newAmount = _tierAmount(newTier);
-        uint256 refund = currentAmount - newAmount;
+        require(currentStake > newAmount, "Nothing to withdraw at that target");
+        uint256 refund = currentStake - newAmount;
 
         uint256 unlockAt;
         uint256 frozenRemaining;
@@ -221,6 +244,23 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         emit WithdrawalCancelled(msg.sender);
     }
 
+    /// @notice Add USDT to an existing stake without changing tier
+    /// (ADR-028). Caller must already be staked and have no pending
+    /// withdrawal; resulting stake capped at TIER_3_STAKE to prevent
+    /// typo-driven overfunding. Use `upgradeTier` separately to
+    /// climb tiers (eligibility enforced).
+    function topUpStake(uint256 amount) external nonReentrant {
+        require(amount > 0, "Amount must be > 0");
+        require(_tiers[msg.sender] != EtaloTypes.StakeTier.None, "Not staked");
+        require(!_withdrawals[msg.sender].active, "Withdrawal active");
+        require(_stakes[msg.sender] + amount <= TIER_3_STAKE, "Would exceed max tier stake");
+
+        require(usdt.transferFrom(msg.sender, address(this), amount), "USDT transfer failed");
+        _stakes[msg.sender] += amount;
+
+        emit StakeToppedUp(msg.sender, amount, _stakes[msg.sender]);
+    }
+
     // ===== Dispute hooks =====
     function pauseWithdrawal(address seller, uint256 disputeId) external onlyDispute {
         WithdrawalState storage w = _withdrawals[seller];
@@ -249,6 +289,14 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         }
     }
 
+    /// @notice Deducts `amount` from the seller's stake and transfers
+    /// it to `recipient`. Per ADR-028, if the remaining stake falls
+    /// below the current tier's threshold, the seller is auto-
+    /// downgraded to the highest tier the remaining stake supports
+    /// (possibly None). Eligibility checks are skipped on this
+    /// forced transition — the slash is driven by dispute, not by
+    /// the seller. Sub-TIER_1 residuals are recoverable via
+    /// `initiateWithdrawal(None)`.
     function slashStake(
         address seller,
         uint256 amount,
@@ -259,8 +307,12 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         require(_stakes[seller] >= amount, "Slash exceeds stake");
 
         _stakes[seller] -= amount;
-        if (_stakes[seller] == 0) {
-            _tiers[seller] = EtaloTypes.StakeTier.None;
+
+        EtaloTypes.StakeTier oldTier = _tiers[seller];
+        EtaloTypes.StakeTier newTier = _supportedTier(_stakes[seller]);
+        if (newTier != oldTier) {
+            _tiers[seller] = newTier;
+            emit TierAutoDowngraded(seller, oldTier, newTier, _stakes[seller]);
         }
 
         require(usdt.transfer(recipient, amount), "USDT transfer failed");

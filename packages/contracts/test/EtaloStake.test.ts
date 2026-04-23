@@ -421,4 +421,158 @@ describe("EtaloStake", async function () {
       );
     });
   });
+
+  // ── slashStake auto-downgrade (ADR-028) ───────────────────
+  describe("slashStake auto-downgrade (ADR-028)", function () {
+    it("auto-downgrades T3 → T2 on an exact-match slash", async function () {
+      const { stake, reputation, seller, buyer, fakeDispute, publicClient } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await reachTier2Eligibility(reputation, seller, publicClient);
+      await stake.write.upgradeTier([TIER_ESTABLISHED], { account: seller.account });
+      for (let i = 20; i < 50; i++) {
+        await reputation.write.recordCompletedOrder([seller.account.address, BigInt(i), toUSDT(50)]);
+      }
+      await reputation.write.checkAndUpdateTopSeller([seller.account.address]);
+      await stake.write.upgradeTier([TIER_TOPSELLER], { account: seller.account });
+      // Seller is now at T3 with 50 USDT staked.
+
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(25), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(25));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_ESTABLISHED);
+    });
+
+    it("auto-downgrades T3 → T1 when the slash skips Tier 2", async function () {
+      const { stake, reputation, seller, buyer, fakeDispute, publicClient } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await reachTier2Eligibility(reputation, seller, publicClient);
+      await stake.write.upgradeTier([TIER_ESTABLISHED], { account: seller.account });
+      for (let i = 20; i < 50; i++) {
+        await reputation.write.recordCompletedOrder([seller.account.address, BigInt(i), toUSDT(50)]);
+      }
+      await reputation.write.checkAndUpdateTopSeller([seller.account.address]);
+      await stake.write.upgradeTier([TIER_TOPSELLER], { account: seller.account });
+
+      // Slash 40 — remaining 10 falls between T2 threshold (25) and T1 threshold (10).
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(40), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(10));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_STARTER);
+    });
+
+    it("auto-downgrades T1 → None leaving an orphan residual", async function () {
+      const { stake, seller, buyer, fakeDispute } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(5), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(5));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_NONE);
+    });
+
+    it("does not downgrade when remaining stake still covers the tier", async function () {
+      const { stake, reputation, seller, buyer, fakeDispute, publicClient } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await reachTier2Eligibility(reputation, seller, publicClient);
+      await stake.write.upgradeTier([TIER_ESTABLISHED], { account: seller.account });
+      // T2 with 25 USDT. Top up 20 → 45 USDT (within TIER_3_STAKE cap of 50).
+      await stake.write.topUpStake([toUSDT(20)], { account: seller.account });
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(45));
+
+      // Slash 3 → remaining 42 still >= TIER_2_STAKE (25), no downgrade.
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(3), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(42));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_ESTABLISHED);
+    });
+  });
+
+  // ── topUpStake ────────────────────────────────────────────
+  describe("topUpStake", function () {
+    it("adds to the stake and keeps the tier unchanged", async function () {
+      const { stake, seller } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await stake.write.topUpStake([toUSDT(3)], { account: seller.account });
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(13));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_STARTER);
+    });
+
+    it("rejects topUpStake during an active withdrawal", async function () {
+      const { stake, seller } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await stake.write.initiateWithdrawal([TIER_NONE], { account: seller.account });
+      await expectRevert(
+        stake.write.topUpStake([toUSDT(3)], { account: seller.account }),
+        "Withdrawal active"
+      );
+    });
+
+    it("rejects topUpStake when total would exceed TIER_3_STAKE", async function () {
+      const { stake, seller } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      // Already at 10 USDT; adding 50 would overflow the 50 USDT cap.
+      await expectRevert(
+        stake.write.topUpStake([toUSDT(50)], { account: seller.account }),
+        "Would exceed max tier stake"
+      );
+    });
+  });
+
+  // ── orphan stake drain (ADR-028) ──────────────────────────
+  describe("orphan stake drain (ADR-028)", function () {
+    it("drains orphan stake via initiateWithdrawal(None) from tier None", async function () {
+      const { stake, mockUSDT, seller, buyer, fakeDispute, publicClient } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+
+      // Slash 5 → stake 5, tier None (orphan state).
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(5), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_NONE);
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(5));
+
+      const before = await mockUSDT.read.balanceOf([seller.account.address]);
+      await stake.write.initiateWithdrawal([TIER_NONE], { account: seller.account });
+      await increaseTime(publicClient, 14 * 24 * 3600 + 1);
+      await stake.write.executeWithdrawal({ account: seller.account });
+      const after = await mockUSDT.read.balanceOf([seller.account.address]);
+
+      assert.equal(await stake.read.getStake([seller.account.address]), 0n);
+      assert.equal(after - before, toUSDT(5));
+    });
+  });
+
+  // ── upgradeTier over-collateralization (ADR-028) ──────────
+  describe("upgradeTier over-collateralization (ADR-028)", function () {
+    it("is free when seller is already over-collateralized at target tier", async function () {
+      const { stake, mockUSDT, reputation, seller, publicClient } = await deployStake(viem);
+      await reachTier2Eligibility(reputation, seller, publicClient);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      // Top up to exactly Tier 2's threshold while still at Tier 1.
+      await stake.write.topUpStake([toUSDT(15)], { account: seller.account });
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(25));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_STARTER);
+
+      const before = await mockUSDT.read.balanceOf([seller.account.address]);
+      await stake.write.upgradeTier([TIER_ESTABLISHED], { account: seller.account });
+      const after = await mockUSDT.read.balanceOf([seller.account.address]);
+
+      assert.equal(after, before); // no USDT was transferred — delta was 0
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(25));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_ESTABLISHED);
+    });
+  });
 });
