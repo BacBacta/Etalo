@@ -607,6 +607,11 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     /// flips to Refunded, the order flips to Refunded, and the
     /// seller's cross-border active-sales counter is decremented.
     /// ADR-019 deadlines: 7 days intra, 14 days cross-border.
+    /// @dev Reverts if any item is currently Disputed. Buyer must
+    /// resolve the dispute (N1 amicable) or escalate through the
+    /// N2/N3 path — triggering auto-refund while a dispute is open
+    /// would orphan the dispute record in EtaloDispute and lock the
+    /// seller's stake freezeCount indefinitely. See ADR-031.
     function triggerAutoRefundIfInactive(uint256 orderId)
         external
         nonReentrant
@@ -629,6 +634,17 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         require(block.timestamp > deadline, "Deadline not reached");
 
         uint256[] storage itemIds = _orderItems[orderId];
+        // ADR-031: refuse auto-refund while any item is Disputed;
+        // otherwise the dispute record in EtaloDispute becomes
+        // orphan and the seller's stake freezeCount never returns
+        // to zero.
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            require(
+                _items[itemIds[i]].status != EtaloTypes.ItemStatus.Disputed,
+                "Open dispute blocks auto-refund"
+            );
+        }
+
         for (uint256 i = 0; i < itemIds.length; i++) {
             _items[itemIds[i]].status = EtaloTypes.ItemStatus.Refunded;
         }

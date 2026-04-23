@@ -922,6 +922,30 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
         "Not in Funded state"
       );
     });
+
+    it("reverts when any item is Disputed (ADR-031)", async function () {
+      const { escrow, buyer, seller, nonParty, publicClient } = await deployEscrow(viem);
+      // Use nonParty as stand-in disputeContract so markItemDisputed passes.
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(40)], true],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+
+      // Pre-ship dispute → item 1 flipped to Disputed directly via the hook.
+      await escrow.write.markItemDisputed([1n, itemIds[0]], {
+        account: nonParty.account,
+      });
+
+      await increaseTime(publicClient, 14 * 24 * 3600 + 1);
+      await expectRevert(
+        escrow.write.triggerAutoRefundIfInactive([1n]),
+        "Open dispute blocks auto-refund"
+      );
+    });
   });
 
   // ── Stage 4 — dispute resolution + forceRefund + legalHold + pause ──

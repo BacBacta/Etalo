@@ -1053,3 +1053,68 @@ completions, not disputes.
 - Block 8 integration scenario 4 (seller fraud → stake slashed)
   becomes the permanent regression guard: it asserts
   `rep.disputesLost == 1` after a single dispute resolution.
+
+---
+
+## ADR-031 · 2026-04-23 — triggerAutoRefundIfInactive blocked on open dispute
+
+**Status**: Accepted
+
+**Context**: During Block 9 Foundry invariant fuzzing, a cross-
+contract deadlock surfaced. Sequence:
+
+1. Cross-border order funded; seller does not ship.
+2. Buyer opens a dispute on the still-Pending item
+   (`item.status = Disputed` via
+   `escrow.markItemDisputed`, `stake.pauseWithdrawal` increments
+   `freezeCount` to 1).
+3. 14 days elapse.
+4. Third party calls `triggerAutoRefundIfInactive` — order flips to
+   Refunded, every item (including the Disputed one) is force-set to
+   Refunded, buyer receives the full totalAmount.
+5. The dispute record in `EtaloDispute` stays at level N1, unresolved.
+   `resolveN1Amicable` now reverts (item status is Refunded, not
+   Disputed). Escalation paths all end with the same revert at the
+   Escrow side. `stake.resumeWithdrawal` is never called, so the
+   seller's `freezeCount` stays elevated forever — the seller can
+   never withdraw their stake.
+
+The deadlock is silent: buyer is made whole, but the seller is
+permanently locked out of their collateral.
+
+**Decision**: `triggerAutoRefundIfInactive` reverts if any item in
+the order is currently in `Disputed` status. The caller (buyer or
+third party) must either:
+
+1. Resolve the dispute through the N1 amicable path — both parties
+   call `resolveN1Amicable` with matching refund amounts; OR
+2. Let the dispute auto-escalate to N2 (anyone after 48h) and then
+   N3 (anyone after 7 days from N2 start). N3 voting resolves
+   within 14 additional days via community consensus; the callback
+   closes the dispute, unfreezes the stake, and refunds the buyer.
+
+In the worst-case "seller absent + dispute open" scenario, the
+N1 → N2 → N3 escalation chain resolves within roughly 23 days
+(48h + 7d + 14d) — slower than the 14-day auto-refund but
+cross-contract-consistent.
+
+**Rationale**:
+- Preserves the invariant "dispute lifecycle and stake freeze are
+  always paired". Prevents orphan disputes that deadlock stake
+  withdrawals.
+- Auto-refund is designed for the simple case where nothing has
+  happened (seller never responded, no dispute). If a dispute is
+  open, the dispute system is the authoritative resolution path.
+- The buyer retains a path to funds via N3 escalation without
+  needing seller participation.
+
+**Impact**:
+- Four lines added to `triggerAutoRefundIfInactive` guarding against
+  Disputed items.
+- NatSpec on the function documents the refusal reason and points
+  at this ADR.
+- One new Hardhat unit test on `EtaloEscrow.test.ts` and one new
+  end-to-end integration test on `Integration.v2.test.ts` act as
+  permanent regression guards.
+- Block 9 Foundry `invariant_NoUnexpectedReverts` passes after the
+  fix — the fuzzer no longer finds the deadlock path.

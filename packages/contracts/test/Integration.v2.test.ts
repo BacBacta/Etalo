@@ -581,6 +581,68 @@ describe("Integration V2 — end-to-end scenarios", async function () {
     );
   });
 
+  // ── 15b — ADR-031 regression guard ────────────────────────
+  it("15b. disputed item blocks auto-refund; buyer recovers via N3 escalation (ADR-031)", async function () {
+    const {
+      escrow,
+      mockUSDT,
+      stake,
+      dispute,
+      voting,
+      buyer,
+      seller,
+      mediator,
+      mediator2,
+      mediator3,
+      publicClient,
+    } = await deployIntegration(viem);
+
+    await escrow.write.createOrderWithItems(
+      [seller.account.address, [toUSDT(50)], true],
+      { account: buyer.account }
+    );
+    await escrow.write.fundOrder([1n], { account: buyer.account });
+    const itemIds = await escrow.read.getOrderItems([1n]);
+
+    // Buyer opens dispute pre-ship (item is Pending).
+    await dispute.write.openDispute([1n, itemIds[0], "seller absent"], {
+      account: buyer.account,
+    });
+
+    await increaseTime(publicClient, 14 * 24 * 3600 + 1);
+
+    // Auto-refund refuses to bulldoze the open dispute.
+    await expectRevert(
+      escrow.write.triggerAutoRefundIfInactive([1n]),
+      "Open dispute blocks auto-refund"
+    );
+
+    // Buyer escalates N1 → N2 → N3 directly (buyer may escalate at any time).
+    await dispute.write.escalateToMediation([1n], { account: buyer.account });
+    await dispute.write.escalateToVoting([1n], { account: buyer.account });
+
+    // Three mediators vote for buyer.
+    await voting.write.submitVote([1n, true], { account: mediator.account });
+    await voting.write.submitVote([1n, true], { account: mediator2.account });
+    await voting.write.submitVote([1n, true], { account: mediator3.account });
+
+    await increaseTime(publicClient, 14 * 24 * 3600 + 1);
+
+    const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
+    await voting.write.finalizeVote([1n]);
+    const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
+
+    // Pre-ship: item.releasedAmount == 0 → full itemPrice refunded to buyer.
+    assert.equal(buyerAfter - buyerBefore, toUSDT(50));
+
+    // Stake freezeCount cleared + cross-border active sales back to 0.
+    const [, , , , , freezeCount] = await stake.read.getWithdrawal([
+      seller.account.address,
+    ]);
+    assert.equal(freezeCount, 0n);
+    assert.equal(await stake.read.getActiveSales([seller.account.address]), 0n);
+  });
+
   // ── 15 ────────────────────────────────────────────────────
   it("15. multiple shipment groups with mixed statuses (one Arrived, one Shipped)", async function () {
     const { escrow, buyer, seller, publicClient } = await deployIntegration(viem);
