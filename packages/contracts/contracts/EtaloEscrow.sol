@@ -535,7 +535,12 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         uint256 totalRelease = 0;
         for (uint256 i = 0; i < group.itemIds.length; i++) {
             uint256 itemId = group.itemIds[i];
-            if (_items[itemId].status == EtaloTypes.ItemStatus.Disputed) {
+            // Only items currently at Arrived are eligible for the
+            // majority release. Items already Released (e.g. because
+            // a dispute resolved mid-flight) or Disputed must be
+            // skipped — adding another 70% on a terminal item would
+            // over-pay the seller.
+            if (_items[itemId].status != EtaloTypes.ItemStatus.Arrived) {
                 continue;
             }
             totalRelease += _accrueItemPartialRelease(itemId, MAJORITY_RELEASE_PCT);
@@ -644,23 +649,117 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IEtaloEscrow
-    function forceRefund(uint256 /* orderId */, bytes32 /* reasonHash */) external pure {
-        revert("Not yet implemented (Stage 4)");
+    /// @notice Last-resort refund gated by three codified conditions
+    /// per ADR-023 — all three must hold: (1) dispute contract
+    /// unset (`disputeContract == address(0)`), (2) `block.timestamp
+    /// > order.fundedAt + 90 days`, (3) a `legalHoldRegistry[orderId]`
+    /// entry exists. Refunds every non-terminal item's remaining
+    /// escrowed amount to the buyer, flips the order to Refunded,
+    /// and decrements cross-border active sales.
+    function forceRefund(uint256 orderId, bytes32 reasonHash)
+        external
+        onlyOwner
+        nonReentrant
+        orderExistsCheck(orderId)
+    {
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(
+            order.globalStatus == EtaloTypes.OrderStatus.Funded ||
+                order.globalStatus == EtaloTypes.OrderStatus.PartiallyShipped ||
+                order.globalStatus == EtaloTypes.OrderStatus.AllShipped ||
+                order.globalStatus == EtaloTypes.OrderStatus.PartiallyDelivered,
+            "Order not refundable"
+        );
+
+        // Three conditions — all must hold (ADR-023).
+        require(
+            address(dispute) == address(0),
+            "forceRefund: dispute contract still active"
+        );
+        require(
+            order.fundedAt > 0 &&
+                block.timestamp > order.fundedAt + FORCE_REFUND_INACTIVITY_THRESHOLD,
+            "forceRefund: 90-day inactivity threshold not met"
+        );
+        require(
+            legalHoldRegistry[orderId] != bytes32(0),
+            "forceRefund: no legal hold registered"
+        );
+
+        uint256 totalRefund = 0;
+        uint256[] storage itemIds = _orderItems[orderId];
+        for (uint256 i = 0; i < itemIds.length; i++) {
+            EtaloTypes.Item storage item = _items[itemIds[i]];
+            if (
+                item.status != EtaloTypes.ItemStatus.Released &&
+                item.status != EtaloTypes.ItemStatus.Refunded
+            ) {
+                uint256 itemRefund = item.itemPrice - item.releasedAmount;
+                item.status = EtaloTypes.ItemStatus.Refunded;
+                totalRefund += itemRefund;
+            }
+        }
+
+        order.globalStatus = EtaloTypes.OrderStatus.Refunded;
+        if (totalRefund > 0) {
+            totalEscrowedAmount -= totalRefund;
+            require(
+                usdt.transfer(order.buyer, totalRefund),
+                "USDT transfer failed"
+            );
+        }
+
+        if (order.isCrossBorder && address(stake) != address(0)) {
+            stake.decrementActiveSales(order.seller);
+        }
+
+        emit ForceRefundExecuted(
+            orderId,
+            msg.sender,
+            totalRefund,
+            block.timestamp,
+            reasonHash
+        );
     }
 
     /// @inheritdoc IEtaloEscrow
-    function registerLegalHold(uint256 /* orderId */, bytes32 /* documentHash */) external pure {
-        revert("Not yet implemented (Stage 4)");
+    function registerLegalHold(uint256 orderId, bytes32 documentHash)
+        external
+        onlyOwner
+        orderExistsCheck(orderId)
+    {
+        require(documentHash != bytes32(0), "Invalid document hash");
+        legalHoldRegistry[orderId] = documentHash;
+        emit LegalHoldRegistered(orderId, documentHash, block.timestamp);
     }
 
     /// @inheritdoc IEtaloEscrow
-    function clearLegalHold(uint256 /* orderId */) external pure {
-        revert("Not yet implemented (Stage 4)");
+    function clearLegalHold(uint256 orderId)
+        external
+        onlyOwner
+        orderExistsCheck(orderId)
+    {
+        delete legalHoldRegistry[orderId];
+        emit LegalHoldCleared(orderId, block.timestamp);
     }
 
     /// @inheritdoc IEtaloEscrow
-    function emergencyPause() external pure {
-        revert("Not yet implemented (Stage 4)");
+    /// @notice Halt mutating user-facing operations for 7 days. Has
+    /// a 30-day cooldown after the previous pause's end, and reverts
+    /// if the contract is already paused — once triggered it must
+    /// run its full course (no extension by re-pause). Admin paths
+    /// (setters, legal hold, forceRefund) are intentionally not
+    /// gated by whenNotPaused so the owner can still act during an
+    /// emergency.
+    function emergencyPause() external onlyOwner {
+        require(block.timestamp > pausedUntil, "Already paused");
+        require(
+            block.timestamp > lastPauseEndedAt + EMERGENCY_PAUSE_COOLDOWN,
+            "Pause cooldown active"
+        );
+        pausedUntil = block.timestamp + EMERGENCY_PAUSE_MAX;
+        lastPauseEndedAt = pausedUntil;
+        emit EmergencyPauseActivated(msg.sender, pausedUntil);
     }
 
     /// @inheritdoc IEtaloEscrow
@@ -687,12 +786,94 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     }
 
     /// @inheritdoc IEtaloEscrow
+    /// @notice Called by EtaloDispute to settle a disputed item.
+    /// @dev Accounting (Q3 Block 7): the item's remainingInEscrow =
+    /// itemPrice - item.releasedAmount (works with any prior partial
+    /// release because the unpaid commission is still sitting in
+    /// escrow alongside the unreleased net). The caller passes a
+    /// `refundAmount` up to `remainingInEscrow`; what is left goes
+    /// to seller and commissionTreasury along the original
+    /// commission ratio.
+    ///
+    /// Example — itemPrice = 50 USDT, commission 2.7% (1.35), item
+    /// got the 20% ship release (9.73). remainingInEscrow = 40.27.
+    /// Mediator sets refundAmount = 20. remainingAfterRefund = 20.27.
+    /// commissionShare = 20.27 × 1.35 / 50 = 0.547 → treasury.
+    /// netShare = 20.27 - 0.547 = 19.72 → seller (on top of the
+    /// 9.73 already wired at ship). buyer + seller-new + treasury =
+    /// 20 + 19.72 + 0.547 = 40.27 = remainingInEscrow exactly (no
+    /// dust; `netShare` is computed by subtraction).
+    ///
+    /// Item status transitions: Refunded iff refundAmount ==
+    /// itemPrice (only achievable when nothing was released before),
+    /// otherwise Released.
     function resolveItemDispute(
-        uint256 /* orderId */,
-        uint256 /* itemId */,
-        uint256 /* refundAmount */
-    ) external pure {
-        revert("Not yet implemented (Stage 4)");
+        uint256 orderId,
+        uint256 itemId,
+        uint256 refundAmount
+    )
+        external
+        onlyDispute
+        nonReentrant
+        orderExistsCheck(orderId)
+        itemExistsCheck(itemId)
+    {
+        EtaloTypes.Order storage order = _orders[orderId];
+        EtaloTypes.Item storage item = _items[itemId];
+        require(item.orderId == orderId, "Item not in order");
+        require(
+            item.status == EtaloTypes.ItemStatus.Disputed,
+            "Item not disputed"
+        );
+
+        uint256 remainingInEscrow = item.itemPrice - item.releasedAmount;
+        require(refundAmount <= remainingInEscrow, "Refund exceeds remaining");
+
+        uint256 remainingAfterRefund = remainingInEscrow - refundAmount;
+        uint256 commissionShare =
+            (remainingAfterRefund * item.itemCommission) / item.itemPrice;
+        uint256 netShare = remainingAfterRefund - commissionShare;
+
+        if (refundAmount == item.itemPrice) {
+            item.status = EtaloTypes.ItemStatus.Refunded;
+        } else {
+            item.status = EtaloTypes.ItemStatus.Released;
+            item.releasedAmount += netShare;
+        }
+
+        totalEscrowedAmount -= remainingInEscrow;
+
+        if (refundAmount > 0) {
+            require(
+                usdt.transfer(order.buyer, refundAmount),
+                "USDT buyer transfer failed"
+            );
+        }
+        if (netShare > 0) {
+            require(
+                usdt.transfer(order.seller, netShare),
+                "USDT seller transfer failed"
+            );
+        }
+        if (commissionShare > 0) {
+            require(
+                commissionTreasury != address(0),
+                "Commission treasury not set"
+            );
+            require(
+                usdt.transfer(commissionTreasury, commissionShare),
+                "USDT commission transfer failed"
+            );
+        }
+
+        emit ItemDisputeResolved(orderId, itemId, refundAmount);
+
+        if (address(reputation) != address(0)) {
+            reputation.recordDispute(order.seller, orderId, refundAmount > 0);
+            reputation.checkAndUpdateTopSeller(order.seller);
+        }
+
+        _checkOrderCompletion(orderId);
     }
 
     // ============================================================

@@ -923,4 +923,337 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
   });
+
+  // ── Stage 4 — dispute resolution + forceRefund + legalHold + pause ──
+  describe("resolveItemDispute", function () {
+    it("partial refund after prior partial release: buyer + seller + treasury sum exactly to remainingInEscrow", async function () {
+      const { escrow, mockUSDT, buyer, seller, nonParty, commissionTreasury } =
+        await deployEscrow(viem);
+      // Use nonParty as stand-in disputeContract.
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+
+      // Cross-border 50 USDT item; 20% ship release happens first.
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], true],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+      await escrow.write.markGroupArrived(
+        [1n, 1n, "0x" + "bb".repeat(32)],
+        { account: buyer.account }
+      );
+      await escrow.write.markItemDisputed([1n, itemIds[0]], {
+        account: nonParty.account,
+      });
+
+      const item = await escrow.read.getItem([itemIds[0]]);
+      const remainingInEscrow = item.itemPrice - item.releasedAmount;
+
+      const refundAmount = toUSDT(20);
+      const remainingAfterRefund = remainingInEscrow - refundAmount;
+      const commissionShare =
+        (remainingAfterRefund * item.itemCommission) / item.itemPrice;
+      const netShare = remainingAfterRefund - commissionShare;
+
+      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryBefore = await mockUSDT.read.balanceOf([
+        commissionTreasury.account.address,
+      ]);
+
+      await escrow.write.resolveItemDispute(
+        [1n, itemIds[0], refundAmount],
+        { account: nonParty.account }
+      );
+
+      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryAfter = await mockUSDT.read.balanceOf([
+        commissionTreasury.account.address,
+      ]);
+
+      assert.equal(buyerAfter - buyerBefore, refundAmount);
+      assert.equal(sellerAfter - sellerBefore, netShare);
+      assert.equal(treasuryAfter - treasuryBefore, commissionShare);
+      // Invariant: exact sum == remainingInEscrow, no dust.
+      assert.equal(
+        (buyerAfter - buyerBefore) +
+          (sellerAfter - sellerBefore) +
+          (treasuryAfter - treasuryBefore),
+        remainingInEscrow
+      );
+
+      const itemAfter = await escrow.read.getItem([itemIds[0]]);
+      assert.equal(itemAfter.status, ITEM_RELEASED);
+    });
+
+    it("full refund (refundAmount == itemPrice) flips the item to Refunded", async function () {
+      const { escrow, mockUSDT, buyer, seller, nonParty } = await deployEscrow(viem);
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      // No prior release; mark item directly as disputed via the hook.
+      await escrow.write.markItemDisputed([1n, itemIds[0]], {
+        account: nonParty.account,
+      });
+
+      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
+      await escrow.write.resolveItemDispute(
+        [1n, itemIds[0], toUSDT(50)],
+        { account: nonParty.account }
+      );
+      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
+      assert.equal(buyerAfter - buyerBefore, toUSDT(50));
+
+      const item = await escrow.read.getItem([itemIds[0]]);
+      assert.equal(item.status, 6); // Refunded
+    });
+
+    it("zero refund (seller wins) routes all remaining to seller and treasury", async function () {
+      const { escrow, mockUSDT, buyer, seller, nonParty, commissionTreasury } =
+        await deployEscrow(viem);
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.markItemDisputed([1n, itemIds[0]], {
+        account: nonParty.account,
+      });
+
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryBefore = await mockUSDT.read.balanceOf([
+        commissionTreasury.account.address,
+      ]);
+      await escrow.write.resolveItemDispute([1n, itemIds[0], 0n], {
+        account: nonParty.account,
+      });
+
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+      const treasuryAfter = await mockUSDT.read.balanceOf([
+        commissionTreasury.account.address,
+      ]);
+
+      // Intra 1.8% commission = 0.9 USDT; net = 49.1 USDT
+      const commission = (toUSDT(50) * 180n) / 10000n;
+      assert.equal(sellerAfter - sellerBefore, toUSDT(50) - commission);
+      assert.equal(treasuryAfter - treasuryBefore, commission);
+
+      const item = await escrow.read.getItem([itemIds[0]]);
+      assert.equal(item.status, ITEM_RELEASED);
+    });
+
+    it("sibling-item isolation: disputed item settled doesn't block the order's other items from completing", async function () {
+      const { escrow, stake, buyer, seller, nonParty, publicClient } =
+        await deployEscrow(viem);
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+      // 2-item cross-border order (60 total, fits Tier 1 cap 100).
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(30), toUSDT(30)], true],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0], itemIds[1]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+      await escrow.write.markGroupArrived(
+        [1n, 1n, "0x" + "bb".repeat(32)],
+        { account: buyer.account }
+      );
+
+      // Dispute + resolve item 1 with partial refund.
+      await escrow.write.markItemDisputed([1n, itemIds[0]], {
+        account: nonParty.account,
+      });
+      await escrow.write.resolveItemDispute(
+        [1n, itemIds[0], toUSDT(10)],
+        { account: nonParty.account }
+      );
+
+      // Item 2 progresses normally through the cross-border triggers.
+      await increaseTime(publicClient, 72 * 3600 + 1);
+      await escrow.write.triggerMajorityRelease([1n, 1n]);
+      await increaseTime(publicClient, 5 * 24 * 3600 + 60);
+      await escrow.write.triggerAutoReleaseForItem([1n, itemIds[1]]);
+
+      const order = await escrow.read.getOrder([1n]);
+      assert.equal(order.globalStatus, STATUS_COMPLETED);
+      assert.equal(await stake.read.getActiveSales([seller.account.address]), 0n);
+
+      const item1 = await escrow.read.getItem([itemIds[0]]);
+      const item2 = await escrow.read.getItem([itemIds[1]]);
+      assert.equal(item1.status, ITEM_RELEASED);
+      assert.equal(item2.status, ITEM_RELEASED);
+    });
+
+    it("rejects resolveItemDispute when the item is not in Disputed status", async function () {
+      const { escrow, buyer, seller, nonParty } = await deployEscrow(viem);
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await expectRevert(
+        escrow.write.resolveItemDispute([1n, itemIds[0], toUSDT(10)], {
+          account: nonParty.account,
+        }),
+        "Item not disputed"
+      );
+    });
+  });
+
+  describe("forceRefund (ADR-023)", function () {
+    const ZERO = "0x0000000000000000000000000000000000000000";
+    const LEGAL_HASH = "0x" + "dd".repeat(32);
+    const REASON = "0x" + "ee".repeat(32);
+
+    it("reverts when the dispute contract is still set (condition 1 missing)", async function () {
+      const { escrow, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      // Set dispute contract non-zero to trip condition 1.
+      await escrow.write.setDisputeContract([buyer.account.address]);
+      await escrow.write.registerLegalHold([1n, LEGAL_HASH]);
+      await increaseTime(publicClient, 91 * 24 * 3600);
+      await expectRevert(
+        escrow.write.forceRefund([1n, REASON]),
+        "dispute contract still active"
+      );
+    });
+
+    it("reverts before the 90-day inactivity threshold (condition 2 missing)", async function () {
+      const { escrow, buyer, seller } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      await escrow.write.setDisputeContract([ZERO]);
+      await escrow.write.registerLegalHold([1n, LEGAL_HASH]);
+      await expectRevert(
+        escrow.write.forceRefund([1n, REASON]),
+        "90-day inactivity threshold not met"
+      );
+    });
+
+    it("reverts without a registered legal hold (condition 3 missing)", async function () {
+      const { escrow, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      await escrow.write.setDisputeContract([ZERO]);
+      await increaseTime(publicClient, 91 * 24 * 3600);
+      await expectRevert(
+        escrow.write.forceRefund([1n, REASON]),
+        "no legal hold registered"
+      );
+    });
+
+    it("succeeds when all three ADR-023 conditions hold and refunds the buyer", async function () {
+      const { escrow, mockUSDT, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      await escrow.write.setDisputeContract([ZERO]);
+      await escrow.write.registerLegalHold([1n, LEGAL_HASH]);
+      await increaseTime(publicClient, 91 * 24 * 3600);
+
+      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
+      await escrow.write.forceRefund([1n, REASON]);
+      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
+
+      assert.equal(buyerAfter - buyerBefore, toUSDT(50));
+      const order = await escrow.read.getOrder([1n]);
+      assert.equal(order.globalStatus, 7); // Refunded
+    });
+  });
+
+  describe("legal hold registry", function () {
+    it("register then clear updates storage and emits paired events", async function () {
+      const { escrow, buyer, seller } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(10)], false],
+        { account: buyer.account }
+      );
+      const hash = "0x" + "cc".repeat(32);
+      await escrow.write.registerLegalHold([1n, hash]);
+      assert.equal(await escrow.read.legalHoldRegistry([1n]), hash);
+
+      await escrow.write.clearLegalHold([1n]);
+      assert.equal(
+        await escrow.read.legalHoldRegistry([1n]),
+        "0x0000000000000000000000000000000000000000000000000000000000000000"
+      );
+    });
+  });
+
+  describe("emergencyPause", function () {
+    it("blocks state-mutating functions while paused", async function () {
+      const { escrow, buyer, seller } = await deployEscrow(viem);
+      await escrow.write.emergencyPause();
+
+      await expectRevert(
+        escrow.write.createOrderWithItems(
+          [seller.account.address, [toUSDT(10)], false],
+          { account: buyer.account }
+        ),
+        "Contract paused"
+      );
+    });
+
+    it("auto-expires after 7 days and unblocks functions", async function () {
+      const { escrow, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.emergencyPause();
+      await increaseTime(publicClient, 7 * 24 * 3600 + 1);
+      // After the 7-day window the modifier lets calls through again.
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(10)], false],
+        { account: buyer.account }
+      );
+      const order = await escrow.read.getOrder([1n]);
+      assert.equal(order.orderId, 1n);
+    });
+
+    it("enforces the 30-day cooldown between successive pauses", async function () {
+      const { escrow, publicClient } = await deployEscrow(viem);
+      await escrow.write.emergencyPause();
+      // Past pause end but before cooldown:
+      await increaseTime(publicClient, 7 * 24 * 3600 + 3600);
+      await expectRevert(
+        escrow.write.emergencyPause(),
+        "Pause cooldown active"
+      );
+      // Advance to past (pauseEnd + 30d):
+      await increaseTime(publicClient, 30 * 24 * 3600);
+      await escrow.write.emergencyPause();
+    });
+
+    it("reverts emergencyPause when the contract is already paused (BONUS)", async function () {
+      const { escrow } = await deployEscrow(viem);
+      await escrow.write.emergencyPause();
+      await expectRevert(escrow.write.emergencyPause(), "Already paused");
+    });
+  });
 });

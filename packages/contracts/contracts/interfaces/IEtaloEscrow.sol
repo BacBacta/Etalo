@@ -158,8 +158,9 @@ interface IEtaloEscrow {
     function setReputationContract(address newContract) external;
 
     /// @notice Last-resort refund gated by three codified conditions
-    /// per ADR-023: dispute contract unset, OR 90+ days inactivity,
-    /// OR a registered legal hold. All three are public on-chain facts.
+    /// per ADR-023 — ALL three must hold: dispute contract unset AND
+    /// 90+ days since fundedAt AND a registered legal hold. All three
+    /// are public on-chain facts.
     function forceRefund(uint256 orderId, bytes32 reasonHash) external;
 
     function registerLegalHold(uint256 orderId, bytes32 documentHash) external;
