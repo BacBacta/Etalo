@@ -857,3 +857,46 @@ communication.
   invariant coverage for each limit.
 - Upgrades require clear user communication (V1 contracts are **not
   proxy-upgradable** — a new contract means a new address).
+
+---
+
+## ADR-027 · 2026-04-23 — SPEC §12 as canonical function naming, plus setStakeContract wiring
+
+**Status**: Accepted
+
+**Context**: During Sprint J4 Block 2 implementation, seven name or
+signature divergences surfaced between `docs/SPEC_SMART_CONTRACT_V2.md`
+and the `docs/SPRINT_J4.md` Block 7 sketch (e.g. `createOrderWithItems`
+vs `createOrder`, `shipItemsGrouped` vs `createShipmentGroup`,
+`triggerAutoReleaseForItem` vs `triggerFinalRelease`, `OrderStatus`
+9 vs 6 values, `ShipmentStatus.Delivered` vs `Released`, `uint8 tier`
+vs `StakeTier` enum, `markItemDisputed` vs `freezeItem`). The SPEC is
+the more rigorous document and declares itself the technical source of
+truth.
+
+**Decision**: `docs/SPEC_SMART_CONTRACT_V2.md` is the canonical source
+for V2 function names, enum values, struct shapes, and event
+signatures. Implementation deviates from SPEC only where strictly
+necessary for wiring that the SPEC omits — specifically `setStakeContract`
+on `EtaloEscrow`, which is required for the `EtaloEscrow → EtaloStake`
+eligibility and concurrent-sales hooks but is absent from SPEC §12.4's
+admin setter list. The `EtaloTypes.StakeTier` enum replaces SPEC §6.3's
+`uint8 tier` parameter for type safety; this is a mechanical
+improvement, not a behavioral change.
+
+**Rationale**: A single canonical source prevents drift between spec
+and code. `docs/SPRINT_J4.md` is a tactical plan that can contain
+obsolete hints; when SPRINT and SPEC disagree, SPEC wins. Any future
+divergence from SPEC beyond cosmetic wiring must be justified by a new
+ADR.
+
+**Impact**:
+- Block 2 interfaces landed with SPEC names throughout.
+- `setStakeContract` added to `IEtaloEscrow` without a separate ADR
+  beyond this one — all other SPEC §12.4 admin setters are preserved
+  as documented.
+- SPRINT_J4.md Block 7 function names (e.g. `createOrder`,
+  `createShipmentGroup`, `freezeItem`) are obsolete; defer to SPEC §12
+  when reading that block for Block 7 implementation.
+- Future sprints (J5 backend, J6 frontend) should bind to the SPEC
+  names via the `IEtaloX` interfaces emitted from this sprint.
