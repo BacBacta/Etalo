@@ -1,6 +1,10 @@
 # Node modules
 /node_modules
 
+# Foundry build artifacts
+/out
+/cache_forge
+
 # Compilation output
 /dist
 
