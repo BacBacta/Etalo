@@ -141,17 +141,20 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
 
     // ===== Seller lifecycle =====
     function depositStake(EtaloTypes.StakeTier tier) external nonReentrant {
+        // Checks
         require(tier != EtaloTypes.StakeTier.None, "Invalid tier");
         require(_tiers[msg.sender] == EtaloTypes.StakeTier.None, "Already staked");
         _checkEligibility(msg.sender, tier);
 
         uint256 amount = _tierAmount(tier);
-        require(usdt.transferFrom(msg.sender, address(this), amount), "USDT transfer failed");
 
+        // Effects — CEI strict (ADR-032), state before external call
         _stakes[msg.sender] = amount;
         _tiers[msg.sender] = tier;
-
         emit StakeDeposited(msg.sender, amount, tier);
+
+        // Interactions
+        require(usdt.transferFrom(msg.sender, address(this), amount), "USDT transfer failed");
     }
 
     /// @notice Tier up. Delta is based on actual stake (ADR-028) —
@@ -159,6 +162,7 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
     /// (from a prior `topUpStake` or auto-downgrade), the call is
     /// free (delta = 0, no transfer).
     function upgradeTier(EtaloTypes.StakeTier newTier) external nonReentrant {
+        // Checks
         EtaloTypes.StakeTier currentTier = _tiers[msg.sender];
         require(currentTier != EtaloTypes.StakeTier.None, "Not staked");
         require(uint8(newTier) > uint8(currentTier), "Not an upgrade");
@@ -169,13 +173,17 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
         uint256 newAmount = _tierAmount(newTier);
         uint256 delta = newAmount > currentStake ? newAmount - currentStake : 0;
 
+        // Effects — CEI strict (ADR-032)
         if (delta > 0) {
-            require(usdt.transferFrom(msg.sender, address(this), delta), "USDT transfer failed");
             _stakes[msg.sender] += delta;
         }
         _tiers[msg.sender] = newTier;
-
         emit StakeUpgraded(msg.sender, currentTier, newTier, delta);
+
+        // Interactions
+        if (delta > 0) {
+            require(usdt.transferFrom(msg.sender, address(this), delta), "USDT transfer failed");
+        }
     }
 
     /// @notice Start a 14-day cooldown to return stake. Refund is
@@ -250,15 +258,18 @@ contract EtaloStake is IEtaloStake, Ownable, ReentrancyGuard {
     /// typo-driven overfunding. Use `upgradeTier` separately to
     /// climb tiers (eligibility enforced).
     function topUpStake(uint256 amount) external nonReentrant {
+        // Checks
         require(amount > 0, "Amount must be > 0");
         require(_tiers[msg.sender] != EtaloTypes.StakeTier.None, "Not staked");
         require(!_withdrawals[msg.sender].active, "Withdrawal active");
         require(_stakes[msg.sender] + amount <= TIER_3_STAKE, "Would exceed max tier stake");
 
-        require(usdt.transferFrom(msg.sender, address(this), amount), "USDT transfer failed");
+        // Effects — CEI strict (ADR-032)
         _stakes[msg.sender] += amount;
-
         emit StakeToppedUp(msg.sender, amount, _stakes[msg.sender]);
+
+        // Interactions
+        require(usdt.transferFrom(msg.sender, address(this), amount), "USDT transfer failed");
     }
 
     // ===== Dispute hooks =====

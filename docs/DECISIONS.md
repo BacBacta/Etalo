@@ -1118,3 +1118,75 @@ cross-contract-consistent.
   permanent regression guards.
 - Block 9 Foundry `invariant_NoUnexpectedReverts` passes after the
   fix — the fuzzer no longer finds the deadlock path.
+
+---
+
+## ADR-032 · 2026-04-24 — CEI enforced across all V2 fund-moving functions
+
+**Status**: Accepted
+
+**Context**: During Sprint J4 Block 10 static analysis, Slither 0.11.5
+flagged five `reentrancy-no-eth` findings (Medium severity) across
+`EtaloStake.{depositStake, topUpStake, upgradeTier}` and
+`EtaloEscrow.{_releaseItemFully, resolveItemDispute}`. In each case
+one or more state variables were written *after* an external call
+(USDT transfer, reputation/stake hook) even though every public
+entry point is guarded by OpenZeppelin's `ReentrancyGuard`.
+
+The findings are not exploitable today:
+- All public entries carry `nonReentrant`.
+- Celo USDT (Circle-bridged) is a standard ERC-20 with no transfer
+  hooks — unlike ERC-777.
+- `EtaloReputation` and `EtaloStake` are internal contracts with no
+  callbacks to `EtaloEscrow`.
+
+But they violate the Checks-Effects-Interactions pattern recommended
+by security standards (SWC-107, Consensys best practices, Trail of
+Bits). An auditor reading the code would have to trust the
+`nonReentrant` guard plus prove Reputation/Stake are non-callback —
+higher cognitive load, worse audit readability, worse future-proofing
+against USDT upgrades or wiring changes (e.g. pointing `reputation`
+at an external oracle that does call back).
+
+**Decision**: Refactor every fund-moving function in the V2 contract
+suite to follow strict CEI ordering:
+
+1. **Checks** — all `require` and `_checkEligibility` first.
+2. **Effects** — every state write (including the order-status
+   transitions driven by `_checkOrderCompletion`) before any
+   external call.
+3. **Interactions** — USDT transfers, Reputation hooks, Stake hooks
+   grouped at the end.
+
+`ReentrancyGuard` stays on every public entry as defense-in-depth.
+Event emissions sit in the Effects phase — they are read-only against
+state and don't forward execution.
+
+To support CEI in `_releaseItemFully` and `resolveItemDispute`,
+`_checkOrderCompletion` is split into a pure `_computeNewOrderStatus`
+view and a mutating "apply new status" path; the external
+`stake.decrementActiveSales` call is relocated from inside the
+helper to the Interactions section of each caller.
+
+**Rationale**:
+- Aligns the code with the single-most-important Solidity security
+  pattern. Zero-cost improvement.
+- Kills the five Medium Slither findings, bringing the Block 10
+  target (zero High/Medium) into reach.
+- Future-proof against hook-introducing ERC-20 upgrades or against
+  an external Reputation/Stake implementation that does callback.
+- Easier for the Sprint J4 Phase 2/3 auditor (ADR-025) to reason
+  about.
+
+**Impact**:
+- `EtaloStake`: depositStake, topUpStake, upgradeTier reordered
+  (state writes + events before transferFrom). ~9 lines diff.
+- `EtaloEscrow`: `_releaseItemFully` and `resolveItemDispute`
+  restructured. `_checkOrderCompletion` split into a view helper
+  `_computeNewOrderStatus` and a state-only apply path. The stake
+  `decrementActiveSales` call moves out of `_checkOrderCompletion`
+  into each caller's Interactions section. ~60 lines diff.
+- Full Hardhat suite (144) and Foundry invariants (7) re-run green
+  after the refactor.
+- Bytecode delta: neutral (~+100 bytes from the helper split).
+- No behavioral change visible to end users.
