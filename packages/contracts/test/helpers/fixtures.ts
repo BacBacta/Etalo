@@ -127,6 +127,69 @@ export async function deployDispute(viem: any) {
   };
 }
 
+export async function deployEscrow(viem: any) {
+  const publicClient = await viem.getPublicClient();
+  const wallets = await viem.getWalletClients();
+  const [
+    deployer,
+    buyer,
+    seller,
+    nonParty,
+    commissionTreasury,
+    creditsTreasury,
+    communityFund,
+    seller2,
+    seller3,
+    seller4,
+  ] = wallets;
+
+  const mockUSDT = await viem.deployContract("MockUSDT");
+  const reputation = await viem.deployContract("EtaloReputation");
+  const stake = await viem.deployContract("EtaloStake", [mockUSDT.address]);
+  const escrow = await viem.deployContract("EtaloEscrow", [mockUSDT.address]);
+
+  // Wire Escrow setters
+  await escrow.write.setStakeContract([stake.address]);
+  await escrow.write.setReputationContract([reputation.address]);
+  await escrow.write.setCommissionTreasury([commissionTreasury.account.address]);
+  await escrow.write.setCreditsTreasury([creditsTreasury.account.address]);
+  await escrow.write.setCommunityFund([communityFund.account.address]);
+
+  // Wire Stake
+  await stake.write.setReputationContract([reputation.address]);
+  await stake.write.setEscrowContract([escrow.address]);
+
+  // Wire Reputation (Escrow is an authorized caller for recordCompletedOrder)
+  await reputation.write.setAuthorizedCaller([escrow.address, true]);
+
+  // Seller: mint + approve Stake + deposit Tier 1 (10 USDT)
+  await mockUSDT.write.mint([seller.account.address, toUSDT(100)]);
+  await mockUSDT.write.approve([stake.address, toUSDT(100)], { account: seller.account });
+  await stake.write.depositStake([1], { account: seller.account });
+
+  // Buyer: mint + approve Escrow (plenty of headroom for multi-order tests)
+  await mockUSDT.write.mint([buyer.account.address, toUSDT(100_000)]);
+  await mockUSDT.write.approve([escrow.address, toUSDT(100_000)], { account: buyer.account });
+
+  return {
+    deployer,
+    buyer,
+    seller,
+    nonParty,
+    commissionTreasury,
+    creditsTreasury,
+    communityFund,
+    seller2,
+    seller3,
+    seller4,
+    publicClient,
+    mockUSDT,
+    reputation,
+    stake,
+    escrow,
+  };
+}
+
 export async function grantTopSeller(reputation: any, seller: any) {
   for (let i = 0; i < 50; i++) {
     await reputation.write.recordCompletedOrder([
