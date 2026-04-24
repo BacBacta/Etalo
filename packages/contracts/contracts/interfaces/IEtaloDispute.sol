@@ -1,48 +1,80 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.24;
 
+/// @title IEtaloDispute
+/// @notice Item-level dispute contract (ADR-015, ADR-022). Disputes
+/// target a single item within an order; while a dispute is open, only
+/// that item's funds are frozen on EtaloEscrow — sibling items
+/// continue their normal release flow. Three levels: N1 amicable
+/// (48h), N2 mediator (7d), N3 community vote (14d).
 interface IEtaloDispute {
-    enum DisputeLevel {
-        None,
-        L1_Negotiation,
-        L2_Mediator,
-        L3_Admin
-    }
+    // ===== Events =====
+    event DisputeOpened(
+        uint256 indexed disputeId,
+        uint256 indexed orderId,
+        uint256 indexed itemId,
+        address buyer,
+        string reason
+    );
+    event DisputeEscalated(uint256 indexed disputeId, uint8 newLevel);
+    event DisputeResolved(
+        uint256 indexed disputeId,
+        bool favorBuyer,
+        uint256 refundAmount,
+        uint256 slashAmount
+    );
 
-    enum DisputeOutcome {
-        Pending,
-        ResolvedBySeller,
-        ResolvedByMediator,
-        ResolvedByAdmin,
-        RefundedFull,
-        RefundedPartial
-    }
+    // ===== Buyer entry =====
 
-    struct Dispute {
-        uint256 orderId;
-        address buyer;
-        address seller;
-        DisputeLevel level;
-        DisputeOutcome outcome;
-        uint256 openedAt;
-        uint256 l1Deadline;
-        uint256 buyerRefundAmount;
-        string reason;
-        bool resolved;
-    }
+    /// @notice Buyer opens a dispute on a specific item. Triggers
+    /// freeze on that item in EtaloEscrow and on the seller's pending
+    /// stake withdrawal in EtaloStake.
+    function openDispute(uint256 orderId, uint256 itemId, string calldata reason)
+        external
+        returns (uint256 disputeId);
 
-    event DisputeOpened(uint256 indexed orderId, address indexed buyer, DisputeLevel level, string reason);
-    event DisputeEscalated(uint256 indexed orderId, DisputeLevel newLevel);
-    event DisputeResolved(uint256 indexed orderId, DisputeOutcome outcome, uint256 buyerRefundAmount);
-    event MediatorAssigned(uint256 indexed orderId, address indexed mediator);
+    // ===== Escalation =====
 
-    function openDispute(uint256 orderId, string calldata reason) external;
-    function escalateToL2(uint256 orderId) external;
-    function resolveL1(uint256 orderId) external;
-    function resolveL2(uint256 orderId, uint256 buyerRefundAmount) external;
-    function resolveL3(uint256 orderId, uint256 buyerRefundAmount) external;
-    function assignMediator(uint256 orderId, address mediator) external;
+    /// @notice N1 → N2. Buyer can escalate at any time; after the 48h
+    /// N1 window anyone can escalate.
+    function escalateToMediation(uint256 disputeId) external;
 
-    function getDispute(uint256 orderId) external view returns (Dispute memory);
-    function isDisputed(uint256 orderId) external view returns (bool);
+    /// @notice N2 → N3. Buyer can escalate at any time; after the 7d
+    /// N2 window anyone can escalate.
+    function escalateToVoting(uint256 disputeId) external;
+
+    // ===== Resolution =====
+
+    /// @notice N1 amicable — both parties must agree. `refundAmount`
+    /// ranges from 0 (full release to seller) to the item price
+    /// (full refund to buyer).
+    function resolveN1Amicable(uint256 disputeId, uint256 refundAmount) external;
+
+    /// @notice N2 mediator — called by the assigned mediator with a
+    /// resolution and optional slash against the seller's stake.
+    function resolveN2Mediation(
+        uint256 disputeId,
+        uint256 refundAmount,
+        uint256 slashAmount
+    ) external;
+
+    /// @notice N3 callback from EtaloVoting.finalizeVote. Applies the
+    /// community decision and unfreezes item and stake.
+    /// @dev N3 intentionally does NOT auto-slash the seller's stake
+    /// even when the community rules for the buyer. Stake slashing is
+    /// the N2 mediator's responsibility — only a human who has
+    /// examined the case should set a slash amount. N3 resolves only
+    /// the refund direction (buyer gets the item price, or seller
+    /// gets released) and does not attempt to price a punitive
+    /// penalty from a boolean vote outcome.
+    function resolveFromVote(uint256 voteId, bool buyerWon) external;
+
+    // ===== Views =====
+
+    function getDispute(uint256 disputeId)
+        external
+        view
+        returns (uint256 orderId, uint256 itemId, uint8 level, bool resolved);
+
+    function hasActiveDispute(address seller) external view returns (bool);
 }

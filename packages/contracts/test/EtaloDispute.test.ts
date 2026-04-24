@@ -1,204 +1,290 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 import { network } from "hardhat";
-import { deployAll, toUSDT, increaseTime, expectRevert } from "./helpers/fixtures.js";
+import {
+  deployDispute,
+  increaseTime,
+  toUSDT,
+  expectRevert,
+} from "./helpers/fixtures.js";
+
+const LEVEL_N1 = 1;
+const LEVEL_N2 = 2;
+const LEVEL_N3 = 3;
+const LEVEL_RESOLVED = 4;
+
+const N1_DURATION = 48 * 3600;
+const N2_DURATION = 7 * 24 * 3600;
+const N3_VOTING_PERIOD = 14 * 24 * 3600;
 
 describe("EtaloDispute", async function () {
   const { viem } = await network.create();
 
-  /** Helper: create + fund + ship an order, returns orderId = 0n */
-  async function createFundedShippedOrder(escrow: any, mockUSDT: any, buyer: any, seller: any) {
-    const amount = toUSDT(100);
-    await mockUSDT.write.mint([buyer.account.address, amount]);
-    await mockUSDT.write.approve([escrow.address, amount], { account: buyer.account });
-    await escrow.write.createOrder([seller.account.address, amount, false], { account: buyer.account });
-    await escrow.write.fundOrder([0n], { account: buyer.account });
-    await escrow.write.markShipped([0n], { account: seller.account });
-    return 0n;
-  }
-
-  // ── Open Dispute ──────────────────────────────────────────
+  // ── openDispute ───────────────────────────────────────────
   describe("openDispute", function () {
-    it("should open an L1 dispute and freeze auto-release", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
+    it("creates a dispute, freezes the item, and pauses the seller's stake", async function () {
+      const { dispute, mockEscrow, stake, buyer, seller } = await deployDispute(viem);
 
-      await dispute.write.openDispute([0n, "Item not as described"], { account: buyer.account });
+      await dispute.write.openDispute([1n, 1n, "wrong item"], {
+        account: buyer.account,
+      });
 
-      const d = await dispute.read.getDispute([0n]);
-      assert.equal(d.level, 1); // L1_Negotiation
-      assert.equal(d.resolved, false);
-      assert.equal(d.reason, "Item not as described");
+      const [orderId, itemId, level, resolved] = await dispute.read.getDispute([1n]);
+      assert.equal(orderId, 1n);
+      assert.equal(itemId, 1n);
+      assert.equal(level, LEVEL_N1);
+      assert.equal(resolved, false);
 
-      const order = await escrow.read.getOrder([0n]);
-      assert.equal(order.status, 5); // Disputed
-      assert.equal(order.autoReleaseAfter, 0n); // Frozen
+      assert.equal(await mockEscrow.read.markItemDisputedCalled(), true);
+      assert.equal(await mockEscrow.read.lastMarkedItemId(), 1n);
+
+      const [, , , , , freezeCount] = await stake.read.getWithdrawal([
+        seller.account.address,
+      ]);
+      assert.equal(freezeCount, 1n);
     });
 
-    it("should reject dispute by non-buyer", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-
+    it("rejects openDispute from a non-buyer caller", async function () {
+      const { dispute, nonParty } = await deployDispute(viem);
       await expectRevert(
-        dispute.write.openDispute([0n, "reason"], { account: seller.account }),
+        dispute.write.openDispute([1n, 1n, "fake"], { account: nonParty.account }),
         "Only buyer can open dispute"
       );
     });
 
-    it("should reject duplicate dispute", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-
-      await dispute.write.openDispute([0n, "reason"], { account: buyer.account });
+    it("rejects a second dispute on the same item", async function () {
+      const { dispute, buyer } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "first"], { account: buyer.account });
       await expectRevert(
-        dispute.write.openDispute([0n, "another reason"], { account: buyer.account }),
-        "Dispute already exists"
+        dispute.write.openDispute([1n, 1n, "second"], { account: buyer.account }),
+        "Item already disputed"
       );
     });
   });
 
-  // ── L1 Resolution ─────────────────────────────────────────
-  describe("L1 — Seller resolves", function () {
-    it("should resolve L1 with full refund to buyer", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
+  // ── resolveN1Amicable ─────────────────────────────────────
+  describe("resolveN1Amicable (bilateral)", function () {
+    it("resolves when both parties propose the same amount", async function () {
+      const { dispute, mockEscrow, stake, buyer, seller } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
 
-      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
-      await dispute.write.openDispute([0n, "defective item"], { account: buyer.account });
-      await dispute.write.resolveL1([0n], { account: seller.account });
+      await dispute.write.resolveN1Amicable([1n, toUSDT(20)], {
+        account: seller.account,
+      });
+      let [, , , resolved1] = await dispute.read.getDispute([1n]);
+      assert.equal(resolved1, false);
 
-      const d = await dispute.read.getDispute([0n]);
-      assert.equal(d.resolved, true);
-      assert.equal(d.outcome, 1); // ResolvedBySeller
+      await dispute.write.resolveN1Amicable([1n, toUSDT(20)], {
+        account: buyer.account,
+      });
+      const [, , level, resolved] = await dispute.read.getDispute([1n]);
+      assert.equal(resolved, true);
+      assert.equal(level, LEVEL_RESOLVED);
 
-      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
-      assert.equal(buyerAfter - buyerBefore, toUSDT(100));
-    });
-  });
-
-  // ── L1 → L2 Escalation ───────────────────────────────────
-  describe("escalateToL2", function () {
-    it("should allow buyer to escalate immediately", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-      await dispute.write.openDispute([0n, "reason"], { account: buyer.account });
-
-      await dispute.write.escalateToL2([0n], { account: buyer.account });
-
-      const d = await dispute.read.getDispute([0n]);
-      assert.equal(d.level, 2); // L2_Mediator
+      assert.equal(await mockEscrow.read.lastRefundAmount(), toUSDT(20));
+      const [, , , , , freezeCount] = await stake.read.getWithdrawal([
+        seller.account.address,
+      ]);
+      assert.equal(freezeCount, 0n);
     });
 
-    it("should allow anyone to escalate after L1 deadline (48h)", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller, mediator, publicClient } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-      await dispute.write.openDispute([0n, "reason"], { account: buyer.account });
+    it("stores a single-sided proposal without resolving", async function () {
+      const { dispute, buyer } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
 
-      // Fast forward 48h + 1s
-      await increaseTime(publicClient, 48 * 3600 + 1);
+      await dispute.write.resolveN1Amicable([1n, toUSDT(15)], {
+        account: buyer.account,
+      });
+      const [bAmt, sAmt, bProp, sProp] = await dispute.read.getN1Proposal([1n]);
+      assert.equal(bAmt, toUSDT(15));
+      assert.equal(sAmt, 0n);
+      assert.equal(bProp, true);
+      assert.equal(sProp, false);
 
-      // Even mediator (third party) can trigger escalation after deadline
-      await dispute.write.escalateToL2([0n], { account: mediator.account });
-      const d = await dispute.read.getDispute([0n]);
-      assert.equal(d.level, 2);
+      const [, , , resolved] = await dispute.read.getDispute([1n]);
+      assert.equal(resolved, false);
     });
 
-    it("should reject non-buyer escalation before deadline", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller, mediator } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-      await dispute.write.openDispute([0n, "reason"], { account: buyer.account });
+    it("does not resolve when proposals do not match", async function () {
+      const { dispute, buyer, seller } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
 
+      await dispute.write.resolveN1Amicable([1n, toUSDT(40)], {
+        account: buyer.account,
+      });
+      await dispute.write.resolveN1Amicable([1n, toUSDT(10)], {
+        account: seller.account,
+      });
+
+      const [, , , resolved] = await dispute.read.getDispute([1n]);
+      assert.equal(resolved, false);
+    });
+
+    it("rejects resolveN1Amicable from a non-party caller", async function () {
+      const { dispute, buyer, nonParty } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
       await expectRevert(
-        dispute.write.escalateToL2([0n], { account: seller.account }),
-        "L1 deadline not reached"
+        dispute.write.resolveN1Amicable([1n, toUSDT(20)], { account: nonParty.account }),
+        "Only parties"
       );
     });
   });
 
-  // ── L2 Resolution by Mediator ─────────────────────────────
-  describe("L2 — Mediator resolves", function () {
-    it("should resolve with partial refund", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller, mediator, deployer } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-      await dispute.write.openDispute([0n, "partial damage"], { account: buyer.account });
-      await dispute.write.escalateToL2([0n], { account: buyer.account });
-
-      // Admin approves and assigns mediator
-      await dispute.write.approveMediator([mediator.account.address, true]);
-      await dispute.write.assignMediator([0n, mediator.account.address]);
-
-      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
-      // Mediator decides 50% refund
-      const refundAmount = toUSDT(50);
-      await dispute.write.resolveL2([0n, refundAmount], { account: mediator.account });
-
-      const d = await dispute.read.getDispute([0n]);
-      assert.equal(d.resolved, true);
-      assert.equal(d.outcome, 2); // ResolvedByMediator
-
-      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
-      assert.equal(buyerAfter - buyerBefore, refundAmount);
+  // ── escalateToMediation ───────────────────────────────────
+  describe("escalateToMediation", function () {
+    it("buyer can escalate N1 → N2 immediately", async function () {
+      const { dispute, buyer } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      const [, , level] = await dispute.read.getDispute([1n]);
+      assert.equal(level, LEVEL_N2);
     });
 
-    it("should reject resolution by non-assigned mediator", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller, deployer } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-      await dispute.write.openDispute([0n, "reason"], { account: buyer.account });
-      await dispute.write.escalateToL2([0n], { account: buyer.account });
+    it("anyone can escalate after the N1 deadline", async function () {
+      const { dispute, buyer, nonParty, publicClient } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await increaseTime(publicClient, N1_DURATION + 1);
+      await dispute.write.escalateToMediation([1n], { account: nonParty.account });
+      const [, , level] = await dispute.read.getDispute([1n]);
+      assert.equal(level, LEVEL_N2);
+    });
+
+    it("rejects escalation from a non-buyer before the N1 deadline", async function () {
+      const { dispute, buyer, nonParty } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await expectRevert(
+        dispute.write.escalateToMediation([1n], { account: nonParty.account }),
+        "Buyer only before N1 deadline"
+      );
+    });
+  });
+
+  // ── resolveN2Mediation ────────────────────────────────────
+  describe("resolveN2Mediation", function () {
+    it("assigned mediator resolves with refund and slash", async function () {
+      const { dispute, stake, mockEscrow, buyer, seller, mediator } = await deployDispute(viem);
+
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.assignN2Mediator([1n, mediator.account.address]);
+
+      await dispute.write.resolveN2Mediation(
+        [1n, toUSDT(50), toUSDT(3)],
+        { account: mediator.account }
+      );
+
+      const [, , level, resolved] = await dispute.read.getDispute([1n]);
+      assert.equal(resolved, true);
+      assert.equal(level, LEVEL_RESOLVED);
+
+      assert.equal(await mockEscrow.read.lastRefundAmount(), toUSDT(50));
+      // Seller's stake went from 10 USDT to 7 USDT (slash of 3); tier
+      // auto-downgrades to None per ADR-028 because 7 < TIER_1_STAKE.
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(7));
+      assert.equal(await stake.read.getTier([seller.account.address]), 0);
+    });
+
+    it("rejects resolveN2Mediation from a non-assigned mediator", async function () {
+      const { dispute, buyer, mediator, mediator2 } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.assignN2Mediator([1n, mediator.account.address]);
 
       await expectRevert(
-        dispute.write.resolveL2([0n, toUSDT(50)], { account: seller.account }),
+        dispute.write.resolveN2Mediation([1n, toUSDT(20), 0n], {
+          account: mediator2.account,
+        }),
         "Not assigned mediator"
       );
     });
   });
 
-  // ── L3 Resolution by Admin ────────────────────────────────
-  describe("L3 — Admin resolves", function () {
-    it("should allow admin to resolve at L2+ level", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-      await dispute.write.openDispute([0n, "fraud"], { account: buyer.account });
-      await dispute.write.escalateToL2([0n], { account: buyer.account });
+  // ── escalateToVoting + resolveFromVote ────────────────────
+  describe("escalateToVoting / resolveFromVote", function () {
+    it("creates a vote on EtaloVoting with a voter list", async function () {
+      const { dispute, voting, buyer } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.escalateToVoting([1n], { account: buyer.account });
 
-      // Admin (deployer/owner) resolves L3 — full refund
-      const buyerBefore = await mockUSDT.read.balanceOf([buyer.account.address]);
-      await dispute.write.resolveL3([0n, toUSDT(100)]);
+      const [vDisputeId, vDeadline, vFinalized] = await voting.read.getVote([1n]);
+      assert.equal(vDisputeId, 1n);
+      assert.ok(vDeadline > 0n);
+      assert.equal(vFinalized, false);
 
-      const d = await dispute.read.getDispute([0n]);
-      assert.equal(d.resolved, true);
-      assert.equal(d.level, 3); // L3_Admin
-      assert.equal(d.outcome, 3); // ResolvedByAdmin
-
-      const buyerAfter = await mockUSDT.read.balanceOf([buyer.account.address]);
-      assert.equal(buyerAfter - buyerBefore, toUSDT(100));
+      const [, , level] = await dispute.read.getDispute([1n]);
+      assert.equal(level, LEVEL_N3);
     });
 
-    it("should reject L3 resolve by non-owner", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
-      await dispute.write.openDispute([0n, "reason"], { account: buyer.account });
-      await dispute.write.escalateToL2([0n], { account: buyer.account });
+    it("voting callback resolves the dispute with full refund when buyer wins", async function () {
+      const { dispute, voting, mockEscrow, stake, buyer, seller, mediator, mediator2, publicClient } =
+        await deployDispute(viem);
 
-      await expectRevert(
-        dispute.write.resolveL3([0n, toUSDT(50)], { account: buyer.account })
-      );
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.escalateToVoting([1n], { account: buyer.account });
+
+      // Both mediators vote favorBuyer=true (no n2 assignment → both eligible).
+      await voting.write.submitVote([1n, true], { account: mediator.account });
+      await voting.write.submitVote([1n, true], { account: mediator2.account });
+
+      await increaseTime(publicClient, N3_VOTING_PERIOD + 1);
+      await voting.write.finalizeVote([1n]);
+
+      const [, , level, resolved] = await dispute.read.getDispute([1n]);
+      assert.equal(resolved, true);
+      assert.equal(level, LEVEL_RESOLVED);
+      assert.equal(await mockEscrow.read.lastRefundAmount(), toUSDT(50)); // full item price
+
+      const [, , , , , freezeCount] = await stake.read.getWithdrawal([
+        seller.account.address,
+      ]);
+      assert.equal(freezeCount, 0n);
     });
   });
 
-  // ── isDisputed view ───────────────────────────────────────
-  describe("isDisputed", function () {
-    it("should return true for active dispute, false after resolution", async function () {
-      const { escrow, dispute, mockUSDT, buyer, seller } = await deployAll(viem);
-      await createFundedShippedOrder(escrow, mockUSDT, buyer, seller);
+  // ── hasActiveDispute + hasActiveDisputeForItem ────────────
+  describe("views", function () {
+    it("hasActiveDispute and hasActiveDisputeForItem transition correctly", async function () {
+      const { dispute, buyer, seller } = await deployDispute(viem);
 
-      assert.equal(await dispute.read.isDisputed([0n]), false);
+      assert.equal(await dispute.read.hasActiveDispute([seller.account.address]), false);
+      assert.equal(await dispute.read.hasActiveDisputeForItem([1n, 1n]), false);
 
-      await dispute.write.openDispute([0n, "test"], { account: buyer.account });
-      assert.equal(await dispute.read.isDisputed([0n]), true);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      assert.equal(await dispute.read.hasActiveDispute([seller.account.address]), true);
+      assert.equal(await dispute.read.hasActiveDisputeForItem([1n, 1n]), true);
 
-      await dispute.write.resolveL1([0n], { account: seller.account });
-      assert.equal(await dispute.read.isDisputed([0n]), false);
+      // Resolve via N1 bilateral match at 0 refund
+      await dispute.write.resolveN1Amicable([1n, 0n], { account: buyer.account });
+      await dispute.write.resolveN1Amicable([1n, 0n], { account: seller.account });
+
+      assert.equal(await dispute.read.hasActiveDispute([seller.account.address]), false);
+      assert.equal(await dispute.read.hasActiveDisputeForItem([1n, 1n]), false);
+    });
+  });
+
+  // ── N3 voter exclusion ────────────────────────────────────
+  describe("N3 voter exclusion", function () {
+    it("N3 voters list excludes the assigned N2 mediator", async function () {
+      const { dispute, voting, buyer, mediator, mediator2 } = await deployDispute(viem);
+
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.assignN2Mediator([1n, mediator.account.address]);
+      await dispute.write.escalateToVoting([1n], { account: buyer.account });
+
+      // The N2-assigned mediator is excluded from the voter set.
+      await expectRevert(
+        voting.write.submitVote([1n, true], { account: mediator.account }),
+        "Not eligible"
+      );
+      // mediator2 is still eligible.
+      await voting.write.submitVote([1n, true], { account: mediator2.account });
+      assert.equal(
+        await voting.read.hasVoted([1n, mediator2.account.address]),
+        true
+      );
     });
   });
 });

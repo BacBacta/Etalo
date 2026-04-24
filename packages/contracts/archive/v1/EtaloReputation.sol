@@ -4,37 +4,30 @@ pragma solidity 0.8.24;
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "./interfaces/IEtaloReputation.sol";
 
-/// @title EtaloReputation
-/// @notice Seller reputation tracker. Core V1 logic (score formula,
-/// sanction states, authorized-caller control) is carried over
-/// unchanged; V2 tightens the Top Seller criteria per ADR-020 (50
-/// orders minimum, 0 lost disputes, 90-day post-sanction cooldown)
-/// and stores `lastSanctionAt` to enforce the cooldown.
 contract EtaloReputation is IEtaloReputation, Ownable {
-    // ===== Constants =====
-    uint256 public constant TOP_SELLER_MIN_ORDERS = 50;            // was 20 in V1 (ADR-020)
-    uint256 public constant TOP_SELLER_MIN_SCORE = 80;             // V1 safety, retained
-    uint256 public constant TOP_SELLER_SANCTION_COOLDOWN = 90 days; // ADR-020
+    // --- Constants ---
+    uint256 public constant TOP_SELLER_MIN_ORDERS = 20;
+    uint256 public constant TOP_SELLER_MIN_SCORE = 80;
     uint256 public constant MAX_SCORE = 100;
     uint256 public constant SCORE_BASE = 50;
     uint256 public constant AUTO_RELEASE_INTRA_DAYS = 3;
     uint256 public constant AUTO_RELEASE_TOP_SELLER_DAYS = 2;
     uint256 public constant AUTO_RELEASE_CROSS_DAYS = 7;
 
-    // ===== State =====
+    // --- State ---
     mapping(address => SellerReputation) private _reputations;
     mapping(address => bool) public isAuthorizedCaller;
 
-    // ===== Modifiers =====
+    // --- Modifiers ---
     modifier onlyAuthorized() {
         require(isAuthorizedCaller[msg.sender] || msg.sender == owner(), "Not authorized");
         _;
     }
 
-    // ===== Constructor =====
+    // --- Constructor ---
     constructor() Ownable(msg.sender) {}
 
-    // ===== Admin =====
+    // --- Admin ---
     function setAuthorizedCaller(address caller, bool authorized) external onlyOwner {
         require(caller != address(0), "Invalid address");
         isAuthorizedCaller[caller] = authorized;
@@ -45,25 +38,19 @@ contract EtaloReputation is IEtaloReputation, Ownable {
         SellerReputation storage rep = _reputations[seller];
         rep.status = newStatus;
 
-        if (newStatus != SellerStatus.Active) {
-            rep.lastSanctionAt = block.timestamp;
-            if (rep.isTopSeller) {
-                rep.isTopSeller = false;
-                emit TopSellerRevoked(seller);
-            }
+        if (newStatus != SellerStatus.Active && rep.isTopSeller) {
+            rep.isTopSeller = false;
+            emit TopSellerRevoked(seller);
         }
 
         emit SellerSanctioned(seller, newStatus);
     }
 
-    // ===== Core =====
+    // --- Core ---
     function recordCompletedOrder(address seller, uint256 orderId, uint256 amount) external onlyAuthorized {
         SellerReputation storage rep = _reputations[seller];
         require(rep.status == SellerStatus.Active, "Seller not active");
 
-        if (rep.ordersCompleted == 0) {
-            rep.firstOrderAt = block.timestamp;   // stamped once on the very first completed order
-        }
         rep.ordersCompleted++;
         rep.totalVolume += amount;
         _recalculateScore(seller);
@@ -83,22 +70,13 @@ contract EtaloReputation is IEtaloReputation, Ownable {
         emit DisputeRecorded(seller, orderId, sellerLost);
     }
 
-    /// @notice Grants or revokes Top Seller based on 4 criteria:
-    ///   1. ordersCompleted >= 50 (ADR-020)
-    ///   2. disputesLost == 0 (ADR-020)
-    ///   3. block.timestamp >= lastSanctionAt + 90 days (ADR-020)
-    ///   4. score >= 80 (V1 safety threshold, retained)
-    /// Status must also be Active. Top Seller unlocks 1.2% commission
-    /// (ADR) and Tier 3 stake eligibility (ADR-020).
     function checkAndUpdateTopSeller(address seller) external onlyAuthorized {
         SellerReputation storage rep = _reputations[seller];
         bool wasTopSeller = rep.isTopSeller;
 
-        bool qualifies = rep.status == SellerStatus.Active
-            && rep.ordersCompleted >= TOP_SELLER_MIN_ORDERS
-            && rep.disputesLost == 0
-            && (rep.lastSanctionAt == 0 || block.timestamp >= rep.lastSanctionAt + TOP_SELLER_SANCTION_COOLDOWN)
-            && rep.score >= TOP_SELLER_MIN_SCORE;
+        bool qualifies = rep.status == SellerStatus.Active &&
+            rep.ordersCompleted >= TOP_SELLER_MIN_ORDERS &&
+            rep.score >= TOP_SELLER_MIN_SCORE;
 
         if (qualifies && !wasTopSeller) {
             rep.isTopSeller = true;
@@ -109,7 +87,7 @@ contract EtaloReputation is IEtaloReputation, Ownable {
         }
     }
 
-    // ===== Views =====
+    // --- View ---
     function getReputation(address seller) external view returns (SellerReputation memory) {
         return _reputations[seller];
     }
@@ -128,7 +106,7 @@ contract EtaloReputation is IEtaloReputation, Ownable {
         return AUTO_RELEASE_INTRA_DAYS;
     }
 
-    // ===== Internal =====
+    // --- Internal ---
     function _recalculateScore(address seller) internal {
         SellerReputation storage rep = _reputations[seller];
 
@@ -138,8 +116,12 @@ contract EtaloReputation is IEtaloReputation, Ownable {
             return;
         }
 
-        // Score formula (V1 preserved):
-        //   base 50 + completionBonus (up to 30) + volumeBonus (up to 10) - disputePenalty (up to 40)
+        // Score formula:
+        // base 50 + up to 50 based on completion ratio minus dispute penalty
+        // completionBonus = (ordersCompleted / (ordersCompleted + ordersDisputed)) * 30
+        // volumeBonus = min(ordersCompleted, 100) / 100 * 10
+        // disputePenalty = (disputesLost * 10) capped at 40
+
         uint256 totalOrders = rep.ordersCompleted + rep.ordersDisputed;
         uint256 completionBonus = (rep.ordersCompleted * 30) / totalOrders;
 
@@ -152,7 +134,11 @@ contract EtaloReputation is IEtaloReputation, Ownable {
         }
 
         uint256 rawScore = SCORE_BASE + completionBonus + volumeBonus;
-        rep.score = rawScore > disputePenalty ? rawScore - disputePenalty : 0;
+        if (rawScore > disputePenalty) {
+            rep.score = rawScore - disputePenalty;
+        } else {
+            rep.score = 0;
+        }
 
         if (rep.score > MAX_SCORE) {
             rep.score = MAX_SCORE;

@@ -1,0 +1,138 @@
+{
+  "scenario": "5 — Multi shipment groups (seller=AISSA)",
+  "note": "seller=AISSA due to ADR-033 post-slash-recovery gap. CHIOMA remains in Tier.None with 5 USDT orphan as scenario 4 artifact (documented in ADR-033).",
+  "startedAt": "2026-04-24T19:44:05.547Z",
+  "endedAt": "2026-04-24T19:44:48.434Z",
+  "wallets": {
+    "seller": "0xcdBA5Ccf538B4088682D2F6408D2305edF4F096B",
+    "buyer": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315",
+    "chioma_unchanged": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596"
+  },
+  "preSetup": {
+    "topup": null,
+    "approveStake": "0xee43a5fe8250e0df841685acfc2083f8e80ce9a361133c90ae17ad260369fa7e",
+    "depositStake": "0xadda369abb8bad165cadec1e817448fc11f14abd1587cfaa1ebcb4c4c05c68dc"
+  },
+  "order": {
+    "orderId": "10",
+    "itemIds": [
+      "16",
+      "17",
+      "18",
+      "19",
+      "20"
+    ],
+    "groups": {
+      "g1": "9",
+      "g2": "10"
+    },
+    "isCrossBorder": true,
+    "total": "90000000"
+  },
+  "txs": {
+    "approve": "0x80bc9cd32d433b9655f0d9b037195d1e1c518627d386391e26b3875af427773d",
+    "create": "0x967769e8d5cb1c07972b4e90edbcdc68d77ed4aa1de8e6b0b3efba5ee197b101",
+    "fund": "0x04c392ea680e082e85bea841f2f0f5af97262e3241daa0ad9e9b15d1600f56e6",
+    "ship1": "0x1a281b0fb541f900b318ffa70496b4ae1d8bd91e05553c6499a7af266d96bbaf",
+    "ship2": "0x94305728343d061534ac33cb42f8e15c0de650d072668d0b82cde1f9200d42f2",
+    "arrive1": "0x2939e8d44f81b7568d8cf9bfd5c2717e124bd90bef05f92d1231b1a3bf672cda",
+    "confirm1": "0x576bf9161a5fea4d08188cf96f3c50ef6d2a9d52d9748a1d52e954b4ec38a485",
+    "arrive2": "0xf2914a3a118937408d4092dd61f4f5556c657c8262c0f6fb6a0dcc5e3a37a5f7",
+    "confirm2": "0x77f618e2cbfbf607c3bf1cca5be25c1b3ba587fa6b15636f46c12e8cd0a1e858"
+  },
+  "gasUsed": {
+    "approve": "46343",
+    "create": "849653",
+    "fund": "195467",
+    "ship1": "582012",
+    "ship2": "434159",
+    "arrive1": "158596",
+    "confirm1": "315610",
+    "arrive2": "150855",
+    "confirm2": "198074"
+  },
+  "balances": {
+    "before": {
+      "aissa": 190,
+      "mamadou": 114.432,
+      "chioma": 572.833252,
+      "treasury": 12.734748,
+      "escrow": 0,
+      "stake": 15
+    },
+    "afterShip1": {
+      "aissa": 200.5084,
+      "mamadou": 24.432,
+      "chioma": 572.833252,
+      "treasury": 12.734748,
+      "escrow": 79.4916,
+      "stake": 15
+    },
+    "afterShip2": {
+      "aissa": 207.514,
+      "mamadou": 24.432,
+      "chioma": 572.833252,
+      "treasury": 12.734748,
+      "escrow": 72.486,
+      "stake": 15
+    },
+    "afterConfirm1": {
+      "aissa": 249.5476,
+      "mamadou": 24.432,
+      "chioma": 572.833252,
+      "treasury": 14.192748,
+      "escrow": 28.9944,
+      "stake": 15
+    },
+    "after": {
+      "aissa": 277.57,
+      "mamadou": 24.432,
+      "chioma": 572.833252,
+      "treasury": 15.164748,
+      "escrow": 0,
+      "stake": 15
+    },
+    "deltas": {
+      "aissa": 87.57,
+      "mamadou": -90,
+      "chioma": 0,
+      "treasury": 2.43,
+      "escrow": 0,
+      "stake": 0
+    }
+  },
+  "expected": {
+    "shipGroup1": 10.5084,
+    "shipGroup2": 7.0056,
+    "confirmGroup1Seller": 42.0336,
+    "confirmGroup2Seller": 28.0224,
+    "treasuryTotal": 2.43
+  },
+  "statusTransitions": {
+    "afterShip1": 2,
+    "afterShip2": 3,
+    "afterConfirm1": 4,
+    "final": 5
+  },
+  "finalStatus": {
+    "orderGlobalStatus": 5,
+    "itemStatuses": [
+      4,
+      4,
+      4,
+      4,
+      4
+    ],
+    "aissaTier": 1,
+    "aissaStake": 10,
+    "aissaActiveSales": "0",
+    "reputationCompletedDelta": 5
+  },
+  "events": {
+    "itemReleasedCount": 5,
+    "shipmentGroupCreatedCount": 2,
+    "missing": []
+  },
+  "result": "PASS",
+  "failures": []
+}

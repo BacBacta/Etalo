@@ -1,0 +1,49 @@
+{
+  "note": "cleanup operation post-scenario 3, not part of scenario test suite",
+  "timestamp": "2026-04-24T19:13:31.131Z",
+  "orderId": "7",
+  "itemsConfirmed": [
+    "9",
+    "11"
+  ],
+  "buyer": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315",
+  "seller": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596",
+  "txs": {
+    "item9": {
+      "hash": "0x2faf61a121f7d50eb58b0af6871d36b67f1b410db3506b7d78ce6632b086b066",
+      "gasUsed": "141594"
+    },
+    "item11": {
+      "hash": "0x2648806c3b662a1ca4a14d76b3650a752ecf95d372420df91dd9d368b5447adf",
+      "gasUsed": "141968"
+    }
+  },
+  "balances": {
+    "before": {
+      "chioma": 510.561252,
+      "mamadou": 125,
+      "treasury": 11.114748,
+      "escrow": 48.324
+    },
+    "after": {
+      "chioma": 557.265252,
+      "mamadou": 125,
+      "treasury": 12.734748,
+      "escrow": 0
+    },
+    "deltas": {
+      "chioma": 46.704,
+      "mamadou": 0,
+      "treasury": 1.62,
+      "escrow": -48.324
+    }
+  },
+  "stake": {
+    "activeSalesBefore": "1",
+    "activeSalesAfter": "0"
+  },
+  "order": {
+    "statusBefore": 4,
+    "statusAfter": 5
+  }
+}

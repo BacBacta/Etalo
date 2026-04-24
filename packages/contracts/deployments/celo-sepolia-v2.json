@@ -1,0 +1,130 @@
+{
+  "network": "celoSepolia",
+  "chainId": 11142220,
+  "deployer": "0x66bD37325cf41dAd0035398854f209785C9bC4C2",
+  "treasuries": {
+    "commission": "0x9819c9E1b4F634784fd9A286240ecACd297823fa",
+    "credits": "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
+    "community": "0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6"
+  },
+  "contracts": {
+    "MockUSDT": {
+      "address": "0x5ce5eba46a72ea49655367c57334e038ea1aa1f3",
+      "txHash": "0x7f9f9f25411749d88e8842b3130c68c5725dae812edce11b8468aacf4d58aba3",
+      "block": "23761654"
+    },
+    "EtaloReputation": {
+      "address": "0x2a6639074d0897c6280f55b252b97dd1c39820b7",
+      "txHash": "0xda46228d6ed3fe7182a59c058b2c8cd6015371b914858ca4e791e47d05414eec",
+      "block": "23761657"
+    },
+    "EtaloStake": {
+      "address": "0xbb21baa78f5b0c268ea66912ce8b3e76eb79c417",
+      "txHash": "0xf1f9071c3e5a50edc4d9726defdf417d7a69f7b56a3d2f7ac8158d327b6b2b56",
+      "block": "23761661",
+      "constructorArgs": [
+        "0x5ce5eba46a72ea49655367c57334e038ea1aa1f3"
+      ]
+    },
+    "EtaloVoting": {
+      "address": "0x335ac0998667f76fe265bc28e6989dc535a901e7",
+      "txHash": "0xa3448fea2cb26eebb62347757923c69c83a91f4f7011dda0be98a8a2a822faf2",
+      "block": "23761664"
+    },
+    "EtaloDispute": {
+      "address": "0x863f0bbc8d5873fe49f6429a8455236fe51a9abe",
+      "txHash": "0x83793992080ea250ade3121471988747127ab11a60789187cdf38075990a3cf2",
+      "block": "23761668"
+    },
+    "EtaloEscrow": {
+      "address": "0x6caebc6adc5082f6b63282e86caf51aebd630bfb",
+      "txHash": "0xa71a2c4bbc405e9f993f96a161d5100b44fbe65d3cc05bb0687d7c6112656589",
+      "block": "23761672",
+      "constructorArgs": [
+        "0x5ce5eba46a72ea49655367c57334e038ea1aa1f3"
+      ]
+    }
+  },
+  "setters": [
+    {
+      "name": "Reputation.setAuthorizedCaller(Escrow)",
+      "txHash": "0xa0ee4857f0a93aa0c9f67489b99462938524ad23a1e50aaf4dfa2ba0118e24ed"
+    },
+    {
+      "name": "Reputation.setAuthorizedCaller(Dispute)",
+      "txHash": "0x0392d6e326944710b2ae4a342b78fd0599f7d7d6ef4400885d36f9ebcb48c7a9"
+    },
+    {
+      "name": "Stake.setReputationContract",
+      "txHash": "0x0ffc70f494d8e9b64a74cd293835fd023b293c1bbfcf57ee73921aaa2c3efd6d"
+    },
+    {
+      "name": "Stake.setDisputeContract",
+      "txHash": "0x24c3105352669886dcb1ce6a9e8dee16c171c0b3ae25c25e6b09726b4f44a0fe"
+    },
+    {
+      "name": "Stake.setEscrowContract",
+      "txHash": "0x6db8f71cd6d50842ff3228b63597bead38f46dd49552a63b0bd2886aa370a1f4"
+    },
+    {
+      "name": "Stake.setCommunityFund",
+      "txHash": "0x08a9deda8de323a5c85ac246f21420c5bf20b62437deba28d64c24ecb436ca05"
+    },
+    {
+      "name": "Voting.setDisputeContract",
+      "txHash": null,
+      "note": "ghost-confirmed via on-chain read after drpc 500 (trace-id f6c1f8d2f5a1750c8000e8437e93069a)",
+      "verifiedOnChain": true,
+      "confirmedAt": "2026-04-24T00:00:00.000Z"
+    },
+    {
+      "name": "Dispute.setEscrow",
+      "txHash": "0x06954c966dab2e05b2cb06e204df6e89ae37d2f6e44e276ab6344635a02c92ca"
+    },
+    {
+      "name": "Dispute.setStake",
+      "txHash": "0x9bb966a5308c07be72fdb0334291a1733ef932132b49ea784619b65852a0235a"
+    },
+    {
+      "name": "Dispute.setVoting",
+      "txHash": "0x8e56aba9eeadbb47306d11510277774936927505ced762c0f844d7bbfc2cd9c7"
+    },
+    {
+      "name": "Dispute.setReputation",
+      "txHash": "0x3659efadbbbddee17bc8f51a072603aa296be2e1ee17e366ceb6c9742b7102cc"
+    },
+    {
+      "name": "Escrow.setDisputeContract",
+      "txHash": "0xcd17c132b1e653eab6bef89ac5f5033c6cda6f15cfa27d3fcd11ab2a8af3923f"
+    },
+    {
+      "name": "Escrow.setStakeContract",
+      "txHash": "0x59ed6c0b751d682bf56844b6c4006e15037665c80c8402f6c6b60d9ba2d88f3d"
+    },
+    {
+      "name": "Escrow.setReputationContract",
+      "txHash": "0x06c8e0842dcf5cc3bb0ec525a1693ef12fd4fcffded9abb56a99a37efdc821a2"
+    },
+    {
+      "name": "Escrow.setCommissionTreasury",
+      "txHash": "0xc43a9b6188fe0fa30f4e72eea43695b18731ef0fef511d8570857aac08c62f9e"
+    },
+    {
+      "name": "Escrow.setCreditsTreasury",
+      "txHash": "0x4b2ec06c494ea486fce3bac907f600d8bd2bd42a20246063a42a31ece6176ba7"
+    },
+    {
+      "name": "Escrow.setCommunityFund",
+      "txHash": "0xf13150a06f6059bfed0cb5b5d1058e0c2f08f0cf839aaa8d3e21be825fe8dfac"
+    }
+  ],
+  "mint": {
+    "contract": "MockUSDT",
+    "recipient": "0x66bD37325cf41dAd0035398854f209785C9bC4C2",
+    "amount": "10000 USDT (10_000_000_000 raw, 6 decimals)",
+    "txHash": "0xf04e63cb46ab18f154f7a9b0153a0287d1a83482deee369e942c554d96fc560b",
+    "finalBalance": "10000 USDT"
+  },
+  "deployedAt": "2026-04-24T00:00:00.000Z",
+  "wiringCompletedAt": "2026-04-24T15:57:52.745Z"
+}

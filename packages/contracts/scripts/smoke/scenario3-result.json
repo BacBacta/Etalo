@@ -1,0 +1,147 @@
+{
+  "scenario": "3 — Sibling isolation + N1 amicable dispute",
+  "startedAt": "2026-04-24T19:07:06.243Z",
+  "endedAt": "2026-04-24T19:07:40.630Z",
+  "wallets": {
+    "seller": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596",
+    "buyer": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315"
+  },
+  "order": {
+    "orderId": "8",
+    "itemIds": [
+      "12",
+      "13",
+      "14"
+    ],
+    "groupId": "7",
+    "disputeId": "2",
+    "isCrossBorder": true,
+    "total": "90000000"
+  },
+  "refundAmount": "15000000",
+  "txs": {
+    "approve": "0xd06aa281fba87309460fc09747515c31e2198732cb370d27d6ce56eee090476c",
+    "create": "0x3645e442d3bcab67319a2bfe7afda269358bfec12422b400135772959cf70c24",
+    "fund": "0x17170c5d0ff5b2567736cf08463f8220db37e05b7503a945313c9787f06aed32",
+    "ship": "0x91e81eb47e7e7cc445afe7ac6445da91dc29f757b531aa98eada58e4f0ac2f0c",
+    "arrive": "0xe45dfcad1712ac82da085afbcbe42f685c2a103bc682198e6aa2c986ddcb7319",
+    "openDispute": "0x447e4540f491cc8132cf1f4dba25767d55c9075aad442d0c697d003f4c85ac05",
+    "n1Buyer": "0x8ab754f77079605d7c5fd329eba68ffa97092dabec54020c99ce53631ec31963",
+    "n1Seller": "0x09a23f431f8dbb8d461ff0b2988ae41ef158752de916c8e151315d87c783471d",
+    "confirm1": "0xe361dfc46be6bca86a8d32004efa1027285aa16f9939edb0fda9a3af74c44c7e",
+    "confirm3": "0xf8ef298e23527b4c4376a6ccd28ca593c802648a7d2d1fd03403f92e50215f7f"
+  },
+  "gasUsed": {
+    "approve": "46343",
+    "create": "611515",
+    "fund": "106701",
+    "ship": "582010",
+    "arrive": "158596",
+    "openDispute": "344131",
+    "n1Buyer": "77565",
+    "n1Seller": "263480",
+    "confirm1": "141594",
+    "confirm3": "156368"
+  },
+  "balances": {
+    "before": {
+      "chioma": 437.428626,
+      "mamadou": 200,
+      "treasury": 9.247374,
+      "escrow": 48.324,
+      "stake": 10
+    },
+    "afterShip": {
+      "chioma": 454.942626,
+      "mamadou": 110,
+      "treasury": 9.247374,
+      "escrow": 120.81,
+      "stake": 10
+    },
+    "afterDispute": {
+      "chioma": 463.857252,
+      "mamadou": 125,
+      "treasury": 9.494748,
+      "escrow": 96.648,
+      "stake": 10
+    },
+    "after": {
+      "chioma": 510.561252,
+      "mamadou": 125,
+      "treasury": 11.114748,
+      "escrow": 48.324,
+      "stake": 10
+    },
+    "deltas": {
+      "chioma": 73.132626,
+      "mamadou": -75,
+      "treasury": 1.867374,
+      "escrow": 0,
+      "stake": 0
+    },
+    "shipDeltas": {
+      "chioma": 17.514,
+      "mamadou": -90,
+      "treasury": 0,
+      "escrow": 72.486,
+      "stake": 0
+    },
+    "disputeDeltas": {
+      "chioma": 8.914626,
+      "mamadou": 15,
+      "treasury": 0.247374,
+      "escrow": -24.162,
+      "stake": 0
+    }
+  },
+  "expected": {
+    "shipNetTotal": 17.514,
+    "disputeNetShare": 8.914626,
+    "disputeCommissionShare": 0.247374,
+    "confirmNetPerItem": 23.352,
+    "confirmCommissionPerItem": 0.81,
+    "chiomaDelta": 73.132626,
+    "mamadouDelta": -75,
+    "treasuryDelta": 1.867374
+  },
+  "events": {
+    "missingEscrow": [],
+    "missingDispute": [],
+    "itemReleasedFromConfirms": 2
+  },
+  "stake": {
+    "freezeCountBefore": "0",
+    "freezeCountAfterOpen": "1",
+    "freezeCountAfterResolve": "0",
+    "freezeCountAfterAll": "0",
+    "activeSalesBefore": "1",
+    "activeSalesAfter": "1"
+  },
+  "reputation": {
+    "before": {
+      "ordersCompleted": "7",
+      "ordersDisputed": "1",
+      "disputesLost": "1"
+    },
+    "after": {
+      "ordersCompleted": "9",
+      "ordersDisputed": "2",
+      "disputesLost": "2"
+    },
+    "deltas": {
+      "completedDelta": "2",
+      "disputedDelta": "1",
+      "lostDelta": "1"
+    }
+  },
+  "finalStatus": {
+    "orderGlobalStatus": 5,
+    "itemStatuses": [
+      4,
+      4,
+      4
+    ]
+  },
+  "result": "PASS",
+  "failures": []
+}

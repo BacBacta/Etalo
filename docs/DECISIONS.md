@@ -857,3 +857,401 @@ communication.
   invariant coverage for each limit.
 - Upgrades require clear user communication (V1 contracts are **not
   proxy-upgradable** — a new contract means a new address).
+
+---
+
+## ADR-027 · 2026-04-23 — SPEC §12 as canonical function naming, plus setStakeContract wiring
+
+**Status**: Accepted
+
+**Context**: During Sprint J4 Block 2 implementation, seven name or
+signature divergences surfaced between `docs/SPEC_SMART_CONTRACT_V2.md`
+and the `docs/SPRINT_J4.md` Block 7 sketch (e.g. `createOrderWithItems`
+vs `createOrder`, `shipItemsGrouped` vs `createShipmentGroup`,
+`triggerAutoReleaseForItem` vs `triggerFinalRelease`, `OrderStatus`
+9 vs 6 values, `ShipmentStatus.Delivered` vs `Released`, `uint8 tier`
+vs `StakeTier` enum, `markItemDisputed` vs `freezeItem`). The SPEC is
+the more rigorous document and declares itself the technical source of
+truth.
+
+**Decision**: `docs/SPEC_SMART_CONTRACT_V2.md` is the canonical source
+for V2 function names, enum values, struct shapes, and event
+signatures. Implementation deviates from SPEC only where strictly
+necessary for wiring that the SPEC omits — specifically `setStakeContract`
+on `EtaloEscrow`, which is required for the `EtaloEscrow → EtaloStake`
+eligibility and concurrent-sales hooks but is absent from SPEC §12.4's
+admin setter list. The `EtaloTypes.StakeTier` enum replaces SPEC §6.3's
+`uint8 tier` parameter for type safety; this is a mechanical
+improvement, not a behavioral change.
+
+**Rationale**: A single canonical source prevents drift between spec
+and code. `docs/SPRINT_J4.md` is a tactical plan that can contain
+obsolete hints; when SPRINT and SPEC disagree, SPEC wins. Any future
+divergence from SPEC beyond cosmetic wiring must be justified by a new
+ADR.
+
+**Impact**:
+- Block 2 interfaces landed with SPEC names throughout.
+- `setStakeContract` added to `IEtaloEscrow` without a separate ADR
+  beyond this one — all other SPEC §12.4 admin setters are preserved
+  as documented.
+- SPRINT_J4.md Block 7 function names (e.g. `createOrder`,
+  `createShipmentGroup`, `freezeItem`) are obsolete; defer to SPEC §12
+  when reading that block for Block 7 implementation.
+- Future sprints (J5 backend, J6 frontend) should bind to the SPEC
+  names via the `IEtaloX` interfaces emitted from this sprint.
+
+---
+
+## ADR-028 · 2026-04-23 — Stake auto-downgrade after slash, topUpStake recovery, and orphan stake drain
+
+**Status**: Accepted
+
+**Context**: Three coupled gaps in `EtaloStake` surfaced after Block
+4: (1) if `slashStake` reduces a seller's stake below the tier
+amount, the seller nominally retains the tier with insufficient
+collateral, breaking the stake/exposure ratio guaranteed by ADR-020;
+(2) no UX path to restore coverage after a slash short of
+re-depositing from scratch; (3) a slash leaving a residual
+`0 < stake < TIER_1_STAKE` locks the seller at tier `None` with no
+withdrawal path — a contradiction with ADR-022's "funds cannot be
+frozen indefinitely".
+
+**Decision**:
+
+1. **Auto-downgrade in `slashStake`** — after reducing stake, set tier
+   to the highest tier supported via `_supportedTier(stake)` (possibly
+   `None`). Eligibility checks are skipped on this forced transition
+   because the slash is driven by dispute, not by the seller.
+
+2. **`topUpStake(amount)`** — new user-facing function. Adds USDT to
+   an existing stake without changing tier; capped at
+   `_stakes[seller] + amount <= TIER_3_STAKE` to prevent typo-driven
+   overfunding. Seller uses `upgradeTier` separately to climb tiers
+   (which enforces eligibility).
+
+3. **Orphan stake drain** — `initiateWithdrawal(newTier)` relaxed to
+   accept `newTier == None` when `currentTier == None && _stakes[seller]
+   > 0`. Same 14-day cooldown; `executeWithdrawal` transfers the
+   residual.
+
+4. **Refund math on `initiateWithdrawal` and `upgradeTier`** switches
+   from "tier-amount delta" to "actual-stake delta" so over-
+   collateralized stakes produced by auto-downgrade or `topUpStake`
+   are accounted correctly. `upgradeTier` becomes free when the
+   seller is already over-collateralized at the target tier
+   (delta = 0 → no transfer, just tier update).
+
+**Rationale**: Preserves stake-as-collateral after any slash and keeps
+ADR-022's non-custodial claim intact for every post-slash state,
+residuals included. Sellers aren't permanently blacklisted — they can
+`topUpStake` to restore coverage or drain the residual to exit
+cleanly.
+
+**Impact**: Two new events (`TierAutoDowngraded`, `StakeToppedUp`).
+Eight new Hardhat tests added to `EtaloStake.test.ts` covering
+exact-match / skip-tier / orphan auto-downgrade paths, no-downgrade
+on over-collat, `topUpStake` success and cap rejection,
+withdrawal-active rejection, orphan drain via `initiateWithdrawal
+(None → None)`, and free `upgradeTier` when already over-
+collateralized. Total Stake suite: 33 tests.
+
+---
+
+## ADR-029 · 2026-04-23 — N3 vote refund semantics with partial releases
+
+**Status**: Accepted
+
+**Context**: Before Block 8, the Dispute contract's
+`resolveFromVote` function set `refundAmount = itemPrice` on
+`buyerWon`. For cross-border orders with partial releases already
+triggered (20% at ship per ADR-018, 70% at arrival), this would
+revert in `Escrow.resolveItemDispute` because
+`refundAmount > remainingInEscrow`. The bug left disputes stuck in
+`N3_Voting` state indefinitely after finalization. It was not caught
+by Block 6 unit tests because those use `MockEtaloEscrow`, which
+silently accepts any `refundAmount` without the remaining-escrow cap.
+Only the Block 8 end-to-end integration flow (scenario 10) exercises
+the real Escrow↔Dispute↔Voting interaction with a prior partial
+release.
+
+**Decision**: N3 `buyerWon` vote refunds the `remainingInEscrow`
+(`itemPrice - releasedAmount`), not the full `itemPrice`. Already-
+released portions stay with the seller.
+
+**Rationale**:
+- ADR-018 defines the 20% shipping release as compensation for real
+  shipping expense, provable via carrier receipt. Even if the buyer
+  wins a dispute, the seller genuinely shipped and paid transport
+  costs.
+- The 70% majority release is conditioned on physical arrival in the
+  destination country — a legitimate arrival compensation.
+- For fraud-based clawback beyond escrow (e.g., seller shipped an
+  empty box and lied about shipping), the `stake.slashStake`
+  mechanism is the appropriate tool. It is invoked by an N2 mediator
+  who can assess fraud evidence directly. N3 voting is a tie-breaker
+  on unresolved disputes, not a fraud determination.
+- Capping N3 refund at `remainingInEscrow` preserves the layered
+  design: escrow releases are earned as milestones tick by, stake
+  slash is punitive and scoped to proven fraud.
+
+**Impact**:
+- `EtaloDispute.resolveFromVote` now reads `item.releasedAmount` via
+  `IEtaloEscrow.getItem()` (already present on the interface) to
+  compute the cap. 2-line logic change + NatSpec.
+- For cross-border orders where N3 rules for the buyer after partial
+  release and fraud is suspected but was not proven in N2: the
+  seller keeps the 20–90% already released. This is an acceptable
+  V1 trade-off given the approved-mediator pool has fiduciary duty
+  to assess fraud properly in N2 before deferring to community vote.
+- Block 8 integration scenario 10 validates the fix end-to-end as
+  the permanent regression guard for this class of bug.
+
+---
+
+## ADR-030 · 2026-04-23 — EtaloDispute is sole authority for dispute reputation events
+
+**Status**: Accepted
+
+**Context**: During Block 8 integration testing, a double-counting
+bug was detected in `reputation.recordDispute`. Both
+`EtaloDispute._applyResolution` and `EtaloEscrow.resolveItemDispute`
+were calling `recordDispute` on every dispute resolution, causing
+`disputesLost` to increment by 2 instead of 1. Unit tests missed this
+because each contract uses mocks for the other
+(`MockEtaloEscrow` in Dispute tests, `fakeDispute` EOA in Escrow
+tests). Only the Block 8 end-to-end flow wires both real contracts
+together and exposes the duplication.
+
+**Decision**: `EtaloDispute` is the sole authority for dispute-related
+reputation events. `EtaloEscrow.resolveItemDispute` no longer calls
+`reputation.recordDispute` or `reputation.checkAndUpdateTopSeller`.
+Other Escrow terminal paths (`confirmItemDelivery`,
+`triggerAutoReleaseForItem`) continue to call
+`reputation.recordCompletedOrder` as they represent normal
+completions, not disputes.
+
+**Rationale**:
+- Separation of concerns: Dispute owns dispute lifecycle, Escrow
+  owns settlement mechanics. Each reputation event belongs with the
+  contract that semantically owns the transition it represents.
+- Disputes resolved with `refundAmount == 0` (seller wins) still
+  need `recordDispute(sellerLost=false)` so the seller's history of
+  disputes-faced is complete. Removing the call from Dispute (the
+  alternative) would drop that record. Removing from Escrow keeps
+  both resolution paths instrumented via the authoritative source.
+- Future-proofing: if `resolveItemDispute` is ever reused from other
+  Escrow-internal paths (e.g. a V2.5 automated dispute resolver),
+  the caller would decide whether a reputation event fires, not the
+  settlement layer.
+
+**Impact**:
+- Four lines removed from `EtaloEscrow.resolveItemDispute`, replaced
+  by a comment pointing at ADR-030.
+- `EtaloEscrow.resolveItemDispute` NatSpec now documents the
+  no-reputation contract.
+- Block 8 integration scenario 4 (seller fraud → stake slashed)
+  becomes the permanent regression guard: it asserts
+  `rep.disputesLost == 1` after a single dispute resolution.
+
+---
+
+## ADR-031 · 2026-04-23 — triggerAutoRefundIfInactive blocked on open dispute
+
+**Status**: Accepted
+
+**Context**: During Block 9 Foundry invariant fuzzing, a cross-
+contract deadlock surfaced. Sequence:
+
+1. Cross-border order funded; seller does not ship.
+2. Buyer opens a dispute on the still-Pending item
+   (`item.status = Disputed` via
+   `escrow.markItemDisputed`, `stake.pauseWithdrawal` increments
+   `freezeCount` to 1).
+3. 14 days elapse.
+4. Third party calls `triggerAutoRefundIfInactive` — order flips to
+   Refunded, every item (including the Disputed one) is force-set to
+   Refunded, buyer receives the full totalAmount.
+5. The dispute record in `EtaloDispute` stays at level N1, unresolved.
+   `resolveN1Amicable` now reverts (item status is Refunded, not
+   Disputed). Escalation paths all end with the same revert at the
+   Escrow side. `stake.resumeWithdrawal` is never called, so the
+   seller's `freezeCount` stays elevated forever — the seller can
+   never withdraw their stake.
+
+The deadlock is silent: buyer is made whole, but the seller is
+permanently locked out of their collateral.
+
+**Decision**: `triggerAutoRefundIfInactive` reverts if any item in
+the order is currently in `Disputed` status. The caller (buyer or
+third party) must either:
+
+1. Resolve the dispute through the N1 amicable path — both parties
+   call `resolveN1Amicable` with matching refund amounts; OR
+2. Let the dispute auto-escalate to N2 (anyone after 48h) and then
+   N3 (anyone after 7 days from N2 start). N3 voting resolves
+   within 14 additional days via community consensus; the callback
+   closes the dispute, unfreezes the stake, and refunds the buyer.
+
+In the worst-case "seller absent + dispute open" scenario, the
+N1 → N2 → N3 escalation chain resolves within roughly 23 days
+(48h + 7d + 14d) — slower than the 14-day auto-refund but
+cross-contract-consistent.
+
+**Rationale**:
+- Preserves the invariant "dispute lifecycle and stake freeze are
+  always paired". Prevents orphan disputes that deadlock stake
+  withdrawals.
+- Auto-refund is designed for the simple case where nothing has
+  happened (seller never responded, no dispute). If a dispute is
+  open, the dispute system is the authoritative resolution path.
+- The buyer retains a path to funds via N3 escalation without
+  needing seller participation.
+
+**Impact**:
+- Four lines added to `triggerAutoRefundIfInactive` guarding against
+  Disputed items.
+- NatSpec on the function documents the refusal reason and points
+  at this ADR.
+- One new Hardhat unit test on `EtaloEscrow.test.ts` and one new
+  end-to-end integration test on `Integration.v2.test.ts` act as
+  permanent regression guards.
+- Block 9 Foundry `invariant_NoUnexpectedReverts` passes after the
+  fix — the fuzzer no longer finds the deadlock path.
+
+---
+
+## ADR-032 · 2026-04-24 — CEI enforced across all V2 fund-moving functions
+
+**Status**: Accepted
+
+**Context**: During Sprint J4 Block 10 static analysis, Slither 0.11.5
+flagged five `reentrancy-no-eth` findings (Medium severity) across
+`EtaloStake.{depositStake, topUpStake, upgradeTier}` and
+`EtaloEscrow.{_releaseItemFully, resolveItemDispute}`. In each case
+one or more state variables were written *after* an external call
+(USDT transfer, reputation/stake hook) even though every public
+entry point is guarded by OpenZeppelin's `ReentrancyGuard`.
+
+The findings are not exploitable today:
+- All public entries carry `nonReentrant`.
+- Celo USDT (Circle-bridged) is a standard ERC-20 with no transfer
+  hooks — unlike ERC-777.
+- `EtaloReputation` and `EtaloStake` are internal contracts with no
+  callbacks to `EtaloEscrow`.
+
+But they violate the Checks-Effects-Interactions pattern recommended
+by security standards (SWC-107, Consensys best practices, Trail of
+Bits). An auditor reading the code would have to trust the
+`nonReentrant` guard plus prove Reputation/Stake are non-callback —
+higher cognitive load, worse audit readability, worse future-proofing
+against USDT upgrades or wiring changes (e.g. pointing `reputation`
+at an external oracle that does call back).
+
+**Decision**: Refactor every fund-moving function in the V2 contract
+suite to follow strict CEI ordering:
+
+1. **Checks** — all `require` and `_checkEligibility` first.
+2. **Effects** — every state write (including the order-status
+   transitions driven by `_checkOrderCompletion`) before any
+   external call.
+3. **Interactions** — USDT transfers, Reputation hooks, Stake hooks
+   grouped at the end.
+
+`ReentrancyGuard` stays on every public entry as defense-in-depth.
+Event emissions sit in the Effects phase — they are read-only against
+state and don't forward execution.
+
+To support CEI in `_releaseItemFully` and `resolveItemDispute`,
+`_checkOrderCompletion` is split into a pure `_computeNewOrderStatus`
+view and a mutating "apply new status" path; the external
+`stake.decrementActiveSales` call is relocated from inside the
+helper to the Interactions section of each caller.
+
+**Rationale**:
+- Aligns the code with the single-most-important Solidity security
+  pattern. Zero-cost improvement.
+- Kills the five Medium Slither findings, bringing the Block 10
+  target (zero High/Medium) into reach.
+- Future-proof against hook-introducing ERC-20 upgrades or against
+  an external Reputation/Stake implementation that does callback.
+- Easier for the Sprint J4 Phase 2/3 auditor (ADR-025) to reason
+  about.
+
+**Impact**:
+- `EtaloStake`: depositStake, topUpStake, upgradeTier reordered
+  (state writes + events before transferFrom). ~9 lines diff.
+- `EtaloEscrow`: `_releaseItemFully` and `resolveItemDispute`
+  restructured. `_checkOrderCompletion` split into a view helper
+  `_computeNewOrderStatus` and a state-only apply path. The stake
+  `decrementActiveSales` call moves out of `_checkOrderCompletion`
+  into each caller's Interactions section. ~60 lines diff.
+- Full Hardhat suite (144) and Foundry invariants (7) re-run green
+  after the refactor.
+- Bytecode delta: neutral (~+100 bytes from the helper split).
+- No behavioral change visible to end users.
+
+---
+
+## ADR-033 · 2026-04-24 — Post-slash stake recovery gap (topUpStake requires tier != None)
+
+**Status**: Accepted (documented gap, V1.5 fix planned)
+
+**Context**: Block 12 testnet smoke-test scenario 4 slashed 5 USDT
+from a Tier.Starter seller holding 10 USDT of stake. Auto-downgrade
+fired as specified by ADR-028 (`tier: Starter → None`, `stake: 5
+USDT` residual). ADR-028 point 2 states that `topUpStake` is the
+user-facing recovery path after any slash — the seller adds USDT to
+bring stake back above the tier threshold, then uses `upgradeTier`
+to re-activate. On testnet, this path reverted with `"Not staked"`.
+
+Root cause: `EtaloStake.topUpStake:276` requires
+`_tiers[msg.sender] != EtaloTypes.StakeTier.None`. Post-slash
+auto-downgrade creates exactly the state this check rejects —
+`stake > 0` with `tier == None`. The constraint contradicts ADR-028's
+intent.
+
+Two fallback paths exist, both undesirable:
+
+1. **14-day drain via `initiateWithdrawal(None)`** (ADR-028-compliant,
+   clean). Works from tier None when `stake > 0`. Seller waits 14
+   days, executes withdrawal to recover residual, then
+   `depositStake(newTier)` fresh. Slow but complete — no funds lost.
+
+2. **Immediate fresh `depositStake(Starter)`** — passes eligibility
+   but overwrites `_stakes[seller] = 10 USDT` (tier amount), discarding
+   the 5 USDT residual as contract dust. The ledger diverges
+   permanently from physical USDT balance; the orphan is
+   unreachable by the seller. Funds are not lost (they remain in
+   the stake contract) but are unattributed.
+
+**Decision**: Ship V1 with the gap documented here and in SECURITY.md.
+Plan the constraint relaxation for V1.5.
+
+**Rationale**: V1 audit (ADR-025 Phase 3) is imminent and the
+Block 12 testing window is closing. Patching `topUpStake` now
+requires a new test suite + redeployment + re-verification of all
+five V2 contracts, which is high-risk against a hardened artifact.
+The 14-day drain path exists and preserves full fund recoverability,
+so ADR-022's non-custodial claim holds — the cost is UX delay, not
+fund loss. V1.5 is the right scope for the fix.
+
+**V1.5 fix path**: Relax `topUpStake` precondition from
+`_tiers[msg.sender] != None` to `_stakes[msg.sender] > 0`. After
+top-up, the seller still calls `upgradeTier(Starter)` explicitly to
+re-activate the tier — this preserves explicit opt-in and keeps
+`topUpStake` side-effect-free on tier state. `upgradeTier` already
+handles the "already over-collateralized" case with `delta = 0` per
+ADR-028 point 4, so no additional changes are needed there. A
+regression script is pre-written at
+`packages/contracts/scripts/smoke/recovery-stake.ts` (header warns
+"do not run on V1"), ready to re-execute on the patched V1.5
+contract as the smoke-test acceptance check.
+
+**Impact**: Sellers slashed on V1 face a 14-day recovery delay (or
+accept the orphan-loss path). The Block 12 scenario 5 was re-routed
+to use `AISSA` as seller instead of recovering `CHIOMA`. The CHIOMA
+test wallet remains on Celo Sepolia with `(stake=5 USDT, tier=None)`
+as a preserved regression fixture. No ABI or event changes; V1.5 is
+a pure constraint relaxation. No production migration required —
+existing slashed sellers benefit automatically once V1.5 deploys.
