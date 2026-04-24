@@ -51,28 +51,10 @@ export default defineConfig({
       accounts: [configVariable("PRIVATE_KEY")],
     },
   },
-  etherscan: {
-    apiKey: {
-      celoSepolia: process.env.CELOSCAN_API_KEY ?? "",
-      celoMainnet: process.env.CELOSCAN_API_KEY ?? "",
+  verify: {
+    etherscan: {
+      apiKey: configVariable("CELOSCAN_API_KEY"),
+      enabled: true,
     },
-    customChains: [
-      {
-        network: "celoSepolia",
-        chainId: 11142220,
-        urls: {
-          apiURL: "https://api.etherscan.io/v2/api",
-          browserURL: "https://sepolia.celoscan.io",
-        },
-      },
-      {
-        network: "celoMainnet",
-        chainId: 42220,
-        urls: {
-          apiURL: "https://api.celoscan.io/api",
-          browserURL: "https://celoscan.io",
-        },
-      },
-    ],
   },
 });
