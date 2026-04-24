@@ -92,19 +92,66 @@ section of each caller.
 
 ## Deployed addresses (Celo Sepolia)
 
-**To be filled in Block 11.**
+**Deployment date**: 2026-04-24
+**Chain ID**: 11142220
+**Deploy commit**: TBD (see `git log` for `deploy(contracts): V2 on Celo Sepolia with triple-explorer verification`)
+**Full artifact**: `packages/contracts/deployments/celo-sepolia-v2.json` (tx hashes, block numbers, constructor args, setter events, mint receipt)
 
-- `EtaloReputation`: `0x...`
-- `EtaloStake`: `0x...`
-- `EtaloVoting`: `0x...`
-- `EtaloDispute`: `0x...`
-- `EtaloEscrow`: `0x...`
+### Core contracts
 
-Treasury wallets (three-wallet separation per ADR-024):
+| Contract | Address |
+|---|---|
+| `MockUSDT` (test-only) | `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` |
+| `EtaloReputation` | `0x2a6639074d0897c6280f55b252B97dd1c39820b7` |
+| `EtaloStake` | `0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417` |
+| `EtaloVoting` | `0x335Ac0998667F76FE265BC28e6989dc535A901E7` |
+| `EtaloDispute` | `0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE` |
+| `EtaloEscrow` | `0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb` |
 
-- `commissionTreasury`: `0x...`
-- `creditsTreasury`: `0x...`
-- `communityFund`: `0x...`
+### Treasury wallets (three-wallet separation per ADR-024)
+
+| Role | Address |
+|---|---|
+| `commissionTreasury` | `0x9819c9E1b4F634784fd9A286240ecACd297823fa` |
+| `creditsTreasury` | `0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA` |
+| `communityFund` | `0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6` |
+
+### Contract verification
+
+Each contract is verified on three independent explorers: Etherscan
+(via the V2 multichain API surfaced at CeloScan), Blockscout Celo
+Sepolia, and Sourcify. Any one of them is sufficient to reconstruct
+the source; all three agreeing gives defense-in-depth against a
+single-explorer outage or delisting.
+
+| Contract | CeloScan | Blockscout | Sourcify |
+|---|---|---|---|
+| `MockUSDT` | [source](https://sepolia.celoscan.io/address/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3#code) | [source](https://celo-sepolia.blockscout.com/address/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3) |
+| `EtaloReputation` | [source](https://sepolia.celoscan.io/address/0x2a6639074d0897c6280f55b252B97dd1c39820b7#code) | [source](https://celo-sepolia.blockscout.com/address/0x2a6639074d0897c6280f55b252B97dd1c39820b7#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x2a6639074d0897c6280f55b252B97dd1c39820b7) |
+| `EtaloStake` | [source](https://sepolia.celoscan.io/address/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417#code) | [source](https://celo-sepolia.blockscout.com/address/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417) |
+| `EtaloVoting` | [source](https://sepolia.celoscan.io/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [source](https://celo-sepolia.blockscout.com/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x335Ac0998667F76FE265BC28e6989dc535A901E7) |
+| `EtaloDispute` | [source](https://sepolia.celoscan.io/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [source](https://celo-sepolia.blockscout.com/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE) |
+| `EtaloEscrow` | [source](https://sepolia.celoscan.io/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [source](https://celo-sepolia.blockscout.com/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb) |
+
+### Deployment notes
+
+- 6 deploys + 17 inter-contract setters + 1 mint = 24 transactions,
+  total cost ~0.66 CELO on Sepolia.
+- A fresh `MockUSDT` was deployed at V2 (rather than reusing the V1
+  `MockUSDT` at `0x4212...12dc6`) to isolate the V2 environment from
+  accumulated V1 test balances and allowances.
+- Setter #7 (`Voting.setDisputeContract`) was submitted during the
+  initial deploy run and recovered as a ghost-tx: the drpc.org RPC
+  returned a 500 (trace-id `f6c1f8d2f5a1750c8000e8437e93069a`)
+  before the tx hash was echoed, but the tx had already reached the
+  mempool and was mined. On-chain read of `voting.disputeContract()`
+  after the crash returned the expected `EtaloDispute` address. The
+  resume workflow (`scripts/check-resume-state.ts` for nonce + state
+  check, then `scripts/resume-wiring.ts` with defensive pre-reads on
+  each setter) identified the ghost-tx and executed the remaining 10
+  setters without duplicating #7. See `deployments/celo-sepolia-v2.json`
+  `setters[6]` for the recorded note (`txHash: null`,
+  `verifiedOnChain: true`).
 
 ## Testnet smoke tests
 
