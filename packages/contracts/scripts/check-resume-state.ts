@@ -28,11 +28,13 @@ import "dotenv/config";
 import { createPublicClient, defineChain, http } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
+const RPC_URL = process.env.CELO_SEPOLIA_RPC ?? "https://celo-sepolia.drpc.org";
+
 const celoSepolia = defineChain({
   id: 11142220,
   name: "Celo Sepolia",
   nativeCurrency: { name: "CELO", symbol: "CELO", decimals: 18 },
-  rpcUrls: { default: { http: ["https://celo-sepolia.drpc.org"] } },
+  rpcUrls: { default: { http: [RPC_URL] } },
   testnet: true,
 });
 
@@ -47,7 +49,7 @@ async function main() {
 
   const client = createPublicClient({
     chain: celoSepolia,
-    transport: http("https://celo-sepolia.drpc.org"),
+    transport: http(RPC_URL),
   });
 
   console.log("=== Resume State Check ===");

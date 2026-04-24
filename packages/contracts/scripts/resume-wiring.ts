@@ -11,11 +11,13 @@ import { privateKeyToAccount } from "viem/accounts";
 import * as fs from "fs";
 import * as path from "path";
 
+const RPC_URL = process.env.CELO_SEPOLIA_RPC ?? "https://celo-sepolia.drpc.org";
+
 const celoSepolia = defineChain({
   id: 11142220,
   name: "Celo Sepolia",
   nativeCurrency: { name: "CELO", symbol: "CELO", decimals: 18 },
-  rpcUrls: { default: { http: ["https://celo-sepolia.drpc.org"] } },
+  rpcUrls: { default: { http: [RPC_URL] } },
   blockExplorers: {
     default: { name: "CeloScan", url: "https://sepolia.celoscan.io" },
   },
@@ -63,7 +65,7 @@ async function main() {
   const COMMUNITY_FUND = requireEnvAddress("COMMUNITY_FUND_ADDR");
 
   const account = privateKeyToAccount(`0x${pk.replace(/^0x/, "")}`);
-  const transport = http("https://celo-sepolia.drpc.org");
+  const transport = http(RPC_URL);
   const publicClient = createPublicClient({ chain: celoSepolia, transport });
   const walletClient = createWalletClient({ account, chain: celoSepolia, transport });
 
