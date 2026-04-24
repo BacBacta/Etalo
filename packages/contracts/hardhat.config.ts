@@ -41,7 +41,7 @@ export default defineConfig({
     celoSepolia: {
       type: "http",
       chainType: "l1",
-      url: "https://celo-sepolia.drpc.org",
+      url: process.env.CELO_SEPOLIA_RPC ?? "https://celo-sepolia.drpc.org",
       accounts: [configVariable("PRIVATE_KEY")],
     },
     celoMainnet: {
