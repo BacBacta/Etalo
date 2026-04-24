@@ -1,0 +1,128 @@
+{
+  "scenario": "4 — Fraud → N2 mediation slash",
+  "startedAt": "2026-04-24T19:31:16.070Z",
+  "endedAt": "2026-04-24T19:31:53.375Z",
+  "wallets": {
+    "seller": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596",
+    "buyer": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315",
+    "mediator": "0x0F33caE2d86EBC2bc9c6E2442698f175d0b63721",
+    "admin": "0x66bD37325cf41dAd0035398854f209785C9bC4C2"
+  },
+  "order": {
+    "orderId": "9",
+    "itemId": "15",
+    "groupId": "8",
+    "disputeId": "3",
+    "isCrossBorder": true,
+    "total": "80000000"
+  },
+  "amounts": {
+    "shipNet": "15568000",
+    "refundAmount": "64432000",
+    "slashAmount": "5000000",
+    "stakeBefore": "10000000",
+    "stakeAfter": "5000000"
+  },
+  "txs": {
+    "topupMediator": "0x9bca8b36c6e4a9f22808321e77f04c8e21646ea60ee7f4078434b05f6d1f91e5",
+    "approve": "0x28d22ab58ee66af010140d51359c32102d7cb129d1ddf877f66d4cd39be4c476",
+    "create": "0x8efbaeab11155e422c5854c2fbc047b8d84210377bf068b4b250d8f99fbe59af",
+    "fund": "0x7e89d7af1d8ddc99a9ff83fb568f20357b03551a7b833d7abd2731f329e59702",
+    "ship": "0x8c366b16ff0183f23c2426e514c0fcb7bb8db6d7edd117b6e0ea0e51f12647ab",
+    "arrive": "0x700dad7d14f65120b8956fc8925f8a39cd96d12a6ffa4ad4b59cf8e067cd20a6",
+    "openDispute": "0x13edc31c5d2d2f052272f8d80b4fe28f4f729ecbe41cd19b0a68f64a52290c66",
+    "escalate": "0x2c008d139087e208251595a1bc22789422eddd9db158b170a22045d0c4875c21",
+    "assign": "0xb8ed9628be38bd25d44f980be4e0ed0ecd4733776a5a6db899dbc6a23e9aefa5",
+    "resolve": "0x92a17be6c3e9bc88f3908d1cccddb3858505749e48d1b64be78388bc44ec32d6"
+  },
+  "gasUsed": {
+    "approve": "46331",
+    "create": "373365",
+    "fund": "158001",
+    "ship": "388576",
+    "arrive": "143114",
+    "openDispute": "389118",
+    "escalate": "56841",
+    "assign": "37443",
+    "resolve": "242633"
+  },
+  "balances": {
+    "before": {
+      "chioma": 557.265252,
+      "mamadou": 125,
+      "mediator1": 0,
+      "treasury": 12.734748,
+      "escrow": 0,
+      "stake": 10,
+      "communityFund": 0
+    },
+    "afterShip": {
+      "chioma": 572.833252,
+      "mamadou": 45,
+      "mediator1": 0,
+      "treasury": 12.734748,
+      "escrow": 64.432,
+      "stake": 10,
+      "communityFund": 0
+    },
+    "after": {
+      "chioma": 572.833252,
+      "mamadou": 114.432,
+      "mediator1": 0,
+      "treasury": 12.734748,
+      "escrow": 0,
+      "stake": 5,
+      "communityFund": 0
+    },
+    "deltas": {
+      "chioma": 15.568,
+      "mamadou": -10.568,
+      "mediator1": 0,
+      "treasury": 0,
+      "escrow": 0,
+      "stake": -5,
+      "communityFund": 0
+    }
+  },
+  "stake": {
+    "before": {
+      "stake": 10,
+      "tier": 1
+    },
+    "after": {
+      "stake": 5,
+      "tier": 0
+    },
+    "freezeCountAfter": "0"
+  },
+  "reputation": {
+    "before": {
+      "ordersCompleted": "11",
+      "ordersDisputed": "2",
+      "disputesLost": "2"
+    },
+    "after": {
+      "ordersCompleted": "11",
+      "ordersDisputed": "3",
+      "disputesLost": "3"
+    }
+  },
+  "events": {
+    "missingEscrow": [],
+    "missingDispute": [],
+    "missingStake": [],
+    "tierDowngradeOldToNew": {
+      "old": 1,
+      "new": 0
+    },
+    "stakeSlashedRecipient": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315"
+  },
+  "finalStatus": {
+    "orderGlobalStatus": 5,
+    "itemStatus": 4,
+    "itemReleasedAmount": 15.568
+  },
+  "note": "item.status is Released(4), NOT Refunded(6), because contract checks refundAmount == itemPrice (80), not == remainingInEscrow (64.432). Slash recipient is buyer (victim), communityFund receives 0.",
+  "result": "PASS",
+  "failures": []
+}

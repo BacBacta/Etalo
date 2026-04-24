@@ -1,0 +1,70 @@
+{
+  "timestamp": "2026-04-24T19:06:55.826Z",
+  "wallets": {
+    "CHIOMA": {
+      "address": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596",
+      "freshlyGenerated": false
+    },
+    "AISSA": {
+      "address": "0xcdBA5Ccf538B4088682D2F6408D2305edF4F096B",
+      "freshlyGenerated": false
+    },
+    "MAMADOU": {
+      "address": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315",
+      "freshlyGenerated": false
+    },
+    "MEDIATOR1": {
+      "address": "0x0F33caE2d86EBC2bc9c6E2442698f175d0b63721",
+      "freshlyGenerated": false
+    }
+  },
+  "funding": {
+    "celo": {
+      "CHIOMA": "0x808019cbc1105fef173a36bf2d101240919da88c4e17a7ab5f652e6c644a2472",
+      "AISSA": null,
+      "MAMADOU": "0x3b46a1847ffbaafbd464b902938559e57eafb7945d1131231fcde44e5b78c284",
+      "MEDIATOR1": null
+    },
+    "usdt": {
+      "CHIOMA": null,
+      "AISSA": null,
+      "MAMADOU": "0xf512c0ed87f589b34538045174aabe82491c91fbd71029d9948ec1a7acc78e0f"
+    }
+  },
+  "mediator": {
+    "address": "0x0F33caE2d86EBC2bc9c6E2442698f175d0b63721",
+    "approveTx": null
+  },
+  "balanceSnapshot": [
+    {
+      "name": "DEPLOYER",
+      "address": "0x66bD37325cf41dAd0035398854f209785C9bC4C2",
+      "celo": 0.6972226124790001,
+      "usdt": 9095
+    },
+    {
+      "name": "CHIOMA",
+      "address": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596",
+      "celo": 0.4,
+      "usdt": 437.428626
+    },
+    {
+      "name": "AISSA",
+      "address": "0xcdBA5Ccf538B4088682D2F6408D2305edF4F096B",
+      "celo": 0.15,
+      "usdt": 200
+    },
+    {
+      "name": "MAMADOU",
+      "address": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315",
+      "celo": 0.6,
+      "usdt": 200
+    },
+    {
+      "name": "MEDIATOR1",
+      "address": "0x0F33caE2d86EBC2bc9c6E2442698f175d0b63721",
+      "celo": 0.05,
+      "usdt": 0
+    }
+  ]
+}

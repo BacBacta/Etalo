@@ -1190,3 +1190,68 @@ helper to the Interactions section of each caller.
   after the refactor.
 - Bytecode delta: neutral (~+100 bytes from the helper split).
 - No behavioral change visible to end users.
+
+---
+
+## ADR-033 · 2026-04-24 — Post-slash stake recovery gap (topUpStake requires tier != None)
+
+**Status**: Accepted (documented gap, V1.5 fix planned)
+
+**Context**: Block 12 testnet smoke-test scenario 4 slashed 5 USDT
+from a Tier.Starter seller holding 10 USDT of stake. Auto-downgrade
+fired as specified by ADR-028 (`tier: Starter → None`, `stake: 5
+USDT` residual). ADR-028 point 2 states that `topUpStake` is the
+user-facing recovery path after any slash — the seller adds USDT to
+bring stake back above the tier threshold, then uses `upgradeTier`
+to re-activate. On testnet, this path reverted with `"Not staked"`.
+
+Root cause: `EtaloStake.topUpStake:276` requires
+`_tiers[msg.sender] != EtaloTypes.StakeTier.None`. Post-slash
+auto-downgrade creates exactly the state this check rejects —
+`stake > 0` with `tier == None`. The constraint contradicts ADR-028's
+intent.
+
+Two fallback paths exist, both undesirable:
+
+1. **14-day drain via `initiateWithdrawal(None)`** (ADR-028-compliant,
+   clean). Works from tier None when `stake > 0`. Seller waits 14
+   days, executes withdrawal to recover residual, then
+   `depositStake(newTier)` fresh. Slow but complete — no funds lost.
+
+2. **Immediate fresh `depositStake(Starter)`** — passes eligibility
+   but overwrites `_stakes[seller] = 10 USDT` (tier amount), discarding
+   the 5 USDT residual as contract dust. The ledger diverges
+   permanently from physical USDT balance; the orphan is
+   unreachable by the seller. Funds are not lost (they remain in
+   the stake contract) but are unattributed.
+
+**Decision**: Ship V1 with the gap documented here and in SECURITY.md.
+Plan the constraint relaxation for V1.5.
+
+**Rationale**: V1 audit (ADR-025 Phase 3) is imminent and the
+Block 12 testing window is closing. Patching `topUpStake` now
+requires a new test suite + redeployment + re-verification of all
+five V2 contracts, which is high-risk against a hardened artifact.
+The 14-day drain path exists and preserves full fund recoverability,
+so ADR-022's non-custodial claim holds — the cost is UX delay, not
+fund loss. V1.5 is the right scope for the fix.
+
+**V1.5 fix path**: Relax `topUpStake` precondition from
+`_tiers[msg.sender] != None` to `_stakes[msg.sender] > 0`. After
+top-up, the seller still calls `upgradeTier(Starter)` explicitly to
+re-activate the tier — this preserves explicit opt-in and keeps
+`topUpStake` side-effect-free on tier state. `upgradeTier` already
+handles the "already over-collateralized" case with `delta = 0` per
+ADR-028 point 4, so no additional changes are needed there. A
+regression script is pre-written at
+`packages/contracts/scripts/smoke/recovery-stake.ts` (header warns
+"do not run on V1"), ready to re-execute on the patched V1.5
+contract as the smoke-test acceptance check.
+
+**Impact**: Sellers slashed on V1 face a 14-day recovery delay (or
+accept the orphan-loss path). The Block 12 scenario 5 was re-routed
+to use `AISSA` as seller instead of recovering `CHIOMA`. The CHIOMA
+test wallet remains on Celo Sepolia with `(stake=5 USDT, tier=None)`
+as a preserved regression fixture. No ABI or event changes; V1.5 is
+a pure constraint relaxation. No production migration required —
+existing slashed sellers benefit automatically once V1.5 deploys.

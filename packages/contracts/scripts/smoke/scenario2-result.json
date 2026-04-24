@@ -1,0 +1,96 @@
+{
+  "scenario": "2 — Cross-border 20% + buyer confirm",
+  "startedAt": "2026-04-24T18:55:13.006Z",
+  "endedAt": "2026-04-24T18:55:37.306Z",
+  "wallets": {
+    "seller": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596",
+    "buyer": "0xB8d774e5d45477bE3dfFF24bE5b4700551271315"
+  },
+  "order": {
+    "orderId": "6",
+    "itemId": "8",
+    "groupId": "5",
+    "isCrossBorder": true,
+    "total": "80000000",
+    "stakeAmount": "10000000"
+  },
+  "txs": {
+    "approveStake": null,
+    "depositStake": null,
+    "approveEscrow": "0x16b87411a0e8168db0b551258e53315c753e983ac635cdd72a8ce2c6218385a6",
+    "create": "0x2b2e0c6e54713d8f50c20799b230df74ed0ce9be842121bb54314c5246ea6619",
+    "fund": "0xc132dd8affcea6152241a894868f29a3d28dca8d0ea2240875508680757071c9",
+    "ship": "0x53fe02aedb8c2053f41a8f598dc3511b15a412873b247474daeba442955fb202",
+    "arrive": "0x45641dd9656a854e5f3210297da870418148a10ef05e86c963b38ebf04fbbe5c",
+    "confirm": "0xc6b52bd3034279fe6b3f2142e0aec9d75cc83b6d35f23607c90826b94b093c0a"
+  },
+  "gasUsed": {
+    "approveStake": "0",
+    "depositStake": "0",
+    "approveEscrow": "26431",
+    "create": "373365",
+    "fund": "158001",
+    "ship": "388576",
+    "arrive": "143114",
+    "confirm": "132306"
+  },
+  "balances": {
+    "before": {
+      "chioma": 333.16,
+      "mamadou": 200,
+      "treasury": 6.84,
+      "escrow": 0,
+      "stake": 10
+    },
+    "afterShip": {
+      "chioma": 348.728,
+      "mamadou": 120,
+      "treasury": 6.84,
+      "escrow": 64.432,
+      "stake": 10
+    },
+    "after": {
+      "chioma": 411,
+      "mamadou": 120,
+      "treasury": 9,
+      "escrow": 0,
+      "stake": 10
+    },
+    "deltas": {
+      "chioma": 77.84,
+      "mamadou": -80,
+      "treasury": 2.16,
+      "escrow": 0,
+      "stake": 0
+    },
+    "shipDeltas": {
+      "chioma": 15.568,
+      "mamadou": 0,
+      "treasury": 0,
+      "escrow": -15.568,
+      "stake": 0
+    }
+  },
+  "expected": {
+    "commission": 2.16,
+    "sellerNet": 77.84,
+    "shipReleaseNet": 15.568,
+    "confirmReleaseNet": 62.272
+  },
+  "events": {
+    "itemReleasedCount": 1,
+    "partialReleaseEmitted": true,
+    "groupArrivedEmitted": true,
+    "orderCompletedEmitted": true,
+    "missing": []
+  },
+  "finalStatus": {
+    "orderGlobalStatus": 5,
+    "itemStatus": 4,
+    "releasedAmount": 77.84,
+    "tier": 1,
+    "reputationDelta": 1
+  },
+  "result": "PASS",
+  "failures": []
+}

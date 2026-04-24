@@ -152,11 +152,97 @@ single-explorer outage or delisting.
   setters without duplicating #7. See `deployments/celo-sepolia-v2.json`
   `setters[6]` for the recorded note (`txHash: null`,
   `verifiedOnChain: true`).
+- **Item status after partial dispute resolution (scenario 4 finding)**:
+  `resolveItemDispute` sets `item.status = Refunded` **only** when
+  `refundAmount == item.itemPrice` (gross). A refund equal to
+  `remainingInEscrow` (what is actually left after prior partial
+  releases) leaves `item.status = Released` with `releasedAmount`
+  capturing the net portion already sent to the seller. Observed on
+  scenario 4: refund = 64.432 USDT on an 80 USDT item where 15.568
+  USDT was already released at shipping produced
+  `item.status = Released (4)`, not `Refunded (6)`. The `Refunded`
+  terminal is reserved for cases where the item never shipped
+  (refund = full itemPrice). Behaviour as coded — no design change
+  required. Documented here for audit clarity.
+- **Post-slash orphan stake (ADR-033)**: scenario 4 slashed 5 USDT
+  from a Tier.Starter seller holding 10 USDT, triggering the expected
+  auto-downgrade to Tier.None with a 5 USDT residual. The recovery
+  path specified in ADR-028 point 2 (`topUpStake` to restore coverage)
+  is blocked at the implementation level because `topUpStake`
+  requires `tier != None`. See ADR-033 for the full gap analysis and
+  the V1.5 fix plan. Scenario 5 was re-routed to use `AISSA` as
+  seller (freshly staked) instead of attempting to recover the
+  slashed seller. The `CHIOMA` test wallet remains on-chain at
+  Celo Sepolia with `(stake = 5 USDT, tier = None)` as a preserved
+  regression fixture for the V1.5 patch acceptance check.
+- **Cleanup operation for order 7**: an earlier crashed run of
+  scenario 3 left order 7 in `PartiallyDelivered` state with items
+  9 and 11 un-confirmed (48.324 USDT locked in escrow;
+  `CHIOMA.activeSales` stuck at 1). A follow-up cleanup script
+  called `confirmItemDelivery` on each un-confirmed item to drain
+  the residual, transitioning order 7 to `Completed` and
+  decrementing `activeSales` to 0. Operational hygiene, not part of
+  the smoke-test scenarios. Detailed in
+  `scripts/smoke/cleanup-order7-result.json`.
 
-## Testnet smoke tests
+## Testnet smoke tests (Celo Sepolia)
 
-**To be filled in Block 12.** Four end-to-end scenarios executed on
-Celo Sepolia with transaction hashes recorded here.
+**Test date**: 2026-04-24
+**Test wallets**: 4 dedicated EOAs (`chioma`, `aissa`, `mamadou`,
+`mediator1`) — private keys in `.env` (gitignored). Public addresses
+recorded in `packages/contracts/deployments/celo-sepolia-smoke-setup.json`.
+
+### Methodology
+
+Five end-to-end scenarios were executed on the production V2
+contracts on Celo Sepolia. Each scenario ran the full flow as a
+single `viem` script, captured before/after/intermediate balance
+snapshots (USDT for the participants + escrow + stake + commission
+treasury), asserted on-chain state (order status, item statuses,
+stake tier/amount/activeSales/freezeCount, reputation deltas),
+verified all expected events were emitted across the transaction
+set, and saved a per-scenario result artifact.
+
+Scenario 6 (emergency pause cycle) was **not executed on testnet** —
+validated via Hardhat unit tests in `test/EtaloEscrow.test.ts` Stage
+4 (pause blocks `createOrder`, auto-expire after 7 days via
+`evm_increaseTime`, 30-day cooldown between pauses). Real-network
+execution is infeasible because ADR-026 forbids manual unpause and
+the 7-day auto-expiry cannot be accelerated on public Sepolia.
+
+Each scenario's representative tx hash in the table below
+corresponds to the concluding transaction (final confirmation or
+resolution). Full tx hash chains per scenario are preserved in the
+respective JSON artifact under `packages/contracts/scripts/smoke/`.
+
+### Scenarios executed
+
+| # | Scenario | Representative tx hash | Validates |
+|---|----------|------------------------|-----------|
+| 1 | Intra-Africa 2-item happy path | `0x15cc6039840ce5fd32760f65442ba31363c392f3453c99db17b08f8806beb06c` (confirmGroupDelivery) | Phases 1/2/3/5 + 1.8% intra commission + reputation |
+| 2 | Cross-border 20% + buyer confirm | `0xc6b52bd3034279fe6b3f2142e0aec9d75cc83b6d35f23607c90826b94b093c0a` (confirmItemDelivery) | Phases 1 (stake gate), 3 (20% ship), 4 (arrival), 5, 8, 12 |
+| 3 | Sibling isolation + N1 amicable | `0xf8ef298e23527b4c4376a6ccd28ca593c802648a7d2d1fd03403f92e50215f7f` (confirmItemDelivery #3) | Phases 5 (sibling isolation ADR-015), 6 (N1 bilateral match), 12 |
+| 4 | Fraud → N2 mediation slash | `0x92a17be6c3e9bc88f3908d1cccddb3858505749e48d1b64be78388bc44ec32d6` (resolveN2Mediation) | Phases 6 (N2 with slash), 8 (auto-downgrade ADR-028), 12 — led to ADR-033 discovery |
+| 5 | Multi shipment groups | `0x77f618e2cbfbf607c3bf1cca5be25c1b3ba587fa6b15636f46c12e8cd0a1e858` (confirmGroupDelivery group2) | Phase 3 (multi-groups per order), Phase 5 (status transitions PartiallyShipped → AllShipped → PartiallyDelivered → Completed) |
+| 6 | Emergency pause cycle | *not executed on testnet* | Hardhat unit tests `test/EtaloEscrow.test.ts` Stage 4 tests 36-38 |
+
+### Supporting operations (non-scenario)
+
+Two additional on-chain operations ran during smoke testing:
+
+- **Cleanup order 7** — post-scenario-3 hygiene. A mid-run drpc 500 on
+  the first attempt left items 9, 11 un-confirmed in order 7 (48.324
+  USDT trapped in escrow, `CHIOMA.activeSales = 1`). A follow-up
+  script called `confirmItemDelivery` twice to transition order 7 to
+  `Completed` and drain the residual. Detailed in
+  `packages/contracts/scripts/smoke/cleanup-order7-result.json`.
+- **AISSA stake deposit** — scenario 5 pre-setup. `AISSA` was
+  designated seller for scenario 5 instead of `CHIOMA` (see
+  ADR-033). `depositStake(Starter)` with 10 USDT.
+
+Full tx hashes, block numbers, balance deltas, events, and
+assertion outcomes for every scenario are in
+`packages/contracts/scripts/smoke/scenarioN-result.json` (N = 1..5).
 
 ## Static analysis report
 

@@ -1,0 +1,73 @@
+{
+  "scenario": "1 — Intra-Africa 2-item happy path",
+  "startedAt": "2026-04-24T18:47:43.971Z",
+  "endedAt": "2026-04-24T18:48:05.123Z",
+  "wallets": {
+    "seller": "0xaD7Bbe9b75599D4703e3CA37350998F6C8D89596",
+    "buyer": "0xcdBA5Ccf538B4088682D2F6408D2305edF4F096B"
+  },
+  "order": {
+    "orderId": "2",
+    "itemIds": [
+      "3",
+      "4"
+    ],
+    "groupId": "2",
+    "isCrossBorder": false,
+    "total": "70000000"
+  },
+  "txs": {
+    "approve": "0x58d7f845ee0d8a2155eefb7bdc50baaf58e61bb3cb50c40a0fb981747474c93d",
+    "create": "0x11765308954578c1b20f2f7f27ef4a6c7146ed03e173b3b4ecebb85aa5f3e284",
+    "fund": "0x917c5bd8da313736a480f1852c05f86caaf01cb844247461ea4b9f51a707fafa",
+    "ship": "0x899a7f2cb98f20aa9a592cebeaa67b857d4d346dd9cf6e878b073079a849c15e",
+    "confirm": "0x15cc6039840ce5fd32760f65442ba31363c392f3453c99db17b08f8806beb06c"
+  },
+  "gasUsed": {
+    "approve": "46343",
+    "create": "467781",
+    "fund": "145097",
+    "ship": "438064",
+    "confirm": "207338"
+  },
+  "balances": {
+    "before": {
+      "chioma": 118.74,
+      "aissa": 130,
+      "treasury": 1.26,
+      "escrow": 0
+    },
+    "after": {
+      "chioma": 187.48,
+      "aissa": 60,
+      "treasury": 2.52,
+      "escrow": 0
+    },
+    "deltas": {
+      "chioma": 68.74,
+      "aissa": -70,
+      "treasury": 1.26,
+      "escrow": 0
+    }
+  },
+  "expected": {
+    "commission": 1.26,
+    "sellerNet": 68.74
+  },
+  "events": {
+    "itemReleasedCount": 2,
+    "orderCompleted": true,
+    "allEventsEmitted": true,
+    "missing": []
+  },
+  "finalStatus": {
+    "orderGlobalStatus": 5,
+    "itemStatuses": [
+      4,
+      4
+    ],
+    "reputationOrdersCompletedDelta": 2
+  },
+  "result": "PASS",
+  "failures": []
+}
