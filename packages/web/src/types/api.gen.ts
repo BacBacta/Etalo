@@ -277,6 +277,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/products/public/{handle}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Public Boutique
+         * @description Boutique listing for a single seller, used by the public Next.js SSR
+         *     page at /{handle}. Lists active products only (filters out drafts,
+         *     paused, deleted) ordered by recency, paginated.
+         *
+         *     Like the single-product endpoint this is unauthenticated — the goal
+         *     is a shareable URL any buyer can open without first being in MiniPay.
+         */
+        get: operations["get_public_boutique_api_v1_products_public__handle__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/orders": {
         parameters: {
             query?: never;
@@ -634,6 +659,27 @@ export interface components {
              * Format: binary
              */
             file: string;
+        };
+        /** BoutiquePagination */
+        BoutiquePagination: {
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+            /** Has More */
+            has_more: boolean;
+        };
+        /**
+         * BoutiquePublic
+         * @description Boutique listing payload for /[handle] SSR page.
+         */
+        BoutiquePublic: {
+            seller: components["schemas"]["ProductPublicSeller"];
+            /** Products */
+            products: components["schemas"]["ProductPublicListItem"][];
+            pagination: components["schemas"]["BoutiquePagination"];
         };
         /**
          * DisputeLevel
@@ -1012,6 +1058,28 @@ export interface components {
             /** Image Urls */
             image_urls: string[];
             seller: components["schemas"]["ProductPublicSeller"];
+        };
+        /**
+         * ProductPublicListItem
+         * @description Compact product card for the boutique grid. No description, single
+         *     primary image — full details live behind /[handle]/[slug].
+         */
+        ProductPublicListItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Slug */
+            slug: string;
+            /** Price Usdt */
+            price_usdt: string;
+            /** Stock */
+            stock: number;
+            /** Primary Image Url */
+            primary_image_url?: string | null;
         };
         /** ProductPublicSeller */
         ProductPublicSeller: {
@@ -1646,6 +1714,47 @@ export interface operations {
             };
             /** @description Product has been removed */
             410: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_public_boutique_api_v1_products_public__handle__get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path: {
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BoutiquePublic"];
+                };
+            };
+            /** @description Shop not found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

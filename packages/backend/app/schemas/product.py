@@ -61,3 +61,32 @@ class ProductPublic(BaseModel):
     status: str
     image_urls: list[str]
     seller: ProductPublicSeller
+
+
+class ProductPublicListItem(BaseModel):
+    """
+    Compact product card for the boutique grid. No description, single
+    primary image — full details live behind /[handle]/[slug].
+    """
+
+    id: UUID
+    title: str
+    slug: str
+    price_usdt: Decimal
+    stock: int
+    primary_image_url: str | None = None
+
+
+class BoutiquePagination(BaseModel):
+    page: int
+    page_size: int
+    total: int
+    has_more: bool
+
+
+class BoutiquePublic(BaseModel):
+    """Boutique listing payload for /[handle] SSR page."""
+
+    seller: ProductPublicSeller
+    products: list[ProductPublicListItem]
+    pagination: BoutiquePagination
