@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { notFound, permanentRedirect } from "next/navigation";
 
-import { BuyButton } from "@/components/BuyButton";
+import { ProductAddToCartButton } from "@/components/ProductAddToCartButton";
 import { ShareButtons } from "@/components/ShareButtons";
 import { displayUsdt, fetchPublicProduct } from "@/lib/api";
 
@@ -181,7 +181,17 @@ export default async function ProductPage({ params }: PageProps) {
           </p>
         ) : null}
 
-        <BuyButton productId={product.id} disabled={outOfStock} />
+        <ProductAddToCartButton
+          productId={product.id}
+          productSlug={product.slug}
+          sellerHandle={product.seller.shop_handle}
+          sellerShopName={product.seller.shop_name}
+          title={product.title}
+          priceUsdt={String(product.price_usdt)}
+          imageUrl={product.image_urls[0] ?? null}
+          stock={product.stock}
+          outOfStock={outOfStock}
+        />
 
         <ShareButtons url={url} title={product.title} />
       </main>

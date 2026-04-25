@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 
 import "./globals.css";
+import { PublicHeader } from "@/components/PublicHeader";
+import { Toaster } from "@/components/ui/sonner";
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
@@ -29,7 +31,9 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="min-h-screen bg-white text-neutral-900 antialiased">
+        <PublicHeader />
         {children}
+        <Toaster position="bottom-center" />
       </body>
     </html>
   );

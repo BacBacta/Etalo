@@ -101,6 +101,7 @@ export default async function BoutiquePage({ params }: Props) {
           <ProductGrid
             products={data.products}
             handle={data.seller.shop_handle}
+            sellerShopName={data.seller.shop_name}
           />
         )}
       </main>

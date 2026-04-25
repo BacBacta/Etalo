@@ -1,45 +1,61 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { AddToCartIcon } from "@/components/AddToCartIcon";
 import type { BoutiquePublic } from "@/lib/api";
 
 interface Props {
   product: BoutiquePublic["products"][number];
   handle: string;
+  sellerShopName: string;
 }
 
-export function ProductCard({ product, handle }: Props) {
+export function ProductCard({ product, handle, sellerShopName }: Props) {
   const isOutOfStock = product.stock <= 0;
   const price = Number(product.price_usdt).toFixed(2);
   return (
-    <Link
-      href={`/${handle}/${product.slug}`}
-      className="block min-h-[44px] focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2"
-    >
-      <div className="relative aspect-square overflow-hidden rounded-lg bg-neutral-100">
-        {product.primary_image_url ? (
-          <Image
-            src={product.primary_image_url}
-            alt={product.title}
-            fill
-            sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            className="object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
-            No image
-          </div>
-        )}
-        {isOutOfStock ? (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-base font-medium text-white">
-            Out of stock
-          </div>
-        ) : null}
-      </div>
-      <div className="mt-2">
-        <h3 className="line-clamp-2 text-base font-medium">{product.title}</h3>
-        <p className="mt-1 text-base font-semibold">{price} USDT</p>
-      </div>
-    </Link>
+    <div className="relative">
+      <Link
+        href={`/${handle}/${product.slug}`}
+        className="block min-h-[44px] focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2"
+      >
+        <div className="relative aspect-square overflow-hidden rounded-lg bg-neutral-100">
+          {product.primary_image_url ? (
+            <Image
+              src={product.primary_image_url}
+              alt={product.title}
+              fill
+              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              className="object-cover"
+            />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
+              No image
+            </div>
+          )}
+          {isOutOfStock ? (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-base font-medium text-white">
+              Out of stock
+            </div>
+          ) : null}
+        </div>
+        <div className="mt-2">
+          <h3 className="line-clamp-2 text-base font-medium">
+            {product.title}
+          </h3>
+          <p className="mt-1 text-base font-semibold">{price} USDT</p>
+        </div>
+      </Link>
+      <AddToCartIcon
+        productId={product.id}
+        productSlug={product.slug}
+        sellerHandle={handle}
+        sellerShopName={sellerShopName}
+        title={product.title}
+        priceUsdt={String(product.price_usdt)}
+        imageUrl={product.primary_image_url ?? null}
+        stock={product.stock}
+      />
+    </div>
   );
 }
