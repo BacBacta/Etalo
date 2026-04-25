@@ -5,7 +5,7 @@ import {
   type TransactionReceipt,
 } from "viem";
 
-import escrowAbi from "@/abis/EtaloEscrow.json";
+import escrowAbi from "@/abis/v1/EtaloEscrow.json";
 
 /**
  * Extract the on-chain orderId from a `createOrder` transaction receipt

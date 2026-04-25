@@ -1,16 +1,18 @@
-"""sync_abis.py — Vendor V2 contract ABIs into the backend.
+"""sync_abis.py — Vendor V2 contract ABIs into backend + miniapp.
 
 Reads compiled artifacts from `packages/contracts/artifacts/contracts/`
-and writes ABI-only JSON files to `packages/backend/app/abis/`.
+and writes ABI-only JSON files to two destinations:
 
-The backend imports ABIs from the vendored copy (not via filesystem
-reach into the contracts package) so that the backend image / lambda
-deploy is self-contained. Re-run this script after every contract
-build or address change.
+- `packages/backend/app/abis/`    — consumed by the FastAPI indexer
+- `packages/miniapp/src/abis/v2/` — consumed by the React Mini App
+
+The two consumers vendor the ABIs (rather than reaching into this
+package) so each can deploy independently. Re-run this script after
+every contract build or address change.
 
 Usage:
-    python packages/backend/scripts/sync_abis.py
-    # or, from the backend dir:
+    python packages/contracts/scripts/sync_abis.py
+    # or, from the contracts dir:
     python scripts/sync_abis.py
 """
 from __future__ import annotations
@@ -19,11 +21,12 @@ import json
 import sys
 from pathlib import Path
 
-# Resolve paths relative to this script (works regardless of cwd)
 SCRIPT_DIR = Path(__file__).resolve().parent
-BACKEND_DIR = SCRIPT_DIR.parent  # packages/backend
-CONTRACTS_DIR = BACKEND_DIR.parent / "contracts"  # packages/contracts
-ABI_OUT_DIR = BACKEND_DIR / "app" / "abis"
+CONTRACTS_DIR = SCRIPT_DIR.parent  # packages/contracts
+PACKAGES_DIR = CONTRACTS_DIR.parent  # packages/
+
+BACKEND_ABI_OUT = PACKAGES_DIR / "backend" / "app" / "abis"
+MINIAPP_ABI_OUT = PACKAGES_DIR / "miniapp" / "src" / "abis" / "v2"
 
 # (artifact_name, source_path_relative_to_contracts_dir)
 CONTRACTS = [
@@ -35,18 +38,27 @@ CONTRACTS = [
     ("EtaloEscrow", "artifacts/contracts/EtaloEscrow.sol/EtaloEscrow.json"),
 ]
 
+DESTINATIONS = [
+    ("backend", BACKEND_ABI_OUT),
+    ("miniapp", MINIAPP_ABI_OUT),
+]
+
 
 def main() -> int:
     if not CONTRACTS_DIR.exists():
         print(f"ERROR: contracts dir not found: {CONTRACTS_DIR}", file=sys.stderr)
         return 1
 
-    ABI_OUT_DIR.mkdir(parents=True, exist_ok=True)
+    for _label, dest in DESTINATIONS:
+        dest.mkdir(parents=True, exist_ok=True)
 
-    print(f"Source:      {CONTRACTS_DIR}")
-    print(f"Destination: {ABI_OUT_DIR}\n")
+    print(f"Source:       {CONTRACTS_DIR}")
+    for label, dest in DESTINATIONS:
+        print(f"Destination:  [{label}] {dest}")
+    print()
 
     failures: list[str] = []
+    written = 0
     for name, rel_path in CONTRACTS:
         src = CONTRACTS_DIR / rel_path
         if not src.exists():
@@ -59,11 +71,10 @@ def main() -> int:
             failures.append(f"  [NO_ABI]  {name}: artifact has no `abi` field")
             continue
 
-        out = ABI_OUT_DIR / f"{name}.json"
-        out.write_text(
-            json.dumps(abi, indent=2, ensure_ascii=False) + "\n",
-            encoding="utf-8",
-        )
+        payload = json.dumps(abi, indent=2, ensure_ascii=False) + "\n"
+        for _label, dest in DESTINATIONS:
+            (dest / f"{name}.json").write_text(payload, encoding="utf-8")
+        written += 1
         print(f"  [OK]      {name}.json  ({len(abi)} entries)")
 
     if failures:
@@ -72,7 +83,7 @@ def main() -> int:
             print(f, file=sys.stderr)
         return 1
 
-    print(f"\nSynced {len(CONTRACTS)} ABIs.")
+    print(f"\nSynced {written} ABIs to {len(DESTINATIONS)} destinations.")
     return 0
 
 

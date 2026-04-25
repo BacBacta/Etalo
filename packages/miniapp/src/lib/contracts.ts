@@ -1,14 +1,16 @@
-import escrowAbi from "@/abis/EtaloEscrow.json";
-import disputeAbi from "@/abis/EtaloDispute.json";
-import reputationAbi from "@/abis/EtaloReputation.json";
-import usdtAbi from "@/abis/MockUSDT.json";
+import disputeAbi from "@/abis/v2/EtaloDispute.json";
+import escrowAbi from "@/abis/v2/EtaloEscrow.json";
+import reputationAbi from "@/abis/v2/EtaloReputation.json";
+import stakeAbi from "@/abis/v2/EtaloStake.json";
+import votingAbi from "@/abis/v2/EtaloVoting.json";
+import usdtAbi from "@/abis/v2/MockUSDT.json";
 
 /**
- * Etalo contract addresses on Celo Sepolia.
+ * Etalo V2 contracts on Celo Sepolia.
  *
- * On testnet we use MockUSDT (6 decimals, mintable) deployed alongside
- * the protocol contracts during J1. Mainnet will swap to real USDT
- * (0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e).
+ * Six contracts, all behind the V2 audit-gated deploy
+ * (`v2.0.0-contracts-sepolia`). USDT remains MockUSDT on testnet —
+ * mainnet will swap to 0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e.
  */
 export const CONTRACTS = {
   escrow: {
@@ -19,9 +21,17 @@ export const CONTRACTS = {
     address: import.meta.env.VITE_DISPUTE_CONTRACT,
     abi: disputeAbi,
   },
+  stake: {
+    address: import.meta.env.VITE_STAKE_CONTRACT,
+    abi: stakeAbi,
+  },
   reputation: {
     address: import.meta.env.VITE_REPUTATION_CONTRACT,
     abi: reputationAbi,
+  },
+  voting: {
+    address: import.meta.env.VITE_VOTING_CONTRACT,
+    abi: votingAbi,
   },
   usdt: {
     address: import.meta.env.VITE_USDT_CONTRACT,

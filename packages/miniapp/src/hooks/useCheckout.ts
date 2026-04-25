@@ -2,8 +2,8 @@ import { useCallback, useState } from "react";
 import { usePublicClient, useWalletClient } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 
-import escrowAbi from "@/abis/EtaloEscrow.json";
-import usdtAbi from "@/abis/MockUSDT.json";
+import escrowAbi from "@/abis/v1/EtaloEscrow.json";
+import usdtAbi from "@/abis/v1/MockUSDT.json";
 import { apiFetch } from "@/lib/api";
 import { parseOrderCreatedFromReceipt, readUsdtAllowance } from "@/lib/escrow";
 import { asLegacyTx } from "@/lib/tx";
