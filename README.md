@@ -94,22 +94,30 @@ npx tsx scripts/e2e-checkout.ts   # on-chain flow smoke
 
 ### Backend
 
+V2 backend deployed for Celo Sepolia indexing. FastAPI on port 8000,
+async indexer polling every 30 s, EIP-191-signed POST endpoints. See
+`docs/BACKEND.md` for the full reference.
+
 ```bash
 cd packages/backend
 python -m venv venv
 venv\Scripts\activate         # Windows (or: source venv/bin/activate)
 pip install -r requirements.txt
-cp .env.example .env          # fill in DATABASE_URL, JWT_SECRET, PINATA_*
+cp .env.example .env          # DATABASE_URL, CELO_SEPOLIA_RPC, etc.
 alembic upgrade head          # apply migrations
-uvicorn app.main:app --reload --port 8000
+python scripts/sync_abis.py   # vendor ABIs from packages/contracts
+python scripts/run_dev.py     # uvicorn wrapper, indexer auto-starts
 ```
 
-- API docs: http://localhost:8000/api/docs
+- API docs: http://localhost:8000/docs
 - Health:   http://localhost:8000/api/v1/health
 
-Main route groups:
-`/auth /sellers /uploads /onboarding /products /orders /analytics
-/notifications /disputes /admin`
+V2 route groups (Sprint J5):
+`/orders /items /disputes /sellers` — 11 public GETs + 3 EIP-191
+authenticated POSTs.
+
+Carry-over V1 routes still mounted: `/auth /uploads /onboarding
+/products /notifications /admin`.
 
 ### Mini App (`packages/miniapp/`)
 
@@ -195,7 +203,10 @@ commission on a 5 USDT order (1.8 % — intra-Africa rate confirmed).
 |--------|--------------|-----------------------------------------------------------|--------|
 | J1     | 2026-04-21   | Foundation, smart contracts, backend skeleton             | Done   |
 | J2     | 2026-04-22   | Mini App, public pages, checkout flow                     | Done (Block 8 device QA deferred) |
+| J4     | 2026-04-23/24| V2 smart contract refactor, Sepolia deploy, audit prep    | Done — tag `v2.0.0-contracts-sepolia` |
+| J5     | 2026-04-24/25| V2 backend — indexer, REST API, EIP-191 auth, E2E tests   | Done — tag `v2.0.0-backend-sepolia` |
 
-See `docs/SPRINT_J1.md` and `docs/SPRINT_J2.md` for per-sprint breakdowns.
-`docs/DECISIONS.md` logs every non-trivial architectural choice with
-rationale and replacement plan.
+See `docs/SPRINT_J*.md`, `docs/SMART_CONTRACTS.md`, and
+`docs/BACKEND.md` for the reference docs. `docs/DECISIONS.md` logs
+every non-trivial architectural choice with rationale and
+replacement plan.
