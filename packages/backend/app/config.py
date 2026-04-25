@@ -57,6 +57,25 @@ class Settings(BaseSettings):
     credits_treasury_address: str = "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA"
     community_fund_address: str = "0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6"
 
+    # ============================================================
+    # Indexer (Sprint J5 Block 5)
+    # ============================================================
+    # Polling interval between scan cycles (seconds).
+    indexer_poll_interval_seconds: int = 30
+    # Max blocks per eth_getLogs call (Alchemy limit ~50 for this RPC).
+    indexer_block_chunk_size: int = 50
+    # Re-read the last N blocks each cycle for reorg defense (idempotency
+    # via UNIQUE(tx_hash, log_index) prevents double-write).
+    indexer_reorg_depth: int = 3
+    # Default starting block when indexer_state is empty (per-contract).
+    # Should be set to the deployment block for each V2 contract — using
+    # a single low-bound here; the indexer takes max(this, deploy_block)
+    # in practice. V2 contracts deployed around block 23761654.
+    indexer_start_block: int = 23761654
+    # Set to false to disable the background indexer in tests / one-off
+    # CLI invocations of the FastAPI app.
+    indexer_enabled: bool = True
+
     # Legacy V1 fields (kept for the V1 stub in app/services/celo.py;
     # removed in Block 4).
     escrow_contract_address: str = ""

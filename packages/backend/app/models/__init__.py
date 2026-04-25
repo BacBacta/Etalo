@@ -10,6 +10,8 @@ from app.models.reputation_cache import ReputationCache
 from app.models.notification import Notification
 from app.models.audit_log import AuditLog
 from app.models.analytics_snapshot import AnalyticsSnapshot
+from app.models.indexer_state import IndexerState
+from app.models.indexer_event import IndexerEvent
 
 __all__ = [
     "User",
@@ -24,4 +26,6 @@ __all__ = [
     "Notification",
     "AuditLog",
     "AnalyticsSnapshot",
+    "IndexerState",
+    "IndexerEvent",
 ]
