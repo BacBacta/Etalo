@@ -1,39 +1,121 @@
+"""V2 Order model — Sprint J5 Block 2.
+
+Mirrors EtaloEscrow.sol Order struct (ADR-015) with off-chain
+metadata (delivery address, tracking, product references) layered
+on top. The indexer is the canonical writer; HTTP routes only edit
+the off-chain metadata fields.
+
+USDT amounts are stored as BIGINT representing the smallest unit
+(6 decimals). Conversion helpers expose human-readable Decimal.
+"""
+from __future__ import annotations
+
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, String, Text, Boolean
-from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Enum as SAEnum,
+    Index,
+    SmallInteger,
+    String,
+    Text,
+)
+from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.enums import OrderStatus, ORDER_STATUS_ENUM_NAME
+
+if TYPE_CHECKING:
+    from app.models.order_item import OrderItem
+    from app.models.shipment_group import ShipmentGroup
+
+
+# 1 USDT = 1_000_000 raw (6 decimals)
+USDT_DECIMALS = 6
+USDT_SCALE = Decimal(10) ** USDT_DECIMALS
 
 
 class Order(Base):
+    """V2 order — one buyer, one seller, 1-50 items grouped in 0-N shipment groups."""
+
     __tablename__ = "orders"
 
-    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    onchain_order_id: Mapped[int | None] = mapped_column(BigInteger, unique=True)
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    onchain_order_id: Mapped[int] = mapped_column(
+        BigInteger, unique=True, nullable=False
+    )
+
     buyer_address: Mapped[str] = mapped_column(String(42), nullable=False)
     seller_address: Mapped[str] = mapped_column(String(42), nullable=False)
-    product_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("products.id"))
-    amount_usdt: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
-    commission_usdt: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="created", index=True)
-    # created, funded, shipped, delivered, completed, disputed, refunded, cancelled
-    is_cross_border: Mapped[bool] = mapped_column(Boolean, default=False)
-    milestones_total: Mapped[int] = mapped_column(default=1)
-    milestones_released: Mapped[int] = mapped_column(default=0)
+
+    total_amount_usdt: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    total_commission_usdt: Mapped[int] = mapped_column(BigInteger, nullable=False)
+
+    is_cross_border: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    global_status: Mapped[OrderStatus] = mapped_column(
+        SAEnum(
+            OrderStatus,
+            name=ORDER_STATUS_ENUM_NAME,
+            values_callable=lambda x: [e.value for e in x],
+        ),
+        nullable=False,
+        default=OrderStatus.CREATED,
+    )
+    item_count: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+
+    funded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at_chain: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at_db: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False
+    )
+
+    # --- Off-chain metadata (writable by HTTP, never by indexer) ---
     delivery_address: Mapped[str | None] = mapped_column(Text)
     tracking_number: Mapped[str | None] = mapped_column(String(100))
-    tx_hash: Mapped[str | None] = mapped_column(String(66))  # creation tx
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
-    shipped_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    product_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
+    notes: Mapped[str | None] = mapped_column(Text)
+
+    # --- Relationships ---
+    items: Mapped[list["OrderItem"]] = relationship(
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="OrderItem.item_index",
+    )
+    shipment_groups: Mapped[list["ShipmentGroup"]] = relationship(
+        back_populates="order",
+        cascade="all, delete-orphan",
+        order_by="ShipmentGroup.onchain_group_id",
+    )
 
     __table_args__ = (
-        Index("ix_orders_status", "status"),
-        Index("ix_orders_buyer", "buyer_address"),
-        Index("ix_orders_seller", "seller_address"),
+        CheckConstraint(
+            "buyer_address ~ '^0x[0-9a-f]{40}$'", name="orders_buyer_address_lowercase_hex"
+        ),
+        CheckConstraint(
+            "seller_address ~ '^0x[0-9a-f]{40}$'", name="orders_seller_address_lowercase_hex"
+        ),
+        CheckConstraint("item_count BETWEEN 1 AND 50", name="orders_item_count_range"),
+        Index("ix_orders_buyer_address", "buyer_address"),
+        Index("ix_orders_seller_address", "seller_address"),
+        Index("ix_orders_global_status", "global_status"),
+        Index("ix_orders_created_at_chain", "created_at_chain"),
     )
+
+    # --- Helpers ---
+    @property
+    def total_amount_human(self) -> Decimal:
+        """USDT amount in human-readable Decimal."""
+        return Decimal(self.total_amount_usdt) / USDT_SCALE
+
+    @property
+    def total_commission_human(self) -> Decimal:
+        return Decimal(self.total_commission_usdt) / USDT_SCALE
