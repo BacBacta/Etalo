@@ -18,13 +18,25 @@ from app.routers import (
     uploads,
     users,
 )
+from app.services.celo import CeloService
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup — instantiate the V2 CeloService (no RPC call yet, just
+    # contract objects). Routes pull it via Depends(get_celo_service).
+    app.state.celo_service = CeloService.from_settings()
     yield
-    # Shutdown
+    # Shutdown — AsyncHTTPProvider has no explicit close hook in web3.py
+    # 7.x; the connection pool is GC'd with the provider.
+
+
+def get_celo_service(request) -> CeloService:
+    """FastAPI dependency that returns the singleton CeloService.
+
+    Use as: `celo: CeloService = Depends(get_celo_service)` in route signatures.
+    """
+    return request.app.state.celo_service
 
 
 def create_app() -> FastAPI:
