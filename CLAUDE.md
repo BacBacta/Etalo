@@ -45,7 +45,11 @@ power is structurally bounded by code.
    - "stablecoin" or "digital dollar" (not "crypto" or "token")
 5. NEVER display raw 0x... wallet addresses in UI — use shop handles or names
 6. Every contract function moving funds must use ReentrancyGuard
-7. Connection states: silence unless error (no "Connecting..." or "Connected" messages)
+7. Connection states: align with MiniPay best practices — show
+    "Connecting to MiniPay..." while `isConnecting`, "Please open this app
+    from MiniPay" if no provider detected, silent once connected. Never
+    show a Connect button (auto-connect only). See MiniPay docs Best
+    Practices > Wallet connection.
 8. Transaction states: 4 precise states (Preparing / Confirming / Success / Error)
 9. Commit frequently with clear Conventional Commit messages
 10. Cross-border orders require seller stake (ADR-020) — `createOrder`
@@ -58,6 +62,16 @@ power is structurally bounded by code.
     legal hold. Never remove or relax these.
 13. Treasury = 3 separated wallets (ADR-024) — `commissionTreasury`,
     `creditsTreasury`, `communityFund`. Never merge into one.
+14. NEVER add new EIP-191 / signed-message authentication for backend
+    mutations (ADR-034) — MiniPay best practices forbid signing for
+    access. Existing auth points in `lib/eip191.ts` + `app/auth.py` are
+    deprecated and flagged for migration to on-chain events before Proof
+    of Ship submission. New mutating flows must be expressed as contract
+    events captured by the J5 indexer.
+15. Low-balance UX must redirect to MiniPay Add Cash deeplink (do not
+    hardcode the URL — read from the deeplinks reference). Buyers without
+    USDT must never reach a dead-end "transaction failed" screen — surface
+    the Add Cash flow instead.
 
 ## Key addresses (Celo mainnet)
 
@@ -131,3 +145,9 @@ CLAUDE.md is updated.
 - Safe areas: use env(safe-area-inset-*) for sticky bottom CTAs
 - WCAG AA contrast minimum (4.5:1 body, 3:1 large)
 - Dark mode: deferred to V1.5
+- Error boundary mandatory at the app root (`<ErrorBoundary>` in
+  `App.tsx` for miniapp, `error.tsx` in `app/` for web). All async
+  failures must produce a user-friendly fallback, not a white screen.
+- Body text: minimum 14px for secondary labels (badges, timestamps),
+  16px for primary body content. `text-xs` (12px) is forbidden — replace
+  with `text-sm` minimum (MiniPay design guidelines + CLAUDE.md rule).
