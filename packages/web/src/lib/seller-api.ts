@@ -11,7 +11,7 @@
  * ADR-034). Frontend gating + MiniPay WebView trust model do the heavy
  * lifting upstream.
  */
-import type { paths, components } from "@/types/api.gen";
+import type { components } from "@/types/api.gen";
 
 const API_URL =
   process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
@@ -27,12 +27,16 @@ export type SellerOrderItem = components["schemas"]["SellerOrderItem"];
 export type SellerProfileUpdate =
   components["schemas"]["SellerProfileUpdate"];
 export type ProductDetail = components["schemas"]["ProductDetail"];
-export type ProductCreate = NonNullable<
-  paths["/api/v1/products"]["post"]["requestBody"]
->["content"]["application/json"];
-export type ProductUpdate = NonNullable<
-  paths["/api/v1/products/{product_id}"]["put"]["requestBody"]
->["content"]["application/json"];
+export type ProductCreate = components["schemas"]["ProductCreate"];
+export type ProductUpdate = components["schemas"]["ProductUpdate"];
+export type IpfsUploadResponse = components["schemas"]["IpfsUploadResponse"];
+
+export class ProductSlugConflictError extends Error {
+  constructor() {
+    super("A product with this slug already exists.");
+    this.name = "ProductSlugConflictError";
+  }
+}
 
 export class SellerNotFoundError extends Error {
   constructor() {
@@ -118,4 +122,101 @@ export async function updateSellerProfile(
 // Number.MAX_SAFE_INTEGER, fine for V1 caps (MAX_ORDER = 500 USDT).
 export function formatRawUsdt(rawAmount: number): string {
   return (rawAmount / 1_000_000).toFixed(2);
+}
+
+// === Product CRUD (ADR-036, X-Wallet-Address) ===
+export async function createProduct(
+  walletAddress: string,
+  payload: ProductCreate,
+): Promise<ProductDetail> {
+  const res = await fetch(`${API_URL}/products`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Wallet-Address": walletAddress,
+    },
+    body: JSON.stringify(payload),
+  });
+  if (res.status === 409) throw new ProductSlugConflictError();
+  if (!res.ok) {
+    throw new Error(`Product create failed: ${res.status}`);
+  }
+  return (await res.json()) as ProductDetail;
+}
+
+export async function updateProduct(
+  walletAddress: string,
+  productId: string,
+  payload: ProductUpdate,
+): Promise<ProductDetail> {
+  const res = await fetch(
+    `${API_URL}/products/${encodeURIComponent(productId)}`,
+    {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Wallet-Address": walletAddress,
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+  if (res.status === 403) throw new Error("You do not own this product");
+  if (res.status === 404) throw new Error("Product not found");
+  if (!res.ok) {
+    throw new Error(`Product update failed: ${res.status}`);
+  }
+  return (await res.json()) as ProductDetail;
+}
+
+export async function deleteProduct(
+  walletAddress: string,
+  productId: string,
+): Promise<void> {
+  const res = await fetch(
+    `${API_URL}/products/${encodeURIComponent(productId)}`,
+    {
+      method: "DELETE",
+      headers: { "X-Wallet-Address": walletAddress },
+    },
+  );
+  if (res.status === 403) throw new Error("You do not own this product");
+  if (res.status === 404) throw new Error("Product not found");
+  if (!res.ok) {
+    throw new Error(`Product delete failed: ${res.status}`);
+  }
+}
+
+export async function uploadImage(
+  walletAddress: string,
+  file: File,
+): Promise<IpfsUploadResponse> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  // Note: do NOT set Content-Type — the browser injects the right
+  // multipart/form-data + boundary automatically when body is FormData.
+  const res = await fetch(`${API_URL}/uploads/ipfs`, {
+    method: "POST",
+    headers: { "X-Wallet-Address": walletAddress },
+    body: formData,
+  });
+  if (res.status === 413) {
+    throw new Error("Image too large (max 5MB)");
+  }
+  if (res.status === 415) {
+    throw new Error("Invalid image type (JPEG, PNG, WebP only)");
+  }
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status}`);
+  }
+  return (await res.json()) as IpfsUploadResponse;
+}
+
+// Reverse of `_ipfs_url` server-side: extract the hash trailing the
+// gateway URL. Used to pre-fill the editor when the only access we have
+// to a product is /products/public/{handle}/{slug} (which serves
+// resolved gateway URLs, not raw hashes).
+export function ipfsHashFromUrl(url: string): string | null {
+  const match = url.match(/\/ipfs\/([^/?#]+)/);
+  return match ? match[1] : null;
 }

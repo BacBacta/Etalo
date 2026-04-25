@@ -165,7 +165,7 @@ export function SellerDashboardInner() {
             />
           </TabsContent>
           <TabsContent value="products">
-            <ProductsTab profile={profile} />
+            <ProductsTab profile={profile} walletAddress={address} />
           </TabsContent>
           <TabsContent value="orders">
             <OrdersTab address={address} />
