@@ -27,15 +27,22 @@ from app.schemas.dispute import (
 router = APIRouter(prefix="/disputes", tags=["disputes"])
 
 
-@router.get("/{dispute_id}", response_model=DisputeResponse)
-async def get_dispute(
-    dispute_id: uuid.UUID,
+# Specific paths declared BEFORE the generic /{dispute_id} so FastAPI
+# does not interpret "by-item" / "by-onchain-id" as a UUID.
+@router.get("/by-item", response_model=DisputeResponse)
+async def get_dispute_by_item(
+    order_id: uuid.UUID = Query(...),
+    item_id: uuid.UUID = Query(...),
     db: AsyncSession = Depends(get_async_db),
 ) -> DisputeResponse:
-    result = await db.execute(select(Dispute).where(Dispute.id == dispute_id))
+    result = await db.execute(
+        select(Dispute).where(
+            (Dispute.order_id == order_id) & (Dispute.order_item_id == item_id)
+        )
+    )
     dispute = result.scalar_one_or_none()
     if dispute is None:
-        raise HTTPException(status_code=404, detail="Dispute not found")
+        raise HTTPException(status_code=404, detail="Dispute not found for this item")
     return DisputeResponse.model_validate(dispute)
 
 
@@ -53,20 +60,15 @@ async def get_dispute_by_onchain_id(
     return DisputeResponse.model_validate(dispute)
 
 
-@router.get("/by-item", response_model=DisputeResponse)
-async def get_dispute_by_item(
-    order_id: uuid.UUID = Query(...),
-    item_id: uuid.UUID = Query(...),
+@router.get("/{dispute_id}", response_model=DisputeResponse)
+async def get_dispute(
+    dispute_id: uuid.UUID,
     db: AsyncSession = Depends(get_async_db),
 ) -> DisputeResponse:
-    result = await db.execute(
-        select(Dispute).where(
-            (Dispute.order_id == order_id) & (Dispute.order_item_id == item_id)
-        )
-    )
+    result = await db.execute(select(Dispute).where(Dispute.id == dispute_id))
     dispute = result.scalar_one_or_none()
     if dispute is None:
-        raise HTTPException(status_code=404, detail="Dispute not found for this item")
+        raise HTTPException(status_code=404, detail="Dispute not found")
     return DisputeResponse.model_validate(dispute)
 
 
