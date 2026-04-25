@@ -1,19 +1,39 @@
 import type { ReactNode } from "react";
-import { Navigate } from "react-router-dom";
 
 import { useMinipay } from "@/hooks/useMinipay";
 
-/**
- * Redirect to `/` when the wallet is not connected.
- *
- * While the MiniPay auto-connect is in flight, render nothing instead
- * of a "Connecting..." message — CLAUDE.md forbids surfacing transient
- * connection states to the user.
- */
+// Connection state gate aligned with MiniPay best practices
+// (CLAUDE.md rule 7, ADR-034 spirit).
+//
+// MiniPay forbids both the silent-fail UX (white screen) and the
+// "Click to connect" button: the WebView auto-connects, our job is
+// to communicate the auto-connect lifecycle clearly.
 export function RequireWallet({ children }: { children: ReactNode }) {
-  const { isConnected, isConnecting } = useMinipay();
+  const { isConnected, isConnecting, isInMinipay } = useMinipay();
 
-  if (isConnecting) return null;
-  if (!isConnected) return <Navigate to="/" replace />;
+  if (isConnecting) {
+    return (
+      <div className="p-8 text-center text-base">
+        Connecting to MiniPay…
+      </div>
+    );
+  }
+
+  if (!isConnected && !isInMinipay) {
+    return (
+      <div className="p-8 text-center text-base">
+        Please open this app from MiniPay to connect to your wallet.
+      </div>
+    );
+  }
+
+  if (!isConnected && isInMinipay) {
+    return (
+      <div className="p-8 text-center text-base">
+        Unable to connect. Please reopen MiniPay and try again.
+      </div>
+    );
+  }
+
   return <>{children}</>;
 }
