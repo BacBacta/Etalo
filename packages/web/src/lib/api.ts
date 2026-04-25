@@ -33,6 +33,13 @@ export interface ProductPublic {
 export type BoutiquePublic =
   paths["/api/v1/products/public/{handle}"]["get"]["responses"]["200"]["content"]["application/json"];
 
+// Marketplace listing — backend endpoint added in J6 Block 7 Étape 7.1
+// (commit f4fe3a2). Cursor-based pagination (?after=<iso_dt>&limit=N).
+export type MarketplaceListResponse =
+  paths["/api/v1/marketplace/products"]["get"]["responses"]["200"]["content"]["application/json"];
+
+export type MarketplaceProductItem = MarketplaceListResponse["products"][number];
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
@@ -134,6 +141,26 @@ export async function fetchPublicBoutique(
     throw new Error(`Boutique fetch failed: ${res.status}`);
   }
   return (await res.json()) as BoutiquePublic;
+}
+
+export async function fetchMarketplaceProducts(
+  cursor?: string | null,
+  limit: number = 20,
+): Promise<MarketplaceListResponse> {
+  const url = new URL(`${API_URL}/marketplace/products`);
+  url.searchParams.set("limit", String(limit));
+  // URLSearchParams encodes `+` as `%2B`, which the backend round-trips
+  // correctly even for ISO datetimes containing `+HH:MM` tz offsets
+  // (Étape 7.1 defensive parse). Never string-concat the cursor.
+  if (cursor) url.searchParams.set("after", cursor);
+
+  const res = await fetch(url.toString(), {
+    next: { revalidate: 30 },
+  });
+  if (!res.ok) {
+    throw new Error(`Marketplace fetch failed: ${res.status}`);
+  }
+  return (await res.json()) as MarketplaceListResponse;
 }
 
 export function displayUsdt(decimalString: string): string {
