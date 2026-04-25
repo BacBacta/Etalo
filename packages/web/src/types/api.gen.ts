@@ -666,6 +666,55 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cart/checkout-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Cart Token
+         * @description Validate a cart payload + lock prices/seller info into a 15-minute
+         *     HMAC-signed token. The Mini App passes the token at /checkout to
+         *     resolve the locked groups for `createOrderWithItems` calls.
+         *
+         *     Validation per item:
+         *       - product must exist
+         *       - product.status must be "active"
+         *       - product.stock must be ≥ requested qty
+         *     Failures aggregate into a single 422 with a `validation_errors` list.
+         *
+         *     is_cross_border defaults to True (ADR-005, no buyer country in V1).
+         *     TODO V1.5: ask buyer country at MiniPay onboarding for accurate
+         *     commission tier.
+         */
+        post: operations["create_cart_token_api_v1_cart_checkout_token_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cart/resolve/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Resolve Cart Token */
+        get: operations["resolve_cart_token_api_v1_cart_resolve__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -708,6 +757,31 @@ export interface components {
             /** Products */
             products: components["schemas"]["ProductPublicListItem"][];
             pagination: components["schemas"]["BoutiquePagination"];
+        };
+        /** CartItemRequest */
+        CartItemRequest: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Qty */
+            qty: number;
+        };
+        /** CartTokenRequest */
+        CartTokenRequest: {
+            /** Items */
+            items: components["schemas"]["CartItemRequest"][];
+        };
+        /** CartTokenResponse */
+        CartTokenResponse: {
+            /** Token */
+            token: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
         };
         /**
          * DisputeLevel
@@ -1119,6 +1193,56 @@ export interface components {
             logo_url?: string | null;
             /** Country */
             country?: string | null;
+        };
+        /** ResolvedCart */
+        ResolvedCart: {
+            /** Groups */
+            groups: components["schemas"]["ResolvedCartSellerGroup"][];
+            /** Total Usdt */
+            total_usdt: string;
+            /**
+             * Issued At
+             * Format: date-time
+             */
+            issued_at: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** ResolvedCartItem */
+        ResolvedCartItem: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /** Product Slug */
+            product_slug: string;
+            /** Title */
+            title: string;
+            /** Price Usdt */
+            price_usdt: string;
+            /** Qty */
+            qty: number;
+            /** Image Url */
+            image_url?: string | null;
+        };
+        /** ResolvedCartSellerGroup */
+        ResolvedCartSellerGroup: {
+            /** Seller Handle */
+            seller_handle: string;
+            /** Seller Shop Name */
+            seller_shop_name: string;
+            /** Seller Address */
+            seller_address: string;
+            /** Items */
+            items: components["schemas"]["ResolvedCartItem"][];
+            /** Subtotal Usdt */
+            subtotal_usdt: string;
+            /** Is Cross Border */
+            is_cross_border: boolean;
         };
         /** RevenueBlock */
         RevenueBlock: {
@@ -2441,6 +2565,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SitemapData"];
+                };
+            };
+        };
+    };
+    create_cart_token_api_v1_cart_checkout_token_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CartTokenRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CartTokenResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    resolve_cart_token_api_v1_cart_resolve__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResolvedCart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

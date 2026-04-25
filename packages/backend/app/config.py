@@ -1,3 +1,4 @@
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -12,6 +13,14 @@ class Settings(BaseSettings):
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
     jwt_expiration_minutes: int = 60
+
+    # Cart token HMAC secret (Block 6 — POST /api/v1/cart/checkout-token).
+    # Required, min 32 chars. Generate via `python -c "import secrets;
+    # print(secrets.token_urlsafe(32))"`.
+    cart_token_secret: str = Field(
+        default="dev-cart-secret-do-not-use-in-prod-32chars",
+        min_length=32,
+    )
 
     # SECURITY: when false, the backend accepts the temporary
     # X-Wallet-Address header as proof of identity for routes that
