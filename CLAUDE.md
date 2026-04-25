@@ -16,6 +16,12 @@ Target user: informal sellers on Instagram/WhatsApp/TikTok who want a real
 3. Asset generator (monetized) — per-product content pack sold in
    credits (0.15 USDT/credit, see `docs/PRICING_MODEL_CREDITS.md`).
 
+**Architecture (ADR-035)**: All three pillars live in a single Next.js
+app at `etalo.app`. The user's experience adapts based on MiniPay
+detection: visitors without MiniPay see the public funnel surface
+(per-seller boutique pages, conversion CTA); MiniPay users see the
+full Mini App surface (marketplace, cart, seller dashboard).
+
 Tagline: "Your digital stall, open 24/7"
 
 Positioning: "non-custodial" per the Zenland / Circle standard
@@ -25,9 +31,12 @@ power is structurally bounded by code.
 ## Tech stack (locked, do not change without an ADR)
 
 - Smart contracts: Solidity 0.8.24 + Hardhat + OpenZeppelin
-- Mini App frontend: React 19 + TypeScript 6 + Wagmi v2 + Viem v2 +
-  shadcn/ui + Tailwind (see ADR-001, ADR-012)
-- Public product pages: Next.js 14 (App Router, SSR)
+- Frontend (single Next.js app at `etalo.app`, see ADR-035): React 19 +
+  TypeScript 6 + Next.js 14 (App Router, SSR + Client Components) +
+  Wagmi v2 + Viem v2 + shadcn/ui + Tailwind. Same app serves the public
+  funnel surface (no wallet required, SEO-optimized for social media
+  inbound) and the Mini App surface (MiniPay detection via
+  `window.ethereum?.isMiniPay`). See ADR-001, ADR-012, ADR-035.
 - Backend: FastAPI + SQLAlchemy 2.x async + PostgreSQL (psycopg 3) +
   Alembic + web3.py 7.x AsyncWeb3 (V2 indexer; see `docs/BACKEND.md`)
 - IPFS: Pinata for product metadata and photos
@@ -101,13 +110,9 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J4 (V2 smart contracts) ✅ DONE 2026-04-24 — tag
-`v2.0.0-contracts-sepolia`.
-Sprint J5 (V2 backend) ✅ DONE 2026-04-25 — tag
-`v2.0.0-backend-sepolia`. Reference: `docs/BACKEND.md`.
-
-Next: Sprint J6 — Frontend Boutique (Mini App + public pages refactor
-to consume the V2 API).
+Sprint J6 — frontend boutique. Etalo is consolidating into a single
+Next.js app at `etalo.app` (ADR-035, decided Block 5). Sprint J4
+(smart contracts V2) and J5 (backend V2) are complete.
 
 When user says "start Block N", read that block in the current sprint
 file and execute.

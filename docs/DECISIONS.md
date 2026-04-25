@@ -1326,3 +1326,79 @@ auth before deletion.
   new EIP-191 points; if mutations are needed they go on-chain.
 - J7 sprint scope expands to include dispute event refactor.
 - CLAUDE.md gains rule 14 enforcing this constraint.
+
+---
+
+## ADR-035 · 2026-04-25 — Etalo deployment architecture: single Next.js app at etalo.app
+
+**Status**: Accepted (architectural pivot, supersedes implicit two-package assumption)
+
+**Context**: Implicit prior architecture had `packages/web` (Next.js, public funnel) and
+`packages/miniapp` (Vite, MiniPay-injected app) as two separate codebases destined for two
+different URLs. A clarification of vision (25/04/2026) confirmed that Etalo is fundamentally
+**a Mini App in MiniPay**, not an independent web platform with a satellite Mini App. The
+public web pages are funnels for social media inbound traffic from sellers' marketing images
+(asset generator), intentionally limited (single-seller scope) to convert visitors into
+MiniPay users.
+
+The Mini App entry point registered with MiniPay's Discover must be a single URL. Two
+codebases would require separate deployments, duplicated logic, split SEO/Mini App surfaces,
+and a confusing submission story.
+
+**Decision**: Consolidate the entire Etalo frontend into `packages/web` (Next.js 14).
+`packages/miniapp` is archived. The single Next.js app serves both surfaces:
+
+1. **Public funnel surface** (no MiniPay required): `/`, `/[handle]`, `/[handle]/[slug]`,
+   `/sitemap.xml`, `/robots.txt`, OG images. SEO-optimized for social media inbound. Single-
+   seller scope. CTA "Download MiniPay for full marketplace."
+
+2. **Mini App surface** (MiniPay required, detected via `window.ethereum?.isMiniPay`):
+   `/marketplace` (multi-seller browser), `/checkout`, `/seller/dashboard`, `/orders/:id`,
+   etc. Uses injected wallet for transactions.
+
+Routing convention: each route either supports both surfaces with progressive enhancement
+based on MiniPay detection, or is gated to one with redirect/CTA fallback for the other.
+
+**MiniPay submission URL**: `https://etalo.app`.
+
+**Migration scope** (executed Block 5 commit B):
+- Move `packages/miniapp/src/{lib,abis,hooks}/*` → `packages/web/src/`
+- Move `packages/miniapp/src/components/RequireWallet.tsx` → `packages/web/src/components/`
+- Copy `packages/miniapp/src/components/ui/{dialog,tabs}.tsx` → `packages/web/src/components/ui/`
+  (web Block 4 already has button/sheet/badge/separator/sonner)
+- Convert Vite env vars (`import.meta.env.VITE_*`) to Next.js (`process.env.NEXT_PUBLIC_*`)
+- Add `WagmiProvider` + `QueryClientProvider` in web root layout via client `<Providers>` wrapper
+- Install wagmi, viem, @tanstack/react-query in `packages/web`
+- Archive `packages/miniapp` to branch `archive/miniapp-vite-v1` then delete from working tree
+- Pages from `packages/miniapp/src/pages/*` (Landing, SellerHome, Onboarding, Checkout, Order)
+  are NOT migrated — they're partial V1 implementations. Block 6+ rebuilds them as Next.js
+  routes using migrated foundations + Block 2/3 SSR patterns + Block 4 cart store.
+
+**Rationale**:
+- Single deployment URL = clean MiniPay Discover registration
+- Detection via `isMiniPay` provides progressive enhancement, no hard URL split
+- Code reuse: cart store (Block 4) serves both single-seller funnel and multi-seller
+  marketplace without duplication
+- Standard pattern in MiniPay ecosystem (Mento, Kotani, Halofi all use single Next.js)
+- Easier maintenance, single test/build/deploy pipeline
+
+**Risks**:
+- Bundle size: Mini App code (wagmi, viem, ABIs) may load on public funnel pages if not
+  code-split. Mitigation: Next.js route-based code splitting handles most cases; explicitly
+  dynamic-import wallet code where the funnel doesn't need it.
+- SSR + wallet: pages requiring MiniPay must be marked client-only (no SSR for `/marketplace`,
+  `/checkout`, `/seller/dashboard`).
+- Migration risk: file moves break imports. Mitigation: incremental migration with
+  build/test after each batch.
+
+**Impact**:
+- J6 Block 5 absorbs the migration (~1-2h) before checkout work resumes.
+- J6 Block 6 (was 5): backend cart token + checkout `/checkout` route in Next.js.
+- J6 Block 7 (was 6→7 partial): `/marketplace` + dual-mode home picker.
+- J6 Block 8 (was 7 partial): `/seller/dashboard`.
+- Block 4 cart drawer (commit `33c27e3`) is **not** dead code — it serves both surfaces
+  (single-seller on funnel, multi-seller in Mini App). Validation retroactive of Option 2.
+- `packages/miniapp` Block 1 work (commit `57ec857` + 4 pré-Block 2 commits) is preserved
+  through git history (`git mv` preserves history); files are in `packages/web` after move.
+- CLAUDE.md tech stack section consolidates "Mini App frontend" + "Public product pages"
+  into a single Next.js entry.
