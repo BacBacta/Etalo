@@ -19,11 +19,10 @@ import {
   buildExplorerUrl,
   classifyError,
 } from "@/lib/checkout-orchestration";
+import { fetchApi } from "@/lib/fetch-api";
 
 const escrowAbi = escrowAbiJson as Abi;
 const ESCROW_ADDRESS = process.env.NEXT_PUBLIC_ESCROW_ADDRESS as `0x${string}`;
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 const TX_TIMEOUT_MS = 120_000;
 
 interface Props {
@@ -62,7 +61,7 @@ export function MarkGroupShippedDialog({
     setTxHash(null);
     setTrackingNumber("");
 
-    fetch(`${API_URL}/orders/${dbOrderId}/items`)
+    fetchApi(`/orders/${dbOrderId}/items`)
       .then((res) => {
         if (!res.ok) throw new Error(`Items fetch failed: ${res.status}`);
         return res.json();

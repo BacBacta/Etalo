@@ -10,11 +10,12 @@
  * Mutations send X-Wallet-Address per ADR-036 (no signed message — see
  * ADR-034). Frontend gating + MiniPay WebView trust model do the heavy
  * lifting upstream.
+ *
+ * All requests go through fetchApi / fetchApiFormData which auto-inject
+ * the `ngrok-skip-browser-warning` header for ngrok-tunnelled testing.
  */
+import { fetchApi, fetchApiFormData } from "@/lib/fetch-api";
 import type { components } from "@/types/api.gen";
-
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 export type SellerProfilePublic = components["schemas"]["SellerProfilePublic"];
 export type SellersMeResponse = components["schemas"]["SellersMeResponse"];
@@ -53,7 +54,7 @@ export class SellerNotFoundError extends Error {
 export async function fetchMyProfile(
   walletAddress: string,
 ): Promise<SellerProfilePublic | null> {
-  const res = await fetch(`${API_URL}/sellers/me`, {
+  const res = await fetchApi("/sellers/me", {
     headers: { "X-Wallet-Address": walletAddress },
   });
   if (!res.ok) {
@@ -67,8 +68,8 @@ export async function fetchMyProfile(
 export async function fetchSellerOnchainProfile(
   address: string,
 ): Promise<SellerProfileResponse> {
-  const res = await fetch(
-    `${API_URL}/sellers/${encodeURIComponent(address)}/profile`,
+  const res = await fetchApi(
+    `/sellers/${encodeURIComponent(address)}/profile`,
   );
   if (res.status === 404) throw new SellerNotFoundError();
   if (!res.ok) {
@@ -84,15 +85,14 @@ export async function fetchSellerOrders(
   pageSize: number = 20,
   orderStatus?: string,
 ): Promise<SellerOrdersPage> {
-  const url = new URL(
-    `${API_URL}/sellers/${encodeURIComponent(address)}/orders`,
-  );
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("page_size", String(pageSize));
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
   // Note: OrderStatus enum is title-case ("Completed", "Funded", …).
-  if (orderStatus) url.searchParams.set("order_status", orderStatus);
-
-  const res = await fetch(url.toString());
+  if (orderStatus) params.set("order_status", orderStatus);
+  const res = await fetchApi(
+    `/sellers/${encodeURIComponent(address)}/orders?${params.toString()}`,
+  );
   if (!res.ok) {
     throw new Error(`Orders fetch failed: ${res.status}`);
   }
@@ -104,7 +104,7 @@ export async function updateSellerProfile(
   walletAddress: string,
   payload: SellerProfileUpdate,
 ): Promise<SellerProfilePublic> {
-  const res = await fetch(`${API_URL}/sellers/me/profile`, {
+  const res = await fetchApi("/sellers/me/profile", {
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
@@ -133,7 +133,7 @@ export async function createProduct(
   walletAddress: string,
   payload: ProductCreate,
 ): Promise<ProductDetail> {
-  const res = await fetch(`${API_URL}/products`, {
+  const res = await fetchApi("/products", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -153,8 +153,8 @@ export async function updateProduct(
   productId: string,
   payload: ProductUpdate,
 ): Promise<ProductDetail> {
-  const res = await fetch(
-    `${API_URL}/products/${encodeURIComponent(productId)}`,
+  const res = await fetchApi(
+    `/products/${encodeURIComponent(productId)}`,
     {
       method: "PUT",
       headers: {
@@ -176,8 +176,8 @@ export async function deleteProduct(
   walletAddress: string,
   productId: string,
 ): Promise<void> {
-  const res = await fetch(
-    `${API_URL}/products/${encodeURIComponent(productId)}`,
+  const res = await fetchApi(
+    `/products/${encodeURIComponent(productId)}`,
     {
       method: "DELETE",
       headers: { "X-Wallet-Address": walletAddress },
@@ -197,12 +197,8 @@ export async function uploadImage(
   const formData = new FormData();
   formData.append("file", file);
 
-  // Note: do NOT set Content-Type — the browser injects the right
-  // multipart/form-data + boundary automatically when body is FormData.
-  const res = await fetch(`${API_URL}/uploads/ipfs`, {
-    method: "POST",
+  const res = await fetchApiFormData("/uploads/ipfs", formData, {
     headers: { "X-Wallet-Address": walletAddress },
-    body: formData,
   });
   if (res.status === 413) {
     throw new Error("Image too large (max 5MB)");
@@ -222,9 +218,11 @@ export async function fetchMyProducts(
   walletAddress: string,
   includeDeleted: boolean = false,
 ): Promise<MyProductsListResponse> {
-  const url = new URL(`${API_URL}/sellers/me/products`);
-  if (includeDeleted) url.searchParams.set("include_deleted", "true");
-  const res = await fetch(url.toString(), {
+  const params = new URLSearchParams();
+  if (includeDeleted) params.set("include_deleted", "true");
+  const qs = params.toString();
+  const path = qs ? `/sellers/me/products?${qs}` : "/sellers/me/products";
+  const res = await fetchApi(path, {
     headers: { "X-Wallet-Address": walletAddress },
   });
   if (res.status === 401) throw new Error("Wallet auth required");

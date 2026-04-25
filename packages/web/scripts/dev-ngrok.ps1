@@ -11,10 +11,11 @@
 
   This script polls ngrok's local API (localhost:4040) to grab the
   HTTPS public URL, then writes it into packages/web/.env.local as
-  NEXT_PUBLIC_BASE_URL. It also clears NEXT_PUBLIC_API_URL (so
-  fetches go relative through Next.js rewrites) and sets
-  LOCAL_API_REWRITE_TARGET to localhost:8000 so the rewrites in
-  next.config.mjs proxy /api/* to the backend.
+  NEXT_PUBLIC_BASE_URL. It also sets NEXT_PUBLIC_API_URL=/api/v1 (so
+  fetches go relative — the leading /api/v1 prefix is preserved per
+  the lib code's path conventions) and LOCAL_API_REWRITE_TARGET to
+  localhost:8000 so the rewrites in next.config.mjs proxy /api/* to
+  the backend.
 
   Next.js dev server picks up env changes on the next request.
 
@@ -83,7 +84,7 @@ foreach ($line in $envContent) {
     $newContent += "NEXT_PUBLIC_BASE_URL=$ngrokUrl"
     $baseUrlSet = $true
   } elseif ($line -match "^NEXT_PUBLIC_API_URL=") {
-    $newContent += "NEXT_PUBLIC_API_URL="
+    $newContent += "NEXT_PUBLIC_API_URL=/api/v1"
     $apiUrlSet = $true
   } elseif ($line -match "^LOCAL_API_REWRITE_TARGET=") {
     $newContent += "LOCAL_API_REWRITE_TARGET=http://localhost:8000"
@@ -93,7 +94,7 @@ foreach ($line in $envContent) {
   }
 }
 if (-not $baseUrlSet) { $newContent += "NEXT_PUBLIC_BASE_URL=$ngrokUrl" }
-if (-not $apiUrlSet) { $newContent += "NEXT_PUBLIC_API_URL=" }
+if (-not $apiUrlSet) { $newContent += "NEXT_PUBLIC_API_URL=/api/v1" }
 if (-not $rewriteTargetSet) { $newContent += "LOCAL_API_REWRITE_TARGET=http://localhost:8000" }
 
 Set-Content -Path $envPath -Value $newContent -Encoding UTF8
@@ -101,7 +102,7 @@ Set-Content -Path $envPath -Value $newContent -Encoding UTF8
 Write-Host ""
 Write-Host "Updated .env.local:" -ForegroundColor Green
 Write-Host "  NEXT_PUBLIC_BASE_URL=$ngrokUrl"
-Write-Host "  NEXT_PUBLIC_API_URL=         (empty -> relative fetches go through next.config rewrites)"
+Write-Host "  NEXT_PUBLIC_API_URL=/api/v1   (relative — Next.js rewrites proxy /api/* to localhost:8000)"
 Write-Host "  LOCAL_API_REWRITE_TARGET=http://localhost:8000"
 Write-Host ""
 Write-Host "Next.js dev server picks up env changes on the next request." -ForegroundColor Cyan

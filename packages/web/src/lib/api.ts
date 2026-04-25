@@ -1,13 +1,11 @@
 import type { WalletClient } from "viem";
 
 import { signApiRequest, type HttpMethod } from "@/lib/eip191";
+import { fetchApi } from "@/lib/fetch-api";
 import type { paths } from "@/types/api.gen";
 
-// API_URL contains the /api/v1 prefix already (e.g. http://localhost:8000/api/v1).
-// API_PREFIX is the path-only form used to build the EIP-191-signed canonical
-// path (must match the FastAPI route path on the server).
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+// API_PREFIX is the path-only form used to build the EIP-191-signed
+// canonical path (must match the FastAPI route path on the server).
 const API_PREFIX = "/api/v1";
 
 export interface ProductPublic {
@@ -99,10 +97,7 @@ export async function apiFetch<T>(
     finalHeaders.set("X-Etalo-Timestamp", sig["X-Etalo-Timestamp"]);
   }
 
-  const res = await fetch(`${API_URL}${path}`, {
-    ...rest,
-    headers: finalHeaders,
-  });
+  const res = await fetchApi(path, { ...rest, headers: finalHeaders });
 
   if (!res.ok) {
     let body: unknown = null;
@@ -121,8 +116,8 @@ export async function fetchPublicProduct(
   handle: string,
   slug: string,
 ): Promise<ProductPublic | null> {
-  const res = await fetch(
-    `${API_URL}/products/public/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}`,
+  const res = await fetchApi(
+    `/products/public/${encodeURIComponent(handle)}/${encodeURIComponent(slug)}`,
     { next: { revalidate: 60 } },
   );
   if (res.status === 404) return null;
@@ -137,15 +132,13 @@ export async function fetchPublicBoutique(
   page: number = 1,
   pageSize: number = 20,
 ): Promise<BoutiquePublic | null> {
-  const url = new URL(
-    `${API_URL}/products/public/${encodeURIComponent(handle)}`,
+  const params = new URLSearchParams();
+  params.set("page", String(page));
+  params.set("page_size", String(pageSize));
+  const res = await fetchApi(
+    `/products/public/${encodeURIComponent(handle)}?${params.toString()}`,
+    { next: { revalidate: 30 } },
   );
-  url.searchParams.set("page", String(page));
-  url.searchParams.set("page_size", String(pageSize));
-
-  const res = await fetch(url.toString(), {
-    next: { revalidate: 30 },
-  });
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(`Boutique fetch failed: ${res.status}`);
@@ -157,14 +150,13 @@ export async function fetchMarketplaceProducts(
   cursor?: string | null,
   limit: number = 20,
 ): Promise<MarketplaceListResponse> {
-  const url = new URL(`${API_URL}/marketplace/products`);
-  url.searchParams.set("limit", String(limit));
+  const params = new URLSearchParams();
+  params.set("limit", String(limit));
   // URLSearchParams encodes `+` as `%2B`, which the backend round-trips
   // correctly even for ISO datetimes containing `+HH:MM` tz offsets
   // (Étape 7.1 defensive parse). Never string-concat the cursor.
-  if (cursor) url.searchParams.set("after", cursor);
-
-  const res = await fetch(url.toString(), {
+  if (cursor) params.set("after", cursor);
+  const res = await fetchApi(`/marketplace/products?${params.toString()}`, {
     next: { revalidate: 30 },
   });
   if (!res.ok) {

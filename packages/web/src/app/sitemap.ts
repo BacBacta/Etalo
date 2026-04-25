@@ -1,5 +1,7 @@
 import type { MetadataRoute } from "next";
 
+import { fetchApi } from "@/lib/fetch-api";
+
 interface SitemapData {
   sellers: { handle: string; updated_at: string }[];
   products: { handle: string; slug: string; updated_at: string }[];
@@ -10,13 +12,11 @@ export const revalidate = 3600;
 
 const BASE_URL =
   process.env.NEXT_PUBLIC_BASE_URL ?? "https://etalo.app";
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let data: SitemapData = { sellers: [], products: [] };
   try {
-    const res = await fetch(`${API_URL}/sitemap/data`, {
+    const res = await fetchApi("/sitemap/data", {
       next: { revalidate: 3600 },
     });
     if (res.ok) {

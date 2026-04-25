@@ -1,3 +1,4 @@
+import { fetchApi } from "@/lib/fetch-api";
 import type { paths } from "@/types/api.gen";
 
 export type CartTokenResponse =
@@ -34,16 +35,10 @@ export class CartTokenInvalidError extends Error {
   }
 }
 
-// API_URL contains the /api/v1 prefix already. Strip it so we can build
-// /api/v1/cart/* paths against the host root — both the backend and the
-// /api/v1/products/public/* fetches in lib/api.ts use the prefixed form.
-const API_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
-
 export async function postCartToken(
   items: Array<{ productId: string; qty: number }>,
 ): Promise<CartTokenResponse> {
-  const res = await fetch(`${API_URL}/cart/checkout-token`, {
+  const res = await fetchApi("/cart/checkout-token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -63,8 +58,8 @@ export async function postCartToken(
 }
 
 export async function resolveCartToken(token: string): Promise<ResolvedCart> {
-  const res = await fetch(
-    `${API_URL}/cart/resolve/${encodeURIComponent(token)}`,
+  const res = await fetchApi(
+    `/cart/resolve/${encodeURIComponent(token)}`,
   );
   if (res.status === 410) throw new CartTokenExpiredError();
   if (res.status === 401) throw new CartTokenInvalidError();
