@@ -17,6 +17,7 @@ from app.routers import (
     auth,
     disputes,
     health,
+    items,
     notifications,
     onboarding,
     orders,
@@ -118,6 +119,7 @@ def create_app() -> FastAPI:
     app.include_router(products.router, prefix="/api/v1")
     app.include_router(orders.router, prefix="/api/v1")
     app.include_router(disputes.router, prefix="/api/v1")
+    app.include_router(items.router, prefix="/api/v1")
     app.include_router(analytics.router, prefix="/api/v1")
     app.include_router(notifications.router, prefix="/api/v1")
     app.include_router(admin.router, prefix="/api/v1")
