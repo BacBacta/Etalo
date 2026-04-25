@@ -715,6 +715,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/marketplace/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Marketplace Products
+         * @description Public marketplace listing across all sellers.
+         *
+         *     Sort: created_at DESC. Cursor-based pagination via `?after=<iso_dt>`.
+         *     Excludes Product.status != 'active'. (V1.5: also exclude suspended
+         *     sellers once SellerProfile.status enum exists — same TODO as cart
+         *     token endpoint.)
+         */
+        get: operations["list_marketplace_products_api_v1_marketplace_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -918,6 +943,46 @@ export interface components {
          * @enum {string}
          */
         ItemStatus: "Pending" | "Shipped" | "Arrived" | "Delivered" | "Released" | "Disputed" | "Refunded";
+        /** MarketplaceListResponse */
+        MarketplaceListResponse: {
+            /** Products */
+            products: components["schemas"]["MarketplaceProductItem"][];
+            pagination: components["schemas"]["MarketplacePagination"];
+        };
+        /** MarketplacePagination */
+        MarketplacePagination: {
+            /** Next Cursor */
+            next_cursor?: string | null;
+            /** Has More */
+            has_more: boolean;
+        };
+        /** MarketplaceProductItem */
+        MarketplaceProductItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Slug */
+            slug: string;
+            /** Title */
+            title: string;
+            /** Price Usdt */
+            price_usdt: string;
+            /** Primary Image Url */
+            primary_image_url?: string | null;
+            /** Seller Handle */
+            seller_handle: string;
+            /** Seller Shop Name */
+            seller_shop_name: string;
+            /** Seller Country */
+            seller_country?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
         /** NonceRequest */
         NonceRequest: {
             /** Wallet Address */
@@ -2620,6 +2685,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ResolvedCart"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_marketplace_products_api_v1_marketplace_products_get: {
+        parameters: {
+            query?: {
+                /** @description ISO datetime cursor — returns items strictly older than this. */
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketplaceListResponse"];
                 };
             };
             /** @description Validation Error */

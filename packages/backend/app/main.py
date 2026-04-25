@@ -19,6 +19,7 @@ from app.routers import (
     disputes,
     health,
     items,
+    marketplace,
     notifications,
     onboarding,
     orders,
@@ -127,6 +128,7 @@ def create_app() -> FastAPI:
     app.include_router(admin.router, prefix="/api/v1")
     app.include_router(sitemap.router, prefix="/api/v1")
     app.include_router(cart.router, prefix="/api/v1")
+    app.include_router(marketplace.router, prefix="/api/v1")
 
     return app
 
