@@ -40,6 +40,16 @@ export type MarketplaceListResponse =
 
 export type MarketplaceProductItem = MarketplaceListResponse["products"][number];
 
+// Lightweight seller summary derived from marketplace data — used by
+// the public landing page (Étape 7.3) to show a few featured sellers
+// without an extra backend round-trip.
+export interface FeaturedSeller {
+  handle: string;
+  shop_name: string;
+  country: string | null;
+  primary_image_url: string | null;
+}
+
 export class ApiError extends Error {
   readonly status: number;
   readonly body: unknown;
@@ -161,6 +171,26 @@ export async function fetchMarketplaceProducts(
     throw new Error(`Marketplace fetch failed: ${res.status}`);
   }
   return (await res.json()) as MarketplaceListResponse;
+}
+
+export async function fetchFeaturedSellers(
+  limit: number = 6,
+): Promise<FeaturedSeller[]> {
+  // Fetch 3× products to ensure dedup yields enough distinct sellers.
+  const data = await fetchMarketplaceProducts(null, limit * 3);
+  const sellers = new Map<string, FeaturedSeller>();
+  for (const p of data.products) {
+    if (!sellers.has(p.seller_handle)) {
+      sellers.set(p.seller_handle, {
+        handle: p.seller_handle,
+        shop_name: p.seller_shop_name,
+        country: p.seller_country ?? null,
+        primary_image_url: p.primary_image_url ?? null,
+      });
+    }
+    if (sellers.size >= limit) break;
+  }
+  return Array.from(sellers.values());
 }
 
 export function displayUsdt(decimalString: string): string {
