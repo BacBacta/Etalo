@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
+import { useShallow } from "zustand/react/shallow";
 
 import { CartItemRow } from "@/components/CartItemRow";
 import { Button } from "@/components/ui/button";
@@ -23,7 +24,10 @@ interface Props {
 }
 
 export function CartDrawer({ open, onOpenChange }: Props) {
-  const sellerGroups = useCartStore((s) => s.getSellerGroups());
+  // useShallow: getSellerGroups() returns a fresh Array each call
+  // (Array.from(map.values())). Without shallow equality, MiniPay's
+  // strict useSyncExternalStore loops on every render.
+  const sellerGroups = useCartStore(useShallow((s) => s.getSellerGroups()));
   const totalUsdt = useCartStore((s) => s.getTotalUsdt());
   const itemCount = useCartStore((s) => s.getItemCount());
   const clearCart = useCartStore((s) => s.clearCart);
