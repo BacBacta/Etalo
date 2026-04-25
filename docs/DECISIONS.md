@@ -1255,3 +1255,74 @@ test wallet remains on Celo Sepolia with `(stake=5 USDT, tier=None)`
 as a preserved regression fixture. No ABI or event changes; V1.5 is
 a pure constraint relaxation. No production migration required —
 existing slashed sellers benefit automatically once V1.5 deploys.
+
+---
+
+## ADR-034 · 2026-04-25 — EIP-191 backend auth deprecated by MiniPay best practices
+
+**Status**: Accepted (deprecation), Replacement plan staged
+
+**Context**: J6 Block 1 (25/04/2026) introduced an EIP-191 signed-message
+authentication pattern for backend mutations: `packages/miniapp/src/lib/eip191.ts`
+helper, `packages/backend/app/auth.py` verifier, and 3 POST endpoints
+(`/disputes/submit-message`, etc.) requiring a signed payload.
+
+A subsequent compliance audit against the official MiniPay docs
+(https://docs.minipay.xyz, Best Practices section) surfaced an explicit
+prohibition:
+
+> "Do not prompt users to sign a message to access your site or to
+> authenticate. MiniPay connects automatically; users should not need to
+> sign an arbitrary message to use your Mini App."
+
+Our pattern triggers a "sign this message" prompt every time a buyer
+submits a dispute message or a seller updates off-chain metadata. This is
+exactly the friction MiniPay forbids and is among the listed common
+rejection reasons during submission review.
+
+**Decision**: Deprecate EIP-191 auth as the long-term mechanism for
+backend mutations. The existing helper and verifier remain in place for
+J6 to avoid blocking Block 2-7 progress, but **no new auth points may be
+added** and the existing ones are flagged for migration before Proof of
+Ship submission (June 2026).
+
+**Replacement plan**:
+
+1. **Primary path (preferred)**: move all mutating off-chain payloads
+   on-chain as contract events that the J5 indexer picks up. Example:
+   dispute messages are pinned to IPFS, hash emitted as
+   `MessagePosted(itemId, ipfsHash, sender)` event by `EtaloDispute`. The
+   indexer captures the event, fetches IPFS content, persists the row.
+   Pattern matches the indexer-as-sole-authority discipline of ADR-030.
+
+2. **Fallback (only if (1) impractical)**: session cookie issued by the
+   backend after a non-prompting wallet ownership check (e.g. backend
+   challenges the address with a contract read the wallet must have
+   signed in a prior tx, no new signature requested). To be designed in
+   a follow-up ADR if needed.
+
+3. **Migration order**: J7 disputes refactor takes priority (dispute
+   messages are the highest-friction case); other mutations follow as
+   each block touches them. `lib/eip191.ts` and `app/auth.py` are
+   deleted at the end of the migration.
+
+**Risk**:
+- Submission rejection if EIP-191 is still in production-facing flows
+  at submit time.
+- Disputes UX delay if (1) requires new contract event work post-J4
+  freeze. Mitigation: dispute message events can be added in a
+  V2.1 contract patch without breaking interfaces (ABI append only).
+
+**Guard before mainnet**: pre-submission checklist (Block 11 J11) must
+verify zero `eip191.ts` or `app/auth.py` references in the critical
+buyer/seller flows. Backend tests must be updated to use cookie/onchain
+auth before deletion.
+
+**Impact**:
+- J6 Block 1 commit `57ec857` keeps its EIP-191 work — no rollback.
+- J6 Block 2 unaffected (`/products/public/{handle}` is unauthenticated
+  by design).
+- J6 Blocks 5-7 (checkout, order tracking, seller mode) must not add
+  new EIP-191 points; if mutations are needed they go on-chain.
+- J7 sprint scope expands to include dispute event refactor.
+- CLAUDE.md gains rule 14 enforcing this constraint.
