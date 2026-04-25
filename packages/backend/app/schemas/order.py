@@ -1,85 +1,102 @@
+"""V2 Order API schemas — Sprint J5 Block 6.
+
+Pydantic models for request/response over HTTP. Distinct from
+`app/schemas/onchain.py` (which mirrors Solidity structs). These
+flatten DB rows + on-chain enrichment into stable client-facing
+shapes.
+"""
+from __future__ import annotations
+
+import uuid
 from datetime import datetime
 from decimal import Decimal
-from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from app.models.enums import ItemStatus, OrderStatus, ShipmentStatus
 
-class OrderCreate(BaseModel):
-    seller_address: str
-    product_id: UUID | None = None
-    amount_usdt: Decimal
-    is_cross_border: bool = False
-    delivery_address: str | None = None
+USDT_SCALE = Decimal(10) ** 6
 
 
-class OrderRead(BaseModel):
-    id: UUID
-    onchain_order_id: int | None = None
+class OrderItemResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    onchain_item_id: int
+    item_index: int
+    item_price_usdt: int
+    item_commission_usdt: int
+    status: ItemStatus
+    shipment_group_id: uuid.UUID | None
+    released_amount_usdt: int
+
+    @computed_field
+    @property
+    def item_price_human(self) -> Decimal:
+        return Decimal(self.item_price_usdt) / USDT_SCALE
+
+
+class ShipmentGroupResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    onchain_group_id: int
+    status: ShipmentStatus
+    proof_hash: bytes | None
+    arrival_proof_hash: bytes | None
+    release_stage: int
+    shipped_at: datetime | None
+    arrived_at: datetime | None
+    majority_release_at: datetime | None
+    final_release_after: datetime | None
+
+
+class OrderResponse(BaseModel):
+    """Full order with embedded items + groups."""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    onchain_order_id: int
     buyer_address: str
     seller_address: str
-    product_id: UUID | None = None
-    amount_usdt: Decimal
-    commission_usdt: Decimal
-    status: str
+    total_amount_usdt: int
+    total_commission_usdt: int
     is_cross_border: bool
-    milestones_total: int
-    milestones_released: int
+    global_status: OrderStatus
+    item_count: int
+    funded_at: datetime | None
+    created_at_chain: datetime
+    created_at_db: datetime
+    delivery_address: str | None
+    tracking_number: str | None
+    product_ids: list[uuid.UUID] | None
+    notes: str | None
+    items: list[OrderItemResponse] = Field(default_factory=list)
+    shipment_groups: list[ShipmentGroupResponse] = Field(default_factory=list)
+
+    @computed_field
+    @property
+    def total_amount_human(self) -> Decimal:
+        return Decimal(self.total_amount_usdt) / USDT_SCALE
+
+    @computed_field
+    @property
+    def total_commission_human(self) -> Decimal:
+        return Decimal(self.total_commission_usdt) / USDT_SCALE
+
+
+class OrderListResponse(BaseModel):
+    """Paginated order list."""
+    items: list[OrderResponse]
+    count: int
+    limit: int
+    offset: int
+
+
+class OrderMetadataUpdate(BaseModel):
+    """Off-chain metadata update by buyer or seller. Partial — only
+    non-None fields are written."""
+    delivery_address: str | None = None
     tracking_number: str | None = None
-    tx_hash: str | None = None
-    created_at: datetime
-    shipped_at: datetime | None = None
-    completed_at: datetime | None = None
-
-    model_config = {"from_attributes": True}
-
-
-# --- Checkout flow (Block 7) ----------------------------------------
-
-
-class OrderInitiateRequest(BaseModel):
-    product_id: UUID
-
-
-class OrderInitiateProduct(BaseModel):
-    id: UUID
-    title: str
-    image_url: str | None = None
-    slug: str
-
-
-class OrderInitiateSeller(BaseModel):
-    shop_handle: str
-    shop_name: str
-    address: str
-    country: str | None = None
-    logo_ipfs_hash: str | None = None
-
-
-class OrderInitiateContracts(BaseModel):
-    escrow: str
-    usdt: str
-
-
-class OrderInitiateResponse(BaseModel):
-    product: OrderInitiateProduct
-    seller: OrderInitiateSeller
-    amount_raw: str  # bigint as string, 6 decimals
-    is_cross_border: bool
-    auto_release_days_estimate: int
-    contracts: OrderInitiateContracts
-
-
-class OrderConfirmRequest(BaseModel):
-    product_id: UUID
-    onchain_order_id: int
-    tx_hash_create: str
-    tx_hash_fund: str
-    is_cross_border: bool
-    amount_raw: str  # bigint as string
-
-
-class OrderConfirmResponse(BaseModel):
-    id: UUID
-    status: str
-    onchain_order_id: int
+    product_ids: list[uuid.UUID] | None = None
+    notes: str | None = None

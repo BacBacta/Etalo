@@ -1,270 +1,164 @@
-from decimal import Decimal
-from typing import Annotated
-from uuid import UUID
+"""V2 Orders router — Sprint J5 Block 6.
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
+GET endpoints read from the indexer-populated DB. POST /metadata
+writes off-chain fields (delivery, tracking, notes) — gated by
+EIP-191 signature where the recovered address must be the buyer or
+seller of the order.
+"""
+from __future__ import annotations
 
-from app.config import settings
-from app.database import get_db
-from app.models.notification import Notification
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.auth import verify_signature
+from app.database import get_async_db
+from app.models.enums import OrderStatus
 from app.models.order import Order
-from app.models.product import Product
-from app.models.seller_profile import SellerProfile
-from app.models.user import User
-from app.routers.sellers import get_current_wallet
 from app.schemas.order import (
-    OrderConfirmRequest,
-    OrderConfirmResponse,
-    OrderInitiateContracts,
-    OrderInitiateProduct,
-    OrderInitiateRequest,
-    OrderInitiateResponse,
-    OrderInitiateSeller,
-    OrderRead,
+    OrderItemResponse,
+    OrderListResponse,
+    OrderMetadataUpdate,
+    OrderResponse,
+    ShipmentGroupResponse,
 )
+
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
 
-# Commission BPS — must match EtaloEscrow constants.
-COMMISSION_INTRA_BPS = 180
-COMMISSION_CROSS_BPS = 270
-BPS_DENOMINATOR = 10000
-
-AUTO_RELEASE_INTRA_DAYS = 3
-AUTO_RELEASE_CROSS_DAYS = 7
+def _normalize(addr: str | None) -> str | None:
+    return addr.lower() if addr else None
 
 
-def _is_cross_border(buyer: User | None, seller_country: str | None) -> bool:
-    """
-    Cross-border when buyer and seller are in different countries.
-
-    If we don't know the buyer's country (new wallet, no onboarding yet),
-    we default to cross-border — the higher commission and longer
-    auto-release window is the safer pessimistic default for the
-    protocol. Documented in docs/DECISIONS.md.
-    """
-    if buyer is None or buyer.country is None:
-        return True
-    if seller_country is None:
-        return True
-    return buyer.country != seller_country
-
-
-def _ipfs_url(h: str | None) -> str | None:
-    if not h:
-        return None
-    return f"{settings.pinata_gateway_url.rstrip('/')}/{h}"
-
-
-@router.post("/initiate", response_model=OrderInitiateResponse)
-def initiate_order(
-    body: OrderInitiateRequest,
-    wallet: Annotated[str, Depends(get_current_wallet)],
-    db: Annotated[Session, Depends(get_db)],
-) -> OrderInitiateResponse:
-    """
-    Compute the checkout parameters for a product from the caller's POV.
-
-    Returns everything the Mini App needs to build the on-chain txs:
-    seller's wallet address, the amount in 6-decimals raw bigint, and
-    the authoritative `is_cross_border` flag (frontend must not
-    recompute — server is the source of truth for commission rules).
-    """
-    product = db.get(Product, body.product_id)
-    if product is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found."
-        )
-    if product.status != "active":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Product is {product.status}.",
-        )
-    if product.stock <= 0:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Product is out of stock.",
-        )
-
-    seller_profile: SellerProfile | None = db.get(SellerProfile, product.seller_id)
-    if seller_profile is None or seller_profile.user is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Seller profile is incomplete.",
-        )
-
-    seller_user = seller_profile.user
-    if seller_user.wallet_address.lower() == wallet.lower():
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="You cannot buy from your own shop.",
-        )
-
-    buyer = (
-        db.query(User).filter(User.wallet_address == wallet).one_or_none()
+@router.get("", response_model=OrderListResponse)
+async def list_orders(
+    buyer: str | None = Query(None, description="Filter by buyer address (any case)"),
+    seller: str | None = Query(None, description="Filter by seller address (any case)"),
+    order_status: OrderStatus | None = Query(None, alias="status"),
+    limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
+    db: AsyncSession = Depends(get_async_db),
+) -> OrderListResponse:
+    stmt = select(Order).options(
+        selectinload(Order.items), selectinload(Order.shipment_groups)
     )
-    is_cross_border = _is_cross_border(buyer, seller_user.country)
+    if buyer:
+        stmt = stmt.where(Order.buyer_address == _normalize(buyer))
+    if seller:
+        stmt = stmt.where(Order.seller_address == _normalize(seller))
+    if order_status is not None:
+        stmt = stmt.where(Order.global_status == order_status)
+    stmt = stmt.order_by(Order.created_at_chain.desc()).limit(limit).offset(offset)
 
-    # Convert the stored Decimal(20, 6) price to 6-decimals raw bigint.
-    amount_raw = int(product.price_usdt * Decimal(10**6))
-    auto_release = (
-        AUTO_RELEASE_CROSS_DAYS if is_cross_border else AUTO_RELEASE_INTRA_DAYS
-    )
-
-    hashes = product.image_ipfs_hashes or []
-    image_url = _ipfs_url(hashes[0]) if hashes else None
-
-    return OrderInitiateResponse(
-        product=OrderInitiateProduct(
-            id=product.id,
-            title=product.title,
-            image_url=image_url,
-            slug=product.slug,
-        ),
-        seller=OrderInitiateSeller(
-            shop_handle=seller_profile.shop_handle,
-            shop_name=seller_profile.shop_name,
-            address=seller_user.wallet_address,
-            country=seller_user.country,
-            logo_ipfs_hash=seller_profile.logo_ipfs_hash,
-        ),
-        amount_raw=str(amount_raw),
-        is_cross_border=is_cross_border,
-        auto_release_days_estimate=auto_release,
-        contracts=OrderInitiateContracts(
-            escrow=settings.escrow_contract_address,
-            usdt=_usdt_address(),
-        ),
+    result = await db.execute(stmt)
+    rows = list(result.scalars().unique().all())
+    return OrderListResponse(
+        items=[OrderResponse.model_validate(o) for o in rows],
+        count=len(rows),
+        limit=limit,
+        offset=offset,
     )
 
 
-def _usdt_address() -> str:
-    """
-    Resolve the USDT contract the Mini App should spend.
-
-    Settings hold the mainnet USDT address by default; on testnet we
-    use MockUSDT (set via env). For Block 7 we read from the
-    USDT_CONTRACT_ADDRESS env var, falling back to the mainnet
-    constant from CLAUDE.md.
-    """
-    # Prefer the dedicated env var; fall back to the Celo mainnet USDT.
-    override = getattr(settings, "usdt_contract_address", "") or ""
-    return override or "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
-
-
-@router.post(
-    "/confirm",
-    response_model=OrderConfirmResponse,
-    status_code=status.HTTP_201_CREATED,
-)
-def confirm_order(
-    body: OrderConfirmRequest,
-    wallet: Annotated[str, Depends(get_current_wallet)],
-    db: Annotated[Session, Depends(get_db)],
-) -> OrderConfirmResponse:
-    """
-    Record a successfully-funded order in the DB.
-
-    The Mini App calls this after both `createOrder` and `fundOrder`
-    txs are mined. We trust the tx hashes for now — see DECISIONS.md
-    for the on-chain indexer plan that will verify these asynchronously.
-    """
-    product = db.get(Product, body.product_id)
-    if product is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Product not found."
-        )
-    seller_profile: SellerProfile | None = db.get(SellerProfile, product.seller_id)
-    if seller_profile is None or seller_profile.user is None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Seller profile is incomplete.",
-        )
-
-    # Idempotency: if the on-chain id already has a row, return it.
-    existing = (
-        db.query(Order)
-        .filter(Order.onchain_order_id == body.onchain_order_id)
-        .one_or_none()
+@router.get("/{order_id}", response_model=OrderResponse)
+async def get_order(
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+) -> OrderResponse:
+    result = await db.execute(
+        select(Order)
+        .where(Order.id == order_id)
+        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
     )
-    if existing is not None:
-        return OrderConfirmResponse(
-            id=existing.id,
-            status=existing.status,
-            onchain_order_id=existing.onchain_order_id or body.onchain_order_id,
-        )
-
-    amount_usdt = Decimal(body.amount_raw) / Decimal(10**6)
-    commission_bps = (
-        COMMISSION_CROSS_BPS if body.is_cross_border else COMMISSION_INTRA_BPS
-    )
-    commission_usdt = (amount_usdt * Decimal(commission_bps)) / Decimal(
-        BPS_DENOMINATOR
-    )
-
-    order = Order(
-        onchain_order_id=body.onchain_order_id,
-        buyer_address=wallet,
-        seller_address=seller_profile.user.wallet_address,
-        product_id=product.id,
-        amount_usdt=amount_usdt,
-        commission_usdt=commission_usdt,
-        status="funded",
-        is_cross_border=body.is_cross_border,
-        milestones_total=4 if body.is_cross_border else 1,
-        milestones_released=0,
-        tx_hash=body.tx_hash_fund,
-    )
-    db.add(order)
-
-    # Notify the seller. Twilio is not wired yet — see DECISIONS.md.
-    # The notification row is created with sent=false so a future
-    # WhatsApp worker can pick it up.
-    db.add(
-        Notification(
-            user_id=seller_profile.user.id,
-            channel="whatsapp",
-            notification_type="order_created",
-            template="order_created_seller",
-            payload={
-                "order_id_onchain": body.onchain_order_id,
-                "product_title": product.title,
-                "amount_usdt": str(amount_usdt),
-                "tx_hash": body.tx_hash_fund,
-            },
-            sent=False,
-        )
-    )
-
-    db.commit()
-    db.refresh(order)
-
-    return OrderConfirmResponse(
-        id=order.id,
-        status=order.status,
-        onchain_order_id=order.onchain_order_id or body.onchain_order_id,
-    )
-
-
-@router.get("/{order_id}", response_model=OrderRead)
-def get_order(
-    order_id: UUID,
-    wallet: Annotated[str, Depends(get_current_wallet)],
-    db: Annotated[Session, Depends(get_db)],
-) -> OrderRead:
-    order = db.get(Order, order_id)
+    order = result.scalar_one_or_none()
     if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return OrderResponse.model_validate(order)
+
+
+@router.get("/by-onchain-id/{onchain_order_id}", response_model=OrderResponse)
+async def get_order_by_onchain_id(
+    onchain_order_id: int,
+    db: AsyncSession = Depends(get_async_db),
+) -> OrderResponse:
+    result = await db.execute(
+        select(Order)
+        .where(Order.onchain_order_id == onchain_order_id)
+        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+    )
+    order = result.scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return OrderResponse.model_validate(order)
+
+
+@router.get("/{order_id}/items", response_model=list[OrderItemResponse])
+async def list_order_items(
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+) -> list[OrderItemResponse]:
+    result = await db.execute(
+        select(Order).where(Order.id == order_id).options(selectinload(Order.items))
+    )
+    order = result.scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return [OrderItemResponse.model_validate(i) for i in order.items]
+
+
+@router.get("/{order_id}/groups", response_model=list[ShipmentGroupResponse])
+async def list_order_groups(
+    order_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+) -> list[ShipmentGroupResponse]:
+    result = await db.execute(
+        select(Order)
+        .where(Order.id == order_id)
+        .options(selectinload(Order.shipment_groups))
+    )
+    order = result.scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return [ShipmentGroupResponse.model_validate(g) for g in order.shipment_groups]
+
+
+@router.post("/{order_id}/metadata", response_model=OrderResponse)
+async def update_order_metadata(
+    order_id: uuid.UUID,
+    body: OrderMetadataUpdate,
+    db: AsyncSession = Depends(get_async_db),
+    caller: str = Depends(verify_signature),
+) -> OrderResponse:
+    """Update off-chain order metadata. Caller must be buyer or seller."""
+    result = await db.execute(
+        select(Order)
+        .where(Order.id == order_id)
+        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+    )
+    order = result.scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if caller != order.buyer_address and caller != order.seller_address:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Order not found."
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only buyer or seller can update order metadata",
         )
-    # Buyer or seller can read; anyone else is hidden.
-    if (
-        order.buyer_address.lower() != wallet.lower()
-        and order.seller_address.lower() != wallet.lower()
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Order not found."
-        )
-    return OrderRead.model_validate(order)
+
+    # Partial update — only non-None fields are written.
+    if body.delivery_address is not None:
+        order.delivery_address = body.delivery_address
+    if body.tracking_number is not None:
+        order.tracking_number = body.tracking_number
+    if body.product_ids is not None:
+        order.product_ids = body.product_ids
+    if body.notes is not None:
+        order.notes = body.notes
+
+    await db.commit()
+    await db.refresh(order, attribute_names=["items", "shipment_groups"])
+    return OrderResponse.model_validate(order)

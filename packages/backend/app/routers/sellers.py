@@ -5,22 +5,39 @@
 # When settings.enforce_jwt_auth is True (production), the header is
 # rejected and the endpoint returns 501 until JWT auth is wired.
 
+from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db
+from app.database import get_async_db, get_db
+from app.models.enums import SellerStatus, StakeTier
+from app.models.order import Order
+from app.models.reputation_cache import ReputationCache
 from app.models.seller_profile import SellerProfile
+from app.models.stake import Stake
 from app.models.user import User
 from app.schemas.seller import (
     HandleAvailabilityResponse,
     SellersMeResponse,
     SellerProfilePublic,
 )
+from app.schemas.seller_v2 import (
+    ReputationBlock,
+    SellerProfileResponse,
+    StakeBlock,
+)
+from app.services.celo import CeloService
 
 router = APIRouter(prefix="/sellers", tags=["sellers"])
+
+
+def _get_celo_service(request: Request) -> CeloService:
+    return request.app.state.celo_service
 
 
 def get_current_wallet(
@@ -119,4 +136,93 @@ def check_handle_available(
         handle=normalized,
         available=exists is None,
         reason=None if exists is None else "taken",
+    )
+
+
+# ============================================================
+# V2 — Sprint J5 Block 6
+# ============================================================
+
+@router.get("/{seller_address}/profile", response_model=SellerProfileResponse)
+async def get_seller_profile_v2(
+    seller_address: str,
+    db: AsyncSession = Depends(get_async_db),
+    celo: CeloService = Depends(_get_celo_service),
+) -> SellerProfileResponse:
+    """V2 seller profile: stake + reputation + recent orders count.
+
+    Reads from indexer-populated DB first; falls back to live RPC for
+    any field that has no DB row yet (common for never-seen sellers
+    or shortly after a fresh deploy).
+    """
+    addr = seller_address.lower()
+    source: str = "indexer"
+
+    # Stake: prefer DB, fall back to RPC
+    stake_row = (
+        await db.execute(select(Stake).where(Stake.seller_address == addr))
+    ).scalar_one_or_none()
+
+    if stake_row is not None:
+        stake_block = StakeBlock(
+            tier=stake_row.tier,
+            amount_usdt=stake_row.amount_usdt,
+            active_sales=stake_row.active_sales,
+            freeze_count=stake_row.freeze_count,
+        )
+    else:
+        source = "rpc_fallback"
+        chain_stake = await celo.get_stake(addr)
+        chain_wd = await celo.get_withdrawal(addr)
+        stake_block = StakeBlock(
+            tier=chain_stake.tier,
+            amount_usdt=chain_stake.amount,
+            active_sales=chain_stake.active_sales,
+            freeze_count=chain_wd.freeze_count,
+        )
+
+    # Reputation: prefer DB, fall back to RPC
+    rep_row = (
+        await db.execute(
+            select(ReputationCache).where(ReputationCache.seller_address == addr)
+        )
+    ).scalar_one_or_none()
+
+    if rep_row is not None:
+        rep_block = ReputationBlock.model_validate(rep_row)
+    else:
+        source = "rpc_fallback"
+        chain_rep = await celo.get_reputation(addr)
+        rep_block = ReputationBlock(
+            orders_completed=chain_rep.orders_completed,
+            orders_disputed=chain_rep.orders_disputed,
+            disputes_lost=chain_rep.disputes_lost,
+            total_volume_usdt=chain_rep.total_volume,
+            score=chain_rep.score,
+            is_top_seller=chain_rep.is_top_seller,
+            status=chain_rep.status,
+            last_sanction_at=(
+                datetime.fromtimestamp(chain_rep.last_sanction_at, tz=timezone.utc)
+                if chain_rep.last_sanction_at
+                else None
+            ),
+            first_order_at=(
+                datetime.fromtimestamp(chain_rep.first_order_at, tz=timezone.utc)
+                if chain_rep.first_order_at
+                else None
+            ),
+        )
+
+    # Recent orders count (always from indexer; 0 if no rows)
+    count_result = await db.execute(
+        select(func.count(Order.id)).where(Order.seller_address == addr)
+    )
+    recent_orders_count = count_result.scalar() or 0
+
+    return SellerProfileResponse(
+        seller_address=addr,
+        stake=stake_block,
+        reputation=rep_block,
+        recent_orders_count=recent_orders_count,
+        source=source,
     )

@@ -28,7 +28,8 @@ power is structurally bounded by code.
 - Mini App frontend: React 19 + TypeScript 6 + Wagmi v2 + Viem v2 +
   shadcn/ui + Tailwind (see ADR-001, ADR-012)
 - Public product pages: Next.js 14 (App Router, SSR)
-- Backend: FastAPI + SQLAlchemy + PostgreSQL + Redis
+- Backend: FastAPI + SQLAlchemy 2.x async + PostgreSQL (psycopg 3) +
+  Alembic + web3.py 7.x AsyncWeb3 (V2 indexer; see `docs/BACKEND.md`)
 - IPFS: Pinata for product metadata and photos
 - Admin: Next.js 14 + NextAuth.js + JWT
 - Notifications: Twilio WhatsApp Business API
@@ -86,15 +87,31 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J4 — smart contract V2 refactor. Primary spec:
-`docs/SPEC_SMART_CONTRACT_V2.md`. Sprint details in `docs/SPRINT_J4.md`
-when created.
+Sprint J4 (V2 smart contracts) ✅ DONE 2026-04-24 — tag
+`v2.0.0-contracts-sepolia`.
+Sprint J5 (V2 backend) ✅ DONE 2026-04-25 — tag
+`v2.0.0-backend-sepolia`. Reference: `docs/BACKEND.md`.
+
+Next: Sprint J6 — Frontend Boutique (Mini App + public pages refactor
+to consume the V2 API).
 
 When user says "start Block N", read that block in the current sprint
 file and execute.
 
 Always propose a plan before executing, and wait for validation.
 Report what was done at the end of each block.
+
+## V2 invariants (locked alongside contract layout)
+
+14. The V2 indexer is the SOLE writer to the on-chain mirror tables
+    (orders, items, groups, disputes, stakes, reputation_cache). API
+    handlers may only append to off-chain JSONB columns (delivery
+    metadata, dispute photos, dispute conversation). Never write
+    on-chain-derived state from a route handler.
+15. EIP-191 auth uses the canonical message
+    `Etalo auth: {METHOD} {PATH} {TIMESTAMP}` with a ±5min window.
+    Never accept signatures over a custom shape; never extend the
+    window without an ADR.
 
 ## Decision log
 
