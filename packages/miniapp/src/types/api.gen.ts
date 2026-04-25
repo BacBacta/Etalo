@@ -638,6 +638,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sitemap/data": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Sitemap Data
+         * @description Lightweight sitemap data: all seller handles + active product slugs
+         *     with updated_at for lastmod. Consumed by Next.js app/sitemap.ts.
+         *
+         *     Cache: 1 hour client + CDN side. Re-runs at most once per hour
+         *     even under viral share load.
+         *
+         *     TODO V1.5: filter by SellerProfile.status='active' once status enum
+         *     exists. Currently includes every seller with a shop_handle (no NULL
+         *     handle exists in V1 — column is NOT NULL).
+         */
+        get: operations["get_sitemap_data_api_v1_sitemap_data_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1208,6 +1236,35 @@ export interface components {
          * @enum {string}
          */
         ShipmentStatus: "Pending" | "Shipped" | "Arrived" | "Delivered";
+        /** SitemapData */
+        SitemapData: {
+            /** Sellers */
+            sellers: components["schemas"]["SitemapSeller"][];
+            /** Products */
+            products: components["schemas"]["SitemapProduct"][];
+        };
+        /** SitemapProduct */
+        SitemapProduct: {
+            /** Handle */
+            handle: string;
+            /** Slug */
+            slug: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** SitemapSeller */
+        SitemapSeller: {
+            /** Handle */
+            handle: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
         /**
          * StakeBlock
          * @description Per-seller stake state for the seller-profile response.
@@ -2364,6 +2421,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_sitemap_data_api_v1_sitemap_data_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SitemapData"];
                 };
             };
         };
