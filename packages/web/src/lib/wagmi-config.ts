@@ -18,7 +18,7 @@ export const wagmiConfig = createConfig({
   transports: {
     [celoSepolia.id]: http(),
   },
-  ssr: false,
+  ssr: true,
 });
 
 declare module "wagmi" {

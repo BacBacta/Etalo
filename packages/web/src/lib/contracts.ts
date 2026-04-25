@@ -14,27 +14,27 @@ import usdtAbi from "@/abis/v2/MockUSDT.json";
  */
 export const CONTRACTS = {
   escrow: {
-    address: import.meta.env.VITE_ESCROW_CONTRACT,
+    address: process.env.NEXT_PUBLIC_ESCROW_ADDRESS,
     abi: escrowAbi,
   },
   dispute: {
-    address: import.meta.env.VITE_DISPUTE_CONTRACT,
+    address: process.env.NEXT_PUBLIC_DISPUTE_ADDRESS,
     abi: disputeAbi,
   },
   stake: {
-    address: import.meta.env.VITE_STAKE_CONTRACT,
+    address: process.env.NEXT_PUBLIC_STAKE_ADDRESS,
     abi: stakeAbi,
   },
   reputation: {
-    address: import.meta.env.VITE_REPUTATION_CONTRACT,
+    address: process.env.NEXT_PUBLIC_REPUTATION_ADDRESS,
     abi: reputationAbi,
   },
   voting: {
-    address: import.meta.env.VITE_VOTING_CONTRACT,
+    address: process.env.NEXT_PUBLIC_VOTING_ADDRESS,
     abi: votingAbi,
   },
   usdt: {
-    address: import.meta.env.VITE_USDT_CONTRACT,
+    address: process.env.NEXT_PUBLIC_USDT_ADDRESS,
     abi: usdtAbi,
   },
 } as const;

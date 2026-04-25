@@ -51,7 +51,7 @@ export async function readUsdtAllowance(
 ): Promise<bigint> {
   return (await client.readContract({
     address: args.usdt,
-    // biome-ignore lint/suspicious/noExplicitAny: JSON ABI typing
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     abi: args.abi as any,
     functionName: "allowance",
     args: [args.owner, args.spender],

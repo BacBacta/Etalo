@@ -12,7 +12,7 @@ export const celoSepolia = defineChain({
   rpcUrls: {
     default: {
       http: [
-        import.meta.env.VITE_CELO_RPC_URL ?? "https://celo-sepolia.drpc.org",
+        process.env.NEXT_PUBLIC_CELO_RPC_URL ?? "https://celo-sepolia.drpc.org",
       ],
     },
   },
