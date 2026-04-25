@@ -203,6 +203,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sellers/{seller_address}/orders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Seller Orders
+         * @description Public read — returns orders received by this seller wallet.
+         *     Order.seller_address is the canonical link (string, not FK).
+         */
+        get: operations["list_seller_orders_api_v1_sellers__seller_address__orders_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sellers/me/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Update My Profile
+         * @description Self-service profile update. shop_handle stays immutable (would
+         *     break /[handle] URLs).
+         */
+        put: operations["update_my_profile_api_v1_sellers_me_profile_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/uploads/ipfs": {
         parameters: {
             query?: never;
@@ -297,6 +339,48 @@ export interface paths {
         put?: never;
         post?: never;
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Product
+         * @description Create a product owned by the authenticated seller.
+         *
+         *     Slug uniqueness is enforced per-seller (the existing UNIQUE constraint
+         *     on `(seller_id, slug)` would also raise IntegrityError, but this
+         *     handler returns 409 with a clean message).
+         */
+        post: operations["create_product_api_v1_products_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/products/{product_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Product */
+        put: operations["update_product_api_v1_products__product_id__put"];
+        post?: never;
+        /** Delete Product */
+        delete: operations["delete_product_api_v1_products__product_id__delete"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1199,6 +1283,79 @@ export interface components {
          */
         OrderStatus: "Created" | "Funded" | "PartiallyShipped" | "AllShipped" | "PartiallyDelivered" | "Completed" | "Disputed" | "Refunded" | "Cancelled";
         /**
+         * ProductCreate
+         * @description ADR-036 self-service create. Slug is owner-chosen and immutable
+         *     once set (changing it would break SEO / share links).
+         */
+        ProductCreate: {
+            /** Title */
+            title: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            /** Price Usdt */
+            price_usdt: number | string;
+            /**
+             * Stock
+             * @default 0
+             */
+            stock: number;
+            /**
+             * Status
+             * @default draft
+             */
+            status: string;
+            /** Image Ipfs Hashes */
+            image_ipfs_hashes?: string[];
+            /** Category */
+            category?: string | null;
+        };
+        /**
+         * ProductDetail
+         * @description Full product response shape for owner-side CRUD endpoints
+         *     (POST/PUT/DELETE /products). Distinct from ProductRead which omits
+         *     slug; this shape keeps slug for owner UI.
+         */
+        ProductDetail: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Seller Id
+             * Format: uuid
+             */
+            seller_id: string;
+            /** Title */
+            title: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            /** Price Usdt */
+            price_usdt: string;
+            /** Stock */
+            stock: number;
+            /** Status */
+            status: string;
+            /** Image Ipfs Hashes */
+            image_ipfs_hashes?: string[] | null;
+            /** Category */
+            category?: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * ProductPublic
          * @description Public view of a product, suitable for the SSR product page.
          *     Exposes pre-resolved gateway URLs (IPFS hashes stripped) and the
@@ -1258,6 +1415,26 @@ export interface components {
             logo_url?: string | null;
             /** Country */
             country?: string | null;
+        };
+        /**
+         * ProductUpdate
+         * @description ADR-036 self-service update. Slug is intentionally NOT updatable.
+         */
+        ProductUpdate: {
+            /** Title */
+            title?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Price Usdt */
+            price_usdt?: number | string | null;
+            /** Stock */
+            stock?: number | null;
+            /** Status */
+            status?: string | null;
+            /** Image Ipfs Hashes */
+            image_ipfs_hashes?: string[] | null;
+            /** Category */
+            category?: string | null;
         };
         /** ResolvedCart */
         ResolvedCart: {
@@ -1321,6 +1498,45 @@ export interface components {
             timeline_7d: components["schemas"]["TimelinePoint"][];
         };
         /**
+         * SellerOrderItem
+         * @description Minimal order summary returned by GET /sellers/{address}/orders.
+         */
+        SellerOrderItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Onchain Order Id */
+            onchain_order_id: number;
+            /** Buyer Address */
+            buyer_address: string;
+            /** Total Amount Usdt */
+            total_amount_usdt: number;
+            /** Is Cross Border */
+            is_cross_border: boolean;
+            /** Global Status */
+            global_status: string;
+            /** Item Count */
+            item_count: number;
+            /**
+             * Created At Chain
+             * Format: date-time
+             */
+            created_at_chain: string;
+            /** Funded At */
+            funded_at?: string | null;
+        };
+        /** SellerOrdersPage */
+        SellerOrdersPage: {
+            /** Orders */
+            orders: components["schemas"]["SellerOrderItem"][];
+            /** Pagination */
+            pagination: {
+                [key: string]: unknown;
+            };
+        };
+        /**
          * SellerProfilePublic
          * @description Public view of a seller profile returned to the Mini App.
          *
@@ -1376,6 +1592,27 @@ export interface components {
              * @enum {string}
              */
             source: "indexer" | "rpc_fallback";
+        };
+        /**
+         * SellerProfileUpdate
+         * @description ADR-036 self-service profile update. shop_handle is intentionally
+         *     NOT updatable (would break /[handle] URLs / boutique pages).
+         */
+        SellerProfileUpdate: {
+            /** Shop Name */
+            shop_name?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Logo Ipfs Hash */
+            logo_ipfs_hash?: string | null;
+            /** Banner Ipfs Hash */
+            banner_ipfs_hash?: string | null;
+            /** Socials */
+            socials?: {
+                [key: string]: unknown;
+            } | null;
+            /** Categories */
+            categories?: string[] | null;
         };
         /**
          * SellerStatus
@@ -1860,6 +2097,76 @@ export interface operations {
             };
         };
     };
+    list_seller_orders_api_v1_sellers__seller_address__orders_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+                order_status?: string | null;
+            };
+            header?: never;
+            path: {
+                seller_address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerOrdersPage"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_my_profile_api_v1_sellers_me_profile_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SellerProfileUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SellerProfilePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     upload_to_ipfs_api_v1_uploads_ipfs_post: {
         parameters: {
             query?: never;
@@ -2001,6 +2308,109 @@ export interface operations {
             };
             /** @description Shop not found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_product_api_v1_products_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_product_api_v1_products__product_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProductUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProductDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_product_api_v1_products__product_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path: {
+                product_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };

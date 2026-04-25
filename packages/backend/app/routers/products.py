@@ -5,16 +5,22 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
 
+from uuid import UUID
+
 from app.config import settings
 from app.database import get_async_db, get_db
+from app.dependencies.seller_auth import require_seller_auth
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.schemas.product import (
     BoutiquePagination,
     BoutiquePublic,
+    ProductCreate,
+    ProductDetail,
     ProductPublic,
     ProductPublicListItem,
     ProductPublicSeller,
+    ProductUpdate,
 )
 
 router = APIRouter(prefix="/products", tags=["products"])
@@ -195,3 +201,109 @@ async def get_public_boutique(
             has_more=offset + len(products_payload) < total,
         ),
     )
+
+
+# ============================================================
+# Owner-side CRUD (ADR-036) — Sprint J6 Block 8 Étape 8.1
+# ============================================================
+@router.post(
+    "",
+    response_model=ProductDetail,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_product(
+    payload: ProductCreate,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> ProductDetail:
+    """Create a product owned by the authenticated seller.
+
+    Slug uniqueness is enforced per-seller (the existing UNIQUE constraint
+    on `(seller_id, slug)` would also raise IntegrityError, but this
+    handler returns 409 with a clean message).
+    """
+    existing = (
+        await db.execute(
+            select(Product).where(
+                Product.seller_id == seller.id,
+                Product.slug == payload.slug,
+            )
+        )
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Product slug already exists for this seller",
+        )
+
+    product = Product(
+        seller_id=seller.id,
+        title=payload.title,
+        slug=payload.slug,
+        description=payload.description,
+        price_usdt=payload.price_usdt,
+        stock=payload.stock,
+        status=payload.status,
+        image_ipfs_hashes=payload.image_ipfs_hashes or None,
+        category=payload.category,
+    )
+    db.add(product)
+    await db.commit()
+    await db.refresh(product)
+    return ProductDetail.model_validate(product)
+
+
+@router.put("/{product_id}", response_model=ProductDetail)
+async def update_product(
+    product_id: UUID,
+    payload: ProductUpdate,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> ProductDetail:
+    product = (
+        await db.execute(select(Product).where(Product.id == product_id))
+    ).scalar_one_or_none()
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
+    if product.seller_id != seller.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this product",
+        )
+
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(product, key, value)
+    await db.commit()
+    await db.refresh(product)
+    return ProductDetail.model_validate(product)
+
+
+@router.delete("/{product_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_product(
+    product_id: UUID,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> Response:
+    product = (
+        await db.execute(select(Product).where(Product.id == product_id))
+    ).scalar_one_or_none()
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found",
+        )
+    if product.seller_id != seller.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not own this product",
+        )
+
+    # Soft delete: status='deleted'. Preserves audit trail + indexer
+    # references that may still point to this row from past orders.
+    product.status = "deleted"
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

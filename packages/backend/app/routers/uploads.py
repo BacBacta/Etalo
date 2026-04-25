@@ -5,7 +5,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.config import settings
-from app.routers.sellers import get_current_wallet
+from app.dependencies.seller_auth import require_seller_auth
+from app.models.seller_profile import SellerProfile
 from app.schemas.upload import IpfsUploadResponse
 from app.services.ipfs import ipfs_service
 
@@ -29,7 +30,10 @@ def _dev_stub_hash(content: bytes) -> str:
 
 @router.post("/ipfs", response_model=IpfsUploadResponse)
 async def upload_to_ipfs(
-    _wallet: Annotated[str, Depends(get_current_wallet)],
+    # ADR-036: tightened from "any wallet" to "registered seller". The
+    # _seller arg is unused at body-level but enforces the dependency
+    # which 404s callers without a SellerProfile.
+    _seller: Annotated[SellerProfile, Depends(require_seller_auth)],
     file: Annotated[UploadFile, File()],
 ) -> IpfsUploadResponse:
     """

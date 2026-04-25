@@ -21,10 +21,14 @@ from app.models.reputation_cache import ReputationCache
 from app.models.seller_profile import SellerProfile
 from app.models.stake import Stake
 from app.models.user import User
+from app.dependencies.seller_auth import require_seller_auth
 from app.schemas.seller import (
     HandleAvailabilityResponse,
-    SellersMeResponse,
+    SellerOrderItem,
+    SellerOrdersPage,
     SellerProfilePublic,
+    SellerProfileUpdate,
+    SellersMeResponse,
 )
 from app.schemas.seller_v2 import (
     ReputationBlock,
@@ -226,3 +230,68 @@ async def get_seller_profile_v2(
         recent_orders_count=recent_orders_count,
         source=source,
     )
+
+
+# ============================================================
+# ADR-036 — Seller self-service (Sprint J6 Block 8 Étape 8.1)
+# ============================================================
+@router.get("/{seller_address}/orders", response_model=SellerOrdersPage)
+async def list_seller_orders(
+    seller_address: str,
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    page: int = 1,
+    page_size: int = 20,
+    order_status: str | None = None,
+) -> SellerOrdersPage:
+    """Public read — returns orders received by this seller wallet.
+    Order.seller_address is the canonical link (string, not FK)."""
+    if page < 1 or page_size < 1 or page_size > 50:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid pagination",
+        )
+    addr = seller_address.lower()
+
+    base_filter = [Order.seller_address == addr]
+    if order_status:
+        base_filter.append(Order.global_status == order_status)
+
+    total = (
+        await db.execute(select(func.count(Order.id)).where(*base_filter))
+    ).scalar() or 0
+
+    rows = (
+        await db.execute(
+            select(Order)
+            .where(*base_filter)
+            .order_by(Order.created_at_chain.desc())
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+    ).scalars().all()
+
+    return SellerOrdersPage(
+        orders=[SellerOrderItem.model_validate(o) for o in rows],
+        pagination={
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "has_more": page * page_size < total,
+        },
+    )
+
+
+@router.put("/me/profile", response_model=SellerProfilePublic)
+async def update_my_profile(
+    payload: SellerProfileUpdate,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> SellerProfilePublic:
+    """Self-service profile update. shop_handle stays immutable (would
+    break /[handle] URLs)."""
+    update_data = payload.model_dump(exclude_unset=True)
+    for key, value in update_data.items():
+        setattr(seller, key, value)
+    await db.commit()
+    await db.refresh(seller)
+    return SellerProfilePublic.model_validate(seller)

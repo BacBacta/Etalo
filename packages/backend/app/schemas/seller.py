@@ -42,3 +42,36 @@ class HandleAvailabilityResponse(BaseModel):
     handle: str
     available: bool
     reason: str | None = None  # "format" | "taken" | None
+
+
+class SellerProfileUpdate(BaseModel):
+    """ADR-036 self-service profile update. shop_handle is intentionally
+    NOT updatable (would break /[handle] URLs / boutique pages)."""
+
+    shop_name: str | None = None
+    description: str | None = None
+    logo_ipfs_hash: str | None = None
+    banner_ipfs_hash: str | None = None
+    socials: dict | None = None
+    categories: list[str] | None = None
+
+
+class SellerOrderItem(BaseModel):
+    """Minimal order summary returned by GET /sellers/{address}/orders."""
+
+    id: UUID
+    onchain_order_id: int
+    buyer_address: str
+    total_amount_usdt: int
+    is_cross_border: bool
+    global_status: str
+    item_count: int
+    created_at_chain: datetime
+    funded_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class SellerOrdersPage(BaseModel):
+    orders: list[SellerOrderItem]
+    pagination: dict

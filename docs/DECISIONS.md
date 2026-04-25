@@ -1402,3 +1402,90 @@ based on MiniPay detection, or is gated to one with redirect/CTA fallback for th
   through git history (`git mv` preserves history); files are in `packages/web` after move.
 - CLAUDE.md tech stack section consolidates "Mini App frontend" + "Public product pages"
   into a single Next.js entry.
+
+---
+
+## ADR-036 · 2026-04-25 — X-Wallet-Address auth extended to seller CRUD (extends ADR-011)
+
+**Status**: Accepted (extends ADR-011, conforms with ADR-034)
+
+**Context**: ADR-011 (April 2026) introduced `X-Wallet-Address` header as a
+temporary auth mechanism for `/sellers/me`. ADR-034 (J6 Block 1) deprecated
+EIP-191 signed-message auth and forbade new EIP-191 auth points. J6 Block 8
+needs authentication for self-service seller mutations: product CRUD, IPFS
+image uploads, profile updates.
+
+Inside the MiniPay WebView, the connected wallet is implicitly trusted (MiniPay
+secures wallet ownership at the OS level). The frontend reads the connected
+address via wagmi `useAccount()` and includes it in `X-Wallet-Address`. Outside
+MiniPay, mutations are blocked at the route gating level (redirect `/` if
+`!isMiniPay`).
+
+**Decision**: Extend the `X-Wallet-Address` header auth pattern (ADR-011) to
+all V1 seller-side mutations:
+
+- `POST /api/v1/products` (create)
+- `PUT /api/v1/products/{id}` (update)
+- `DELETE /api/v1/products/{id}` (delete)
+- `POST /api/v1/uploads/ipfs` (existing, tightened to require seller profile)
+- `GET /api/v1/sellers/me` (existing, ADR-011)
+- `PUT /api/v1/sellers/me/profile` (new, profile updates)
+
+Backend implementation:
+- A `require_seller_auth` FastAPI dependency reads `X-Wallet-Address`,
+  validates it corresponds to a registered `SellerProfile`, returns the
+  loaded `SellerProfile` (with `.user` selectinloaded).
+- Reject without header → 401 (cohérent avec `get_current_wallet` existant).
+- Reject if no SellerProfile for this wallet → 404.
+- For mutations on owned resources (PUT/DELETE product): re-verify
+  `product.seller_id == seller.id`. Cross-ownership → 403.
+
+Public reads (no auth required):
+- `GET /api/v1/sellers/{address}/orders` (paginated, status filter)
+- `GET /api/v1/sellers/{address}/profile` (existing, stake + reputation +
+  recent orders count from indexer cache; covers the V1 stake read need
+  without a separate `/stake` endpoint)
+
+These are public read endpoints — anyone can query, but the address-based
+filtering scopes the data. Privacy acceptable in V1 (no sensitive PII; orders
+are coupled to wallet addresses already public on-chain via indexer).
+
+**Rationale**:
+- Conforms with ADR-034 (no new EIP-191 signed messages, no MiniPay submission
+  rejection risk).
+- Builds on ADR-011 (no new auth concept introduced; just extension of
+  existing temp pattern).
+- Trust model relies on MiniPay WebView security — same as the wallet auth
+  itself.
+- Significantly less complex than full SIWE / session-cookie infrastructure
+  (estimated 2-3 days of additional work avoided).
+- Enables V1 launch with full self-service seller CRUD instead of curated-only.
+
+**Risks**:
+- **Header spoofing outside MiniPay context** — mitigated by route-gating
+  (redirect `/` if `!isMiniPay` for all seller dashboard surfaces).
+- **CSRF** — backend must enforce CORS strictly (only `etalo.app` origin
+  allowed for mutations). Configure FastAPI CORSMiddleware.
+- **No replay protection** — V1 acceptable. V1.5+ may add short-lived nonce
+  or signed token ladders.
+- **`require_seller_auth` requires SellerProfile to exist** — first-time seller
+  registration uses the existing onboarding flow that creates the profile via
+  the same X-Wallet-Address pattern but does not require pre-existing profile.
+
+**Replacement plan (V1.5+)**:
+- Migrate to session cookie issued via non-prompting on-chain ownership check
+  (e.g. backend reads stake, reputation, or contract state to confirm
+  ownership without prompting a signature).
+- Or migrate seller CRUD on-chain (product creation as contract event from
+  seller's wallet, indexer ingests). Aligns with ADR-034 endgame.
+- ADR to be filed when V1.5 architecture is finalized.
+
+**Impact**:
+- Backend gets `app/dependencies/seller_auth.py` with the
+  `require_seller_auth` dependency composed on top of the existing
+  `get_current_wallet` (sellers.py).
+- Existing `/uploads/ipfs` endpoint tightened from "any wallet" to
+  "registered seller" via the new dependency.
+- Frontend (Block 8.2-8.4) sends `X-Wallet-Address` from wagmi `useAccount()`
+  on all seller mutations + reads of /sellers/me/*.
+- ADR-011's "temporary" status remains — full migration plan deferred V1.5+.
