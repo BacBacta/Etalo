@@ -85,7 +85,7 @@ export default function Checkout() {
               <div className="rounded-md border border-destructive/50 bg-destructive/5 p-3 text-sm text-destructive">
                 {state.error.message}
                 {state.error.shortMessage ? (
-                  <p className="mt-1 text-xs text-destructive/80">
+                  <p className="mt-1 text-base text-destructive/80">
                     {state.error.shortMessage}
                   </p>
                 ) : null}
@@ -193,7 +193,7 @@ function SuccessPage({
         <p className="max-w-xs text-base text-muted-foreground">
           Your USDT is safe in escrow. The seller has been notified.
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           Order #{dbOrderId.slice(0, 8)}
         </p>
       </section>

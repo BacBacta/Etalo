@@ -39,7 +39,7 @@ export function RevenueCard() {
                 type="button"
                 onClick={() => setWindow(w)}
                 className={cn(
-                  "rounded-md px-2 py-0.5 text-xs font-medium",
+                  "rounded-md px-2 py-0.5 text-sm font-medium",
                   window === w
                     ? "bg-primary text-primary-foreground"
                     : "text-muted-foreground",

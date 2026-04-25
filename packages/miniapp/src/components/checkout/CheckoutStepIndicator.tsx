@@ -55,7 +55,7 @@ export function CheckoutStepIndicator({
                 ) : active ? (
                   <Loader2 className="h-3 w-3 animate-spin" />
                 ) : (
-                  <span className="text-xs">{num}</span>
+                  <span className="text-sm">{num}</span>
                 )}
               </span>
               <span className={cn(active && "font-medium text-foreground")}>

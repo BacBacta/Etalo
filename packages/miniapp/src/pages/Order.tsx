@@ -90,7 +90,7 @@ function Body({ order }: { order: OrderView }) {
     <div className="flex flex-col gap-4">
       <Card>
         <CardContent className="flex flex-col gap-3 p-4">
-          <span className="inline-flex w-fit items-center rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+          <span className="inline-flex w-fit items-center rounded-full bg-primary/10 px-3 py-1 text-sm font-medium text-primary">
             {STATUS_LABEL[order.status] ?? order.status}
           </span>
           <dl className="grid grid-cols-2 gap-3 text-sm">

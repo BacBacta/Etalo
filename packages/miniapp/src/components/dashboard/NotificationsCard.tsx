@@ -60,7 +60,7 @@ export function NotificationsCard() {
                 <Bell className="mt-0.5 h-4 w-4 text-muted-foreground" />
                 <div className="flex flex-1 flex-col">
                   <span className="text-sm font-medium">{labelFor(n)}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     {relative(n.created_at)}
                   </span>
                 </div>

@@ -207,7 +207,7 @@ export function IpfsPhotosUpload({ value, onChange, max = 5 }: MultiProps) {
                 </span>
               ) : null}
               {slot.status === "error" ? (
-                <span className="absolute inset-0 flex items-center justify-center bg-destructive/80 text-destructive-foreground text-xs font-medium">
+                <span className="absolute inset-0 flex items-center justify-center bg-destructive/80 text-destructive-foreground text-sm font-medium">
                   Upload failed
                 </span>
               ) : null}

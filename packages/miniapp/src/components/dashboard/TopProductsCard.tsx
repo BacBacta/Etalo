@@ -53,7 +53,7 @@ export function TopProductsCard() {
                 </div>
                 <div className="flex flex-1 flex-col">
                   <span className="text-sm font-medium">{p.title}</span>
-                  <span className="text-xs text-muted-foreground">
+                  <span className="text-sm text-muted-foreground">
                     {displayUsdt(parseUsdt(p.revenue_usdt))}
                   </span>
                 </div>

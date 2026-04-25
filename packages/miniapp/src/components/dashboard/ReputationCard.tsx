@@ -52,7 +52,7 @@ export function ReputationCard() {
                 </span>
                 <span
                   className={cn(
-                    "mt-0.5 w-fit rounded-full px-2 py-0.5 text-xs font-medium",
+                    "mt-0.5 w-fit rounded-full px-2 py-0.5 text-sm font-medium",
                     BADGE_STYLE[badge],
                   )}
                 >

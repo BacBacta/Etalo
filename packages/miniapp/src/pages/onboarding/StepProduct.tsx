@@ -59,7 +59,7 @@ export function StepProduct() {
             placeholder="12.50"
             {...register("product_price_usdt")}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             Paid in {STABLECOIN_LABEL.toLowerCase()}.
           </p>
           {errors.product_price_usdt ? (

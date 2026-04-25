@@ -32,13 +32,13 @@ export function EscrowCard() {
         ) : (
           <dl className="grid grid-cols-2 gap-4">
             <div>
-              <dt className="text-xs text-muted-foreground">In escrow</dt>
+              <dt className="text-sm text-muted-foreground">In escrow</dt>
               <dd className="mt-1 text-lg font-semibold">
                 {displayUsdt(parseUsdt(inEscrow))}
               </dd>
             </div>
             <div>
-              <dt className="text-xs text-muted-foreground">Released</dt>
+              <dt className="text-sm text-muted-foreground">Released</dt>
               <dd className="mt-1 text-lg font-semibold">
                 {displayUsdt(parseUsdt(released))}
               </dd>
