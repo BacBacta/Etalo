@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { CartItemRow } from "@/components/CartItemRow";
 import { Button } from "@/components/ui/button";
@@ -12,6 +15,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { useCartStore } from "@/lib/cart-store";
+import { CartValidationError, postCartToken } from "@/lib/checkout";
 
 interface Props {
   open: boolean;
@@ -24,33 +28,38 @@ export function CartDrawer({ open, onOpenChange }: Props) {
   const itemCount = useCartStore((s) => s.getItemCount());
   const clearCart = useCartStore((s) => s.clearCart);
 
+  const router = useRouter();
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
   const sellerCount = sellerGroups.length;
 
-  const handleCheckout = () => {
-    const payload = {
-      sellerGroups: sellerGroups.map((g) => ({
-        sellerHandle: g.sellerHandle,
-        sellerShopName: g.sellerShopName,
-        items: g.items.map((i) => ({
+  const handleCheckout = async () => {
+    if (isCheckingOut) return;
+    setIsCheckingOut(true);
+    try {
+      const items = sellerGroups.flatMap((g) =>
+        g.items.map((i) => ({
           productId: i.productId,
-          productSlug: i.productSlug,
           qty: i.qty,
-          priceUsdt: i.priceUsdt,
         })),
-        subtotalUsdt: g.subtotalUsdt,
-      })),
-      totalUsdt,
-      itemCount,
-    };
-    // STUB Étape 4.2 — Block 5 will replace with backend cart token +
-    // MiniPay deeplink. The shape above mirrors what the backend
-    // endpoint will accept.
-    // eslint-disable-next-line no-console
-    console.log("[etalo cart] checkout payload:", payload);
-    if (typeof window !== "undefined") {
-      window.alert(
-        `Checkout payload logged to console. Block 5 will wire the MiniPay deeplink.\n\nSellers: ${sellerCount}\nItems: ${itemCount}\nTotal: ${totalUsdt.toFixed(2)} USDT`,
       );
+      const { token } = await postCartToken(items);
+      onOpenChange(false);
+      router.push(`/checkout?token=${encodeURIComponent(token)}`);
+    } catch (err) {
+      if (err instanceof CartValidationError) {
+        for (const e of err.errors) {
+          const tail =
+            e.available_qty != null ? ` (only ${e.available_qty} available)` : "";
+          toast.error(
+            `Item ${e.product_id.slice(0, 8)}…: ${e.reason}${tail}`,
+          );
+        }
+      } else {
+        toast.error("Checkout failed. Please try again.");
+      }
+    } finally {
+      setIsCheckingOut(false);
     }
   };
 
@@ -121,15 +130,20 @@ export function CartDrawer({ open, onOpenChange }: Props) {
             <Button
               type="button"
               onClick={handleCheckout}
+              disabled={isCheckingOut}
               className="min-h-[44px] w-full text-base"
             >
-              Checkout in MiniPay ({sellerCount}{" "}
-              {sellerCount === 1 ? "seller" : "sellers"})
+              {isCheckingOut
+                ? "Preparing checkout…"
+                : `Checkout in MiniPay (${sellerCount} ${
+                    sellerCount === 1 ? "seller" : "sellers"
+                  })`}
             </Button>
             <button
               type="button"
               onClick={() => clearCart()}
-              className="min-h-[44px] self-center px-2 text-sm text-neutral-500 underline"
+              disabled={isCheckingOut}
+              className="min-h-[44px] self-center px-2 text-sm text-neutral-500 underline disabled:opacity-50"
             >
               Clear cart
             </button>

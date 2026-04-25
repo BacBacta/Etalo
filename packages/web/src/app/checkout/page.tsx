@@ -1,0 +1,92 @@
+"use client";
+
+import { useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+
+import { CheckoutFlow } from "@/components/CheckoutFlow";
+import { OpenInMiniPayModal } from "@/components/OpenInMiniPayModal";
+import {
+  CartTokenExpiredError,
+  CartTokenInvalidError,
+  resolveCartToken,
+  type ResolvedCart,
+} from "@/lib/checkout";
+
+function LoadingShell() {
+  return (
+    <div className="flex min-h-screen items-center justify-center">
+      <div className="text-base text-neutral-600">Loading cart…</div>
+    </div>
+  );
+}
+
+function CheckoutPageInner() {
+  const params = useSearchParams();
+  const token = params.get("token");
+  const [resolvedCart, setResolvedCart] = useState<ResolvedCart | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const provider = (window as unknown as { ethereum?: { isMiniPay?: boolean } })
+      .ethereum;
+    setIsMiniPay(provider?.isMiniPay === true);
+  }, []);
+
+  useEffect(() => {
+    if (!token) {
+      setError("No cart token provided.");
+      return;
+    }
+    let cancelled = false;
+    resolveCartToken(token)
+      .then((cart) => {
+        if (!cancelled) setResolvedCart(cart);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof CartTokenExpiredError) {
+          setError(
+            "Your cart link has expired. Please go back and start checkout again.",
+          );
+        } else if (err instanceof CartTokenInvalidError) {
+          setError("Invalid cart link.");
+        } else {
+          setError("Failed to load cart. Please try again.");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [token]);
+
+  if (error) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-8">
+        <div className="max-w-md text-center">
+          <h2 className="mb-3 text-xl font-semibold">Checkout error</h2>
+          <p className="text-base text-neutral-700">{error}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!resolvedCart || isMiniPay === null) {
+    return <LoadingShell />;
+  }
+
+  if (!isMiniPay) {
+    return <OpenInMiniPayModal token={token!} cart={resolvedCart} />;
+  }
+
+  return <CheckoutFlow cart={resolvedCart} token={token!} />;
+}
+
+export default function CheckoutPage() {
+  return (
+    <Suspense fallback={<LoadingShell />}>
+      <CheckoutPageInner />
+    </Suspense>
+  );
+}
