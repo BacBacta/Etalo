@@ -36,13 +36,32 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_whatsapp_from: str = ""
 
-    # Celo
+    # Celo Sepolia RPC — env var CELO_SEPOLIA_RPC overrides; drpc fallback.
+    # Aligned with packages/contracts/hardhat.config.ts and smoke scripts.
+    celo_sepolia_rpc: str = "https://celo-sepolia.drpc.org"
+    # Legacy field — kept for the V1 stub in app/services/celo.py until
+    # Block 4 of Sprint J5 fully replaces it.
     celo_rpc_url: str = "https://celo-sepolia.drpc.org"
+
+    # V2 contract addresses (Celo Sepolia, deployed Sprint J4 Block 11).
+    # Source of truth: packages/contracts/deployments/celo-sepolia-v2.json.
+    mock_usdt_address: str = "0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3"
+    etalo_reputation_address: str = "0x2a6639074d0897c6280f55b252B97dd1c39820b7"
+    etalo_stake_address: str = "0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417"
+    etalo_voting_address: str = "0x335Ac0998667F76FE265BC28e6989dc535A901E7"
+    etalo_dispute_address: str = "0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE"
+    etalo_escrow_address: str = "0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb"
+
+    # Treasuries (three-wallet separation per ADR-024)
+    commission_treasury_address: str = "0x9819c9E1b4F634784fd9A286240ecACd297823fa"
+    credits_treasury_address: str = "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA"
+    community_fund_address: str = "0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6"
+
+    # Legacy V1 fields (kept for the V1 stub in app/services/celo.py;
+    # removed in Block 4).
     escrow_contract_address: str = ""
     dispute_contract_address: str = ""
     reputation_contract_address: str = ""
-    # MockUSDT on testnet; swap for Celo mainnet USDT
-    # (0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e) in prod.
     usdt_contract_address: str = ""
 
     @property
