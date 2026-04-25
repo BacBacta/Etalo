@@ -68,7 +68,11 @@ async def main() -> None:
             user_id=user.id,
             shop_handle=HANDLE,
             shop_name="Boutique Smoke",
-            logo_ipfs_hash="QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG",
+            # No logo_ipfs_hash so the OG image generator exercises the
+            # no-logo fallback path (avoids Pinata gateway dependency in
+            # smoke); production sellers will have real hashes that
+            # gateway.pinata.cloud serves as PNG/JPEG.
+            logo_ipfs_hash=None,
         )
         db.add(seller)
         await db.flush()
@@ -90,9 +94,10 @@ async def main() -> None:
                     price_usdt=Decimal(f"{15.00 + i * 5}"),
                     stock=10 if i != 1 else 0,
                     status="active",
-                    image_ipfs_hashes=[
-                        "QmYwAPJzv5CZsnA625s3Xf2nemtYgPpHdWEz79ojWnPbdG"
-                    ],
+                    # No image_ipfs_hashes for smoke (see logo comment
+                    # above) — production seeds will use real Pinata
+                    # hashes uploaded via /uploads/* endpoint.
+                    image_ipfs_hashes=None,
                     created_at=base.replace(hour=10 + i),
                 )
             )
