@@ -30,6 +30,10 @@ export type ProductDetail = components["schemas"]["ProductDetail"];
 export type ProductCreate = components["schemas"]["ProductCreate"];
 export type ProductUpdate = components["schemas"]["ProductUpdate"];
 export type IpfsUploadResponse = components["schemas"]["IpfsUploadResponse"];
+export type MyProductsListResponse =
+  components["schemas"]["MyProductsListResponse"];
+export type MyProductsListItem =
+  components["schemas"]["MyProductsListItem"];
 
 export class ProductSlugConflictError extends Error {
   constructor() {
@@ -210,6 +214,25 @@ export async function uploadImage(
     throw new Error(`Upload failed: ${res.status}`);
   }
   return (await res.json()) as IpfsUploadResponse;
+}
+
+// Owner-side product list (Étape 8.4) — surfaces ALL statuses (incl.
+// draft + paused). The public boutique listing filters status='active'.
+export async function fetchMyProducts(
+  walletAddress: string,
+  includeDeleted: boolean = false,
+): Promise<MyProductsListResponse> {
+  const url = new URL(`${API_URL}/sellers/me/products`);
+  if (includeDeleted) url.searchParams.set("include_deleted", "true");
+  const res = await fetch(url.toString(), {
+    headers: { "X-Wallet-Address": walletAddress },
+  });
+  if (res.status === 401) throw new Error("Wallet auth required");
+  if (res.status === 404) throw new SellerNotFoundError();
+  if (!res.ok) {
+    throw new Error(`Fetch my products failed: ${res.status}`);
+  }
+  return (await res.json()) as MyProductsListResponse;
 }
 
 // Reverse of `_ipfs_url` server-side: extract the hash trailing the

@@ -7,22 +7,26 @@ import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
 import { ProductFormDialog } from "@/components/seller/ProductFormDialog";
 import { Button } from "@/components/ui/button";
 import {
-  fetchPublicBoutique,
-  fetchPublicProduct,
-  type BoutiquePublic,
-} from "@/lib/api";
-import {
-  ipfsHashFromUrl,
+  fetchMyProducts,
+  type MyProductsListItem,
   type ProductDetail,
   type SellerProfilePublic,
 } from "@/lib/seller-api";
 
 interface Props {
+  // Kept on the signature for parity with sibling tabs (Overview,
+  // Profile) — Étape 8.4 swap to /sellers/me/products dropped its only
+  // remaining use (shop_handle for the public boutique fetch).
   profile: SellerProfilePublic;
   walletAddress: string;
 }
 
-type ProductRow = BoutiquePublic["products"][number];
+const STATUS_BADGE: Record<string, string> = {
+  active: "bg-green-100 text-green-800",
+  draft: "bg-neutral-100 text-neutral-700",
+  paused: "bg-amber-100 text-amber-800",
+  deleted: "bg-red-100 text-red-700",
+};
 
 const STATUS_LABEL: Record<string, string> = {
   active: "Active",
@@ -31,8 +35,9 @@ const STATUS_LABEL: Record<string, string> = {
   deleted: "Deleted",
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function ProductsTab({ profile, walletAddress }: Props) {
-  const [products, setProducts] = useState<ProductRow[] | null>(null);
+  const [products, setProducts] = useState<MyProductsListItem[] | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingProduct, setEditingProduct] = useState<ProductDetail | null>(
@@ -45,10 +50,10 @@ export function ProductsTab({ profile, walletAddress }: Props) {
   } | null>(null);
 
   const refetchProducts = useCallback(() => {
-    fetchPublicBoutique(profile.shop_handle, 1, 50)
-      .then((d) => setProducts(d?.products ?? []))
+    fetchMyProducts(walletAddress)
+      .then((d) => setProducts(d.products))
       .catch(() => setProducts([]));
-  }, [profile.shop_handle]);
+  }, [walletAddress]);
 
   useEffect(() => {
     refetchProducts();
@@ -60,34 +65,28 @@ export function ProductsTab({ profile, walletAddress }: Props) {
     setFormOpen(true);
   };
 
-  const openEdit = async (row: ProductRow) => {
-    // The boutique listing omits description + status + raw IPFS hashes,
-    // so we hydrate the editor with the single-product page payload and
-    // reverse the gateway URLs into hashes for the ImageUploader.
-    const fetched = await fetchPublicProduct(profile.shop_handle, row.slug);
-    if (!fetched) return;
-    const hashes = fetched.image_urls
-      .map(ipfsHashFromUrl)
-      .filter((h): h is string => h !== null);
+  const openEdit = (row: MyProductsListItem) => {
+    // /sellers/me/products returns the full owner-side payload (incl.
+    // raw image_ipfs_hashes), so no second fetch needed.
     setEditingProduct({
-      id: fetched.id,
-      seller_id: "", // unused by the form
-      title: fetched.title,
-      slug: fetched.slug,
-      description: fetched.description ?? null,
-      price_usdt: fetched.price_usdt,
-      stock: fetched.stock,
-      status: fetched.status,
-      image_ipfs_hashes: hashes,
+      id: row.id,
+      seller_id: "",
+      title: row.title,
+      slug: row.slug,
+      description: row.description ?? null,
+      price_usdt: String(row.price_usdt),
+      stock: row.stock,
+      status: row.status,
+      image_ipfs_hashes: row.image_ipfs_hashes ?? [],
       category: null,
-      created_at: new Date(0).toISOString(),
-      updated_at: new Date(0).toISOString(),
+      created_at: row.created_at,
+      updated_at: row.updated_at,
     });
     setFormMode("edit");
     setFormOpen(true);
   };
 
-  const openDelete = (row: ProductRow) => {
+  const openDelete = (row: MyProductsListItem) => {
     setDeleteTarget({ id: row.id, title: row.title });
     setDeleteOpen(true);
   };
@@ -120,10 +119,16 @@ export function ProductsTab({ profile, walletAddress }: Props) {
               className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 p-3"
             >
               <div className="min-w-0 flex-1">
-                <h3 className="truncate text-base font-medium">{p.title}</h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="truncate text-base font-medium">{p.title}</h3>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-sm ${STATUS_BADGE[p.status] ?? STATUS_BADGE.draft}`}
+                  >
+                    {STATUS_LABEL[p.status] ?? p.status}
+                  </span>
+                </div>
                 <div className="text-sm text-neutral-600">
-                  {Number(p.price_usdt).toFixed(2)} USDT · stock {p.stock} ·{" "}
-                  {STATUS_LABEL.active}
+                  {Number(p.price_usdt).toFixed(2)} USDT · stock {p.stock}
                 </div>
               </div>
               <div className="flex flex-shrink-0 gap-2">

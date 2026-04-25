@@ -371,3 +371,93 @@ async def test_update_my_profile_happy_path(
     assert data["description"] == "Updated bio"
     # shop_handle stays immutable
     assert data["shop_handle"] == crud_seed["handle_a"]
+
+
+# ============================================================
+# /sellers/me/products — owner-side list (Étape 8.4)
+# ============================================================
+@pytest.mark.asyncio
+async def test_list_my_products_includes_all_statuses(
+    client: AsyncClient, crud_seed: dict, db: AsyncSession
+):
+    """Owner-side listing surfaces draft + paused + active rows that the
+    public boutique filter hides."""
+    suffix = crud_seed["suffix"]
+    # Add a draft + a paused product to seller A.
+    seller_a = (
+        await db.scalars(
+            select(SellerProfile).where(
+                SellerProfile.shop_handle == crud_seed["handle_a"]
+            )
+        )
+    ).one()
+    db.add_all(
+        [
+            Product(
+                id=uuid.uuid4(),
+                seller_id=seller_a.id,
+                title="Draft Item",
+                slug=f"draft-{suffix}",
+                price_usdt=Decimal("8.00"),
+                stock=2,
+                status="draft",
+            ),
+            Product(
+                id=uuid.uuid4(),
+                seller_id=seller_a.id,
+                title="Paused Item",
+                slug=f"paused-{suffix}",
+                price_usdt=Decimal("9.00"),
+                stock=2,
+                status="paused",
+            ),
+        ]
+    )
+    await db.commit()
+
+    resp = await client.get(
+        "/api/v1/sellers/me/products",
+        headers={"X-Wallet-Address": crud_seed["wallet_a"]},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    statuses = {p["status"] for p in data["products"]}
+    assert "active" in statuses
+    assert "draft" in statuses
+    assert "paused" in statuses
+    assert data["total"] == len(data["products"])
+
+
+@pytest.mark.asyncio
+async def test_list_my_products_no_auth_header(client: AsyncClient):
+    resp = await client.get("/api/v1/sellers/me/products")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_my_products_excludes_deleted_by_default(
+    client: AsyncClient, crud_seed: dict
+):
+    # Soft-delete the seeded owned product
+    del_resp = await client.delete(
+        f"/api/v1/products/{crud_seed['p_owned_id']}",
+        headers={"X-Wallet-Address": crud_seed["wallet_a"]},
+    )
+    assert del_resp.status_code == 204
+
+    # Default: deleted absent
+    resp = await client.get(
+        "/api/v1/sellers/me/products",
+        headers={"X-Wallet-Address": crud_seed["wallet_a"]},
+    )
+    assert resp.status_code == 200
+    assert all(p["status"] != "deleted" for p in resp.json()["products"])
+
+    # With include_deleted=true: present
+    resp2 = await client.get(
+        "/api/v1/sellers/me/products?include_deleted=true",
+        headers={"X-Wallet-Address": crud_seed["wallet_a"]},
+    )
+    assert resp2.status_code == 200
+    statuses = {p["status"] for p in resp2.json()["products"]}
+    assert "deleted" in statuses

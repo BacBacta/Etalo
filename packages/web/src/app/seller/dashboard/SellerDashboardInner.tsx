@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { OrdersTab } from "@/components/seller/OrdersTab";
@@ -49,6 +49,12 @@ export function SellerDashboardInner() {
   }, [router]);
 
   // 2) Combined fetch: identity (/sellers/me) + on-chain (/sellers/{addr}/profile)
+  // Bumped on each `refreshKey` increment so children can request a re-pull
+  // after on-chain mutations (Stake actions, Mark shipped) without a full
+  // page reload.
+  const [refreshKey, setRefreshKey] = useState(0);
+  const refreshOnchain = useCallback(() => setRefreshKey((k) => k + 1), []);
+
   useEffect(() => {
     if (isMiniPay !== true || !address) return;
     let cancelled = false;
@@ -74,7 +80,7 @@ export function SellerDashboardInner() {
     return () => {
       cancelled = true;
     };
-  }, [isMiniPay, address]);
+  }, [isMiniPay, address, refreshKey]);
 
   const requestedTab = searchParams.get("tab") as TabKey | null;
   const safeTab: TabKey =
@@ -171,7 +177,7 @@ export function SellerDashboardInner() {
             <OrdersTab address={address} />
           </TabsContent>
           <TabsContent value="stake">
-            <StakeTab onchain={onchain} />
+            <StakeTab onchain={onchain} onProfileRefresh={refreshOnchain} />
           </TabsContent>
           <TabsContent value="profile">
             <ProfileTab

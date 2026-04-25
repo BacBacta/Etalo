@@ -1,7 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Truck } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 
+import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
+import { Button } from "@/components/ui/button";
 import {
   fetchSellerOrders,
   formatRawUsdt,
@@ -12,7 +15,6 @@ interface Props {
   address: string;
 }
 
-// OrderStatus enum is title-case on the backend (Étape 8.1 gotcha).
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "All" },
   { value: "Created", label: "Created" },
@@ -25,23 +27,26 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "Refunded", label: "Refunded" },
 ];
 
+// Statuses where the seller can still mark items as shipped.
+const SHIPPABLE_STATUSES = new Set(["Funded", "PartiallyShipped"]);
+
 export function OrdersTab({ address }: Props) {
   const [data, setData] = useState<SellerOrdersPage | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [shipTarget, setShipTarget] = useState<{
+    dbOrderId: string;
+    onchainOrderId: number;
+  } | null>(null);
+
+  const refetch = useCallback(() => {
+    fetchSellerOrders(address, 1, 20, statusFilter || undefined)
+      .then((d) => setData(d))
+      .catch(() => setData(null));
+  }, [address, statusFilter]);
 
   useEffect(() => {
-    let cancelled = false;
-    fetchSellerOrders(address, 1, 20, statusFilter || undefined)
-      .then((d) => {
-        if (!cancelled) setData(d);
-      })
-      .catch(() => {
-        if (!cancelled) setData(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [address, statusFilter]);
+    refetch();
+  }, [refetch]);
 
   const totalNum =
     data && typeof (data.pagination as Record<string, unknown>).total === "number"
@@ -76,6 +81,7 @@ export function OrdersTab({ address }: Props) {
         <ul className="space-y-2">
           {data.orders.map((o) => {
             const buyerShort = `${o.buyer_address.slice(0, 6)}…${o.buyer_address.slice(-4)}`;
+            const canShip = SHIPPABLE_STATUSES.has(o.global_status);
             return (
               <li
                 key={o.id}
@@ -93,6 +99,24 @@ export function OrdersTab({ address }: Props) {
                   Buyer {buyerShort} · {formatRawUsdt(o.total_amount_usdt)}{" "}
                   USDT · {new Date(o.created_at_chain).toLocaleDateString()}
                 </div>
+                {canShip ? (
+                  <div className="mt-3">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() =>
+                        setShipTarget({
+                          dbOrderId: o.id,
+                          onchainOrderId: o.onchain_order_id,
+                        })
+                      }
+                      className="min-h-[44px] text-base"
+                    >
+                      <Truck className="mr-2 h-4 w-4" />
+                      Mark shipped
+                    </Button>
+                  </div>
+                ) : null}
               </li>
             );
           })}
@@ -103,6 +127,18 @@ export function OrdersTab({ address }: Props) {
         <p className="text-sm text-neutral-500">
           Showing {data.orders.length} of {totalNum} — pagination coming.
         </p>
+      ) : null}
+
+      {shipTarget ? (
+        <MarkGroupShippedDialog
+          open={shipTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setShipTarget(null);
+          }}
+          dbOrderId={shipTarget.dbOrderId}
+          onchainOrderId={shipTarget.onchainOrderId}
+          onSuccess={refetch}
+        />
       ) : null}
     </div>
   );

@@ -22,8 +22,11 @@ from app.models.seller_profile import SellerProfile
 from app.models.stake import Stake
 from app.models.user import User
 from app.dependencies.seller_auth import require_seller_auth
+from app.models.product import Product
 from app.schemas.seller import (
     HandleAvailabilityResponse,
+    MyProductsListItem,
+    MyProductsListResponse,
     SellerOrderItem,
     SellerOrdersPage,
     SellerProfilePublic,
@@ -295,3 +298,26 @@ async def update_my_profile(
     await db.commit()
     await db.refresh(seller)
     return SellerProfilePublic.model_validate(seller)
+
+
+@router.get("/me/products", response_model=MyProductsListResponse)
+async def list_my_products(
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    include_deleted: bool = False,
+) -> MyProductsListResponse:
+    """Owner-side product list — surfaces ALL statuses (active + draft +
+    paused). 'deleted' soft-deletes excluded by default. Fixes the V1
+    visibility limitation of fetchPublicBoutique (which filters
+    status='active').
+
+    ADR-036: require_seller_auth.
+    """
+    stmt = select(Product).where(Product.seller_id == seller.id)
+    if not include_deleted:
+        stmt = stmt.where(Product.status != "deleted")
+    stmt = stmt.order_by(Product.created_at.desc())
+
+    rows = (await db.execute(stmt)).scalars().all()
+    items = [MyProductsListItem.model_validate(p) for p in rows]
+    return MyProductsListResponse(products=items, total=len(items))

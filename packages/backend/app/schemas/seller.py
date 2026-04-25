@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -75,3 +76,26 @@ class SellerOrderItem(BaseModel):
 class SellerOrdersPage(BaseModel):
     orders: list[SellerOrderItem]
     pagination: dict
+
+
+class MyProductsListItem(BaseModel):
+    """Owner-side product summary — exposes ALL statuses (incl. draft +
+    paused) so the seller dashboard can surface non-public rows."""
+
+    id: UUID
+    title: str
+    slug: str
+    description: str | None = None
+    price_usdt: Decimal
+    stock: int
+    status: str
+    image_ipfs_hashes: list[str] | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MyProductsListResponse(BaseModel):
+    products: list[MyProductsListItem]
+    total: int

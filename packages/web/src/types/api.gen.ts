@@ -245,6 +245,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sellers/me/products": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List My Products
+         * @description Owner-side product list — surfaces ALL statuses (active + draft +
+         *     paused). 'deleted' soft-deletes excluded by default. Fixes the V1
+         *     visibility limitation of fetchPublicBoutique (which filters
+         *     status='active').
+         *
+         *     ADR-036: require_seller_auth.
+         */
+        get: operations["list_my_products_api_v1_sellers_me_products_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/uploads/ipfs": {
         parameters: {
             query?: never;
@@ -1066,6 +1091,49 @@ export interface components {
              * Format: date-time
              */
             created_at: string;
+        };
+        /**
+         * MyProductsListItem
+         * @description Owner-side product summary — exposes ALL statuses (incl. draft +
+         *     paused) so the seller dashboard can surface non-public rows.
+         */
+        MyProductsListItem: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /** Slug */
+            slug: string;
+            /** Description */
+            description?: string | null;
+            /** Price Usdt */
+            price_usdt: string;
+            /** Stock */
+            stock: number;
+            /** Status */
+            status: string;
+            /** Image Ipfs Hashes */
+            image_ipfs_hashes?: string[] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** MyProductsListResponse */
+        MyProductsListResponse: {
+            /** Products */
+            products: components["schemas"]["MyProductsListItem"][];
+            /** Total */
+            total: number;
         };
         /** NonceRequest */
         NonceRequest: {
@@ -2154,6 +2222,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SellerProfilePublic"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_my_products_api_v1_sellers_me_products_get: {
+        parameters: {
+            query?: {
+                include_deleted?: boolean;
+            };
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyProductsListResponse"];
                 };
             };
             /** @description Validation Error */

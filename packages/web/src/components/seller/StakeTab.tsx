@@ -1,9 +1,17 @@
 "use client";
 
+import { useState } from "react";
+
+import {
+  StakeActionDialog,
+  type StakeAction,
+} from "@/components/seller/StakeActionDialog";
+import { Button } from "@/components/ui/button";
 import type { SellerProfileResponse } from "@/lib/seller-api";
 
 interface Props {
   onchain: SellerProfileResponse;
+  onProfileRefresh: () => void;
 }
 
 const TIER_LABEL: Record<string, string> = {
@@ -13,10 +21,13 @@ const TIER_LABEL: Record<string, string> = {
   TopSeller: "Top Seller",
 };
 
-export function StakeTab({ onchain }: Props) {
+export function StakeTab({ onchain, onProfileRefresh }: Props) {
+  const [action, setAction] = useState<StakeAction | null>(null);
+
   const tier = onchain.stake.tier;
   const amount = onchain.stake.amount_human;
   const activeSales = onchain.stake.active_sales;
+  const hasStake = tier !== "None";
 
   return (
     <div className="space-y-4">
@@ -30,6 +41,38 @@ export function StakeTab({ onchain }: Props) {
           {onchain.recent_orders_count} order
           {onchain.recent_orders_count === 1 ? "" : "s"} indexed
         </p>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {!hasStake ? (
+          <Button
+            type="button"
+            onClick={() => setAction("deposit")}
+            className="min-h-[44px]"
+          >
+            Deposit stake
+          </Button>
+        ) : null}
+        {hasStake ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAction("topUp")}
+            className="min-h-[44px]"
+          >
+            Top up
+          </Button>
+        ) : null}
+        {hasStake ? (
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => setAction("withdraw")}
+            className="min-h-[44px]"
+          >
+            Initiate withdrawal
+          </Button>
+        ) : null}
       </div>
 
       <div className="space-y-2 text-sm text-neutral-600">
@@ -47,11 +90,17 @@ export function StakeTab({ onchain }: Props) {
         </p>
       </div>
 
-      <div className="rounded-md border border-amber-200 bg-amber-50 p-3">
-        <p className="text-sm">
-          Stake actions (deposit, withdraw, top-up) coming in Étape 8.4.
-        </p>
-      </div>
+      {action ? (
+        <StakeActionDialog
+          open={action !== null}
+          onOpenChange={(open) => {
+            if (!open) setAction(null);
+          }}
+          action={action}
+          currentTier={tier}
+          onSuccess={onProfileRefresh}
+        />
+      ) : null}
     </div>
   );
 }
