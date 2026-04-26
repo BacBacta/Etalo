@@ -31,3 +31,7 @@ jinja2>=3.1,<4.0
 # QR code rendering for marketing templates (data: URL embedded in HTML).
 # `qrcode[pil]` pulls Pillow as the imaging backend.
 qrcode[pil]>=8,<9
+
+# Anthropic SDK for Claude API caption generation (Sprint J7 Block 4).
+# Pre-1.0 — pin within minor range to avoid surprise breaks.
+anthropic>=0.97,<1.0

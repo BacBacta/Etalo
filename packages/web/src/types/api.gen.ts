@@ -866,6 +866,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/marketing/generate-caption": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Caption Endpoint
+         * @description Regenerate just the caption for a product (no image, no IPFS pin).
+         *
+         *     Use case: seller wants a different caption for an already-generated
+         *     image, or wants to preview tone before committing a credit (Block 6
+         *     will gate this on EtaloCredits balance).
+         */
+        post: operations["generate_caption_endpoint_api_v1_marketing_generate_caption_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1036,6 +1060,26 @@ export interface components {
             in_escrow: string;
             /** Released */
             released: string;
+        };
+        /** GenerateCaptionRequest */
+        GenerateCaptionRequest: {
+            /**
+             * Product Id
+             * Format: uuid
+             */
+            product_id: string;
+            /**
+             * Lang
+             * @enum {string}
+             */
+            lang: "en" | "sw";
+        };
+        /** GenerateCaptionResponse */
+        GenerateCaptionResponse: {
+            /** Caption */
+            caption: string;
+            /** Lang */
+            lang: string;
         };
         /** GenerateImageRequest */
         GenerateImageRequest: {
@@ -3310,6 +3354,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GenerateImageResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    generate_caption_endpoint_api_v1_marketing_generate_caption_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GenerateCaptionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GenerateCaptionResponse"];
                 };
             };
             /** @description Validation Error */

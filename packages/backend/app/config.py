@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     pinata_jwt: str = ""  # preferred auth; kept for future migration of IPFSService
     pinata_gateway_url: str = "https://gateway.pinata.cloud/ipfs"
 
+    # Anthropic Claude API (Sprint J7 Block 4 — caption generation).
+    # When unset, asset_generator falls back to a deterministic local
+    # caption so the rest of the pipeline keeps working in dev.
+    anthropic_api_key: str = ""
+
     # Twilio WhatsApp
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""

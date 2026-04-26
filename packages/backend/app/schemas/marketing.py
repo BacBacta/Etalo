@@ -15,3 +15,13 @@ class GenerateImageResponse(BaseModel):
     image_url: str
     caption: str
     template: str
+
+
+class GenerateCaptionRequest(BaseModel):
+    product_id: UUID
+    lang: Literal["en", "sw"]
+
+
+class GenerateCaptionResponse(BaseModel):
+    caption: str
+    lang: str

@@ -11,6 +11,10 @@ to-end. Pinata is exercised against the dev-stub fallback unless the
 local .env has PINATA_API_KEY set, in which case real Pinata is hit
 (and a real CID is returned). The assertions accept both paths via
 `ipfs_hash.startswith("Qm")`.
+
+Block 4 update: caption_generator (Claude API) is mocked at the
+asset_generator import site. These tests own the image pipeline; the
+caption pipeline is covered separately in test_marketing_caption_e2e.
 """
 from __future__ import annotations
 
@@ -77,6 +81,21 @@ async def _cleanup(db: AsyncSession, handles: list[str]) -> None:
     await db.commit()
 
 
+@pytest.fixture(autouse=True)
+def _mock_caption(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Avoid hitting the real Claude API in the image-pipeline tests.
+    Returns a deterministic string that the assertions below pin against."""
+
+    async def fake_generate_caption(**kwargs) -> str:
+        lang = kwargs.get("lang", "??")
+        title = kwargs.get("title", "??")
+        return f"[mocked-caption {lang}] {title}"
+
+    monkeypatch.setattr(
+        "app.services.asset_generator.generate_caption", fake_generate_caption
+    )
+
+
 @pytest_asyncio.fixture
 async def marketing_seed(
     db: AsyncSession,
@@ -138,10 +157,9 @@ async def test_generate_ig_square_happy_path(
     assert data["template"] == "ig_square"
     assert data["ipfs_hash"].startswith("Qm")
     assert data["image_url"].endswith(data["ipfs_hash"])
-    # Block 4 will replace this with real Claude output; until then the
-    # stub must surface caption_lang so callers can confirm round-trip.
-    assert "en" in data["caption"]
-    assert "Red Ankara Dress" in data["caption"]
+    # Caption is mocked at the asset_generator import site (see _mock_caption
+    # autouse fixture). The image pipeline must propagate it untouched.
+    assert data["caption"] == "[mocked-caption en] Red Ankara Dress"
 
 
 @pytest.mark.asyncio
@@ -161,7 +179,7 @@ async def test_generate_ig_story_happy_path_swahili(
     data = resp.json()
     assert data["template"] == "ig_story"
     assert data["ipfs_hash"].startswith("Qm")
-    assert "sw" in data["caption"]
+    assert data["caption"] == "[mocked-caption sw] Red Ankara Dress"
 
 
 @pytest.mark.asyncio

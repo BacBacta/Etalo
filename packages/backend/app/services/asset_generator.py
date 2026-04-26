@@ -30,6 +30,10 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
+from app.services.caption_generator import (
+    CaptionGenerationError,
+    generate_caption,
+)
 from app.services.ipfs import ipfs_service
 
 logger = logging.getLogger(__name__)
@@ -180,10 +184,24 @@ async def generate_marketing_image(
     filename = f"marketing_{product.id}_{template}_{caption_lang}.png"
     ipfs_hash = await _pin_with_dev_fallback(png_bytes, filename)
 
-    caption = (
-        f"[Block 4: caption in {caption_lang} for '{product.title}' — "
-        f"{product.price_usdt} USDT @{seller_handle}]"
-    )
+    try:
+        caption = await generate_caption(
+            title=product.title,
+            price_usdt=f"{product.price_usdt:.2f}",
+            description=product.description,
+            seller_handle=seller_handle,
+            country=product.seller.user.country or "AFR",
+            lang=caption_lang,
+        )
+    except CaptionGenerationError as exc:
+        logger.warning(
+            "Caption generation failed for product %s — falling back: %s",
+            product.id,
+            exc,
+        )
+        caption = (
+            f"{product.title} — {product.price_usdt} USDT @{seller_handle}"
+        )
 
     return AssetGenerationResult(
         ipfs_hash=ipfs_hash,

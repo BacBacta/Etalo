@@ -13,13 +13,23 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_async_db
 from app.dependencies.seller_auth import require_seller_auth
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
-from app.schemas.marketing import GenerateImageRequest, GenerateImageResponse
+from app.schemas.marketing import (
+    GenerateCaptionRequest,
+    GenerateCaptionResponse,
+    GenerateImageRequest,
+    GenerateImageResponse,
+)
 from app.services.asset_generator import generate_marketing_image
+from app.services.caption_generator import (
+    CaptionGenerationError,
+    generate_caption,
+)
 
 router = APIRouter(prefix="/marketing", tags=["marketing"])
 
@@ -54,3 +64,47 @@ async def generate_image_endpoint(
         db=db,
     )
     return GenerateImageResponse(**result)
+
+
+@router.post("/generate-caption", response_model=GenerateCaptionResponse)
+async def generate_caption_endpoint(
+    payload: GenerateCaptionRequest,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> GenerateCaptionResponse:
+    """Regenerate just the caption for a product (no image, no IPFS pin).
+
+    Use case: seller wants a different caption for an already-generated
+    image, or wants to preview tone before committing a credit (Block 6
+    will gate this on EtaloCredits balance).
+    """
+    product = await db.scalar(
+        select(Product)
+        .where(
+            Product.id == payload.product_id,
+            Product.seller_id == seller.id,
+        )
+        .options(selectinload(Product.seller).selectinload(SellerProfile.user))
+    )
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found or not owned by you",
+        )
+
+    try:
+        caption = await generate_caption(
+            title=product.title,
+            price_usdt=f"{product.price_usdt:.2f}",
+            description=product.description,
+            seller_handle=product.seller.shop_handle.lower(),
+            country=product.seller.user.country or "AFR",
+            lang=payload.lang,
+        )
+    except CaptionGenerationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Caption service temporarily unavailable: {exc}",
+        ) from exc
+
+    return GenerateCaptionResponse(caption=caption, lang=payload.lang)
