@@ -23,3 +23,7 @@ pytest>=8.0,<9.0
 pytest-asyncio>=0.24,<0.25
 pytest-mock>=3.14,<4.0
 respx>=0.21,<0.22
+
+# Asset generator (Sprint J7 — Playwright headless Chromium for marketing image rendering)
+# See ADR-037. Production deploy requires Linux Chromium build deps (see README).
+playwright>=1.58,<2.0

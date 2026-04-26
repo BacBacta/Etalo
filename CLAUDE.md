@@ -110,15 +110,22 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J6 — frontend boutique. Etalo is consolidating into a single
-Next.js app at `etalo.app` (ADR-035, decided Block 5). Sprint J4
-(smart contracts V2) and J5 (backend V2) are complete.
+Sprint J7 — Asset Generator (V1 Boutique pillar 3, monetized via credits).
+Primary spec: `docs/SPRINT_J7.md` — 8 blocks sur ~3-4 semaines.
+Architectural choices documented in ADR-037.
 
-When user says "start Block N", read that block in the current sprint
-file and execute.
+Scope : Playwright headless image generation + 5 marketing templates
+(Instagram Square + Story + WhatsApp Status + TikTok Cover + Facebook Feed)
++ Claude API caption generation (EN + Swahili) + EtaloCredits hybrid system
+(on-chain purchase, off-chain consumption ledger). Replaces Marketing
+stub from J6 Étape 8.2.
 
-Always propose a plan before executing, and wait for validation.
-Report what was done at the end of each block.
+Out of scope J7 : FR + Pidgin captions (V1.5+), LinkedIn/Twitter templates
+(V1.5+).
+
+When user says "start Block N", read that block in `docs/SPRINT_J7.md`
+and execute. Always propose a plan before executing, and wait for
+validation. Report what was done at the end of each block.
 
 ## V2 invariants (locked alongside contract layout)
 

@@ -1489,3 +1489,92 @@ are coupled to wallet addresses already public on-chain via indexer).
 - Frontend (Block 8.2-8.4) sends `X-Wallet-Address` from wagmi `useAccount()`
   on all seller mutations + reads of /sellers/me/*.
 - ADR-011's "temporary" status remains — full migration plan deferred V1.5+.
+
+---
+
+## ADR-037 · 2026-04-26 — Sprint J7 architectural choices: Playwright + hybrid credits + 5 templates + EN/SW
+
+**Status**: Accepted
+
+**Context**: Sprint J7 delivers V1 Boutique pillar 3 (asset generator).
+Four architectural choices needed up-front: image generation tech,
+credit system architecture, template formats, caption languages. Each
+impacts effort, infrastructure cost, maintenance, and scope.
+
+**Decision (4 sub-decisions)**:
+
+1. **Image generation tech**: Playwright headless Chromium (Python).
+   Templates as HTML/CSS files served from backend, rendered via
+   `playwright.chromium.launch()` and screenshot to PNG.
+
+2. **Credits architecture**: Hybrid.
+   - On-chain : `EtaloCredits.purchaseCredits(amount)` pulls USDT and
+     mints credits balance. Tx visible audit trail.
+   - Off-chain : consumption tracked in backend `seller_credits_consumption`
+     ledger. No tx required per image generation.
+   - Welcome bonus (10 credits) + 5 free/month managed off-chain ledger
+     (no on-chain mint).
+
+3. **Templates V1** (5 formats): Instagram Square 1080×1080, Instagram
+   Story 1080×1920, WhatsApp Status 1080×1920 (different visual style),
+   TikTok Cover 1080×1920, Facebook Feed 1200×630.
+
+4. **Caption languages V1**: English + Swahili. French + Pidgin deferred
+   V1.5+ (Cameroon/CIV/Senegal markets second wave).
+
+**Rationale**:
+
+1. Playwright vs `@vercel/og`: chosen for pixel-perfect rendering, no CSS
+   subset limitations on template designs. Trade-off accepted: heavier
+   infra (~150MB binary, ~500MB RAM/instance) but production backend host
+   (TBD pre-J11 launch) will support it. `@vercel/og` reserved as
+   fallback for Open Graph dynamic images already in use (Block 3 J6).
+
+2. Hybrid credits vs full on-chain: on-chain consumption would require
+   a tx per image generation, creating UX friction (wallet popup every
+   time). Off-chain consumption ledger cleaner UX. On-chain purchase
+   preserves non-custodial transparency claim (ADR-022) for the value
+   transfer (USDT → Etalo treasury). Pattern Mento, Kotani.
+
+3. 5 templates : 1 covered ~50% marketing channels, 3 ~95%, 5 ~99%. 5
+   chosen for full V1 launch parity with how sellers actually market
+   (Instagram feed + Stories + WhatsApp Status + TikTok + Facebook). 7+
+   templates marginal value vs maintenance.
+
+4. EN + Swahili : covers anglo Nigeria/Ghana + East Africa
+   Kenya/Tanzania/Uganda (large user-base markets). FR + Pidgin V1.5+
+   for Francophone West/Central Africa secondary wave. Multi-language
+   tone QA effort scales linearly per language; 2 languages manageable
+   without native speaker review, 4+ requires dedicated QA pass.
+
+**Risk**:
+
+- **Playwright deployment**: requires backend host with Linux Chromium
+  support. Vercel Edge runtime NOT compatible. Mitigation: backend
+  hosting decided before J11 launch (Render, Railway, Fly.io all
+  compatible). Local dev OK from Block 1.
+- **Hybrid credits trust model**: backend tracks consumption, must be
+  accurate. Mitigation: indexer mirrors `CreditsPurchased` events
+  on-chain (audit trail for purchase), consumption ledger in DB with
+  timestamps + image_id linkage (audit trail for spend).
+- **Swahili tone**: less common in our team. Mitigation: prompt
+  engineering V1, iterate with seller feedback post-launch. Worst case
+  caption "too formal" — acceptable, not catastrophic.
+
+**Replacement plan (V1.5+)**:
+
+- Add FR + Pidgin caption languages
+- Add LinkedIn / Twitter templates if seller demand emerges
+- Consider migration Playwright → satori for lighter infra if scale forces
+
+**Impact**:
+
+- J7 sprint: 8 blocks, ~3-4 weeks. Subsumes the originally-planned J8
+  dedicated credits sprint.
+- New smart contract EtaloCredits.sol deployed on Celo Sepolia (5e
+  contract V2 alongside Escrow, Dispute, Stake, Voting, Reputation).
+- Backend new dependency: Playwright Python + Chromium binary.
+- Frontend new "Marketing" tab in seller dashboard (replaces stub from
+  J6 Étape 8.2).
+- Pricing model anchor (ADR-014): 0.15 USDT/credit, 5 free/month, 10
+  welcome bonus, no subscription. See `docs/PRICING_MODEL_CREDITS.md`.
