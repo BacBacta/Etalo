@@ -43,7 +43,7 @@ export function ShareButtons({ url, title }: ShareButtonsProps) {
           {copied ? "Link copied" : "Copy link"}
         </button>
       </div>
-      <p className="text-xs text-neutral-500">
+      <p className="text-sm text-neutral-500">
         Paste the link in your Instagram story or TikTok bio.
       </p>
     </div>

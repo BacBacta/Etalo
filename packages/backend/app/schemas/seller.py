@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -42,3 +43,59 @@ class HandleAvailabilityResponse(BaseModel):
     handle: str
     available: bool
     reason: str | None = None  # "format" | "taken" | None
+
+
+class SellerProfileUpdate(BaseModel):
+    """ADR-036 self-service profile update. shop_handle is intentionally
+    NOT updatable (would break /[handle] URLs / boutique pages)."""
+
+    shop_name: str | None = None
+    description: str | None = None
+    logo_ipfs_hash: str | None = None
+    banner_ipfs_hash: str | None = None
+    socials: dict | None = None
+    categories: list[str] | None = None
+
+
+class SellerOrderItem(BaseModel):
+    """Minimal order summary returned by GET /sellers/{address}/orders."""
+
+    id: UUID
+    onchain_order_id: int
+    buyer_address: str
+    total_amount_usdt: int
+    is_cross_border: bool
+    global_status: str
+    item_count: int
+    created_at_chain: datetime
+    funded_at: datetime | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class SellerOrdersPage(BaseModel):
+    orders: list[SellerOrderItem]
+    pagination: dict
+
+
+class MyProductsListItem(BaseModel):
+    """Owner-side product summary — exposes ALL statuses (incl. draft +
+    paused) so the seller dashboard can surface non-public rows."""
+
+    id: UUID
+    title: str
+    slug: str
+    description: str | None = None
+    price_usdt: Decimal
+    stock: int
+    status: str
+    image_ipfs_hashes: list[str] | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class MyProductsListResponse(BaseModel):
+    products: list[MyProductsListItem]
+    total: int

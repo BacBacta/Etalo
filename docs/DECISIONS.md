@@ -1255,3 +1255,237 @@ test wallet remains on Celo Sepolia with `(stake=5 USDT, tier=None)`
 as a preserved regression fixture. No ABI or event changes; V1.5 is
 a pure constraint relaxation. No production migration required —
 existing slashed sellers benefit automatically once V1.5 deploys.
+
+---
+
+## ADR-034 · 2026-04-25 — EIP-191 backend auth deprecated by MiniPay best practices
+
+**Status**: Accepted (deprecation), Replacement plan staged
+
+**Context**: J6 Block 1 (25/04/2026) introduced an EIP-191 signed-message
+authentication pattern for backend mutations: `packages/miniapp/src/lib/eip191.ts`
+helper, `packages/backend/app/auth.py` verifier, and 3 POST endpoints
+(`/disputes/submit-message`, etc.) requiring a signed payload.
+
+A subsequent compliance audit against the official MiniPay docs
+(https://docs.minipay.xyz, Best Practices section) surfaced an explicit
+prohibition:
+
+> "Do not prompt users to sign a message to access your site or to
+> authenticate. MiniPay connects automatically; users should not need to
+> sign an arbitrary message to use your Mini App."
+
+Our pattern triggers a "sign this message" prompt every time a buyer
+submits a dispute message or a seller updates off-chain metadata. This is
+exactly the friction MiniPay forbids and is among the listed common
+rejection reasons during submission review.
+
+**Decision**: Deprecate EIP-191 auth as the long-term mechanism for
+backend mutations. The existing helper and verifier remain in place for
+J6 to avoid blocking Block 2-7 progress, but **no new auth points may be
+added** and the existing ones are flagged for migration before Proof of
+Ship submission (June 2026).
+
+**Replacement plan**:
+
+1. **Primary path (preferred)**: move all mutating off-chain payloads
+   on-chain as contract events that the J5 indexer picks up. Example:
+   dispute messages are pinned to IPFS, hash emitted as
+   `MessagePosted(itemId, ipfsHash, sender)` event by `EtaloDispute`. The
+   indexer captures the event, fetches IPFS content, persists the row.
+   Pattern matches the indexer-as-sole-authority discipline of ADR-030.
+
+2. **Fallback (only if (1) impractical)**: session cookie issued by the
+   backend after a non-prompting wallet ownership check (e.g. backend
+   challenges the address with a contract read the wallet must have
+   signed in a prior tx, no new signature requested). To be designed in
+   a follow-up ADR if needed.
+
+3. **Migration order**: J7 disputes refactor takes priority (dispute
+   messages are the highest-friction case); other mutations follow as
+   each block touches them. `lib/eip191.ts` and `app/auth.py` are
+   deleted at the end of the migration.
+
+**Risk**:
+- Submission rejection if EIP-191 is still in production-facing flows
+  at submit time.
+- Disputes UX delay if (1) requires new contract event work post-J4
+  freeze. Mitigation: dispute message events can be added in a
+  V2.1 contract patch without breaking interfaces (ABI append only).
+
+**Guard before mainnet**: pre-submission checklist (Block 11 J11) must
+verify zero `eip191.ts` or `app/auth.py` references in the critical
+buyer/seller flows. Backend tests must be updated to use cookie/onchain
+auth before deletion.
+
+**Impact**:
+- J6 Block 1 commit `57ec857` keeps its EIP-191 work — no rollback.
+- J6 Block 2 unaffected (`/products/public/{handle}` is unauthenticated
+  by design).
+- J6 Blocks 5-7 (checkout, order tracking, seller mode) must not add
+  new EIP-191 points; if mutations are needed they go on-chain.
+- J7 sprint scope expands to include dispute event refactor.
+- CLAUDE.md gains rule 14 enforcing this constraint.
+
+---
+
+## ADR-035 · 2026-04-25 — Etalo deployment architecture: single Next.js app at etalo.app
+
+**Status**: Accepted (architectural pivot, supersedes implicit two-package assumption)
+
+**Context**: Implicit prior architecture had `packages/web` (Next.js, public funnel) and
+`packages/miniapp` (Vite, MiniPay-injected app) as two separate codebases destined for two
+different URLs. A clarification of vision (25/04/2026) confirmed that Etalo is fundamentally
+**a Mini App in MiniPay**, not an independent web platform with a satellite Mini App. The
+public web pages are funnels for social media inbound traffic from sellers' marketing images
+(asset generator), intentionally limited (single-seller scope) to convert visitors into
+MiniPay users.
+
+The Mini App entry point registered with MiniPay's Discover must be a single URL. Two
+codebases would require separate deployments, duplicated logic, split SEO/Mini App surfaces,
+and a confusing submission story.
+
+**Decision**: Consolidate the entire Etalo frontend into `packages/web` (Next.js 14).
+`packages/miniapp` is archived. The single Next.js app serves both surfaces:
+
+1. **Public funnel surface** (no MiniPay required): `/`, `/[handle]`, `/[handle]/[slug]`,
+   `/sitemap.xml`, `/robots.txt`, OG images. SEO-optimized for social media inbound. Single-
+   seller scope. CTA "Download MiniPay for full marketplace."
+
+2. **Mini App surface** (MiniPay required, detected via `window.ethereum?.isMiniPay`):
+   `/marketplace` (multi-seller browser), `/checkout`, `/seller/dashboard`, `/orders/:id`,
+   etc. Uses injected wallet for transactions.
+
+Routing convention: each route either supports both surfaces with progressive enhancement
+based on MiniPay detection, or is gated to one with redirect/CTA fallback for the other.
+
+**MiniPay submission URL**: `https://etalo.app`.
+
+**Migration scope** (executed Block 5 commit B):
+- Move `packages/miniapp/src/{lib,abis,hooks}/*` → `packages/web/src/`
+- Move `packages/miniapp/src/components/RequireWallet.tsx` → `packages/web/src/components/`
+- Copy `packages/miniapp/src/components/ui/{dialog,tabs}.tsx` → `packages/web/src/components/ui/`
+  (web Block 4 already has button/sheet/badge/separator/sonner)
+- Convert Vite env vars (`import.meta.env.VITE_*`) to Next.js (`process.env.NEXT_PUBLIC_*`)
+- Add `WagmiProvider` + `QueryClientProvider` in web root layout via client `<Providers>` wrapper
+- Install wagmi, viem, @tanstack/react-query in `packages/web`
+- Archive `packages/miniapp` to branch `archive/miniapp-vite-v1` then delete from working tree
+- Pages from `packages/miniapp/src/pages/*` (Landing, SellerHome, Onboarding, Checkout, Order)
+  are NOT migrated — they're partial V1 implementations. Block 6+ rebuilds them as Next.js
+  routes using migrated foundations + Block 2/3 SSR patterns + Block 4 cart store.
+
+**Rationale**:
+- Single deployment URL = clean MiniPay Discover registration
+- Detection via `isMiniPay` provides progressive enhancement, no hard URL split
+- Code reuse: cart store (Block 4) serves both single-seller funnel and multi-seller
+  marketplace without duplication
+- Standard pattern in MiniPay ecosystem (Mento, Kotani, Halofi all use single Next.js)
+- Easier maintenance, single test/build/deploy pipeline
+
+**Risks**:
+- Bundle size: Mini App code (wagmi, viem, ABIs) may load on public funnel pages if not
+  code-split. Mitigation: Next.js route-based code splitting handles most cases; explicitly
+  dynamic-import wallet code where the funnel doesn't need it.
+- SSR + wallet: pages requiring MiniPay must be marked client-only (no SSR for `/marketplace`,
+  `/checkout`, `/seller/dashboard`).
+- Migration risk: file moves break imports. Mitigation: incremental migration with
+  build/test after each batch.
+
+**Impact**:
+- J6 Block 5 absorbs the migration (~1-2h) before checkout work resumes.
+- J6 Block 6 (was 5): backend cart token + checkout `/checkout` route in Next.js.
+- J6 Block 7 (was 6→7 partial): `/marketplace` + dual-mode home picker.
+- J6 Block 8 (was 7 partial): `/seller/dashboard`.
+- Block 4 cart drawer (commit `33c27e3`) is **not** dead code — it serves both surfaces
+  (single-seller on funnel, multi-seller in Mini App). Validation retroactive of Option 2.
+- `packages/miniapp` Block 1 work (commit `57ec857` + 4 pré-Block 2 commits) is preserved
+  through git history (`git mv` preserves history); files are in `packages/web` after move.
+- CLAUDE.md tech stack section consolidates "Mini App frontend" + "Public product pages"
+  into a single Next.js entry.
+
+---
+
+## ADR-036 · 2026-04-25 — X-Wallet-Address auth extended to seller CRUD (extends ADR-011)
+
+**Status**: Accepted (extends ADR-011, conforms with ADR-034)
+
+**Context**: ADR-011 (April 2026) introduced `X-Wallet-Address` header as a
+temporary auth mechanism for `/sellers/me`. ADR-034 (J6 Block 1) deprecated
+EIP-191 signed-message auth and forbade new EIP-191 auth points. J6 Block 8
+needs authentication for self-service seller mutations: product CRUD, IPFS
+image uploads, profile updates.
+
+Inside the MiniPay WebView, the connected wallet is implicitly trusted (MiniPay
+secures wallet ownership at the OS level). The frontend reads the connected
+address via wagmi `useAccount()` and includes it in `X-Wallet-Address`. Outside
+MiniPay, mutations are blocked at the route gating level (redirect `/` if
+`!isMiniPay`).
+
+**Decision**: Extend the `X-Wallet-Address` header auth pattern (ADR-011) to
+all V1 seller-side mutations:
+
+- `POST /api/v1/products` (create)
+- `PUT /api/v1/products/{id}` (update)
+- `DELETE /api/v1/products/{id}` (delete)
+- `POST /api/v1/uploads/ipfs` (existing, tightened to require seller profile)
+- `GET /api/v1/sellers/me` (existing, ADR-011)
+- `PUT /api/v1/sellers/me/profile` (new, profile updates)
+
+Backend implementation:
+- A `require_seller_auth` FastAPI dependency reads `X-Wallet-Address`,
+  validates it corresponds to a registered `SellerProfile`, returns the
+  loaded `SellerProfile` (with `.user` selectinloaded).
+- Reject without header → 401 (cohérent avec `get_current_wallet` existant).
+- Reject if no SellerProfile for this wallet → 404.
+- For mutations on owned resources (PUT/DELETE product): re-verify
+  `product.seller_id == seller.id`. Cross-ownership → 403.
+
+Public reads (no auth required):
+- `GET /api/v1/sellers/{address}/orders` (paginated, status filter)
+- `GET /api/v1/sellers/{address}/profile` (existing, stake + reputation +
+  recent orders count from indexer cache; covers the V1 stake read need
+  without a separate `/stake` endpoint)
+
+These are public read endpoints — anyone can query, but the address-based
+filtering scopes the data. Privacy acceptable in V1 (no sensitive PII; orders
+are coupled to wallet addresses already public on-chain via indexer).
+
+**Rationale**:
+- Conforms with ADR-034 (no new EIP-191 signed messages, no MiniPay submission
+  rejection risk).
+- Builds on ADR-011 (no new auth concept introduced; just extension of
+  existing temp pattern).
+- Trust model relies on MiniPay WebView security — same as the wallet auth
+  itself.
+- Significantly less complex than full SIWE / session-cookie infrastructure
+  (estimated 2-3 days of additional work avoided).
+- Enables V1 launch with full self-service seller CRUD instead of curated-only.
+
+**Risks**:
+- **Header spoofing outside MiniPay context** — mitigated by route-gating
+  (redirect `/` if `!isMiniPay` for all seller dashboard surfaces).
+- **CSRF** — backend must enforce CORS strictly (only `etalo.app` origin
+  allowed for mutations). Configure FastAPI CORSMiddleware.
+- **No replay protection** — V1 acceptable. V1.5+ may add short-lived nonce
+  or signed token ladders.
+- **`require_seller_auth` requires SellerProfile to exist** — first-time seller
+  registration uses the existing onboarding flow that creates the profile via
+  the same X-Wallet-Address pattern but does not require pre-existing profile.
+
+**Replacement plan (V1.5+)**:
+- Migrate to session cookie issued via non-prompting on-chain ownership check
+  (e.g. backend reads stake, reputation, or contract state to confirm
+  ownership without prompting a signature).
+- Or migrate seller CRUD on-chain (product creation as contract event from
+  seller's wallet, indexer ingests). Aligns with ADR-034 endgame.
+- ADR to be filed when V1.5 architecture is finalized.
+
+**Impact**:
+- Backend gets `app/dependencies/seller_auth.py` with the
+  `require_seller_auth` dependency composed on top of the existing
+  `get_current_wallet` (sellers.py).
+- Existing `/uploads/ipfs` endpoint tightened from "any wallet" to
+  "registered seller" via the new dependency.
+- Frontend (Block 8.2-8.4) sends `X-Wallet-Address` from wagmi `useAccount()`
+  on all seller mutations + reads of /sellers/me/*.
+- ADR-011's "temporary" status remains — full migration plan deferred V1.5+.

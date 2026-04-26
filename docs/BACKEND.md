@@ -108,8 +108,9 @@ pip install -r requirements.txt
 # 1. Apply migrations
 alembic upgrade head
 
-# 2. Sync ABIs from packages/contracts/artifacts → app/abis/
-python scripts/sync_abis.py
+# 2. Sync ABIs from packages/contracts/artifacts → backend/app/abis/
+#    AND packages/miniapp/src/abis/v2/ (single source of truth, dual dest)
+python ../contracts/scripts/sync_abis.py
 ```
 
 ### Run dev
