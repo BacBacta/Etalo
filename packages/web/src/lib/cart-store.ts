@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -148,6 +149,31 @@ export const useCartStore = create<CartState>()(
     {
       name: "etalo-cart-v1",
       storage: createJSONStorage(() => localStorage),
+      // Defer reading localStorage until after mount. Without this,
+      // SSR initializes with empty `items: []` while the client
+      // initializes with persisted items, producing a hydration
+      // mismatch that cascades into "result of getServerSnapshot
+      // should be cached" loops on every useCartStore subscriber.
+      // The CartHydrationGate in Providers.tsx triggers manual
+      // rehydrate() once, post-mount, on the client.
+      skipHydration: true,
     },
   ),
 );
+
+// Triggers manual rehydration of the persisted cart from localStorage
+// once on mount. Server + client first render both produce empty cart
+// state (identical DOM) → no hydration mismatch. After rehydrate runs,
+// any populated cart data triggers a normal client re-render.
+//
+// localStorage is synchronous, so rehydrate() resolves before
+// setHydrated(true) is observable. For future async storages, switch
+// to persist.onFinishHydration().
+export function useCartHydration(): boolean {
+  const [hydrated, setHydrated] = useState(false);
+  useEffect(() => {
+    useCartStore.persist.rehydrate();
+    setHydrated(true);
+  }, []);
+  return hydrated;
+}
