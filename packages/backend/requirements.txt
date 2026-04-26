@@ -28,3 +28,6 @@ respx>=0.21,<0.22
 # See ADR-037. Production deploy requires Linux Chromium build deps (see README).
 playwright>=1.58,<2.0
 jinja2>=3.1,<4.0
+# QR code rendering for marketing templates (data: URL embedded in HTML).
+# `qrcode[pil]` pulls Pillow as the imaging backend.
+qrcode[pil]>=8,<9
