@@ -87,6 +87,19 @@ power is structurally bounded by code.
 - USDT token: 0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e
 - USDT adapter (for gas fees): 0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72
 
+## Key addresses (Celo Sepolia testnet — V2 deploys)
+
+- MockUSDT (V2): 0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3
+- EtaloReputation: 0x2a6639074d0897c6280f55b252B97dd1c39820b7
+- EtaloStake: 0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417
+- EtaloVoting: 0x335Ac0998667F76FE265BC28e6989dc535A901E7
+- EtaloDispute: 0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE
+- EtaloEscrow: 0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb
+- EtaloCredits (J7): 0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d
+- creditsTreasury (ADR-024): 0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA
+- commissionTreasury (ADR-024): 0x9819c9E1b4F634784fd9A286240ecACd297823fa
+- communityFund (ADR-024): 0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6
+
 ## Economics (locked, see ADRs for rationale)
 
 - Commission intra-Africa: 1.8%
@@ -110,22 +123,25 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J7 — Asset Generator (V1 Boutique pillar 3, monetized via credits).
-Primary spec: `docs/SPRINT_J7.md` — 8 blocks sur ~3-4 semaines.
-Architectural choices documented in ADR-037.
+**Sprint J8 — TBD post-Proof of Ship submission.**
 
-Scope : Playwright headless image generation + 5 marketing templates
-(Instagram Square + Story + WhatsApp Status + TikTok Cover + Facebook Feed)
-+ Claude API caption generation (EN + Swahili) + EtaloCredits hybrid system
-(on-chain purchase, off-chain consumption ledger). Replaces Marketing
-stub from J6 Étape 8.2.
+J7 (Asset Generator, V1 Boutique pillar 3) closed 2026-04-26 — see
+`docs/SPRINT_J7.md` for the bilan, tagged `v2.0.0-asset-generator-sepolia`.
+J7 scope delivered: Playwright headless image generation + 5 marketing
+templates (Instagram Square + Story + WhatsApp Status + TikTok Cover
++ Facebook Feed) + Claude API caption generation (EN + Swahili) +
+EtaloCredits hybrid system (on-chain purchase via the contract at
+`0xb201a5...60d`, off-chain consumption ledger). Marketing stub from
+J6 Étape 8.2 replaced by a dedicated `MarketingTab` in the seller
+dashboard with a wagmi-based BuyCreditsDialog.
 
-Out of scope J7 : FR + Pidgin captions (V1.5+), LinkedIn/Twitter templates
-(V1.5+).
+J7 deferred (V1.5+): FR + Pidgin captions, LinkedIn/Twitter templates,
+order receipt PDF, refund post-confirm.
 
-When user says "start Block N", read that block in `docs/SPRINT_J7.md`
-and execute. Always propose a plan before executing, and wait for
-validation. Report what was done at the end of each block.
+When user says "start Block N", read that block in the active sprint
+spec (J8 spec TBD) and execute. Always propose a plan before
+executing, and wait for validation. Report what was done at the end
+of each block.
 
 ## V2 invariants (locked alongside contract layout)
 
