@@ -107,6 +107,7 @@ section of each caller.
 | `EtaloVoting` | `0x335Ac0998667F76FE265BC28e6989dc535A901E7` |
 | `EtaloDispute` | `0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE` |
 | `EtaloEscrow` | `0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb` |
+| `EtaloCredits` (J7 Block 5b, 2026-04-26) | `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` |
 
 ### Treasury wallets (three-wallet separation per ADR-024)
 
@@ -132,6 +133,23 @@ single-explorer outage or delisting.
 | `EtaloVoting` | [source](https://sepolia.celoscan.io/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [source](https://celo-sepolia.blockscout.com/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x335Ac0998667F76FE265BC28e6989dc535A901E7) |
 | `EtaloDispute` | [source](https://sepolia.celoscan.io/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [source](https://celo-sepolia.blockscout.com/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE) |
 | `EtaloEscrow` | [source](https://sepolia.celoscan.io/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [source](https://celo-sepolia.blockscout.com/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb) |
+| `EtaloCredits` | [source](https://sepolia.celoscan.io/address/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d#code) | [source](https://celo-sepolia.blockscout.com/address/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d) |
+
+### EtaloCredits deployment (Sprint J7 Block 5b, 2026-04-26)
+
+- **Address**: `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d`
+- **Deploy tx**: `0xad954959fc4e36d1142244d00eb73c71ec32a1f7b2d7ef487869f7855266507c` (block 23948381)
+- **Deployer**: `0x66bD37325cf41dAd0035398854f209785C9bC4C2` (admin owner)
+- **Constructor args**:
+  - `_usdt`: `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` (MockUSDT V2)
+  - `_creditsTreasury`: `0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA` (per ADR-024)
+  - `_admin`: `0x66bD37325cf41dAd0035398854f209785C9bC4C2`
+- **Verified**: Etherscan + Blockscout + Sourcify (triple-explorer, Block 5b second-pass on Blockscout after a brief indexer delay)
+- **Tests**: 24 Hardhat unit (Block 5a) + 1 Foundry invariant @ 12,800 calls / 0 reverts (Block 5b)
+- **Slither**: 0 High, 0 Medium, 0 Low, 0 Informational (101 detectors run, 0 results)
+- **Smoke** (Block 5b, tx `0x5f42b22cfbe45cec60994428d02cb1763d40adebce561c4e609b8339fb16588a`, block 23948656): 1 purchase of 10 credits succeeded — buyer USDT 9095 → 9093.5, treasury 0 → 1.5 USDT, `CreditsPurchased(buyer=0x66bD…c4C2, creditAmount=10, usdtAmount=1500000, timestamp=1777232644)` emitted.
+- **Bytecode**: 1809 bytes runtime (well below the 24,576-byte Spurious Dragon limit)
+- **ADR references**: ADR-037 (architectural choice), ADR-014 (pricing anchor 0.15 USDT/credit), ADR-024 (3-treasury separation), ADR-007 (USDT SafeERC20), ADR-026 (Pausable emergency stop pattern).
 
 ### Deployment notes
 
