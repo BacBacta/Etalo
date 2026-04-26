@@ -25,7 +25,15 @@ class SellerProfile(Base):
 
     user: Mapped["User"] = relationship(back_populates="seller_profile")
     products: Mapped[list["Product"]] = relationship(back_populates="seller")
+    marketing_images: Mapped[list["MarketingImage"]] = relationship(
+        back_populates="seller"
+    )
+    credits_ledger: Mapped[list["SellerCreditsLedger"]] = relationship(
+        back_populates="seller"
+    )
 
 
 from app.models.user import User  # noqa: E402, F811
 from app.models.product import Product  # noqa: E402, F811
+from app.models.marketing_image import MarketingImage  # noqa: E402, F811
+from app.models.seller_credits_ledger import SellerCreditsLedger  # noqa: E402, F811

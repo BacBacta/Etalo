@@ -19,7 +19,9 @@ from httpx import AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.marketing_image import MarketingImage
 from app.models.product import Product
+from app.models.seller_credits_ledger import SellerCreditsLedger
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
 from app.services.caption_generator import CaptionGenerationError
@@ -60,6 +62,17 @@ async def _cleanup(db: AsyncSession, handles: list[str]) -> None:
     seller_ids = [s.id for s in seller_rows]
     user_ids = [s.user_id for s in seller_rows]
     if seller_ids:
+        # J7 Block 6: drop ledger + images before products/sellers.
+        await db.execute(
+            delete(SellerCreditsLedger).where(
+                SellerCreditsLedger.seller_id.in_(seller_ids)
+            )
+        )
+        await db.execute(
+            delete(MarketingImage).where(
+                MarketingImage.seller_id.in_(seller_ids)
+            )
+        )
         await db.execute(delete(Product).where(Product.seller_id.in_(seller_ids)))
         await db.execute(
             delete(SellerProfile).where(SellerProfile.id.in_(seller_ids))

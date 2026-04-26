@@ -27,6 +27,9 @@ class Product(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     seller: Mapped["SellerProfile"] = relationship(back_populates="products")
+    marketing_images: Mapped[list["MarketingImage"]] = relationship(
+        back_populates="product"
+    )
 
     __table_args__ = (
         Index("ix_products_status", "status"),
@@ -35,3 +38,4 @@ class Product(Base):
 
 
 from app.models.seller_profile import SellerProfile  # noqa: E402, F811
+from app.models.marketing_image import MarketingImage  # noqa: E402, F811

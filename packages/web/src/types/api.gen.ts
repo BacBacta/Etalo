@@ -270,6 +270,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sellers/me/credits/balance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Credits Balance
+         * @description Current credits balance. Lazy-grants the welcome bonus (10) on
+         *     first call and the monthly free pack (5) once per calendar UTC
+         *     month, both before computing the balance returned to the caller.
+         */
+        get: operations["get_my_credits_balance_api_v1_sellers_me_credits_balance_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/sellers/me/credits/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Credits History
+         * @description Paginated ledger entries, newest first. No lazy grants here —
+         *     /balance is the canonical entry point that triggers them.
+         */
+        get: operations["get_my_credits_history_api_v1_sellers_me_credits_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/uploads/ipfs": {
         parameters: {
             query?: never;
@@ -2345,6 +2388,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MyProductsListResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_credits_balance_api_v1_sellers_me_credits_balance_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_credits_history_api_v1_sellers_me_credits_history_get: {
+        parameters: {
+            query?: {
+                page?: number;
+                page_size?: number;
+            };
+            header?: {
+                "X-Wallet-Address"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
                 };
             };
             /** @description Validation Error */

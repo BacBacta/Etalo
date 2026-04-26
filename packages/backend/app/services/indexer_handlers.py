@@ -32,8 +32,11 @@ from app.models.enums import (
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.reputation_cache import ReputationCache
+from app.models.seller_credits_ledger import SellerCreditsLedger
+from app.models.seller_profile import SellerProfile
 from app.models.shipment_group import ShipmentGroup
 from app.models.stake import Stake
+from app.models.user import User
 
 
 HandlerType = Callable[[Any, AsyncSession, dict[str, Any]], Awaitable[None]]
@@ -472,6 +475,70 @@ async def handle_order_recorded(
 
 
 # ============================================================
+# Credits handler (J7 Block 6 — 1)
+# ============================================================
+import logging
+
+_credits_logger = logging.getLogger(__name__)
+
+
+async def handle_credits_purchased(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """CreditsPurchased(buyer, creditAmount, usdtAmount, timestamp) —
+    mirrors the on-chain purchase to the off-chain ledger so future
+    /generate-image calls see the new balance.
+
+    Idempotency is provided by the dispatcher via IndexerEvent
+    (tx_hash, log_index); the SellerCreditsLedger UNIQUE
+    (tx_hash, source) constraint is defense-in-depth.
+
+    Behavior when the buyer wallet has no SellerProfile yet: log a
+    warning and return without writing. V1.5+ may add a user-level
+    credits balance for non-seller buyers; for now the policy is
+    "credits are seller-scoped" (only sellers generate marketing).
+    """
+    args = event["args"]
+    buyer = _to_lower(args["buyer"])
+    credit_amount = int(args["creditAmount"])
+
+    raw_tx_hash = event["transactionHash"]
+    tx_hash = (
+        raw_tx_hash.hex() if hasattr(raw_tx_hash, "hex") else str(raw_tx_hash)
+    )
+    if not tx_hash.startswith("0x"):
+        tx_hash = "0x" + tx_hash
+    tx_hash = tx_hash.lower()
+
+    seller = (
+        await db.execute(
+            select(SellerProfile)
+            .join(User, SellerProfile.user_id == User.id)
+            .where(User.wallet_address == buyer)
+        )
+    ).scalar_one_or_none()
+
+    if seller is None:
+        _credits_logger.warning(
+            "CreditsPurchased: no SellerProfile for buyer %s (tx %s) — skipping",
+            buyer,
+            tx_hash,
+        )
+        return
+
+    db.add(
+        SellerCreditsLedger(
+            seller_id=seller.id,
+            credits_delta=credit_amount,
+            source="purchase",
+            tx_hash=tx_hash,
+        )
+    )
+    # No commit here — the indexer dispatcher commits at the end of
+    # the chunk (along with the IndexerEvent idempotency row).
+
+
+# ============================================================
 # Registry — keyed by (contract_name, event_name)
 # ============================================================
 HANDLERS: dict[tuple[str, str], HandlerType] = {
@@ -490,4 +557,5 @@ HANDLERS: dict[tuple[str, str], HandlerType] = {
     ("EtaloStake", "StakeSlashed"): handle_stake_slashed,
     ("EtaloStake", "TierAutoDowngraded"): handle_tier_auto_downgraded,
     ("EtaloReputation", "OrderRecorded"): handle_order_recorded,
+    ("EtaloCredits", "CreditsPurchased"): handle_credits_purchased,
 }
