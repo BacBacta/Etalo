@@ -13,6 +13,22 @@ import { MarketingTab } from "@/components/seller/MarketingTab";
 // ── Mocks ──────────────────────────────────────────────────────────
 vi.mock("wagmi", () => ({
   useAccount: () => ({ address: "0xabc0000000000000000000000000000000000001" }),
+  // Block 7b: BuyCreditsDialog (mounted via CreditsBalance) reads
+  // useChainId for explorer URL building.
+  useChainId: () => 11142220,
+}));
+
+// Block 7b: BuyCreditsDialog calls useBuyCredits at the top of the
+// component. Stub it to idle so the dashboard renders without a real
+// wagmi context. The state machine's behavior is covered by
+// useBuyCredits.test.tsx + BuyCreditsDialog.test.tsx.
+vi.mock("@/hooks/useBuyCredits", () => ({
+  useBuyCredits: () => ({
+    state: { phase: "idle" },
+    start: vi.fn(),
+    cancel: vi.fn(),
+    reset: vi.fn(),
+  }),
 }));
 
 const refetchBalanceMock = vi.fn();
