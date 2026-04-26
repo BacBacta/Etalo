@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  body { margin: 0; width: 1080px; height: 1920px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #0F172A; color: white; }
+  .header { padding: 36px 56px; display: flex; justify-content: space-between; align-items: center; }
+  .brand { font-size: 44px; font-weight: 600; letter-spacing: -0.5px; color: #FB923C; }
+  .handle { font-size: 32px; opacity: 0.9; color: #F1F5F9; }
+  .product-image { width: 920px; height: 920px; margin: 60px 80px 0; border-radius: 32px; object-fit: cover; box-shadow: 0 0 80px rgba(251, 146, 60, 0.4); border: 4px solid #FB923C; }
+  .info { text-align: center; padding: 80px 80px 40px; }
+  .badge { display: inline-block; background: #FB923C; color: #0F172A; padding: 12px 32px; border-radius: 999px; font-size: 24px; font-weight: 700; margin-bottom: 32px; letter-spacing: 1px; text-transform: uppercase; }
+  .title { font-size: 56px; font-weight: 700; color: white; margin: 0 0 24px; line-height: 1.1; }
+  .price { font-size: 120px; font-weight: 800; color: #FB923C; margin: 0 0 24px; line-height: 1; }
+  .url { font-size: 28px; color: #94A3B8; margin: 0; }
+</style>
+</head>
+<body>
+<div class="header">
+  <span class="brand">etalo</span>
+  <span class="handle">@{{ seller_handle }}</span>
+</div>
+<img class="product-image" src="{{ product_image_url }}" alt="{{ title }}">
+<div class="info">
+  <span class="badge">New drop</span>
+  <p class="title">{{ title }}</p>
+  <p class="price">{{ price_usdt }} <span style="font-size: 60px;">USDT</span></p>
+  <p class="url">etalo.app/{{ seller_handle }}</p>
+</div>
+</body>
+</html>
