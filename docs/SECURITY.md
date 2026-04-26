@@ -262,6 +262,70 @@ Full tx hashes, block numbers, balance deltas, events, and
 assertion outcomes for every scenario are in
 `packages/contracts/scripts/smoke/scenarioN-result.json` (N = 1..5).
 
+## Sprint J7 — EtaloCredits + Asset Generator smoke (closure)
+
+**Sprint closure date**: 2026-04-26
+**Branch**: `feat/asset-generator-v2` → tagged `v2.0.0-asset-generator-sepolia`
+**Closure pillar**: V1 Boutique pillar 3 (asset generator, ADR-014).
+
+### Contract — `EtaloCredits` invariants
+
+| Property | Value |
+|---|---|
+| Address (Sepolia) | `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` |
+| `USDT_PER_CREDIT` | `150_000` raw (0.15 USDT, 6 decimals) — `constant`, immutable per ADR-014 |
+| `creditsTreasury` | `0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA` — `immutable`, set at construction per ADR-024 (3-treasury split) |
+| `usdt` | `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` (MockUSDT V2) — `immutable` |
+| Reentrancy | `ReentrancyGuard` on `purchaseCredits` |
+| Pause control | `Pausable` (admin only) per ADR-026 |
+| Admin auth | `Ownable` (admin = deployer) |
+| ERC-20 safety | `SafeERC20.safeTransferFrom` (USDT non-standard return per ADR-007) |
+
+### Static analysis — `EtaloCredits.sol`
+
+| Tool | Score |
+|---|---|
+| Slither 0.11.5 | **0 High / 0 Medium / 0 Low / 0 Informational** (101 detectors run, 0 results) |
+| Foundry invariant | `treasury USDT balance == sum(creditAmount × 150_000)` — **12,800 calls, 0 reverts, 0 discards** (256 runs × 50 depth) |
+| Hardhat unit tests | 24/24 specs (constructor, purchase happy paths 1/100/1000, edge cases zero/no-allowance/insufficient, pause/unpause, oracle setter, bytecode size) |
+| Bytecode (runtime) | 1,809 bytes (well below the 24,576-byte Spurious Dragon limit) |
+
+Reports: `packages/contracts/slither-credits-report.json` + `slither-credits-output.txt` + `foundry-test/invariants/EtaloCreditsInvariant.t.sol`.
+
+### On-chain smoke transactions
+
+| Step | Tx hash | Block | Notes |
+|---|---|---|---|
+| Deploy | `0xad954959fc4e36d1142244d00eb73c71ec32a1f7b2d7ef487869f7855266507c` | 23,948,381 | Constructor args: USDT, creditsTreasury, admin (deployer). 4/4 sanity reads OK. |
+| First purchase (smoke) | `0x5f42b22cfbe45cec60994428d02cb1763d40adebce561c4e609b8339fb16588a` | 23,948,656 | 10 credits / 1.5 USDT, deployer wallet → creditsTreasury. `CreditsPurchased(buyer, 10, 1500000, 1777232644)` event verified. |
+| Verify | Etherscan ✓ + Sourcify ✓ + Blockscout ✓ (90s retry on Blockscout indexer lag) |
+
+### MiniPay end-to-end smoke (10/10 paths validated 2026-04-26)
+
+Mike validated the full Block 7a + 7b flow against a real MiniPay
+session on Celo Sepolia (ngrok tunnel + MiniPay Developer Mode):
+
+1. Marketing tab loads in seller dashboard (J6 dashboard tabs unchanged).
+2. `CreditsBalance` widget renders the live balance from `/sellers/me/credits/balance`; lazy welcome bonus (10) + monthly free (5) granted on first call.
+3. Product picker lists the seller's `status='active'` products (J6 reuse).
+4. Template selector shows 5 cards (Instagram Square / Story, WhatsApp Status, TikTok, Facebook Feed) with vibe-specific styling.
+5. "Buy more credits" → `BuyCreditsDialog` opens with 4 presets (10/50/100/250) + custom input.
+6. USDT `approve` tx prompted in MiniPay — confirmed → receipt success.
+7. `EtaloCredits.purchaseCredits(N)` tx prompted in MiniPay — confirmed → receipt success → `CreditsPurchased` event decoded → success view rendered.
+8. Post-success polling (10s/20s/30s/40s) catches the indexer mirror within ~30s — UI balance reflects the new on-chain credits.
+9. "Generate marketing pack" consumes 1 credit, persists `MarketingImage`, returns `{ipfs_hash, image_url, caption, template}` — image preview + EN/Swahili caption switcher render.
+10. Repeat purchase with allowance already set: hook skips the `approve` tx path (1 wallet prompt instead of 2).
+
+End-to-end signal: 6 V2 contracts on-chain + Block 6 backend ledger + Block 7a/7b frontend wiring all integrate cleanly. Sprint J7 closure criteria met.
+
+### Out of scope for J7 (deferred to V1.5+)
+
+- Order receipt PDF / invoice for purchases.
+- Refund or cancel after on-chain purchase confirms (impossible non-custodially — final by design, ADR-022).
+- Promo codes / bulk discount (ADR-014 immutable pricing — no V1 path).
+- French + Pidgin caption languages (V1.5+ — Cameroon/CIV/Senegal markets).
+- LinkedIn / Twitter / Pinterest templates (V1.5+).
+
 ## Static analysis report
 
 **Run date**: 2026-04-24
