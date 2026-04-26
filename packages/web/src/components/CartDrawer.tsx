@@ -24,13 +24,19 @@ interface Props {
 }
 
 export function CartDrawer({ open, onOpenChange }: Props) {
-  // useShallow: getSellerGroups() returns a fresh Array each call
-  // (Array.from(map.values())). Without shallow equality, MiniPay's
-  // strict useSyncExternalStore loops on every render.
-  const sellerGroups = useCartStore(useShallow((s) => s.getSellerGroups()));
-  const totalUsdt = useCartStore((s) => s.getTotalUsdt());
-  const itemCount = useCartStore((s) => s.getItemCount());
-  const clearCart = useCartStore((s) => s.clearCart);
+  // Consolidated single-call selector wrapped with useShallow: returning
+  // an object literal creates a fresh ref every render, but useShallow's
+  // shallow equality on the returned object prevents the
+  // useSyncExternalStore loop in MiniPay's strict WebView regardless of
+  // which inner field returns a new ref (e.g. getSellerGroups()).
+  const { sellerGroups, totalUsdt, itemCount, clearCart } = useCartStore(
+    useShallow((s) => ({
+      sellerGroups: s.getSellerGroups(),
+      totalUsdt: s.getTotalUsdt(),
+      itemCount: s.getItemCount(),
+      clearCart: s.clearCart,
+    })),
+  );
 
   const router = useRouter();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
