@@ -5,8 +5,11 @@ import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
 import { Toaster } from "@/components/ui/sonner";
 
+// `||` (not `??`) so an empty-string env var also falls back. The
+// ngrok dev helper writes `NEXT_PUBLIC_BASE_URL=` until ngrok is up,
+// and `new URL("")` throws — crashing the entire layout SSR.
 const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  process.env.NEXT_PUBLIC_BASE_URL || "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
