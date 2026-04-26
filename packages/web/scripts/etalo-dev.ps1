@@ -33,25 +33,41 @@ if (-not $wtPath) {
     exit 1
 }
 
-# 3. Build the wt command with 3 tabs
+# 3. Open Windows Terminal with backend tab first (creates new window)
 $backendDir = Join-Path $repoRoot "packages\backend"
 $webDir = Join-Path $repoRoot "packages\web"
 
-# Open Windows Terminal with 3 tabs:
-# Tab 1: Backend (FastAPI)
-# Tab 2: Frontend (Next.js)
-# Tab 3: ngrok tunnel
-$wtArgs = @(
-    "-w", "0", "new-tab", "--title", "Etalo Backend", "-d", "`"$backendDir`"",
-    "powershell", "-NoExit", "-Command", "& '.\venv\Scripts\python.exe' scripts\run_dev.py",
-    ";", "new-tab", "--title", "Etalo Frontend", "-d", "`"$webDir`"",
-    "powershell", "-NoExit", "-Command", "npm run dev",
-    ";", "new-tab", "--title", "Etalo ngrok",
-    "powershell", "-NoExit", "-Command", "ngrok http 127.0.0.1:3000"
+Write-Host "Opening Windows Terminal with backend tab..." -ForegroundColor Cyan
+Start-Process wt -ArgumentList @(
+    "new-tab",
+    "--title", "Etalo-Backend",
+    "-d", $backendDir,
+    "cmd", "/k", ".\venv\Scripts\python.exe scripts\run_dev.py"
 )
 
-Write-Host "Opening Windows Terminal with 3 tabs..." -ForegroundColor Cyan
-Start-Process wt -ArgumentList $wtArgs
+# Wait for window to appear before adding tabs
+Start-Sleep -Seconds 2
+
+# 4. Add frontend tab to the same window (window 0 = most recent)
+Write-Host "Adding frontend tab..."
+Start-Process wt -ArgumentList @(
+    "-w", "0",
+    "new-tab",
+    "--title", "Etalo-Frontend",
+    "-d", $webDir,
+    "cmd", "/k", "npm run dev"
+)
+
+Start-Sleep -Seconds 1
+
+# 5. Add ngrok tab
+Write-Host "Adding ngrok tab..."
+Start-Process wt -ArgumentList @(
+    "-w", "0",
+    "new-tab",
+    "--title", "Etalo-ngrok",
+    "cmd", "/k", "ngrok http 127.0.0.1:3000"
+)
 
 Write-Host ""
 Write-Host "Etalo dev environment starting in Windows Terminal." -ForegroundColor Green
