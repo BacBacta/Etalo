@@ -53,6 +53,63 @@ Use when ngrok is already running and you just need to refresh the env.
 .\packages\web\scripts\dev-ngrok.ps1
 ```
 
+## etalo-dev.ps1 - One-command dev environment
+
+Launches backend + frontend + ngrok in 3 Windows Terminal tabs.
+
+### Usage
+
+From the repo root or any directory:
+
+```powershell
+.\packages\web\scripts\etalo-dev.ps1
+```
+
+### Setup global alias (recommended)
+
+Edit your PowerShell profile (`$PROFILE`):
+
+```powershell
+notepad $PROFILE
+```
+
+Add these lines:
+
+```powershell
+function etalo-dev { & "C:\Users\Oxfam\projects\etalo\packages\web\scripts\etalo-dev.ps1" $args }
+function etalo-stop { & "C:\Users\Oxfam\projects\etalo\packages\web\scripts\etalo-stop.ps1" $args }
+```
+
+Save, close. Reload profile:
+
+```powershell
+. $PROFILE
+```
+
+Now from any directory:
+
+```powershell
+etalo-dev    # launches everything
+etalo-stop   # kills everything
+```
+
+### What runs
+
+- **Tab 1 Backend**: FastAPI on http://127.0.0.1:8000
+- **Tab 2 Frontend**: Next.js dev on http://127.0.0.1:3000
+- **Tab 3 ngrok**: https://upright-henna-armless.ngrok-free.dev (your reserved free-tier subdomain)
+
+### Stop
+
+- Run `etalo-stop` (kills services on ports 3000/8000 + ngrok)
+- OR close the Windows Terminal window
+
+### Difference vs dev-startup.ps1
+
+`dev-startup.ps1` runs services in 3 minimized windows + writes `.env.local` automatically with the ngrok URL.
+
+`etalo-dev.ps1` runs services in Windows Terminal tabs (visible logs) + assumes the ngrok subdomain is reserved/stable (no `.env.local` rewrite). Use this when the env is already configured for the reserved tunnel.
+
 ## Execution policy
 
 If PowerShell blocks the scripts:
