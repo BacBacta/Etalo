@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { useShallow } from "zustand/react/shallow";
 
 import { CartItemRow } from "@/components/CartItemRow";
 import { Button } from "@/components/ui/button";
@@ -15,7 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useCartStore } from "@/lib/cart-store";
+import { type SellerGroup, useCartStore } from "@/lib/cart-store";
 import { CartValidationError, postCartToken } from "@/lib/checkout";
 
 interface Props {
@@ -24,19 +23,47 @@ interface Props {
 }
 
 export function CartDrawer({ open, onOpenChange }: Props) {
-  // Consolidated single-call selector wrapped with useShallow: returning
-  // an object literal creates a fresh ref every render, but useShallow's
-  // shallow equality on the returned object prevents the
-  // useSyncExternalStore loop in MiniPay's strict WebView regardless of
-  // which inner field returns a new ref (e.g. getSellerGroups()).
-  const { sellerGroups, totalUsdt, itemCount, clearCart } = useCartStore(
-    useShallow((s) => ({
-      sellerGroups: s.getSellerGroups(),
-      totalUsdt: s.getTotalUsdt(),
-      itemCount: s.getItemCount(),
-      clearCart: s.clearCart,
-    })),
-  );
+  // Read the raw `items` array (a stable reference from Zustand —
+  // changes only when the store actually mutates) and compute derived
+  // values with useMemo. Earlier attempts wrapped the store getters
+  // (getSellerGroups / getTotalUsdt / getItemCount) with useShallow,
+  // but useShallow performs shallow equality on the returned object's
+  // top-level keys — it cannot see through nested arrays. Each call
+  // to s.getSellerGroups() returns Array.from(map.values()), a fresh
+  // array reference, so Object.is at the `sellerGroups` key always
+  // returned false. useShallow therefore yielded a new object every
+  // render, which useSyncExternalStore reported as
+  // "result of getServerSnapshot should be cached" → loop.
+  const items = useCartStore((s) => s.items);
+  const clearCart = useCartStore((s) => s.clearCart);
+
+  const { sellerGroups, totalUsdt, itemCount } = useMemo(() => {
+    const groups = new Map<string, SellerGroup>();
+    let total = 0;
+    let count = 0;
+    for (const item of items) {
+      const lineTotal = Number(item.priceUsdt) * item.qty;
+      total += lineTotal;
+      count += item.qty;
+      const existing = groups.get(item.sellerHandle);
+      if (existing) {
+        existing.items.push(item);
+        existing.subtotalUsdt += lineTotal;
+      } else {
+        groups.set(item.sellerHandle, {
+          sellerHandle: item.sellerHandle,
+          sellerShopName: item.sellerShopName,
+          items: [item],
+          subtotalUsdt: lineTotal,
+        });
+      }
+    }
+    return {
+      sellerGroups: Array.from(groups.values()),
+      totalUsdt: total,
+      itemCount: count,
+    };
+  }, [items]);
 
   const router = useRouter();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
