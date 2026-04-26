@@ -11,7 +11,11 @@ import {
 } from "@/lib/seller-api";
 
 interface Props {
-  profile: SellerProfilePublic;
+  // J7 Block 7a: Marketing stub moved to its own MarketingTab. `profile`
+  // is kept on the props for API compatibility with the dashboard
+  // wiring; remove on the next OverviewTab refactor pass if still
+  // unused.
+  profile: SellerProfilePublic; // eslint-disable-line @typescript-eslint/no-unused-vars
   onchain: SellerProfileResponse;
   address: string;
 }
@@ -23,7 +27,7 @@ const TIER_LABEL: Record<string, string> = {
   TopSeller: "Top Seller",
 };
 
-export function OverviewTab({ profile, onchain, address }: Props) {
+export function OverviewTab({ onchain, address }: Props) {
   const [recent, setRecent] = useState<SellerOrdersPage | null>(null);
 
   useEffect(() => {
@@ -78,18 +82,6 @@ export function OverviewTab({ profile, onchain, address }: Props) {
         )}
       </div>
 
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-        <h3 className="mb-1 text-base font-semibold">
-          Generate marketing image
-        </h3>
-        <p className="text-sm text-neutral-600">
-          Create a beautiful image for your products to share on Instagram,
-          TikTok, WhatsApp. Coming in Sprint J7.
-        </p>
-        <p className="mt-2 text-sm text-neutral-500">
-          @{profile.shop_handle}
-        </p>
-      </div>
     </div>
   );
 }

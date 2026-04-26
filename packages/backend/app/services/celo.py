@@ -49,6 +49,7 @@ ABI_FILES = {
     "EtaloVoting": "EtaloVoting.json",
     "EtaloDispute": "EtaloDispute.json",
     "EtaloEscrow": "EtaloEscrow.json",
+    "EtaloCredits": "EtaloCredits.json",
 }
 
 
@@ -103,6 +104,9 @@ class CeloService:
         self._escrow = self._w3.eth.contract(
             address=self._addresses["escrow"], abi=abis["EtaloEscrow"]
         )
+        self._credits = self._w3.eth.contract(
+            address=self._addresses["credits"], abi=abis["EtaloCredits"]
+        )
 
     @classmethod
     def from_settings(cls) -> "CeloService":
@@ -115,6 +119,7 @@ class CeloService:
                 "voting": settings.etalo_voting_address,
                 "dispute": settings.etalo_dispute_address,
                 "escrow": settings.etalo_escrow_address,
+                "credits": settings.etalo_credits_address,
             },
         )
 

@@ -32,6 +32,7 @@ DEPLOYER_ADDRS = {
     "voting": "0x335Ac0998667F76FE265BC28e6989dc535A901E7",
     "dispute": "0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE",
     "escrow": "0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb",
+    "credits": "0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d",
 }
 
 
@@ -48,7 +49,7 @@ def _stub_w3() -> MagicMock:
 
 # ABI dict keys must match CeloService internal names (contract names,
 # not address-dict keys). Mocks bypass the ABI logic.
-ABI_KEYS = ["MockUSDT", "EtaloReputation", "EtaloStake", "EtaloVoting", "EtaloDispute", "EtaloEscrow"]
+ABI_KEYS = ["MockUSDT", "EtaloReputation", "EtaloStake", "EtaloVoting", "EtaloDispute", "EtaloEscrow", "EtaloCredits"]
 
 
 def _make_service() -> CeloService:

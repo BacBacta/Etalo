@@ -1,0 +1,4 @@
+'forge clean' running (wd: C:\Users\Oxfam\projects\etalo\packages\contracts)
+'forge config --json' running
+'forge build --build-info contracts\EtaloCredits.sol' running (wd: C:\Users\Oxfam\projects\etalo\packages\contracts)
+contracts/EtaloCredits.sol analyzed (10 contracts with 101 detectors), 0 result(s) found

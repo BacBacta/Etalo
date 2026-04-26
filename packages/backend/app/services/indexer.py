@@ -51,6 +51,7 @@ CONTRACT_ATTR = {
     "EtaloStake": "_stake",
     "EtaloReputation": "_reputation",
     "EtaloVoting": "_voting",
+    "EtaloCredits": "_credits",
 }
 
 
@@ -64,13 +65,15 @@ class Indexer:
         self._celo = celo
         self._session_factory = session_factory
         self._stop = asyncio.Event()
-        # Default: index the 4 contracts we have handlers for. Voting is
+        # Default: index the 5 contracts we have handlers for. Voting is
         # deferred to V1.5 per Sprint J5 Block 5 scope decision.
+        # Credits added in J7 Block 6.
         self._contracts = contracts_to_index or [
             "EtaloEscrow",
             "EtaloDispute",
             "EtaloStake",
             "EtaloReputation",
+            "EtaloCredits",
         ]
 
     def stop(self) -> None:

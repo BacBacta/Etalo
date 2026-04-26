@@ -36,6 +36,7 @@ CONTRACTS = [
     ("EtaloVoting", "artifacts/contracts/EtaloVoting.sol/EtaloVoting.json"),
     ("EtaloDispute", "artifacts/contracts/EtaloDispute.sol/EtaloDispute.json"),
     ("EtaloEscrow", "artifacts/contracts/EtaloEscrow.sol/EtaloEscrow.json"),
+    ("EtaloCredits", "artifacts/contracts/EtaloCredits.sol/EtaloCredits.json"),
 ]
 
 DESTINATIONS = [

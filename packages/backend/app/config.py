@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     pinata_jwt: str = ""  # preferred auth; kept for future migration of IPFSService
     pinata_gateway_url: str = "https://gateway.pinata.cloud/ipfs"
 
+    # Anthropic Claude API (Sprint J7 Block 4 — caption generation).
+    # When unset, asset_generator falls back to a deterministic local
+    # caption so the rest of the pipeline keeps working in dev.
+    anthropic_api_key: str = ""
+
     # Twilio WhatsApp
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
@@ -60,6 +65,8 @@ class Settings(BaseSettings):
     etalo_voting_address: str = "0x335Ac0998667F76FE265BC28e6989dc535A901E7"
     etalo_dispute_address: str = "0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE"
     etalo_escrow_address: str = "0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb"
+    # Sprint J7 Block 5b deploy
+    etalo_credits_address: str = "0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d"
 
     # Treasuries (three-wallet separation per ADR-024)
     commission_treasury_address: str = "0x9819c9E1b4F634784fd9A286240ecACd297823fa"

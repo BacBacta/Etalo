@@ -23,3 +23,15 @@ pytest>=8.0,<9.0
 pytest-asyncio>=0.24,<0.25
 pytest-mock>=3.14,<4.0
 respx>=0.21,<0.22
+
+# Asset generator (Sprint J7 — Playwright headless Chromium for marketing image rendering)
+# See ADR-037. Production deploy requires Linux Chromium build deps (see README).
+playwright>=1.58,<2.0
+jinja2>=3.1,<4.0
+# QR code rendering for marketing templates (data: URL embedded in HTML).
+# `qrcode[pil]` pulls Pillow as the imaging backend.
+qrcode[pil]>=8,<9
+
+# Anthropic SDK for Claude API caption generation (Sprint J7 Block 4).
+# Pre-1.0 — pin within minor range to avoid surprise breaks.
+anthropic>=0.97,<1.0

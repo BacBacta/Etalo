@@ -43,6 +43,16 @@
       "constructorArgs": [
         "0x5ce5eba46a72ea49655367c57334e038ea1aa1f3"
       ]
+    },
+    "EtaloCredits": {
+      "address": "0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d",
+      "txHash": "0xad954959fc4e36d1142244d00eb73c71ec32a1f7b2d7ef487869f7855266507c",
+      "block": "23948381",
+      "constructorArgs": [
+        "0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3",
+        "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
+        "0x66bD37325cf41dAd0035398854f209785C9bC4C2"
+      ]
     }
   },
   "setters": [
@@ -126,5 +136,6 @@
     "finalBalance": "10000 USDT"
   },
   "deployedAt": "2026-04-24T00:00:00.000Z",
-  "wiringCompletedAt": "2026-04-24T15:57:52.745Z"
+  "wiringCompletedAt": "2026-04-24T15:57:52.745Z",
+  "creditsDeployedAt": "2026-04-26T19:39:31.049Z"
 }

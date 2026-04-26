@@ -81,6 +81,15 @@ def get_async_engine() -> AsyncEngine:
             pool_pre_ping=True,
             pool_size=10,
             max_overflow=20,
+            # psycopg3 caches prepared statements per connection by name
+            # (`_pg3_N`). Across SQLAlchemy sessions reusing the same
+            # connection from the pool, collisions surface as
+            # DuplicatePreparedStatement. Setting prepare_threshold=None
+            # disables prepared-statement caching entirely — SQLAlchemy's
+            # own statement cache covers the same ground for our workload.
+            # Required for J7 Block 6 (multiple INSERTs into
+            # seller_credits_ledger across handler+test+request paths).
+            connect_args={"prepare_threshold": None},
         )
     return _async_engine
 

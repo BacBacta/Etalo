@@ -8,7 +8,7 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -18,9 +18,11 @@ from app.database import get_async_db, get_db
 from app.models.enums import SellerStatus, StakeTier
 from app.models.order import Order
 from app.models.reputation_cache import ReputationCache
+from app.models.seller_credits_ledger import SellerCreditsLedger
 from app.models.seller_profile import SellerProfile
 from app.models.stake import Stake
 from app.models.user import User
+from app.services import credit_service
 from app.dependencies.seller_auth import require_seller_auth
 from app.models.product import Product
 from app.schemas.seller import (
@@ -321,3 +323,72 @@ async def list_my_products(
     rows = (await db.execute(stmt)).scalars().all()
     items = [MyProductsListItem.model_validate(p) for p in rows]
     return MyProductsListResponse(products=items, total=len(items))
+
+
+# ============================================================
+# J7 Block 6 — credits ledger views
+# ============================================================
+@router.get("/me/credits/balance")
+async def get_my_credits_balance(
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> dict:
+    """Current credits balance. Lazy-grants the welcome bonus (10) on
+    first call and the monthly free pack (5) once per calendar UTC
+    month, both before computing the balance returned to the caller."""
+    await credit_service.grant_welcome_bonus_if_first(seller.id, db)
+    await credit_service.ensure_monthly_free_granted(seller.id, db)
+    balance = await credit_service.get_balance(seller.id, db)
+    return {
+        "balance": balance,
+        "wallet_address": seller.user.wallet_address,
+    }
+
+
+@router.get("/me/credits/history")
+async def get_my_credits_history(
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=50),
+) -> dict:
+    """Paginated ledger entries, newest first. No lazy grants here —
+    /balance is the canonical entry point that triggers them."""
+    offset = (page - 1) * page_size
+    rows = (
+        (
+            await db.execute(
+                select(SellerCreditsLedger)
+                .where(SellerCreditsLedger.seller_id == seller.id)
+                .order_by(SellerCreditsLedger.created_at.desc())
+                .offset(offset)
+                .limit(page_size)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    total = (
+        await db.scalar(
+            select(func.count(SellerCreditsLedger.id)).where(
+                SellerCreditsLedger.seller_id == seller.id
+            )
+        )
+    ) or 0
+
+    return {
+        "entries": [
+            {
+                "id": str(r.id),
+                "credits_delta": r.credits_delta,
+                "source": r.source,
+                "tx_hash": r.tx_hash,
+                "image_id": str(r.image_id) if r.image_id else None,
+                "created_at": r.created_at.isoformat(),
+            }
+            for r in rows
+        ],
+        "page": page,
+        "page_size": page_size,
+        "total": int(total),
+    }

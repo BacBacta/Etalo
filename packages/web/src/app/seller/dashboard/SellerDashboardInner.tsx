@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
+import { MarketingTab } from "@/components/seller/MarketingTab";
 import { OrdersTab } from "@/components/seller/OrdersTab";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProductsTab } from "@/components/seller/ProductsTab";
@@ -22,7 +23,14 @@ import {
   type SellerProfileResponse,
 } from "@/lib/seller-api";
 
-const VALID_TABS = ["overview", "products", "orders", "stake", "profile"] as const;
+const VALID_TABS = [
+  "overview",
+  "products",
+  "orders",
+  "stake",
+  "profile",
+  "marketing",
+] as const;
 type TabKey = (typeof VALID_TABS)[number];
 
 export function SellerDashboardInner() {
@@ -155,12 +163,13 @@ export function SellerDashboardInner() {
         <p className="mb-6 text-sm text-neutral-600">@{profile.shop_handle}</p>
 
         <Tabs value={safeTab} onValueChange={setTab}>
-          <TabsList className="mb-6 grid w-full grid-cols-5">
+          <TabsList className="mb-6 grid w-full grid-cols-3 sm:grid-cols-6">
             <TabsTrigger value="overview">Overview</TabsTrigger>
             <TabsTrigger value="products">Products</TabsTrigger>
             <TabsTrigger value="orders">Orders</TabsTrigger>
             <TabsTrigger value="stake">Stake</TabsTrigger>
             <TabsTrigger value="profile">Profile</TabsTrigger>
+            <TabsTrigger value="marketing">Marketing</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -185,6 +194,9 @@ export function SellerDashboardInner() {
               address={address}
               onUpdated={setProfile}
             />
+          </TabsContent>
+          <TabsContent value="marketing">
+            <MarketingTab />
           </TabsContent>
         </Tabs>
       </div>
