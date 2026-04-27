@@ -4,7 +4,7 @@ import { Instrument_Serif, Inter } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
-import { Toaster } from "@/components/ui/sonner";
+import { ToasterV4 } from "@/components/ui/v4/Toast";
 
 const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
@@ -57,7 +57,7 @@ export default function RootLayout({
         <Providers>
           <PublicHeader />
           {children}
-          <Toaster position="bottom-center" />
+          <ToasterV4 position="bottom-center" />
         </Providers>
       </body>
     </html>
