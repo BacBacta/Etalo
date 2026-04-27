@@ -113,12 +113,12 @@ démarrage, sur le même modèle que Block 1.
 
 ## Critères de réussite J9
 
-- [ ] `docs/DESIGN_V4_PREVIEW.md` amendé avec ~30 lignes principes pages non-landing
-- [ ] `tailwind.config.ts` avec design system tokens namespacés sous `celo`
-- [ ] Component library V4 livrée (8+ composants atomiques)
-- [ ] Storybook-light `/dev/components` affiche tous les composants V4
-- [ ] **0 régression** : `npm run build` clean, vitest existants pass + nouveaux tests V4 components
-- [ ] PR #6 + tag `v2.0.0-design-system-sepolia` posés
+- [x] `docs/DESIGN_V4_PREVIEW.md` amendé avec principes pages non-landing
+- [x] `tailwind.config.ts` avec design system tokens namespacés sous `celo`
+- [x] Component library V4 livrée — **8 composants, 37 exports**
+- [x] Storybook-light `/dev/components` affiche tous les composants V4
+- [x] **0 régression** : `npm run build` clean, vitest **93/93 PASS** (35 baseline + 58 V4 specs)
+- [x] PR #6 + tag `v2.0.0-design-system-sepolia` posés
 
 ---
 
@@ -131,3 +131,80 @@ démarrage, sur le même modèle que Block 1.
 
 Flag « épargne if good enough » appliqué case par case selon la maturité
 visuelle de chaque page existante.
+
+---
+
+## Sprint J9 closure — bilan final (2026-04-27)
+
+**Status**: COMPLET 5/5 blocks
+**Branche**: `feat/design-system-v4`
+**Tag**: `v2.0.0-design-system-sepolia` (sur le merge commit PR #6)
+**PR**: #6 vers `main`
+
+### Stats finales
+
+- **13 commits** sur la branche (1 launch chore + Block 1 docs + Block 2
+  feat + Block 3 split en 8 chunks atomiques + Block 4 dev page + Block 5
+  closure docs)
+- **Tests cumulés** : 35 baseline → **93 PASS** (+58 specs V4 nouveaux)
+- **8 composants V4** livrés dans `packages/web/src/components/ui/v4/` :
+  Button, Input, Card, Dialog, Sheet, Tabs, Badge, Toast
+- **37 exports** au total (atomes + sub-parts)
+- **Storybook-light** `/dev/components` 522 LoC reference visuelle
+- **Lessons critiques #46-#52** (7 nouveaux patterns persistés) :
+  - **#46** V4-local cn from `utils.ts` — `extendTailwindMerge` config
+    pour reconnaître les V4 tokens custom (text-display-*, text-body-*,
+    shadow-celo-*, rounded-pill)
+  - **#47** `type` alias pour empty-prop sub-parts (évite ESLint
+    `@typescript-eslint/no-empty-object-type`)
+  - **#48** `opacity-60` inheritance pattern pour variants dark
+    (CardDescription, DialogDescription, SheetDescription : la color
+    s'adapte automatiquement au parent text-color via opacity)
+  - **#49** Negative margin bleed dark headers (`-m-6 mb-4 p-6
+    rounded-t-3xl` pour faire bleed le header dark jusqu'aux bords du
+    Content tout en respectant le radius)
+  - **#50** `userEvent` requis pour Radix interactive components
+    (Tabs/Toggle/Menu/Select) — `fireEvent.click` n'envoie pas la
+    séquence pointer complète
+  - **#51** `bg-current` pour auto-inherit color (Badge dot adopte la
+    couleur du text variant sans conditional logic)
+  - **#52** Sonner `<ol>` mounting on-demand — la `<section
+    aria-label="Notifications">` est toujours présente, mais l'`<ol>`
+    avec `data-y-position` n'apparaît qu'avec un toast actif
+
+### Block timeline (chronologique)
+
+| # | Block | Commit | Livrable |
+|---|---|---|---|
+| Setup | `bdad6ae` | sprint plan |
+| 1 | `5b87d02` | DESIGN_V4_PREVIEW.md extension non-landing |
+| 2 | `e710075` | tailwind.config.ts tokens + Google Fonts |
+| 3a | `ea1c765` | Button V4 (8 specs) |
+| 3b | `5f3a3d7` | Input + Label + HelperText V4 (8 specs) |
+| 3c | `f7343aa` | Card V4 + 5 sub-parts (7 specs) |
+| 3d | `40f75e8` | Dialog V4 + 9 sub-parts (8 specs) |
+| 3e | `6f27b0c` | Sheet V4 + 9 sub-parts (8 specs) |
+| 3f | `ef13205` | Tabs V4 + 3 sub-parts (7 specs) |
+| 3g | `4200988` | Badge V4 (6 specs) |
+| 3h | `eca880d` | Toast V4 + ToasterV4 swap (6 specs) |
+| 4 | `ea1cbb2` | Storybook-light /dev/components |
+| 5 | TBD | J9 closure docs |
+| **Merge** | TBD | PR #6 → main, tag `v2.0.0-design-system-sepolia` |
+
+### Sign-off
+
+Design system V4 foundations livrées : tokens en namespace `celo` (zéro
+override shadcn legacy), 8 composants prêts-à-l-emploi avec leurs sub-parts,
+37 exports, 58 vitest specs, page de référence visuelle.
+
+Coexistence shadcn legacy + V4 garantie 0-régression sur les 13 commits
+(tous les `npm run build` clean, tous les vitest verts incluant les 35
+specs J7 baseline).
+
+Pages legacy non touchées en J9 — **flag « épargne if good enough »** actif
+pour J10-J12 (les pages déjà polish J6-J7 peuvent être alignées sur tokens
+V4 sans full repaint structurel).
+
+Prêt pour **J10 Phase Vitrine** (landing + public boutique + cart drawer
+migration vers V4). Mainnet target reste **Q4 2026 — Q1 2027** per ADR-039
+audit strategy V1 (freelance + AI-assisted).

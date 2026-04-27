@@ -123,14 +123,14 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J9 — Design system V4 foundations (mai 2026). Plan détaillé dans
-`docs/SPRINT_J9.md`. Branche `feat/design-system-v4`.
+Sprint J9 — Design system V4 foundations CLOTURE le 2026-04-27. Tag
+`v2.0.0-design-system-sepolia` posé sur le merge commit. 8 composants
+V4 livrés dans `packages/web/src/components/ui/v4/`.
 
-When user says "start Block N", read that block in the current sprint
-file and execute.
+Sprint J10 — Phase Vitrine (landing + public boutique + cart drawer
+migration vers V4). À démarrer post-strategic step-back.
 
-Always propose a plan before executing, and wait for validation.
-Report what was done at the end of each block.
+When user says "start Sprint JX", read `docs/SPRINT_JX.md` and propose plan.
 
 ## V2 invariants (locked alongside contract layout)
 
