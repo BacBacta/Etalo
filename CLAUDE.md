@@ -123,15 +123,14 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J8 — Pre-audit CLOTURE le 2026-04-27. Tag
-`v2.0.0-pre-audit-sepolia` posé sur le merge commit.
+Sprint J9 — Design system V4 foundations CLOTURE le 2026-04-27. Tag
+`v2.0.0-design-system-sepolia` posé sur le merge commit. 8 composants
+V4 livrés dans `packages/web/src/components/ui/v4/`.
 
-Sprint J9 — TBD post-Mike strategic step-back. Options : Polish +
-Proof of Ship submission, Infra prod + legal, Audit phase practical
-(freelance + AI review per ADR-039).
+Sprint J10 — Phase Vitrine (landing + public boutique + cart drawer
+migration vers V4). À démarrer post-strategic step-back.
 
-When user says "start Sprint JX", read `docs/SPRINT_JX.md` and propose
-plan.
+When user says "start Sprint JX", read `docs/SPRINT_JX.md` and propose plan.
 
 ## V2 invariants (locked alongside contract layout)
 
