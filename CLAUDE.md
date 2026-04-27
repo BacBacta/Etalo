@@ -123,25 +123,15 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-**Sprint J8 — TBD post-Proof of Ship submission.**
+Sprint J8 — Pre-audit CLOTURE le 2026-04-27. Tag
+`v2.0.0-pre-audit-sepolia` posé sur le merge commit.
 
-J7 (Asset Generator, V1 Boutique pillar 3) closed 2026-04-26 — see
-`docs/SPRINT_J7.md` for the bilan, tagged `v2.0.0-asset-generator-sepolia`.
-J7 scope delivered: Playwright headless image generation + 5 marketing
-templates (Instagram Square + Story + WhatsApp Status + TikTok Cover
-+ Facebook Feed) + Claude API caption generation (EN + Swahili) +
-EtaloCredits hybrid system (on-chain purchase via the contract at
-`0xb201a5...60d`, off-chain consumption ledger). Marketing stub from
-J6 Étape 8.2 replaced by a dedicated `MarketingTab` in the seller
-dashboard with a wagmi-based BuyCreditsDialog.
+Sprint J9 — TBD post-Mike strategic step-back. Options : Polish +
+Proof of Ship submission, Infra prod + legal, Audit phase practical
+(freelance + AI review per ADR-039).
 
-J7 deferred (V1.5+): FR + Pidgin captions, LinkedIn/Twitter templates,
-order receipt PDF, refund post-confirm.
-
-When user says "start Block N", read that block in the active sprint
-spec (J8 spec TBD) and execute. Always propose a plan before
-executing, and wait for validation. Report what was done at the end
-of each block.
+When user says "start Sprint JX", read `docs/SPRINT_JX.md` and propose
+plan.
 
 ## V2 invariants (locked alongside contract layout)
 

@@ -1195,7 +1195,7 @@ helper to the Interactions section of each caller.
 
 ## ADR-033 · 2026-04-24 — Post-slash stake recovery gap (topUpStake requires tier != None)
 
-**Status**: Accepted (documented gap, V1.5 fix planned)
+**Status**: Shipped (J8 Block 1, 2026-04-27)
 
 **Context**: Block 12 testnet smoke-test scenario 4 slashed 5 USDT
 from a Tier.Starter seller holding 10 USDT of stake. Auto-downgrade
@@ -1255,6 +1255,22 @@ test wallet remains on Celo Sepolia with `(stake=5 USDT, tier=None)`
 as a preserved regression fixture. No ABI or event changes; V1.5 is
 a pure constraint relaxation. No production migration required —
 existing slashed sellers benefit automatically once V1.5 deploys.
+
+**Implementation (J8 Block 1, 2026-04-27)**: Two `require` statements
+relaxed in `EtaloStake.sol` (`topUpStake:276` + `upgradeTier:180`),
+both flipped from `_tiers[msg.sender] != None` to
+`_stakes[msg.sender] > 0`. The two-line change is required to
+deliver the full recovery path described above — `topUpStake` alone
+would let the seller fund the orphan but `upgradeTier` would still
+reject `currentTier == None` and leave the seller unable to vend.
+Five regression specs added to `test/EtaloStake.test.ts` under a new
+`"ADR-033 V1.5 — orphan recovery"` describe block: happy path,
+TIER_3_STAKE cap, withdrawal-active block, hard floor at stake=0,
+and full re-activation flow (slash → topUp → upgradeTier(Starter)
+with delta=0). Sepolia is deliberately not redeployed (J8 Q3
+decision); the diff is documented in the audit briefing (Block 4)
+so the firm sees exactly what diverges between the deployed
+instance (`0xBB21...c417`) and the audited source.
 
 ---
 
@@ -1578,3 +1594,234 @@ impacts effort, infrastructure cost, maintenance, and scope.
   J6 Étape 8.2).
 - Pricing model anchor (ADR-014): 0.15 USDT/credit, 5 free/month, 10
   welcome bonus, no subscription. See `docs/PRICING_MODEL_CREDITS.md`.
+
+---
+
+## ADR-038 · 2026-04-27 — Multisig strategy V1 / mainnet (Sepolia single-key rehearsal, 2-of-3 Safe deferred mainnet)
+
+**Status**: Accepted (supersedes ADR-022 multisig sub-decision for the
+V1 Sepolia phase only; ADR-022's non-custodial criteria stand
+unchanged).
+
+**Context**: Sprint J8 Block 3 originally scoped a Safe Sepolia
+deployment with ownership transfer of the 6 V2 contracts as a dress
+rehearsal for mainnet governance. Two operational realities reshape
+that scope:
+
+1. Mike (solo dev) does not yet own a hardware wallet — acquisition
+   was planned for Q3 2026 alongside the audit kickoff but is
+   currently deferred. A single-signer Safe with two software keys
+   adds operational ceremony without raising the security floor over
+   the current deployer EOA.
+2. Sepolia is testnet — no real-USDT exposure. Rehearsing multisig
+   ops with throwaway keys teaches workflow but does not exercise the
+   actual signer set that will hold mainnet ownership.
+
+The bounded perimeter of V1 Sepolia (no real funds, ADR-026 caps
+already in place, every admin function emits an event) makes a
+deferral cheap; the constraint was originally driven by audit-firm
+optics, not by a security gap.
+
+**Decision**:
+
+- **V1 Sepolia (now → mainnet cutover)**: ownership of the six V2
+  contracts (`EtaloReputation`, `EtaloStake`, `EtaloVoting`,
+  `EtaloDispute`, `EtaloEscrow`, `EtaloCredits`) and the three
+  treasuries (`commissionTreasury`, `creditsTreasury`,
+  `communityFund`) stays on the deployer single-key EOA
+  `0x66bD37325cf41dAd0035398854f209785C9bC4C2`. No Safe deployed on
+  Sepolia.
+- **V1 mainnet (pre-J12, before first real-USDT transaction)**: a
+  2-of-3 Safe is deployed on Celo mainnet and ownership is
+  transferred for all 6 contracts + 3 treasuries. Signer set:
+  - Mike hot wallet (software, daily ops)
+  - Mike hardware wallet (cold key, to be acquired Q3 2026)
+  - 3rd-party signer (TBD — candidate pool: trusted technical
+    advisor, audit-firm-recommended custodian, or Celo Foundation
+    grant program signer if grant accepted per ADR-025 Phase 2).
+
+**Rationale**:
+
+- Hardware wallet is the load-bearing security artifact. A 2-of-3
+  Safe with two software keys held by the same person is theatre,
+  not defense; an attacker that compromises the dev machine
+  compromises both keys.
+- Deferring the Safe until the hardware wallet is in hand keeps the
+  signer-set transition single-step (rotate ownership once, not
+  twice). Two ownership rotations on mainnet would each require
+  re-verifying the 9 ownership transfers and re-publishing the
+  multisig address.
+- Sepolia rehearsal value is low: the production signer set will
+  differ from any rehearsal set, and the Safe UI / signing flow is
+  well-documented and stable. The genuine integration risk is
+  hardware-wallet-to-Safe specifically, which cannot be rehearsed
+  without the hardware.
+- The audit firm receives the same threat-model coverage either way:
+  the perimeter, ADR-023 / ADR-026 / ADR-031 invariants, and the
+  3-condition `forceRefund` gate are all in place on the existing
+  EOA. The only delta is "single-key vs multisig" on the admin
+  surface, which the audit firm explicitly reviews against the
+  declared signer set at the time of mainnet handover.
+
+**Risk**:
+
+- **Single-key compromise on Sepolia**: bounded — testnet only, no
+  real funds. Worst case: redeploy Sepolia. Mitigation: deployer
+  private key in a `.env.deployer` file (gitignored), rotated before
+  mainnet cutover.
+- **Audit-firm pushback on single-key Sepolia**: addressed by
+  documenting the multisig roadmap explicitly in this ADR and in the
+  J8 Block 4 audit briefing. The signer-set candidate slate is
+  shared with the firm at engagement kickoff so they can review the
+  proposed mainnet governance during the audit window.
+- **Mainnet cutover delay**: the Safe deployment + 9 ownership
+  transfers must be on the J11/J12 critical path. If the hardware
+  wallet acquisition slips past J11, the audit handover can still
+  proceed (audit happens against Sepolia code) but mainnet launch
+  is blocked until the multisig is operational — by design.
+
+**Replacement plan (J11–J12, before mainnet first tx)**:
+
+1. Acquire hardware wallet (Ledger Nano S Plus or equivalent),
+   initialize, back up seed phrase to two physical locations.
+2. Identify 3rd-party signer; confirm availability, exchange
+   addresses, document contact protocol in `docs/MULTISIG_OPS.md`.
+3. Deploy 2-of-3 Safe on Celo mainnet via the Safe app
+   (`safe.global` Celo deployment).
+4. Transfer ownership of `EtaloReputation`, `EtaloStake`,
+   `EtaloVoting`, `EtaloDispute`, `EtaloEscrow`, `EtaloCredits`
+   (6 calls).
+5. Transfer ownership / signer of the three treasury wallets
+   (3 operations).
+6. Verify on-chain: every `Ownable.owner()` call returns the Safe
+   address; every treasury balance is non-zero only after the Safe
+   is operational.
+7. Document the rotation in `docs/SECURITY.md` "Deployed addresses"
+   section under a new "Mainnet" subsection.
+
+**Acceptance criteria (mainnet gate, blocks first real-USDT tx)**:
+
+- 2-of-3 Safe deployed on Celo mainnet with documented address.
+- Ownership transferred for all 6 V2 contracts (verified via
+  CeloScan `owner()` reads).
+- All 3 treasury wallets either rotated to the Safe or under
+  documented multi-key control.
+- `docs/MULTISIG_OPS.md` shipped (operational runbook: signing
+  procedure, recovery procedure, rotation policy).
+- Audit firm sign-off on the final signer set.
+
+**Impact**:
+
+- Sprint J8 Block 3 scope reduced from "deploy Safe Sepolia + 9
+  ownership transfers + ops doc" (2-3 days) to "ADR-038 + threat
+  model amendment" (~0.5 day).
+- `docs/THREAT_MODEL.md` §4.1, §4.5, §5, §7 amended in the same
+  commit to remove the "transferred to 2-of-3 Safe Sepolia in J8
+  Block 3" claim and replace with "deployer single-key V1 rehearsal
+  scope, multisig 2-of-3 deferred mainnet per ADR-038".
+- `docs/SPRINT_J8.md` Block 3 row updated to reflect the revised
+  scope; the original `docs/MULTISIG_OPS.md` deliverable is moved to
+  the J11/J12 mainnet preparation sprint.
+- ADR-022 V1 multisig sub-decision is superseded for the Sepolia
+  phase only; the non-custodial criteria of ADR-022 (publicly
+  verifiable code, structurally bounded admin powers, code-enforced
+  dispute resolution) remain unchanged on the existing single-key
+  deployment.
+
+---
+
+## ADR-039 · 2026-04-27 — Audit strategy V1 (freelance + AI-assisted self-audit)
+
+**Status**: Accepted (J8 Block 5).
+
+**Context**: Solo developer pre-mainnet, V1 audit budget constrained
+to ~$1,000. Classic audit firms (Cantina, Sherlock, Halborn,
+ConsenSys Diligence, Trail of Bits, Spearbit, etc.) carry
+engagement minimums of $20,000–$30,000+, well outside the V1
+budget. The V1 surface, however, is bounded: `MAX_TVL = 50,000
+USDT` (ADR-026), six contracts at ~3,000 LOC, the five fix-driven
+ADRs (029–033) already caught in self-audit. Industry-standard
+audit cost of 1–3% of TVL would put a rational V1 budget at
+$500–$1,500.
+
+ADR-025 phased-audit plan put a "Phase 3 audit competition or
+firm" target around Q4 2026 – Q1 2027. ADR-039 codifies the
+practical V1 approach within the budget constraint, deferring the
+full firm engagement to V1.5 once revenue + Celo Foundation grant
+funding is in hand.
+
+**Decision**: Skip the classic audit firm for V1. Combine five
+complementary audit angles to cover the in-scope perimeter:
+
+1. **Existing self-audit** (free, already shipped):
+   - Slither 0.11.5 — 50 findings (`0 H / 0 M / 38 L / 12 I`),
+     zero High / Medium severity.
+   - Foundry invariants — 8 invariants, 102,400+ bounded actions
+     cumulative, 0 reverts.
+   - Hardhat unit + integration — 173 unit tests + 15 end-to-end
+     scenarios.
+   - Five fix-driven ADRs (029–033) caught during J4–J7 with
+     regression guards in place.
+2. **Solodit cross-check** (free) — for each contract, scan
+   `solodit.xyz` findings from comparable past audits and
+   spot-check whether any pattern applies to Etalo.
+3. **Foundry extended fuzzing** (free) — bump invariant runs to
+   `4096 × 100 depth = 409,600 actions per invariant` over a
+   single overnight run, looking for low-probability state-space
+   regressions.
+4. **AI-assisted review** (~$100–$300) — one paid month of
+   Olympix or SolidityScan, or a focused Claude API session
+   targeting `EtaloEscrow` and `EtaloStake` (the two largest
+   contracts and the highest-value fund-moving surfaces).
+   Likely-pattern categories: access control, non-classical
+   reentrancy, integer arithmetic edge cases.
+5. **Human freelance reviewer** (~$500–$800) — one reputable
+   reviewer sourced via the Cantina Code marketplace or the
+   Code4rena Watson list. Two to three days focused on
+   `EtaloEscrow` and `EtaloStake`. Selection criteria: documented
+   DeFi audit track record, native English communication, response
+   time under 48 hours.
+
+**Total V1 audit budget**: ~$600–$1,100, within the ~$1,000
+target.
+
+**V1 audit acceptance criteria**:
+
+- All five angles executed.
+- Critical findings (High / Medium) — if any — receive remedies
+  plus regression tests before mainnet deploy.
+- Freelance final report archived at
+  `docs/audits/v1-freelance-review.md`.
+- Mainnet deploy is blocked while any critical finding remains
+  unresolved.
+
+**V1.5 mainnet audit** (deferred): full firm engagement after the
+Celo Foundation grants window (September 2026) and once revenue
+funds a $20,000–$60,000 audit budget. Firm selection happens
+in J11 or later depending on grant timing.
+
+**Risk acknowledged**: V1 audit coverage is less exhaustive than a
+firm engagement. Compensating mitigations:
+
+- `MAX_TVL = 50,000 USDT` cap (ADR-026) bounds the financial
+  exposure of any missed vulnerability.
+- `emergencyPause` (7-day auto-expiry, 30-day cooldown) and the
+  three-condition `forceRefund` (ADR-023) provide
+  code-enforced break-glass paths.
+- Immunefi bug bounty post-launch (ADR-025 Phase 4) backstops the
+  V1 surface in production.
+- V1.5 firm audit captures any V1 issues before TVL grows past
+  the cap.
+
+**Impact**:
+
+- Sprint J8 Block 5 ships ADR-039 instead of a firm RFP outreach.
+- The J11 audit phase becomes a 3–5 day freelance + AI review
+  rather than a 6–12 week firm engagement.
+- V1 mainnet timeline is accelerated: September–October 2026
+  feasible, versus a Q1 2027 conservative estimate under firm
+  engagement.
+
+**Supersedes**: none. ADR-039 complements ADR-025 (phased audit
+strategy) and refines its V1 phase without invalidating prior
+decisions.
