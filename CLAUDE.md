@@ -123,14 +123,15 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J8 — Pre-audit (mai 2026). Plan détaillé dans
-`docs/SPRINT_J8.md`. Branche `feat/pre-audit-v2`.
+Sprint J8 — Pre-audit CLOTURE le 2026-04-27. Tag
+`v2.0.0-pre-audit-sepolia` posé sur le merge commit.
 
-When user says "start Block N", read that block in the current sprint
-file and execute.
+Sprint J9 — TBD post-Mike strategic step-back. Options : Polish +
+Proof of Ship submission, Infra prod + legal, Audit phase practical
+(freelance + AI review per ADR-039).
 
-Always propose a plan before executing, and wait for validation.
-Report what was done at the end of each block.
+When user says "start Sprint JX", read `docs/SPRINT_JX.md` and propose
+plan.
 
 ## V2 invariants (locked alongside contract layout)
 
