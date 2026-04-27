@@ -1594,3 +1594,136 @@ impacts effort, infrastructure cost, maintenance, and scope.
   J6 Étape 8.2).
 - Pricing model anchor (ADR-014): 0.15 USDT/credit, 5 free/month, 10
   welcome bonus, no subscription. See `docs/PRICING_MODEL_CREDITS.md`.
+
+---
+
+## ADR-038 · 2026-04-27 — Multisig strategy V1 / mainnet (Sepolia single-key rehearsal, 2-of-3 Safe deferred mainnet)
+
+**Status**: Accepted (supersedes ADR-022 multisig sub-decision for the
+V1 Sepolia phase only; ADR-022's non-custodial criteria stand
+unchanged).
+
+**Context**: Sprint J8 Block 3 originally scoped a Safe Sepolia
+deployment with ownership transfer of the 6 V2 contracts as a dress
+rehearsal for mainnet governance. Two operational realities reshape
+that scope:
+
+1. Mike (solo dev) does not yet own a hardware wallet — acquisition
+   was planned for Q3 2026 alongside the audit kickoff but is
+   currently deferred. A single-signer Safe with two software keys
+   adds operational ceremony without raising the security floor over
+   the current deployer EOA.
+2. Sepolia is testnet — no real-USDT exposure. Rehearsing multisig
+   ops with throwaway keys teaches workflow but does not exercise the
+   actual signer set that will hold mainnet ownership.
+
+The bounded perimeter of V1 Sepolia (no real funds, ADR-026 caps
+already in place, every admin function emits an event) makes a
+deferral cheap; the constraint was originally driven by audit-firm
+optics, not by a security gap.
+
+**Decision**:
+
+- **V1 Sepolia (now → mainnet cutover)**: ownership of the six V2
+  contracts (`EtaloReputation`, `EtaloStake`, `EtaloVoting`,
+  `EtaloDispute`, `EtaloEscrow`, `EtaloCredits`) and the three
+  treasuries (`commissionTreasury`, `creditsTreasury`,
+  `communityFund`) stays on the deployer single-key EOA
+  `0x66bD37325cf41dAd0035398854f209785C9bC4C2`. No Safe deployed on
+  Sepolia.
+- **V1 mainnet (pre-J12, before first real-USDT transaction)**: a
+  2-of-3 Safe is deployed on Celo mainnet and ownership is
+  transferred for all 6 contracts + 3 treasuries. Signer set:
+  - Mike hot wallet (software, daily ops)
+  - Mike hardware wallet (cold key, to be acquired Q3 2026)
+  - 3rd-party signer (TBD — candidate pool: trusted technical
+    advisor, audit-firm-recommended custodian, or Celo Foundation
+    grant program signer if grant accepted per ADR-025 Phase 2).
+
+**Rationale**:
+
+- Hardware wallet is the load-bearing security artifact. A 2-of-3
+  Safe with two software keys held by the same person is theatre,
+  not defense; an attacker that compromises the dev machine
+  compromises both keys.
+- Deferring the Safe until the hardware wallet is in hand keeps the
+  signer-set transition single-step (rotate ownership once, not
+  twice). Two ownership rotations on mainnet would each require
+  re-verifying the 9 ownership transfers and re-publishing the
+  multisig address.
+- Sepolia rehearsal value is low: the production signer set will
+  differ from any rehearsal set, and the Safe UI / signing flow is
+  well-documented and stable. The genuine integration risk is
+  hardware-wallet-to-Safe specifically, which cannot be rehearsed
+  without the hardware.
+- The audit firm receives the same threat-model coverage either way:
+  the perimeter, ADR-023 / ADR-026 / ADR-031 invariants, and the
+  3-condition `forceRefund` gate are all in place on the existing
+  EOA. The only delta is "single-key vs multisig" on the admin
+  surface, which the audit firm explicitly reviews against the
+  declared signer set at the time of mainnet handover.
+
+**Risk**:
+
+- **Single-key compromise on Sepolia**: bounded — testnet only, no
+  real funds. Worst case: redeploy Sepolia. Mitigation: deployer
+  private key in a `.env.deployer` file (gitignored), rotated before
+  mainnet cutover.
+- **Audit-firm pushback on single-key Sepolia**: addressed by
+  documenting the multisig roadmap explicitly in this ADR and in the
+  J8 Block 4 audit briefing. The signer-set candidate slate is
+  shared with the firm at engagement kickoff so they can review the
+  proposed mainnet governance during the audit window.
+- **Mainnet cutover delay**: the Safe deployment + 9 ownership
+  transfers must be on the J11/J12 critical path. If the hardware
+  wallet acquisition slips past J11, the audit handover can still
+  proceed (audit happens against Sepolia code) but mainnet launch
+  is blocked until the multisig is operational — by design.
+
+**Replacement plan (J11–J12, before mainnet first tx)**:
+
+1. Acquire hardware wallet (Ledger Nano S Plus or equivalent),
+   initialize, back up seed phrase to two physical locations.
+2. Identify 3rd-party signer; confirm availability, exchange
+   addresses, document contact protocol in `docs/MULTISIG_OPS.md`.
+3. Deploy 2-of-3 Safe on Celo mainnet via the Safe app
+   (`safe.global` Celo deployment).
+4. Transfer ownership of `EtaloReputation`, `EtaloStake`,
+   `EtaloVoting`, `EtaloDispute`, `EtaloEscrow`, `EtaloCredits`
+   (6 calls).
+5. Transfer ownership / signer of the three treasury wallets
+   (3 operations).
+6. Verify on-chain: every `Ownable.owner()` call returns the Safe
+   address; every treasury balance is non-zero only after the Safe
+   is operational.
+7. Document the rotation in `docs/SECURITY.md` "Deployed addresses"
+   section under a new "Mainnet" subsection.
+
+**Acceptance criteria (mainnet gate, blocks first real-USDT tx)**:
+
+- 2-of-3 Safe deployed on Celo mainnet with documented address.
+- Ownership transferred for all 6 V2 contracts (verified via
+  CeloScan `owner()` reads).
+- All 3 treasury wallets either rotated to the Safe or under
+  documented multi-key control.
+- `docs/MULTISIG_OPS.md` shipped (operational runbook: signing
+  procedure, recovery procedure, rotation policy).
+- Audit firm sign-off on the final signer set.
+
+**Impact**:
+
+- Sprint J8 Block 3 scope reduced from "deploy Safe Sepolia + 9
+  ownership transfers + ops doc" (2-3 days) to "ADR-038 + threat
+  model amendment" (~0.5 day).
+- `docs/THREAT_MODEL.md` §4.1, §4.5, §5, §7 amended in the same
+  commit to remove the "transferred to 2-of-3 Safe Sepolia in J8
+  Block 3" claim and replace with "deployer single-key V1 rehearsal
+  scope, multisig 2-of-3 deferred mainnet per ADR-038".
+- `docs/SPRINT_J8.md` Block 3 row updated to reflect the revised
+  scope; the original `docs/MULTISIG_OPS.md` deliverable is moved to
+  the J11/J12 mainnet preparation sprint.
+- ADR-022 V1 multisig sub-decision is superseded for the Sepolia
+  phase only; the non-custodial criteria of ADR-022 (publicly
+  verifiable code, structurally bounded admin powers, code-enforced
+  dispute resolution) remain unchanged on the existing single-key
+  deployment.

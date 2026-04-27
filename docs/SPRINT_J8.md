@@ -30,7 +30,7 @@ V1.5.
 |---|---|---|---|
 | 1 | ADR-033 V1.5 fix | 1-2j | 1 commit fix relax `topUpStake` + regression test |
 | 2 | Threat model document | 3-4j | `docs/THREAT_MODEL.md` ~10 sections |
-| 3 | Multisig setup Sepolia | 2-3j | Safe Sepolia + ownership transfer + `docs/MULTISIG_OPS.md` |
+| 3 | ADR-038 multisig strategy + threat model amendment | 0.5j | ADR-038 (V1 Sepolia single-key rehearsal, 2-of-3 Safe deferred mainnet) — revised scope, no hardware wallet yet. Safe deploy + `docs/MULTISIG_OPS.md` reslotted to J11/J12 pre-mainnet. |
 | 4 | Audit briefing package | 2-3j | `docs/AUDIT_BRIEFING.md` + ADR index commenté |
 | 5 | Audit firms RFP + booking | 1-2j actif + 1-2 sem passive | 3-5 quotes + 1 firm signée |
 | 6 | V1.5 backlog + closure | ~1j | `docs/V1.5_BACKLOG.md` + PR #5 + tag `v2.0.0-pre-audit-sepolia` |
@@ -70,9 +70,12 @@ démarrage, sur le même modèle que Block 1.
 - **Block 2** — Threat model : ~10 sections (acteurs, surfaces d'attaque,
   invariants on-chain, scénarios d'abus, hypothèses de confiance,
   contrôles compensatoires, plan de réponse incident).
-- **Block 3** — Multisig Sepolia : décider Q2 signers (3/5 typiquement),
-  déployer Safe Sepolia, transférer ownership des 6 contrats V2,
-  documenter ops (`docs/MULTISIG_OPS.md`).
+- **Block 3** — ADR-038 multisig strategy : V1 Sepolia reste single-key
+  deployer (rehearsal scope, no hardware wallet yet), 2-of-3 Safe
+  deferred mainnet (signers Mike hot + Mike hardware + 3rd-party TBD).
+  Amendement `docs/THREAT_MODEL.md` §4.1/§4.5/§5/§7. Safe deploy +
+  ownership transfer + `docs/MULTISIG_OPS.md` reslotted J11/J12
+  pre-mainnet.
 - **Block 4** — Briefing audit : `docs/AUDIT_BRIEFING.md` avec scope,
   threat model, addresses Sepolia, ADR index commenté, contraintes,
   hot spots à scruter.

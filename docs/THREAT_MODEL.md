@@ -112,7 +112,7 @@ The V2 indexer (`backend/app/indexer_v2.py` and the `services/` mirror layer) is
 
 ## 3. Per-contract threat surface
 
-Contracts are presented in **wiring topology order**: Reputation → Stake → Voting → Dispute → Escrow → Credits. This matches the deployment ordering enforced by the Hardhat deploy script and by the Foundry invariant setUp at `foundry-test/invariants/Invariants.t.sol:33-78`. Setters are not immutable; they are set once at deploy time and ownership is then transferred to the 2-of-3 Safe multisig (Sprint J8 Block 3).
+Contracts are presented in **wiring topology order**: Reputation → Stake → Voting → Dispute → Escrow → Credits. This matches the deployment ordering enforced by the Hardhat deploy script and by the Foundry invariant setUp at `foundry-test/invariants/Invariants.t.sol:33-78`. Setters are not immutable; they are set once at deploy time. V1 Sepolia ownership remains on the deployer single-key EOA (rehearsal scope); the 2-of-3 Safe + ownership transfer is deferred to mainnet pre-J12 per ADR-038.
 
 For each contract: roles · critical state vars · modifiers/invariants · attack vectors considered + mitigations · out-of-scope V1.
 
@@ -152,7 +152,7 @@ For each contract: roles · critical state vars · modifiers/invariants · attac
 **N3 voter list** — built at escalation time from `_mediatorsList` excluding the assigned `n2Mediator` (line 233-249). Prevents the mediator who already adjudicated N2 from also voting in N3.
 **ADR-030 sole authority** — `_applyResolution` is the only call site of `reputation.recordDispute`. Escrow's `resolveItemDispute` does not duplicate the call, eliminating the J4 Block 8 double-count regression.
 **ADR-029 N3 cap** — `resolveFromVote` caps refundAmount at `item.itemPrice - item.releasedAmount` so a buyer-favorable N3 vote can never refund more than what is left in escrow (line 327-328). Already-released milestones (20% shipping, 70% arrival per ADR-018) stay with the seller.
-**Vectors considered** — re-entry (`nonReentrant` on `openDispute`, `resolveN1Amicable`, `resolveN2Mediation`, `resolveFromVote`); skipping a level (level guards on each escalation); resolving twice (`!d.resolved` guard); voter list gaming (mediator approval is `onlyOwner`, will be 2-of-3 multisig post-J8); orphan dispute when escrow is auto-refunded (mitigated by ADR-031, see Escrow).
+**Vectors considered** — re-entry (`nonReentrant` on `openDispute`, `resolveN1Amicable`, `resolveN2Mediation`, `resolveFromVote`); skipping a level (level guards on each escalation); resolving twice (`!d.resolved` guard); voter list gaming (mediator approval is `onlyOwner`, on the deployer single-key EOA in V1 Sepolia, transitioning to 2-of-3 Safe pre-mainnet per ADR-038); orphan dispute when escrow is auto-refunded (mitigated by ADR-031, see Escrow).
 **V1 out of scope** — multi-item disputes, mediator reputation slashing, jury staking.
 
 ### 3.5 EtaloEscrow (`EtaloEscrow.sol`, 1146 LOC)
@@ -181,7 +181,7 @@ For each contract: roles · critical state vars · modifiers/invariants · attac
 
 ### 4.1 Wiring topology (deployment ordering)
 
-Contracts are deployed in topological order: Reputation, Stake, Voting, Dispute, Escrow, Credits. Setters are then called once each — `escrow.setStakeContract`, `escrow.setDisputeContract`, etc. — and ownership is transferred to a 2-of-3 Safe Sepolia multisig in J8 Block 3. Setters are not immutable because deployment ordering forces forward references that no constructor can satisfy in a single transaction. The Foundry invariant suite at `foundry-test/invariants/Invariants.t.sol:33-78` mirrors the production wiring exactly.
+Contracts are deployed in topological order: Reputation, Stake, Voting, Dispute, Escrow, Credits. Setters are then called once each — `escrow.setStakeContract`, `escrow.setDisputeContract`, etc. V1 Sepolia ownership stays on the deployer single-key EOA (rehearsal scope); ownership transfer to a 2-of-3 Safe is deferred to mainnet pre-J12 per ADR-038. Setters are not immutable because deployment ordering forces forward references that no constructor can satisfy in a single transaction. The Foundry invariant suite at `foundry-test/invariants/Invariants.t.sol:33-78` mirrors the production wiring exactly.
 
 ### 4.2 Sole-authority pattern (ADR-030 regression)
 
@@ -197,22 +197,22 @@ Every dispute open/close pairs with `pauseWithdrawal` / `resumeWithdrawal`. `tri
 
 ### 4.5 Trust boundaries and modifiers
 
-The cross-contract ACL is enforced by per-contract modifiers, not by a shared registry. `onlyDispute` (Stake), `onlyEscrow` (Stake), `onlyVoting` (Dispute), `onlyAssignedMediator` (Dispute), `onlyAuthorized` (Reputation). Each modifier reads the corresponding setter slot (`disputeContract`, `escrowContract`, `voting`, `n2Mediator`, `isAuthorizedCaller`). Once ownership transfers to the multisig, all setter calls become governance actions, making the boundaries effectively immutable for the lifetime of V1.
+The cross-contract ACL is enforced by per-contract modifiers, not by a shared registry. `onlyDispute` (Stake), `onlyEscrow` (Stake), `onlyVoting` (Dispute), `onlyAssignedMediator` (Dispute), `onlyAuthorized` (Reputation). Each modifier reads the corresponding setter slot (`disputeContract`, `escrowContract`, `voting`, `n2Mediator`, `isAuthorizedCaller`). On V1 Sepolia, setter calls go through the deployer single-key EOA; once mainnet ownership transfers to the 2-of-3 Safe (ADR-038), every setter call becomes a governance action and the boundaries are effectively immutable for the lifetime of V1.
 
 ---
 
 ## 5. Privileged roles inventory
 
-The protocol exposes a small, enumerable set of privileged roles. After J8 Block 3, every `owner`-scoped function below sits behind a 2-of-3 Safe Sepolia multisig. The list is exhaustive; if an audit finding identifies a function not listed here, it represents a bug or an undocumented power.
+The protocol exposes a small, enumerable set of privileged roles. V1 Sepolia ownership is the deployer single-key EOA (rehearsal scope, no real-USDT exposure); the 2-of-3 Safe and the ownership rotation for all 6 contracts + 3 treasuries are deferred to mainnet pre-J12 per ADR-038. The list is exhaustive; if an audit finding identifies a function not listed here, it represents a bug or an undocumented power.
 
-| Role | Holder (V1) | Powers |
+| Role | Holder (V1 Sepolia → mainnet) | Powers |
 |---|---|---|
-| `owner` (Reputation) | Deployer → 2-of-3 Safe | `setAuthorizedCaller`, `applySanction` |
-| `owner` (Stake) | Deployer → 2-of-3 Safe | `setReputationContract`, `setDisputeContract`, `setEscrowContract`, `setCommunityFund` |
-| `owner` (Voting) | Deployer → 2-of-3 Safe | `setDisputeContract` |
-| `owner` (Dispute) | Deployer → 2-of-3 Safe | `setEscrow`, `setStake`, `setVoting`, `setReputation`, `approveMediator`, `assignN2Mediator` |
-| `owner` (Escrow) | Deployer → 2-of-3 Safe | `setStakeContract`, `setDisputeContract`, `setReputationContract`, `setCommissionTreasury`, `setCreditsTreasury`, `setCommunityFund`, `forceRefund` (3 conditions, ADR-023), `emergencyPause` (7d auto-expiry, 30d cooldown, ADR-026), `registerLegalHold` |
-| `owner` (Credits) | Deployer → 2-of-3 Safe | `pause`, `unpause`, `setBackendOracle` |
+| `owner` (Reputation) | Deployer EOA → 2-of-3 Safe (mainnet, ADR-038) | `setAuthorizedCaller`, `applySanction` |
+| `owner` (Stake) | Deployer EOA → 2-of-3 Safe (mainnet, ADR-038) | `setReputationContract`, `setDisputeContract`, `setEscrowContract`, `setCommunityFund` |
+| `owner` (Voting) | Deployer EOA → 2-of-3 Safe (mainnet, ADR-038) | `setDisputeContract` |
+| `owner` (Dispute) | Deployer EOA → 2-of-3 Safe (mainnet, ADR-038) | `setEscrow`, `setStake`, `setVoting`, `setReputation`, `approveMediator`, `assignN2Mediator` |
+| `owner` (Escrow) | Deployer EOA → 2-of-3 Safe (mainnet, ADR-038) | `setStakeContract`, `setDisputeContract`, `setReputationContract`, `setCommissionTreasury`, `setCreditsTreasury`, `setCommunityFund`, `forceRefund` (3 conditions, ADR-023), `emergencyPause` (7d auto-expiry, 30d cooldown, ADR-026), `registerLegalHold` |
+| `owner` (Credits) | Deployer EOA → 2-of-3 Safe (mainnet, ADR-038) | `pause`, `unpause`, `setBackendOracle` |
 | `disputeContract` | Set once at deploy | Stake hooks `pauseWithdrawal`, `resumeWithdrawal`, `slashStake`; Reputation `recordDispute`, `checkAndUpdateTopSeller`; Voting `createVote`; Escrow `markItemDisputed`, `resolveItemDispute` |
 | `escrowContract` | Set once at deploy | Stake hooks `incrementActiveSales`, `decrementActiveSales`; Reputation `recordCompletedOrder`, `checkAndUpdateTopSeller` |
 | `assignedMediator` | Per-dispute, by `owner` | `resolveN2Mediation` for that dispute |
@@ -221,7 +221,7 @@ The protocol exposes a small, enumerable set of privileged roles. After J8 Block
 | `backendOracle` | V1 setter-only | No on-chain power in V1; reserved for V1.5+ `recordConsumption` hook |
 | `isAuthorizedCaller[]` | Whitelist set by `owner` | Reputation write access — Escrow + Dispute |
 
-Three properties make this list defensible against role escalation: every `owner` function emits an event, every cross-contract pseudo-role is fixed at deploy time and re-set behind a multisig action, and the per-dispute `assignedMediator` is bounded by the `LEVEL_N2` window (no power before assignment, none after `resolved`). The N3 voter pool is iterable on-chain (`mediatorsCount`, `_mediatorsList`), so the audit firm can enumerate it directly.
+Three properties make this list defensible against role escalation: every `owner` function emits an event, every cross-contract pseudo-role is fixed at deploy time and re-set only through an `owner`-gated setter (single-key on Sepolia, 2-of-3 Safe on mainnet per ADR-038), and the per-dispute `assignedMediator` is bounded by the `LEVEL_N2` window (no power before assignment, none after `resolved`). The N3 voter pool is iterable on-chain (`mediatorsCount`, `_mediatorsList`), so the audit firm can enumerate it directly.
 
 ---
 
@@ -254,7 +254,8 @@ Format: `ADR-XXX — feature, why deferred`.
 - **ADR-003** — CIP-64 fee-in-USDT deferred; V1 uses CELO gas. MiniPay USDT-fee path requires a separate contract adapter deferred to V1.5.
 - **ADR-004** — frontend-driven order sync, superseded by the J5 V2 indexer; listed as historical context only.
 - **ADR-007** — USDT mainnet `approve(0)` reset-to-zero quirk handled by `SafeERC20` in `EtaloCredits`; legacy paths in `EtaloEscrow` and `EtaloStake` use raw `transferFrom` because all callers are first-time-allowance flows. Not exploitable in V1 surface.
-- **ADR-022** — multisig V3+ deferred; V1 = single-key per treasury wallet, with J8 Block 3 transferring contract ownership (not treasuries) to a 2-of-3 Safe Sepolia.
+- **ADR-022** — non-custodial criteria locked V1; the multisig sub-decision is superseded for the Sepolia phase by ADR-038 (see below).
+- **ADR-038** — multisig deferred mainnet. V1 Sepolia ownership remains on the deployer single-key EOA (rehearsal scope, no real-USDT exposure). 2-of-3 Safe (Mike hot + Mike hardware + 3rd-party TBD) deployed on Celo mainnet pre-J12; ownership of all 6 contracts and 3 treasuries transferred before the first real-USDT transaction. Hardware wallet acquisition pending.
 - **ADR-024** — three-treasury split (`commissionTreasury`, `creditsTreasury`, `communityFund`) locked V1; merging into a single wallet is forbidden.
 - **ADR-026** — immutable architectural caps, no governance V1; lifting requires redeploy.
 - **ADR-033 V1.5** — `topUpStake` + `upgradeTier` orphan-stake recovery, shipped J8 Block 1 on `feat/pre-audit-v2`. Sepolia is not redeployed; the diff is captured in the J8 Block 4 audit briefing.
