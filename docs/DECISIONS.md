@@ -1727,3 +1727,101 @@ optics, not by a security gap.
   verifiable code, structurally bounded admin powers, code-enforced
   dispute resolution) remain unchanged on the existing single-key
   deployment.
+
+---
+
+## ADR-039 · 2026-04-27 — Audit strategy V1 (freelance + AI-assisted self-audit)
+
+**Status**: Accepted (J8 Block 5).
+
+**Context**: Solo developer pre-mainnet, V1 audit budget constrained
+to ~$1,000. Classic audit firms (Cantina, Sherlock, Halborn,
+ConsenSys Diligence, Trail of Bits, Spearbit, etc.) carry
+engagement minimums of $20,000–$30,000+, well outside the V1
+budget. The V1 surface, however, is bounded: `MAX_TVL = 50,000
+USDT` (ADR-026), six contracts at ~3,000 LOC, the five fix-driven
+ADRs (029–033) already caught in self-audit. Industry-standard
+audit cost of 1–3% of TVL would put a rational V1 budget at
+$500–$1,500.
+
+ADR-025 phased-audit plan put a "Phase 3 audit competition or
+firm" target around Q4 2026 – Q1 2027. ADR-039 codifies the
+practical V1 approach within the budget constraint, deferring the
+full firm engagement to V1.5 once revenue + Celo Foundation grant
+funding is in hand.
+
+**Decision**: Skip the classic audit firm for V1. Combine five
+complementary audit angles to cover the in-scope perimeter:
+
+1. **Existing self-audit** (free, already shipped):
+   - Slither 0.11.5 — 50 findings (`0 H / 0 M / 38 L / 12 I`),
+     zero High / Medium severity.
+   - Foundry invariants — 8 invariants, 102,400+ bounded actions
+     cumulative, 0 reverts.
+   - Hardhat unit + integration — 173 unit tests + 15 end-to-end
+     scenarios.
+   - Five fix-driven ADRs (029–033) caught during J4–J7 with
+     regression guards in place.
+2. **Solodit cross-check** (free) — for each contract, scan
+   `solodit.xyz` findings from comparable past audits and
+   spot-check whether any pattern applies to Etalo.
+3. **Foundry extended fuzzing** (free) — bump invariant runs to
+   `4096 × 100 depth = 409,600 actions per invariant` over a
+   single overnight run, looking for low-probability state-space
+   regressions.
+4. **AI-assisted review** (~$100–$300) — one paid month of
+   Olympix or SolidityScan, or a focused Claude API session
+   targeting `EtaloEscrow` and `EtaloStake` (the two largest
+   contracts and the highest-value fund-moving surfaces).
+   Likely-pattern categories: access control, non-classical
+   reentrancy, integer arithmetic edge cases.
+5. **Human freelance reviewer** (~$500–$800) — one reputable
+   reviewer sourced via the Cantina Code marketplace or the
+   Code4rena Watson list. Two to three days focused on
+   `EtaloEscrow` and `EtaloStake`. Selection criteria: documented
+   DeFi audit track record, native English communication, response
+   time under 48 hours.
+
+**Total V1 audit budget**: ~$600–$1,100, within the ~$1,000
+target.
+
+**V1 audit acceptance criteria**:
+
+- All five angles executed.
+- Critical findings (High / Medium) — if any — receive remedies
+  plus regression tests before mainnet deploy.
+- Freelance final report archived at
+  `docs/audits/v1-freelance-review.md`.
+- Mainnet deploy is blocked while any critical finding remains
+  unresolved.
+
+**V1.5 mainnet audit** (deferred): full firm engagement after the
+Celo Foundation grants window (September 2026) and once revenue
+funds a $20,000–$60,000 audit budget. Firm selection happens
+in J11 or later depending on grant timing.
+
+**Risk acknowledged**: V1 audit coverage is less exhaustive than a
+firm engagement. Compensating mitigations:
+
+- `MAX_TVL = 50,000 USDT` cap (ADR-026) bounds the financial
+  exposure of any missed vulnerability.
+- `emergencyPause` (7-day auto-expiry, 30-day cooldown) and the
+  three-condition `forceRefund` (ADR-023) provide
+  code-enforced break-glass paths.
+- Immunefi bug bounty post-launch (ADR-025 Phase 4) backstops the
+  V1 surface in production.
+- V1.5 firm audit captures any V1 issues before TVL grows past
+  the cap.
+
+**Impact**:
+
+- Sprint J8 Block 5 ships ADR-039 instead of a firm RFP outreach.
+- The J11 audit phase becomes a 3–5 day freelance + AI review
+  rather than a 6–12 week firm engagement.
+- V1 mainnet timeline is accelerated: September–October 2026
+  feasible, versus a Q1 2027 conservative estimate under firm
+  engagement.
+
+**Supersedes**: none. ADR-039 complements ADR-025 (phased audit
+strategy) and refines its V1 phase without invalidating prior
+decisions.
