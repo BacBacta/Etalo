@@ -575,4 +575,90 @@ describe("EtaloStake", async function () {
       assert.equal(await stake.read.getTier([seller.account.address]), TIER_ESTABLISHED);
     });
   });
+
+  // ── ADR-033 V1.5 — orphan recovery ────────────────────────
+  describe("ADR-033 V1.5 — orphan recovery", function () {
+    it("topUpStake works on orphan stake post-slash to Tier.None", async function () {
+      const { stake, seller, buyer, fakeDispute } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+
+      // Slash 5 → orphan state (stake=5, tier=None).
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(5), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(5));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_NONE);
+
+      // The fix: topUpStake now accepts orphan state.
+      await stake.write.topUpStake([toUSDT(5)], { account: seller.account });
+
+      // Stake topped up; tier intentionally unchanged — caller must
+      // upgradeTier explicitly per ADR-033 § V1.5 fix path.
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(10));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_NONE);
+    });
+
+    it("topUpStake on orphan still enforces TIER_3_STAKE cap", async function () {
+      const { stake, seller, buyer, fakeDispute } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(5), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+      // Orphan at stake=5; topping up 46 would land at 51, above TIER_3 cap (50).
+      await expectRevert(
+        stake.write.topUpStake([toUSDT(46)], { account: seller.account }),
+        "Would exceed max tier stake"
+      );
+    });
+
+    it("topUpStake on orphan rejected during active withdrawal", async function () {
+      const { stake, seller, buyer, fakeDispute } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(5), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+      // Orphan starts the residual drain; topUpStake must still revert.
+      await stake.write.initiateWithdrawal([TIER_NONE], { account: seller.account });
+      await expectRevert(
+        stake.write.topUpStake([toUSDT(3)], { account: seller.account }),
+        "Withdrawal active"
+      );
+    });
+
+    it("topUpStake still rejected when stake == 0 (never staked)", async function () {
+      const { stake, buyer } = await deployStake(viem);
+      // Buyer never deposited — _stakes[buyer] == 0, hard floor still holds.
+      await expectRevert(
+        stake.write.topUpStake([toUSDT(1)], { account: buyer.account }),
+        "Not staked"
+      );
+    });
+
+    it("orphan can topUpStake then upgradeTier(Starter) to re-activate (delta=0)", async function () {
+      const { stake, mockUSDT, seller, buyer, fakeDispute } = await deployStake(viem);
+      await stake.write.depositStake([TIER_STARTER], { account: seller.account });
+      await stake.write.slashStake(
+        [seller.account.address, toUSDT(5), buyer.account.address, 1n],
+        { account: fakeDispute.account }
+      );
+
+      // Top up 5 → stake=10, tier still None.
+      await stake.write.topUpStake([toUSDT(5)], { account: seller.account });
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(10));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_NONE);
+
+      const before = await mockUSDT.read.balanceOf([seller.account.address]);
+
+      // upgradeTier(Starter) on orphan — delta = 0 (already at threshold).
+      await stake.write.upgradeTier([TIER_STARTER], { account: seller.account });
+
+      const after = await mockUSDT.read.balanceOf([seller.account.address]);
+      assert.equal(after, before); // no USDT moved on the upgrade
+      assert.equal(await stake.read.getStake([seller.account.address]), toUSDT(10));
+      assert.equal(await stake.read.getTier([seller.account.address]), TIER_STARTER);
+    });
+  });
 });

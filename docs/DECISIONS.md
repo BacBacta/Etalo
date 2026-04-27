@@ -1195,7 +1195,7 @@ helper to the Interactions section of each caller.
 
 ## ADR-033 · 2026-04-24 — Post-slash stake recovery gap (topUpStake requires tier != None)
 
-**Status**: Accepted (documented gap, V1.5 fix planned)
+**Status**: Shipped (J8 Block 1, 2026-04-27)
 
 **Context**: Block 12 testnet smoke-test scenario 4 slashed 5 USDT
 from a Tier.Starter seller holding 10 USDT of stake. Auto-downgrade
@@ -1255,6 +1255,22 @@ test wallet remains on Celo Sepolia with `(stake=5 USDT, tier=None)`
 as a preserved regression fixture. No ABI or event changes; V1.5 is
 a pure constraint relaxation. No production migration required —
 existing slashed sellers benefit automatically once V1.5 deploys.
+
+**Implementation (J8 Block 1, 2026-04-27)**: Two `require` statements
+relaxed in `EtaloStake.sol` (`topUpStake:276` + `upgradeTier:180`),
+both flipped from `_tiers[msg.sender] != None` to
+`_stakes[msg.sender] > 0`. The two-line change is required to
+deliver the full recovery path described above — `topUpStake` alone
+would let the seller fund the orphan but `upgradeTier` would still
+reject `currentTier == None` and leave the seller unable to vend.
+Five regression specs added to `test/EtaloStake.test.ts` under a new
+`"ADR-033 V1.5 — orphan recovery"` describe block: happy path,
+TIER_3_STAKE cap, withdrawal-active block, hard floor at stake=0,
+and full re-activation flow (slash → topUp → upgradeTier(Starter)
+with delta=0). Sepolia is deliberately not redeployed (J8 Q3
+decision); the diff is documented in the audit briefing (Block 4)
+so the firm sees exactly what diverges between the deployed
+instance (`0xBB21...c417`) and the audited source.
 
 ---
 
