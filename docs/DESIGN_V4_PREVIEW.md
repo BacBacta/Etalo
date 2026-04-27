@@ -1,3 +1,5 @@
+> **DEPRECATED** : Ce document est remplacé par `docs/DESIGN_V5_PREVIEW.md` (pivot Robinhood-target validé 2026-04-27, voir ADR-040). Conservé ici pour audit trail.
+
 # Etalo Design V4 — Direction Validée
 
 **Date de validation** : 22 avril 2026  

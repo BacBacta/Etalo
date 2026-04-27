@@ -123,14 +123,18 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J10 — Phase Vitrine (mai 2026). Plan détaillé dans
-`docs/SPRINT_J10.md`. Branche `feat/design-vitrine-v4`.
+Sprint J10-V5 — Design System V5 Robinhood-target (mai-juin 2026). Plan
+detaille dans `docs/SPRINT_J10_V5.md`. Branche `feat/design-system-v5`.
 
-Migration pages publiques (landing + public boutique + cart drawer)
-vers design system V4 livré J9. Flag « épargne if good enough » actif.
+Pivot strategique V4 → V5 valide 2026-04-27 mid-J10 Block 3 apres visual
+check Block 2 PublicHeader migration (V4 trop modeste vs 2026 standards).
+Voir ADR-040 pour rationale.
 
-When user says "start Block N", read that block in the current sprint
-file and execute.
+Cible quality realistic : 75-85% Robinhood-quality (solo dev + budget
+$50-80). 6-10 semaines wall-clock. Mainnet target Q2 2027.
+
+When user says "start Phase N" ou "start Block N", read that section in
+docs/SPRINT_J10_V5.md and execute.
 
 Always propose a plan before executing, and wait for validation.
 Report what was done at the end of each block.

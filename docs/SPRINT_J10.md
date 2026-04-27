@@ -1,3 +1,5 @@
+> **DEPRECATED** : Ce sprint plan est remplacé par `docs/SPRINT_J10_V5.md` (pivot Robinhood-target validé 2026-04-27 mid-Block 3, voir ADR-040). Conservé ici pour audit trail.
+
 # Sprint J10 — Phase Vitrine (mai 2026)
 
 **Sprint objective** : Migrer les **pages publiques** vers le design

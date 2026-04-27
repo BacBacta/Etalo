@@ -1825,3 +1825,127 @@ firm engagement. Compensating mitigations:
 **Supersedes**: none. ADR-039 complements ADR-025 (phased audit
 strategy) and refines its V1 phase without invalidating prior
 decisions.
+
+---
+
+## ADR-040 · 2026-04-27 — Pivot design V4 → V5 Robinhood-target
+
+**Status** : Accepted (J10 mid-pivot, 2026-04-27)
+
+### Context
+
+Le sprint J9 a livre une component library V4 (8 composants atomiques + sub-parts) et un design system base sur DESIGN_V4_PREVIEW.md (palette Celo earth-inspired + Instrument Serif + Inter + premium minimalism reference Stripe Atlas / Mercury / Linear).
+
+Sprint J10 a demarre Block 2 (PublicHeader migration vers V4) puis Mike a fait le visual check et identifie : "design trop basique et mal calibre, experience client deplorable, je veux quelque chose de moderne et ultra premium comparable aux meilleures applications en 2026".
+
+Apres analyse honest avec audit Cowork des angles morts du plan initial pivot, decisions verrouillees ci-dessous.
+
+### Decision
+
+**Pivoter le design system de V4 vers V5 avec target Robinhood (post-2024 redesign)**.
+
+Raisons :
+1. V4 actuel est conforme spec mais la spec elle-meme etait trop modeste vs 2026 standards
+2. Robinhood = bold, dark-first, fintech-appropriate, recognizable, ideal target pour Etalo (non-custodial USDT escrow)
+3. Solo dev + budget minimal ($50-80) peut atteindre **75-85% Robinhood-quality** (pas 90% comme initialement souhaite — Cowork audit a corrige l'estimation)
+4. Effort estimated **6-10 semaines wall-clock** (avec buffer 30% solo dev)
+
+### Toolkit verrouille
+
+| Item | Cout | Usage |
+|---|---|---|
+| Switzer typeface (Indian Type Foundry, gratuit) | $0 | Distinctive Capsule Sans-like, plus original que Geist (overplayed 2026) |
+| Phosphor Icons (5 weights) | $0 | Iconographie premium consistent |
+| Framer Motion ou Motion vanilla (selon bundle size) | $0 | Page transitions + micro-animations |
+| canvas-confetti | $0 | Celebrate milestones |
+| recharts (deja installe J7) | $0 | Sparklines + line charts dashboard |
+| Lottie + LottieFiles | $0 | Loading animations |
+| **Recraft.ai 1 mois** (PAS Midjourney) | **~$12** | Illustrations vectorielles SVG (pas raster) |
+| Aeonik typeface optionnel | ~$50 | Si Switzer pas assez premium feel |
+
+**Total : ~$50-80** (Recraft 1 mois + Aeonik optional fallback)
+
+### Consequences
+
+#### Positives
+
+1. **Quality elevation** : Etalo passe de "MVP avec design correct" a "produit premium 2026 audit-ready"
+2. **Grants Celo competitivite** : design premium = chances grants application meilleures
+3. **Retention buyer/seller** : UX premium = engagement plus haut
+4. **MiniPay submission cleanliness** : reviewers favorisent apps polished
+5. **V5 framework reutilisable** : composants V5 base solide pour extensions futures (multi-currency, mobile native apps V2+)
+
+#### Negatives
+
+1. **Mainnet decale Q4 2026 → Q2 2027** (avril-juin 2027 realistic)
+2. **Effort 6-10 semaines** focused sur design plutot que features
+3. **75-85% Robinhood-quality realistic, pas 90%** sans designer humain
+4. **Refactor V4 → V5** des 8 composants library livres J9 (extension dark + Motion)
+5. **Block 2 J10 PublicHeader migration partiellement a refaire** (Switzer typeface, dark variants)
+6. **Risk grants Celo Sept 2026 window** si pivot derape >8 semaines
+
+### Plan B grants Celo Sept 2026
+
+Check-point a 6 semaines :
+- Si pivot a >50% complete : continuer V5 puis submission grants avec V5 ready
+- Si pivot a <50% complete : soumettre grants avec V4 actuel + V5 demo preview (mockups Recraft.ai)
+- Pas de risk de manquer le window grants
+
+### Plan B audit pratique ADR-039
+
+Pas de conflict avec design pivot :
+- Audit V1 freelance + AI per ADR-039 = SMART CONTRACTS only
+- Design pivot V5 = FRONTEND only
+- Pas de chevauchement code → audit et pivot peuvent runner en parallele
+
+### Implementation timeline
+
+5 phases sur 6-10 semaines wall-clock :
+
+1. **Phase 1 — Foundations elevation** (8-10j) — Switzer + Dark mode V1 + next-themes + Phosphor + Performance budget
+2. **Phase 2 — Motion + interactions** (5-7j) — Framer Motion / Motion vanilla + 10-15 micro-anims + confetti
+3. **Phase 3 — Visuals premium** (7-10j) — Recraft.ai illustrations + Skeleton screens + Charts intégration
+4. **Phase 4 — Layout refactor** (5-7j) — Cards depth + Top tabs Robinhood-styled (PAS bottom nav, conflict MiniPay) + Onboarding V1
+5. **Phase 5 — Polish + Submission** (5-7j) — Tabular nums + Mobile gestures + QA pass + Proof of Ship + Grants
+
+**Total : 30-41 jours wall-clock + buffer 30% = 6-10 semaines realistic.**
+
+### Branche strategy
+
+- **Branche actuelle** `feat/design-vitrine-v4` reste ouverte avec Block 2 PublicHeader work preserve
+- **Nouvelle branche** `feat/design-system-v5` cree depuis `feat/design-vitrine-v4` HEAD (preserve Block 2 work qui restera relevant moyennant Switzer swap + dark variants)
+- Tag `v2.0.0-design-system-sepolia` reste reference audit trail "V4 baseline" pour rollback eventuel
+
+### Documents impactes
+
+- DESIGN_V4_PREVIEW.md → **deprecated**, remplace par DESIGN_V5_PREVIEW.md
+- SPRINT_J10.md → **deprecated**, remplace par SPRINT_J10_V5.md
+- CLAUDE.md "Current sprint" → flip vers J10-V5
+- V4 component library packages/web/src/components/ui/v4/ → extension V5 (dark variants + Motion props)
+
+### Supersedes
+
+- Decision implicite "V4 design system suffit V1" du sprint J9 (jamais formalisee en ADR mais sous-entendue par DESIGN_V4_PREVIEW.md validation 22/04/2026)
+
+### Ne supersede pas
+
+- ADR-022 non-custodial criteria : inchangee
+- ADR-026 architectural limits : inchangee
+- ADR-038 multisig strategy : inchangee
+- ADR-039 audit strategy V1 : inchangee, run en parallele
+
+### Risk acknowledged
+
+- 75-85% realistic, pas 90% — promesse honest
+- 6-10 semaines, pas 4-6 — buffer solo dev
+- Mainnet Q2 2027 — buffer realistic
+- Dependance forte sur Mike's design judgment (pas designer externe pour QA)
+- "Design blindness" risk — mitige par side-by-side comparison Robinhood screenshots a chaque sprint
+
+### Acceptance criteria
+
+- DESIGN_V5_PREVIEW.md livre et valide Mike
+- 5 phases plan executees end-to-end
+- Side-by-side comparison Robinhood QA pass each sprint
+- 75-85% Robinhood-quality atteint (Mike valide qualitativement)
+- Mainnet pre-deploy ready Q2 2027
