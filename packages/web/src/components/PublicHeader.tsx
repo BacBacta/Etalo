@@ -69,7 +69,7 @@ export function PublicHeader() {
 
   return (
     <>
-      <header className="sticky top-0 z-40 border-b border-celo-dark/[8%] bg-celo-light/80 backdrop-blur">
+      <header className="sticky top-0 z-40 border-b border-celo-dark/[8%] bg-celo-light/80 backdrop-blur dark:border-celo-light/[8%] dark:bg-celo-dark-bg/80">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-3">
           <Link
             href="/"
@@ -77,7 +77,7 @@ export function PublicHeader() {
             aria-label="Etalo home"
           >
             <EtaloLogo />
-            <span className="font-display text-display-4 text-celo-dark">
+            <span className="font-display text-display-4 text-celo-dark dark:text-celo-light">
               Etalo
             </span>
           </Link>
