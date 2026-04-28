@@ -13,10 +13,10 @@ const cardV4Variants = cva(
     variants: {
       variant: {
         default:
-          "bg-celo-light text-celo-dark shadow-celo-md border-celo-dark/[8%]",
+          "bg-celo-light text-celo-dark shadow-celo-md border-celo-dark/[8%] dark:bg-celo-dark-elevated dark:text-celo-light dark:border-celo-light/[8%]",
         elevated:
-          "bg-celo-light text-celo-dark shadow-celo-lg border-celo-dark/[8%]",
-        hero: "bg-celo-light text-celo-dark shadow-celo-hero border-celo-dark/[8%]",
+          "bg-celo-light text-celo-dark shadow-celo-lg border-celo-dark/[8%] dark:bg-celo-dark-elevated dark:text-celo-light dark:border-celo-light/[8%]",
+        hero: "bg-celo-light text-celo-dark shadow-celo-hero border-celo-dark/[8%] dark:bg-celo-dark-elevated dark:text-celo-light dark:border-celo-light/[8%]",
         dark: "bg-celo-dark text-celo-light shadow-celo-lg border-celo-dark/[20%]",
       },
       padding: {
@@ -24,7 +24,7 @@ const cardV4Variants = cva(
         compact: "p-4",
       },
       interactive: {
-        true: "cursor-pointer hover:-translate-y-px hover:shadow-celo-lg",
+        true: "cursor-pointer hover:-translate-y-px hover:shadow-celo-lg dark:hover:bg-celo-dark-surface",
         false: "",
       },
     },
@@ -120,7 +120,7 @@ export const CardFooterV4 = forwardRef<HTMLDivElement, CardFooterV4Props>(
     <div
       ref={ref}
       className={cn(
-        "flex justify-between items-center pt-4 mt-4 border-t border-celo-dark/[8%]",
+        "flex justify-between items-center pt-4 mt-4 border-t border-celo-dark/[8%] dark:border-celo-light/[8%]",
         className,
       )}
       {...props}

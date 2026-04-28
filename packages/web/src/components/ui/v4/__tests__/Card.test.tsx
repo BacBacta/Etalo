@@ -92,6 +92,44 @@ describe("Card sub-components", () => {
   });
 });
 
+// J10-V5 Block 4c — dark variants asserted via class string presence
+// (JSDom doesn't activate the `.dark` ancestor selector).
+describe("CardV4 dark variants", () => {
+  it("applies dark variant classes for default", () => {
+    const { container } = render(<CardV4>x</CardV4>);
+    const card = container.firstChild as HTMLElement;
+    expect(card).toHaveClass("dark:bg-celo-dark-elevated");
+    expect(card).toHaveClass("dark:text-celo-light");
+    expect(card).toHaveClass("dark:border-celo-light/[8%]");
+  });
+
+  it("applies dark variant classes for elevated", () => {
+    const { container } = render(<CardV4 variant="elevated">x</CardV4>);
+    const card = container.firstChild as HTMLElement;
+    expect(card).toHaveClass("dark:bg-celo-dark-elevated");
+    expect(card).toHaveClass("dark:text-celo-light");
+  });
+
+  it("applies dark variant classes for hero", () => {
+    const { container } = render(<CardV4 variant="hero">x</CardV4>);
+    const card = container.firstChild as HTMLElement;
+    expect(card).toHaveClass("dark:bg-celo-dark-elevated");
+    expect(card).toHaveClass("dark:text-celo-light");
+  });
+
+  it("applies dark hover bg-surface bump on interactive=true (Robinhood raise feeling)", () => {
+    const { container } = render(<CardV4 interactive>x</CardV4>);
+    const card = container.firstChild as HTMLElement;
+    expect(card).toHaveClass("dark:hover:bg-celo-dark-surface");
+  });
+
+  it("applies dark border on CardFooter", () => {
+    const { container } = render(<CardFooterV4>actions</CardFooterV4>);
+    const footer = container.firstChild as HTMLElement;
+    expect(footer).toHaveClass("dark:border-celo-light/[8%]");
+  });
+});
+
 describe("CardV4 full composition", () => {
   it("renders all 5 sub-parts in correct hierarchy", () => {
     render(

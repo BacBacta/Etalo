@@ -80,6 +80,31 @@ describe("InputV4", () => {
       "email",
     );
   });
+
+  // J10-V5 Block 4c — dark variants asserted via class string presence
+  // (JSDom doesn't activate the `.dark` ancestor selector).
+  it("applies dark variant classes (default state)", () => {
+    render(<InputV4 placeholder="dark-default" />);
+    const input = screen.getByPlaceholderText("dark-default");
+    expect(input).toHaveClass("dark:bg-celo-dark-elevated");
+    expect(input).toHaveClass("dark:text-celo-light");
+    expect(input).toHaveClass("dark:border-celo-light/[16%]");
+    expect(input).toHaveClass("dark:placeholder:text-celo-light/[40%]");
+    expect(input).toHaveClass("dark:focus:ring-celo-forest-bright");
+  });
+
+  it("applies dark variant classes (error state)", () => {
+    render(<InputV4 error placeholder="dark-error" />);
+    const input = screen.getByPlaceholderText("dark-error");
+    expect(input).toHaveClass("dark:ring-celo-red-bright");
+    expect(input).toHaveClass("dark:focus:ring-celo-red-bright");
+  });
+
+  it("applies dark disabled bg class", () => {
+    render(<InputV4 disabled placeholder="dark-disabled" />);
+    const input = screen.getByPlaceholderText("dark-disabled");
+    expect(input).toHaveClass("dark:disabled:bg-celo-light/[4%]");
+  });
 });
 
 describe("LabelV4", () => {
