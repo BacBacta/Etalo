@@ -1,23 +1,17 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Inter } from "next/font/google";
+import localFont from "next/font/local";
 
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
 import { ToasterV4 } from "@/components/ui/v4/Toast";
 
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["normal", "italic"],
-  variable: "--font-instrument-serif",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-inter",
+const switzer = localFont({
+  src: [
+    { path: "../../public/fonts/switzer/Switzer-Variable.woff2", style: "normal" },
+    { path: "../../public/fonts/switzer/Switzer-VariableItalic.woff2", style: "italic" },
+  ],
+  variable: "--font-switzer",
   display: "swap",
 });
 
@@ -49,10 +43,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${instrumentSerif.variable} ${inter.variable}`}
-    >
+    <html lang="en" className={switzer.variable}>
       <body className="min-h-screen bg-white text-neutral-900 antialiased">
         <Providers>
           <PublicHeader />

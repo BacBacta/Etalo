@@ -63,12 +63,13 @@ const config: Config = {
           "red-soft": "rgba(168,54,47,0.08)",
         },
       },
-      // V4 design system fonts — Google Fonts loaded via next/font in
-      // src/app/layout.tsx and exposed as CSS variables.
+      // V5 design system font — Switzer Variable (Indian Type Foundry,
+      // Fontshare). Self-hosted woff2 in public/fonts/switzer/, loaded
+      // via next/font/local in src/app/layout.tsx, exposed as CSS var.
       fontFamily: {
-        display: ["var(--font-instrument-serif)", "serif"],
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-inter)", "ui-monospace", "monospace"],
+        display: ["var(--font-switzer)", "sans-serif"],
+        sans: ["var(--font-switzer)", "system-ui", "sans-serif"],
+        mono: ["var(--font-switzer)", "ui-monospace", "monospace"],
       },
       // V4 typography scale (DESIGN_V4_PREVIEW.md §Typography +
       // §Principes pages non-landing). `body-sm` 15px is reserved for
