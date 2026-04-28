@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, MessageCircle } from "lucide-react";
+import { ChatCircle, Copy } from "@phosphor-icons/react";
 
 interface ShareButtonsProps {
   url: string;
@@ -36,7 +36,7 @@ export function ShareButtons({ url, title }: ShareButtonsProps) {
           rel="noopener noreferrer"
           className={OUTLINE}
         >
-          <MessageCircle className="h-4 w-4" /> WhatsApp
+          <ChatCircle className="h-4 w-4" /> WhatsApp
         </a>
         <button type="button" onClick={copy} className={OUTLINE}>
           <Copy className="h-4 w-4" />

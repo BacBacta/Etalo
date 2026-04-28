@@ -1,6 +1,6 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
@@ -138,7 +138,7 @@ export function ProductsTab({ profile, walletAddress }: Props) {
                   className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                   aria-label={`Edit ${p.title}`}
                 >
-                  <Pencil className="h-4 w-4" />
+                  <PencilSimple className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
@@ -146,7 +146,7 @@ export function ProductsTab({ profile, walletAddress }: Props) {
                   className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700"
                   aria-label={`Delete ${p.title}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash className="h-4 w-4" />
                 </button>
               </div>
             </li>

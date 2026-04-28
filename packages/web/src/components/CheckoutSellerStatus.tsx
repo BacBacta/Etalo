@@ -1,6 +1,6 @@
 "use client";
 
-import { Check, Loader2, X } from "lucide-react";
+import { Check, CircleNotch, X } from "@phosphor-icons/react";
 
 import { buildExplorerUrl, shortHash } from "@/lib/checkout-orchestration";
 import type { SellerExecution } from "@/hooks/useSequentialCheckout";
@@ -22,7 +22,7 @@ const STATUS_LABEL: Record<SellerExecution["status"], string> = {
 
 function StatusIcon({ status }: { status: SellerExecution["status"] }) {
   if (status === "creating" || status === "funding") {
-    return <Loader2 className="h-5 w-5 animate-spin text-blue-600" />;
+    return <CircleNotch className="h-5 w-5 animate-spin text-blue-600" />;
   }
   if (status === "success") {
     return <Check className="h-5 w-5 text-green-600" />;

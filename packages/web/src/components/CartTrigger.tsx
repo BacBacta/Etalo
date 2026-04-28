@@ -1,6 +1,6 @@
 "use client";
 
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";

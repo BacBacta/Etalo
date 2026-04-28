@@ -1,6 +1,6 @@
 "use client";
 
-import { Coins } from "lucide-react";
+import { Coins } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
 import { BuyCreditsDialog } from "@/components/seller/marketing/BuyCreditsDialog";

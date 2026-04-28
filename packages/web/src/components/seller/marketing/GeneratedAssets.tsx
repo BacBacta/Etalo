@@ -1,6 +1,6 @@
 "use client";
 
-import { Download } from "lucide-react";
+import { DownloadSimple } from "@phosphor-icons/react";
 import Image from "next/image";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -150,7 +150,7 @@ export function GeneratedAssets({
           className="min-h-[44px]"
           data-testid="download-image-btn"
         >
-          <Download className="mr-2 h-4 w-4" aria-hidden />
+          <DownloadSimple className="mr-2 h-4 w-4" aria-hidden />
           Download image
         </Button>
         <ShareButtons imageUrl={result.image_url} caption={currentCaption} />

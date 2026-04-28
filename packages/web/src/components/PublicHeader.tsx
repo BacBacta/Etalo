@@ -1,6 +1,6 @@
 "use client";
 
-import { Moon, Sun } from "lucide-react";
+import { MoonStars, SunDim } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -95,9 +95,9 @@ export function PublicHeader() {
               {/* lucide-react Sun/Moon temporaire — swap Phosphor SunDim/MoonStars Block 5 */}
               {mounted ? (
                 theme === "dark" ? (
-                  <Sun className="h-5 w-5" />
+                  <SunDim className="h-5 w-5" />
                 ) : (
-                  <Moon className="h-5 w-5" />
+                  <MoonStars className="h-5 w-5" />
                 )
               ) : (
                 <span className="block h-5 w-5" aria-hidden="true" />

@@ -1,6 +1,6 @@
 "use client";
 
-import { Truck } from "lucide-react";
+import { Truck } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";

@@ -1,6 +1,6 @@
 "use client";
 
-import { Share2 } from "lucide-react";
+import { ShareNetwork } from "@phosphor-icons/react";
 
 interface Props {
   imageUrl: string;
@@ -23,7 +23,7 @@ export function ShareButtons({ imageUrl, caption }: Props) {
         className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-green-600 px-4 py-2 text-base text-white"
         data-testid="share-whatsapp"
       >
-        <Share2 className="mr-2 h-4 w-4" aria-hidden />
+        <ShareNetwork className="mr-2 h-4 w-4" aria-hidden />
         WhatsApp
       </a>
       <a
@@ -34,7 +34,7 @@ export function ShareButtons({ imageUrl, caption }: Props) {
         className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-gradient-to-tr from-purple-600 to-pink-500 px-4 py-2 text-base text-white"
         data-testid="share-instagram"
       >
-        <Share2 className="mr-2 h-4 w-4" aria-hidden />
+        <ShareNetwork className="mr-2 h-4 w-4" aria-hidden />
         Instagram
       </a>
     </>

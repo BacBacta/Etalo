@@ -1,6 +1,6 @@
 "use client";
 
-import { ShoppingBag, Store } from "lucide-react";
+import { ShoppingBag, Storefront } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
 
 const MODE_PREFERENCE_KEY = "etalo-mode-preference";
@@ -49,7 +49,7 @@ export function HomeMode() {
             className="block min-h-[44px] w-full rounded-lg border-2 border-neutral-200 bg-white p-6 text-left transition-colors hover:border-neutral-900"
           >
             <div className="flex items-start gap-4">
-              <Store className="mt-1 h-8 w-8 flex-shrink-0" />
+              <Storefront className="mt-1 h-8 w-8 flex-shrink-0" />
               <div>
                 <h2 className="mb-1 text-lg font-semibold">I want to sell</h2>
                 <p className="text-sm text-neutral-600">

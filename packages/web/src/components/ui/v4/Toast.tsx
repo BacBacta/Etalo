@@ -1,12 +1,12 @@
 "use client";
 
 import {
-  CircleCheckIcon,
-  InfoIcon,
-  Loader2Icon,
-  OctagonXIcon,
-  TriangleAlertIcon,
-} from "lucide-react";
+  CheckCircle,
+  CircleNotch,
+  Info,
+  Warning,
+  WarningOctagon,
+} from "@phosphor-icons/react";
 import { Toaster as Sonner, toast, type ToasterProps } from "sonner";
 
 import { cn } from "@/components/ui/v4/utils";
@@ -29,17 +29,17 @@ export const ToasterV4 = ({ className, ...props }: ToasterProps) => (
     className={cn("toaster group", className)}
     icons={{
       success: (
-        <CircleCheckIcon className="size-4 text-celo-forest dark:text-celo-forest-bright" />
+        <CheckCircle className="size-4 text-celo-forest dark:text-celo-forest-bright" />
       ),
-      info: <InfoIcon className="size-4 text-celo-dark dark:text-celo-light" />,
+      info: <Info className="size-4 text-celo-dark dark:text-celo-light" />,
       warning: (
-        <TriangleAlertIcon className="size-4 text-celo-dark dark:text-celo-light" />
+        <Warning className="size-4 text-celo-dark dark:text-celo-light" />
       ),
       error: (
-        <OctagonXIcon className="size-4 text-celo-red dark:text-celo-red-bright" />
+        <WarningOctagon className="size-4 text-celo-red dark:text-celo-red-bright" />
       ),
       loading: (
-        <Loader2Icon className="size-4 animate-spin text-celo-dark dark:text-celo-light" />
+        <CircleNotch className="size-4 animate-spin text-celo-dark dark:text-celo-light" />
       ),
     }}
     toastOptions={{

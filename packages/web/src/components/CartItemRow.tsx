@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, X } from "lucide-react";
+import { Minus, Plus, X } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 
