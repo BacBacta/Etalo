@@ -57,6 +57,57 @@ Goal : foundations V5 en place sans casser V4 baseline. Tokens + typography + ic
 
 **Validation** : npm run build clean, vitest 93+ updated PASS, dark mode toggle fonctionne, Switzer rendu, Phosphor partout, bundle size mesure.
 
+### Phase 1 — CLOSURE 2026-04-29 ✅ COMPLET 11/11 blocks
+
+**Status** : 8/8 V4 components dark variants livrés + Switzer typeface +
+next-themes + Phosphor Icons + perf budget setup. Foundations V5 prêtes
+pour Phase 2 Motion.
+
+**Stats** :
+- 16 commits Phase 1 (Setup → Block 7 closure)
+- +27 specs Vitest (93 → 120 PASS)
+- 8/8 V4 components dark variants
+- 21 fichiers migrés lucide-react → Phosphor
+- Worst-case bundle `/seller/dashboard` 256 KB (85% du budget 300 KB,
+  marge 44 KB pour Phase 2-5)
+
+**Block timeline** (chronologique, commits hashes) :
+
+| Block | Item | Commit | Date |
+|---|---|---|---|
+| Setup | launch sprint J10-V5 + plan | `41a0470` | 2026-04-27 |
+| Setup | complete setup ADR-040 + V4 deprecation | `6a2a702` | 2026-04-27 |
+| 1 | Switzer typeface swap | `fad4445` | 2026-04-27 |
+| 2 | Dark mode palette tokens | `3013452` | 2026-04-27 |
+| 2 | docs align V5 doc Block 2 token rename | `adfc877` | 2026-04-27 |
+| 3 | next-themes integration + dark mode toggle | `e283263` | 2026-04-27 |
+| 4a | Dark mode foundations + V4 migration backport | `a488780` | 2026-04-28 |
+| 4a-fix | aria-label hydration mismatch theme toggle | `a2f9522` | 2026-04-28 |
+| 4b | ButtonV4 dark variants | `21b9f20` | 2026-04-28 |
+| 4b | docs align V5 doc Block 4b primary CTA pattern | `b7bc339` | 2026-04-28 |
+| 4c | InputV4 + CardV4 dark variants | `3a92e65` | 2026-04-28 |
+| 4d | DialogV4 + SheetV4 dark variants | `1311c31` | 2026-04-28 |
+| 4e | TabsV4 + BadgeV4 + ToastV4 dark variants (8/8 complete) | `566f7d2` | 2026-04-28 |
+| 5 | Phosphor Icons swap (21 files) | `648fd92` | 2026-04-28 |
+| 6 | Performance budget setup + baseline | `3b4c9e2` | 2026-04-29 |
+| 7 | Phase 1 closure docs (THIS) | `<closure>` | 2026-04-29 |
+
+**Tokens V5 ajoutés** :
+- `celo-light-subtle` (Block 2)
+- `celo-dark-bg` / `celo-dark-elevated` / `celo-dark-surface` (Block 2)
+- `celo-forest-bright` / `celo-red-bright` / `celo-blue-bright` (Block 2)
+- `celo-green` / `celo-blue` (Block 2)
+- `celo-green-hover` (Block 4b)
+- `celo-forest-bright-soft` (Block 4b)
+- `celo-red-bright-soft` (Block 4e)
+
+**Pas de tag intermédiaire** (Option A confirmée) — tag final
+`v2.0.0-design-system-v5-sepolia` post Phase 5 closure J10-V5.
+
+**Sign-off** : Phase 1 foundations COMPLETE. Ready pour Phase 2 (Motion +
+interactions, 5-7j) — décision library Framer Motion vs Motion vanilla
+post mesure bundle impact.
+
 ### Phase 2 — Motion + interactions (5-7j)
 
 Goal : 10-15 micro-animations cles + page transitions + button feedback + confetti milestones.

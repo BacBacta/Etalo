@@ -126,6 +126,10 @@ Language preference: French for conversation, English for code and docs.
 Sprint J10-V5 — Design System V5 Robinhood-target (mai-juin 2026). Plan
 detaille dans `docs/SPRINT_J10_V5.md`. Branche `feat/design-system-v5`.
 
+Phase 1 (Foundations) CLOTUREE 2026-04-29 — 8/8 V4 dark variants +
+Switzer + Phosphor + perf budget livrés (16 commits, 120/120 vitest).
+Phase 2 (Motion) à demarrer.
+
 Pivot strategique V4 → V5 valide 2026-04-27 mid-J10 Block 3 apres visual
 check Block 2 PublicHeader migration (V4 trop modeste vs 2026 standards).
 Voir ADR-040 pour rationale.
