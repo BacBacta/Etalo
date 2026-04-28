@@ -1,6 +1,7 @@
-import { forwardRef, type ButtonHTMLAttributes } from "react";
+import { forwardRef, type ButtonHTMLAttributes, type ElementType } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { m } from "motion/react";
 
 import { cn } from "@/components/ui/v4/utils";
 
@@ -8,7 +9,7 @@ const buttonV4Variants = cva(
   [
     "group/button relative inline-flex shrink-0 items-center justify-center gap-2",
     "font-sans font-medium whitespace-nowrap",
-    "transition-all duration-200 ease-out",
+    "transition-colors duration-200 ease-out",
     "outline-none select-none",
     "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-celo-forest-bright dark:focus-visible:ring-offset-celo-dark-bg",
     "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
@@ -18,9 +19,9 @@ const buttonV4Variants = cva(
     variants: {
       variant: {
         primary:
-          "bg-celo-forest text-celo-light hover:bg-celo-forest-dark active:translate-y-px active:shadow-celo-sm dark:bg-celo-green dark:text-celo-dark dark:hover:bg-celo-green-hover",
+          "bg-celo-forest text-celo-light hover:bg-celo-forest-dark dark:bg-celo-green dark:text-celo-dark dark:hover:bg-celo-green-hover",
         secondary:
-          "bg-celo-yellow text-celo-dark hover:bg-celo-yellow-soft active:translate-y-px",
+          "bg-celo-yellow text-celo-dark hover:bg-celo-yellow-soft",
         ghost:
           "bg-transparent text-celo-forest hover:bg-celo-forest-soft dark:text-celo-forest-bright dark:hover:bg-celo-forest-bright-soft",
         outline:
@@ -75,6 +76,20 @@ const SpinnerIcon = () => (
   </svg>
 );
 
+// J10-V5 Phase 2 Block 2 — motion press scale 0.98 + hover scale 1.01.
+// CSS-based `active:translate-y-px` removed from primary/secondary so
+// motion drives `transform` exclusively; CSS transition scoped to
+// `transition-colors` so background/text shifts stay on the CSS path
+// and don't fight motion's spring on `transform`. Spring tuning
+// stiffness=400 damping=17 lands around 150-200ms perceived (V5 doc
+// 200ms button-feedback timing).
+//
+// asChild=true bypasses motion entirely — Slot from Radix doesn't wrap
+// for animations, and link-as-button is a rare path where press
+// feedback is not idiomatic. data-motion-active marker reflects the
+// runtime decision so vitest can regression-guard the control flow
+// (JSDom doesn't execute motion, so direct animation assertions are
+// unavailable).
 export const ButtonV4 = forwardRef<HTMLButtonElement, ButtonV4Props>(
   (
     {
@@ -90,15 +105,36 @@ export const ButtonV4 = forwardRef<HTMLButtonElement, ButtonV4Props>(
     },
     ref,
   ) => {
-    const Comp = asChild ? Slot : "button";
     const isDisabled = disabled || loading;
+    const motionActive = !asChild && !isDisabled;
+    // ElementType widens the prop check across the Slot / m.button union
+    // so the shared attrs below (disabled, aria-busy, data-*) and the
+    // motion-only props (whileTap / whileHover / transition) both pass
+    // TypeScript without a per-branch render or unsafe casts.
+    const Comp: ElementType = asChild ? Slot : m.button;
+    const classes = cn(
+      buttonV4Variants({ variant, size, rounded }),
+      className,
+    );
     return (
       <Comp
         ref={ref}
-        className={cn(buttonV4Variants({ variant, size, rounded }), className)}
+        className={classes}
         disabled={isDisabled}
         aria-busy={loading || undefined}
         data-loading={loading || undefined}
+        data-motion-active={motionActive || undefined}
+        {...(motionActive
+          ? {
+              whileTap: { scale: 0.98 },
+              whileHover: { scale: 1.01 },
+              transition: {
+                type: "spring" as const,
+                stiffness: 400,
+                damping: 17,
+              },
+            }
+          : {})}
         {...props}
       >
         {loading ? (

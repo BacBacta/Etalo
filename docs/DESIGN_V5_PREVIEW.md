@@ -124,7 +124,7 @@ Si bundle size critique (routes >300 KB First Load actuelles) → Motion vanilla
 
 ### 10-15 micro-animations cles
 
-1. **Button press feedback** : scale 0.98 sur press (toutes ButtonV4 instances)
+1. **Button press feedback** : scale 0.98 sur press + scale 1.01 sur hover (toutes ButtonV4 instances, spring stiffness=400 damping=17 ~200ms perceived). asChild=true bypasse motion (Slot wrap, link-as-button cas rare).
 2. **Card hover lift** : translate-y-[-2px] + shadow-celo-lg sur cards interactive
 3. **Page transitions** : fade-slide subtle entre routes Next.js
 4. **Tab content swap** : fade + scale 0.98→1

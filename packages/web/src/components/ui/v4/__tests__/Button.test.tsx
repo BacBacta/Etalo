@@ -136,4 +136,26 @@ describe("ButtonV4", () => {
     expect(btn).toHaveClass("dark:focus-visible:ring-celo-forest-bright");
     expect(btn).toHaveClass("dark:focus-visible:ring-offset-celo-dark-bg");
   });
+
+  // J10-V5 Phase 2 Block 2 — motion control flow regression-guards.
+  // JSDom doesn't execute motion animations, so we test the runtime
+  // decision (motion enabled / bypassed) via the `data-motion-active`
+  // marker rather than asserting whileTap / whileHover values directly.
+  it("sets data-motion-active=true in default normal usage (motion enabled)", () => {
+    render(<ButtonV4>tap me</ButtonV4>);
+    expect(screen.getByRole("button")).toHaveAttribute(
+      "data-motion-active",
+      "true",
+    );
+  });
+
+  it("omits data-motion-active when asChild=true (motion bypassed via Slot)", () => {
+    render(
+      <ButtonV4 asChild>
+        <a href="/shop">Open shop</a>
+      </ButtonV4>,
+    );
+    const link = screen.getByRole("link", { name: "Open shop" });
+    expect(link).not.toHaveAttribute("data-motion-active");
+  });
 });
