@@ -87,7 +87,7 @@ export function PublicHeader() {
               size="md"
               onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
               aria-label={
-                theme === "dark"
+                mounted && theme === "dark"
                   ? "Switch to light mode"
                   : "Switch to dark mode"
               }
