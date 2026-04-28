@@ -30,7 +30,7 @@ Different de V4 (earth-inspired sober minimalism Stripe/Linear/Mercury) qui rest
 | Role | Token | Hex | Usage |
 |---|---|---|---|
 | Background principal | `celo-light` | `#FCFBF7` | Off-white chaleureux |
-| Background subtle | `celo-light-2` | `#F7F5EC` | Sections alternees |
+| Background subtle | `celo-light-subtle` | `#F7F5EC` | Sections alternees |
 | Surface card | `celo-light` | `#FCFBF7` | Cards default |
 | Accent primaire | `celo-forest` | `#476520` | CTA, links, active |
 | Accent primaire hover | `celo-forest-dark` | `#3A521A` | Hover/pressed |
@@ -44,7 +44,7 @@ Different de V4 (earth-inspired sober minimalism Stripe/Linear/Mercury) qui rest
 | Surface neutre warm | `celo-sand` | `#EFE7D6` | Surfaces alternatives |
 | Status error | `celo-red` | `#A8362F` | Errors |
 | Status error subtle | `celo-red-soft` | rgba(168,54,47,0.08) | Error backgrounds |
-| **NEW V5 — Status success** | `celo-green-bright` | `#00C853` | Successes prominents (parite Robinhood green) |
+| **NEW V5 — Status success** | `celo-green` | `#00C853` | Successes prominents (parite Robinhood green) |
 | **NEW V5 — Status info** | `celo-blue` | `#1E88E5` | Info banners |
 
 ### Dark mode (DEFAULT V5, Etalo Dark) — **first-class, pas afterthought**
@@ -64,7 +64,7 @@ Different de V4 (earth-inspired sober minimalism Stripe/Linear/Mercury) qui rest
 | Texte tertiaire | `celo-light/40` | rgba(252,251,247,0.4) | Texte placeholder dark |
 | Border subtle | `celo-light/8` | rgba(252,251,247,0.08) | Borders, dividers dark |
 | Status error | `celo-red-bright` | `#FF5247` | Errors dark mode (plus lumineux) |
-| Status success | `celo-green-bright` | `#00C853` | Successes dark mode |
+| Status success | `celo-green` | `#00C853` | Successes dark mode (meme token light, pas de variant -bright pour green) |
 | Status info | `celo-blue-bright` | `#42A5F5` | Info dark mode |
 
 **Strategie** : `dark:` Tailwind variants partout. next-themes integration. Default : dark (Robinhood-pattern). User toggle vers light optionnel via header button.
