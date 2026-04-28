@@ -45,12 +45,17 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // V4 design system — Celo earth-inspired palette (J9 Block 2).
+        // V5 design system — Celo earth-inspired palette extended with
+        // first-class dark mode tokens (J10-V5 Block 2, voir ADR-040).
         // Namespaced under `celo-*` so it never collides with shadcn
-        // legacy keys above. Consumed exclusively by V4 components in
-        // packages/web/src/components/ui/v4/* (J9 Block 3+).
+        // legacy keys above. Light tokens consumed by V4 components in
+        // packages/web/src/components/ui/v4/*; dark tokens reserved for
+        // `dark:` Tailwind variants enabled Block 3+ via next-themes.
+        // Convention `-bright` suffix = dark mode counterpart.
         celo: {
+          // Light mode
           light: "#FCFBF7",
+          "light-subtle": "#F7F5EC",
           forest: "#476520",
           "forest-dark": "#3A521A",
           "forest-soft": "rgba(71,101,32,0.08)",
@@ -61,6 +66,15 @@ const config: Config = {
           sand: "#EFE7D6",
           red: "#A8362F",
           "red-soft": "rgba(168,54,47,0.08)",
+          green: "#00C853",
+          blue: "#1E88E5",
+          // Dark mode
+          "dark-bg": "#0F1115",
+          "dark-elevated": "#1A1D23",
+          "dark-surface": "#22262E",
+          "forest-bright": "#5C8B2D",
+          "red-bright": "#FF5247",
+          "blue-bright": "#42A5F5",
         },
       },
       // V5 design system font — Switzer Variable (Indian Type Foundry,
