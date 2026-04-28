@@ -10,7 +10,7 @@ const buttonV4Variants = cva(
     "font-sans font-medium whitespace-nowrap",
     "transition-all duration-200 ease-out",
     "outline-none select-none",
-    "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+    "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-celo-forest-bright dark:focus-visible:ring-offset-celo-dark-bg",
     "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   ].join(" "),
@@ -18,13 +18,13 @@ const buttonV4Variants = cva(
     variants: {
       variant: {
         primary:
-          "bg-celo-forest text-celo-light hover:bg-celo-forest-dark active:translate-y-px active:shadow-celo-sm",
+          "bg-celo-forest text-celo-light hover:bg-celo-forest-dark active:translate-y-px active:shadow-celo-sm dark:bg-celo-green dark:text-celo-dark dark:hover:bg-celo-green-hover",
         secondary:
           "bg-celo-yellow text-celo-dark hover:bg-celo-yellow-soft active:translate-y-px",
         ghost:
-          "bg-transparent text-celo-forest hover:bg-celo-forest-soft",
+          "bg-transparent text-celo-forest hover:bg-celo-forest-soft dark:text-celo-forest-bright dark:hover:bg-celo-forest-bright-soft",
         outline:
-          "border border-celo-forest bg-transparent text-celo-forest hover:bg-celo-forest-soft",
+          "border border-celo-forest bg-transparent text-celo-forest hover:bg-celo-forest-soft dark:border-celo-forest-bright dark:text-celo-forest-bright dark:hover:bg-celo-forest-bright-soft",
       },
       size: {
         sm: "h-9 px-4 text-label",

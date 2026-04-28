@@ -103,4 +103,37 @@ describe("ButtonV4", () => {
     render(<ButtonV4 ref={ref}>ref</ButtonV4>);
     expect(ref.current).toBeInstanceOf(HTMLButtonElement);
   });
+
+  // J10-V5 Block 4b — dark mode variants. JSDom doesn't activate the
+  // `.dark` ancestor selector, so these specs assert that the `dark:`
+  // utility classes are present on the rendered className string.
+  it("applies dark variant classes for primary (celo-green WCAG-strict)", () => {
+    render(<ButtonV4 variant="primary">primary</ButtonV4>);
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveClass("dark:bg-celo-green");
+    expect(btn).toHaveClass("dark:text-celo-dark");
+    expect(btn).toHaveClass("dark:hover:bg-celo-green-hover");
+  });
+
+  it("applies dark variant classes for ghost", () => {
+    render(<ButtonV4 variant="ghost">ghost</ButtonV4>);
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveClass("dark:text-celo-forest-bright");
+    expect(btn).toHaveClass("dark:hover:bg-celo-forest-bright-soft");
+  });
+
+  it("applies dark variant classes for outline", () => {
+    render(<ButtonV4 variant="outline">outline</ButtonV4>);
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveClass("dark:border-celo-forest-bright");
+    expect(btn).toHaveClass("dark:text-celo-forest-bright");
+    expect(btn).toHaveClass("dark:hover:bg-celo-forest-bright-soft");
+  });
+
+  it("applies dark focus-visible ring + offset", () => {
+    render(<ButtonV4>focus</ButtonV4>);
+    const btn = screen.getByRole("button");
+    expect(btn).toHaveClass("dark:focus-visible:ring-celo-forest-bright");
+    expect(btn).toHaveClass("dark:focus-visible:ring-offset-celo-dark-bg");
+  });
 });
