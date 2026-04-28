@@ -99,6 +99,9 @@ describe("DialogV4", () => {
     expect(header).toHaveClass("bg-celo-dark");
     expect(header).toHaveClass("text-celo-light");
     expect(header).toHaveClass("rounded-t-3xl");
+    // J10-V5 Block 4d Flag 3 — dark mode bleed maintains "deepest island"
+    // feel by switching to celo-dark-bg (= page bg) instead of celo-dark.
+    expect(header).toHaveClass("dark:bg-celo-dark-bg");
   });
 
   it("renders Close button with X icon + sr-only label and closes on click", () => {
@@ -119,5 +122,32 @@ describe("DialogV4", () => {
     expect(screen.getByText("Confirm purchase")).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "Escape", code: "Escape" });
     expect(screen.queryByText("Confirm purchase")).not.toBeInTheDocument();
+  });
+
+  // J10-V5 Block 4d — dark variants asserted via class string presence
+  // (JSDom doesn't activate the `.dark` ancestor selector).
+  it("Overlay applies dark backdrop class (bg-black/60 fintech-classic)", () => {
+    render(<Harness defaultOpen />);
+    const overlay = document.querySelector('[data-state="open"].fixed.inset-0');
+    expect(overlay).toHaveClass("dark:bg-black/60");
+  });
+
+  it("Content applies dark variant classes (elevated bg + light text + subtle border)", () => {
+    render(<Harness defaultOpen />);
+    const content = screen.getByTestId("dialog-content");
+    expect(content).toHaveClass("dark:bg-celo-dark-elevated");
+    expect(content).toHaveClass("dark:text-celo-light");
+    expect(content).toHaveClass("dark:border-celo-light/[8%]");
+  });
+
+  it("Close button applies dark variant classes (text + hover + ring + offset)", () => {
+    render(<Harness defaultOpen />);
+    const closeBtn = screen.getByRole("button", { name: /close/i });
+    expect(closeBtn).toHaveClass("dark:text-celo-light");
+    expect(closeBtn).toHaveClass("dark:hover:bg-celo-forest-bright-soft");
+    expect(closeBtn).toHaveClass("dark:focus-visible:ring-celo-forest-bright");
+    expect(closeBtn).toHaveClass(
+      "dark:focus-visible:ring-offset-celo-dark-elevated",
+    );
   });
 });

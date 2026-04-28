@@ -20,7 +20,7 @@ export const DialogV4Overlay = forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-celo-dark/40 backdrop-blur-md",
+      "fixed inset-0 z-50 bg-celo-dark/40 backdrop-blur-md dark:bg-black/60",
       "data-[state=open]:animate-in data-[state=closed]:animate-out",
       "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
       className,
@@ -38,11 +38,11 @@ export const DialogV4Close = forwardRef<
     ref={ref}
     className={cn(
       "absolute right-4 top-4 inline-flex items-center justify-center",
-      "rounded-full p-1 text-celo-dark",
+      "rounded-full p-1 text-celo-dark dark:text-celo-light",
       "transition-colors duration-200",
-      "hover:bg-celo-forest-soft",
-      "focus:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest",
-      "focus-visible:ring-offset-2 focus-visible:ring-offset-celo-light",
+      "hover:bg-celo-forest-soft dark:hover:bg-celo-forest-bright-soft",
+      "focus:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:focus-visible:ring-celo-forest-bright",
+      "focus-visible:ring-offset-2 focus-visible:ring-offset-celo-light dark:focus-visible:ring-offset-celo-dark-elevated",
       "disabled:pointer-events-none",
       className,
     )}
@@ -70,7 +70,7 @@ export const DialogV4Content = forwardRef<
         "fixed left-1/2 top-1/2 z-50",
         "-translate-x-1/2 -translate-y-1/2",
         "w-[calc(100%-2rem)] max-w-[480px]",
-        "bg-celo-light rounded-3xl p-6 shadow-celo-lg",
+        "bg-celo-light text-celo-dark rounded-3xl p-6 shadow-celo-lg dark:bg-celo-dark-elevated dark:text-celo-light dark:border dark:border-celo-light/[8%]",
         "data-[state=open]:animate-in data-[state=closed]:animate-out",
         "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
@@ -98,7 +98,7 @@ export const DialogV4Header = forwardRef<
     data-dark={dark || undefined}
     className={cn(
       "flex flex-col gap-1.5 mb-4",
-      dark && "bg-celo-dark text-celo-light -m-6 mb-4 p-6 rounded-t-3xl",
+      dark && "bg-celo-dark text-celo-light dark:bg-celo-dark-bg dark:text-celo-light -m-6 mb-4 p-6 rounded-t-3xl",
       className,
     )}
     {...props}

@@ -127,5 +127,35 @@ describe("SheetV4", () => {
     expect(header).toHaveClass("bg-celo-dark");
     expect(header).toHaveClass("text-celo-light");
     expect(header).toHaveClass("rounded-t-3xl");
+    // J10-V5 Block 4d Flag 3 — dark mode bleed = page bg (celo-dark-bg)
+    // to keep the "deepest island" feel.
+    expect(header).toHaveClass("dark:bg-celo-dark-bg");
+  });
+
+  // J10-V5 Block 4d — dark variants asserted via class string presence
+  // (JSDom doesn't activate the `.dark` ancestor selector).
+  it("Overlay applies dark backdrop class (bg-black/60 fintech-classic)", () => {
+    render(<Harness defaultOpen />);
+    const overlay = document.querySelector('[data-state="open"].fixed.inset-0');
+    expect(overlay).toHaveClass("dark:bg-black/60");
+  });
+
+  it("Content applies dark variant classes (elevated bg + light text + subtle border) on default side=right", () => {
+    render(<Harness defaultOpen />);
+    const content = screen.getByTestId("sheet-content");
+    expect(content).toHaveClass("dark:bg-celo-dark-elevated");
+    expect(content).toHaveClass("dark:text-celo-light");
+    expect(content).toHaveClass("dark:border-celo-light/[8%]");
+  });
+
+  it("All 4 side variants preserve dark base classes (cva base shared)", () => {
+    const sides = ["right", "left", "top", "bottom"] as const;
+    for (const side of sides) {
+      const { unmount } = render(<Harness defaultOpen side={side} />);
+      const content = screen.getByTestId("sheet-content");
+      expect(content).toHaveClass("dark:bg-celo-dark-elevated");
+      expect(content).toHaveClass("dark:text-celo-light");
+      unmount();
+    }
   });
 });
