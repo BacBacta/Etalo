@@ -45,6 +45,7 @@ Different de V4 (earth-inspired sober minimalism Stripe/Linear/Mercury) qui rest
 | Status error | `celo-red` | `#A8362F` | Errors |
 | Status error subtle | `celo-red-soft` | rgba(168,54,47,0.08) | Error backgrounds |
 | **NEW V5 — Status success** | `celo-green` | `#00C853` | Successes prominents (parite Robinhood green) |
+| **NEW V5 — Success hover** | `celo-green-hover` | `#00B348` | Hover state vibrant CTA (used by ButtonV4 primary dark) |
 | **NEW V5 — Status info** | `celo-blue` | `#1E88E5` | Info banners |
 
 ### Dark mode (DEFAULT V5, Etalo Dark) — **first-class, pas afterthought**
@@ -56,7 +57,7 @@ Different de V4 (earth-inspired sober minimalism Stripe/Linear/Mercury) qui rest
 | Surface card | `celo-dark-surface` | `#22262E` | Cards interactives |
 | Accent primaire | `celo-forest-bright` | `#5C8B2D` | CTA dark mode (Forest plus lumineux) |
 | Accent primaire hover | `celo-forest` | `#476520` | Hover dark mode |
-| Accent primaire subtle | `rgba(92,139,45,0.15)` | — | Backgrounds focus dark |
+| Accent primaire subtle | `celo-forest-bright-soft` | `rgba(92,139,45,0.15)` | Backgrounds focus dark, hover ghost/outline dark |
 | Accent jaune | `celo-yellow` | `#FBCC5C` | Highlights dark, badges |
 | Accent jaune subtle | `rgba(251,204,92,0.15)` | — | Hover yellow dark |
 | Texte primaire | `celo-light` | `#FCFBF7` | Texte principal dark mode |
@@ -184,7 +185,7 @@ V4 component library J9 (`packages/web/src/components/ui/v4/`) reste base. Exten
 
 | Component | Extension V5 | Effort |
 |---|---|---|
-| ButtonV4 | + dark variants 4 colors + Motion press scale | 0.5j |
+| ButtonV4 | + dark variants 4 colors + Motion press scale (voir note primary CTA pattern ci-dessous) | 0.5j |
 | InputV4 | + dark variants + focus animation | 0.5j |
 | CardV4 | + dark variants 4 variants + Motion hover lift | 0.5j |
 | DialogV4 | + dark variants header dark + Motion enter | 0.5j |
@@ -192,6 +193,8 @@ V4 component library J9 (`packages/web/src/components/ui/v4/`) reste base. Exten
 | TabsV4 | + dark variants + Motion sliding indicator animated | 0.5j |
 | BadgeV4 | + dark variants + Motion pulse animated | 0.3j |
 | ToastV4 | + dark variants + Motion slide-from-bottom | 0.3j |
+
+**Note ButtonV4 — Primary CTA pattern light/dark intentional** : light mode = sober earth-tone forest (`celo-forest #476520` + `celo-light` text, **6.35:1** WCAG), dark mode = vibrant green Robinhood-style (`celo-green #00C853` + `celo-dark` text, **6.2:1** WCAG). Le flip de la couleur du texte light→dark est un design pattern intentionnel (Robinhood-aligned), pas une incohérence brand. Forest-bright `#5C8B2D` (initialement envisagé pour primary dark) ne donne que ~3.9:1 WCAG → rejeté Block 4b au profit de celo-green.
 
 **Total V4 → V5 extension** : 4-5j (Phase 1).
 
