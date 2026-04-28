@@ -1,3 +1,13 @@
+import withBundleAnalyzer from "@next/bundle-analyzer";
+
+// J10-V5 Block 6 — wrap conditional via env var. `npm run build` runs
+// without the analyzer; `npm run analyze` sets ANALYZE=true via
+// cross-env, which opens 3 HTML reports (client / edge / nodejs) in
+// the browser at the end of the build.
+const bundleAnalyzer = withBundleAnalyzer({
+  enabled: process.env.ANALYZE === "true",
+});
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   images: {
@@ -24,4 +34,4 @@ const nextConfig = {
   },
 };
 
-export default nextConfig;
+export default bundleAnalyzer(nextConfig);

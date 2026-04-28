@@ -315,6 +315,20 @@ Optional V1.5+ : long-press menus, swipe between cards, etc.
 
 **Effort** : 1-2j (Phase 5).
 
+## Performance budget
+
+V5 cible MiniPay/Celo en 3G+ Afrique de l'Ouest. Budget First Load JS hard
+**< 300 KB** sur toutes routes principales (buyer + seller). Baseline post
+Phase 1 (Block 6) : worst case `/seller/dashboard` 256 KB (85% du budget,
+marge ~44 KB pour Phase 2-5). Trigger optimisation Block 6b si une route
+dépasse 280 KB (93%).
+
+Outillage : `npm run build` (summary CLI), `npm run analyze`
+(`@next/bundle-analyzer`, treemap browser).
+
+Voir `docs/PERFORMANCE_BUDGET.md` pour budget détaillé, baseline complet,
+methodology et levers d'optimisation Phase 5+.
+
 ## Documents impactes
 
 - DESIGN_V4_PREVIEW.md → deprecated, pointer vers ce doc
@@ -334,3 +348,4 @@ Optional V1.5+ : long-press menus, swipe between cards, etc.
 - `docs/DECISIONS.md` ADR-040 (rationale + impact)
 - `docs/SPRINT_J10_V5.md` (execution plan 5 phases)
 - `docs/SPRINT_J9.md` (V4 component library livree, base de l'extension V5)
+- `docs/PERFORMANCE_BUDGET.md` (budget V5 + baseline Phase 1 + levers optimisation)
