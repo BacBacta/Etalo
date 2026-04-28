@@ -43,7 +43,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={switzer.variable}>
+    <html lang="en" className={switzer.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-white text-neutral-900 antialiased">
         <Providers>
           <PublicHeader />
