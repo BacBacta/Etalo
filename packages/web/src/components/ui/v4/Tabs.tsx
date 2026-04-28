@@ -16,7 +16,7 @@ export const TabsV4List = forwardRef<
   <TabsPrimitive.List
     ref={ref}
     className={cn(
-      "flex gap-1 border-b border-celo-dark/[8%]",
+      "flex gap-1 border-b border-celo-dark/[8%] dark:border-celo-light/[8%]",
       className,
     )}
     {...props}
@@ -33,11 +33,11 @@ export const TabsV4Trigger = forwardRef<
     className={cn(
       "relative px-4 py-3 font-sans text-body-sm font-medium",
       "border-b-2 border-transparent -mb-px",
-      "text-celo-dark/60 hover:text-celo-dark",
-      "data-[state=active]:border-celo-forest data-[state=active]:text-celo-forest",
+      "text-celo-dark/60 hover:text-celo-dark dark:text-celo-light/60 dark:hover:text-celo-light",
+      "data-[state=active]:border-celo-forest data-[state=active]:text-celo-forest dark:data-[state=active]:border-celo-forest-bright dark:data-[state=active]:text-celo-forest-bright",
       "transition-all duration-200 ease-out",
-      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest",
-      "focus-visible:ring-offset-2 focus-visible:ring-offset-celo-light",
+      "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:focus-visible:ring-celo-forest-bright",
+      "focus-visible:ring-offset-2 focus-visible:ring-offset-celo-light dark:focus-visible:ring-offset-celo-dark-bg",
       "disabled:opacity-50 disabled:pointer-events-none",
       className,
     )}
@@ -54,8 +54,8 @@ export const TabsV4Content = forwardRef<
     ref={ref}
     className={cn(
       "mt-4 outline-none",
-      "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2",
-      "focus-visible:ring-offset-celo-light",
+      "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 dark:focus-visible:ring-celo-forest-bright",
+      "focus-visible:ring-offset-celo-light dark:focus-visible:ring-offset-celo-dark-bg",
       className,
     )}
     {...props}

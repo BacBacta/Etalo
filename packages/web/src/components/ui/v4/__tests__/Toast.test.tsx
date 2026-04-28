@@ -97,4 +97,38 @@ describe("ToasterV4 integration with toastV4", () => {
     expect(toastEl).toHaveClass("rounded-2xl");
     sonnerToast.dismiss();
   });
+
+  // J10-V5 Block 4e — dark variants asserted via class string presence
+  // (JSDom doesn't activate the `.dark` ancestor selector).
+  it("toast root applies dark bg + text + border classes", async () => {
+    render(<ToasterV4 position="bottom-center" />);
+    toastV4.success("Dark toast");
+    await waitFor(
+      () => {
+        expect(screen.getByText("Dark toast")).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+    const toastEl = document.querySelector('[data-sonner-toast]');
+    expect(toastEl).toHaveClass("dark:bg-celo-dark-elevated");
+    expect(toastEl).toHaveClass("dark:text-celo-light");
+    expect(toastEl).toHaveClass("dark:border-celo-light/[8%]");
+    sonnerToast.dismiss();
+  });
+
+  it("success icon applies dark forest-bright class", async () => {
+    render(<ToasterV4 position="bottom-center" />);
+    toastV4.success("Success!");
+    await waitFor(
+      () => {
+        expect(screen.getByText("Success!")).toBeInTheDocument();
+      },
+      { timeout: 2000 },
+    );
+    const toastEl = document.querySelector('[data-sonner-toast]');
+    const icon = toastEl?.querySelector("svg");
+    expect(icon).toBeInTheDocument();
+    expect(icon).toHaveClass("dark:text-celo-forest-bright");
+    sonnerToast.dismiss();
+  });
 });

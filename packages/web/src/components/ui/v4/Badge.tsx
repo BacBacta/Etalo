@@ -13,10 +13,13 @@ const badgeV4Variants = cva(
   {
     variants: {
       variant: {
-        default: "bg-celo-dark/[8%] text-celo-dark",
-        forest: "bg-celo-forest-soft text-celo-forest",
+        default:
+          "bg-celo-dark/[8%] text-celo-dark dark:bg-celo-light/[8%] dark:text-celo-light",
+        forest:
+          "bg-celo-forest-soft text-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-forest-bright",
+        // yellow: yellow-soft bg + dark text reads in both modes — INCHANGÉ.
         yellow: "bg-celo-yellow-soft text-celo-dark",
-        red: "bg-celo-red-soft text-celo-red",
+        red: "bg-celo-red-soft text-celo-red dark:bg-celo-red-bright-soft dark:text-celo-red-bright",
       },
     },
     defaultVariants: {

@@ -113,5 +113,36 @@ describe("TabsV4", () => {
     const panel = screen.getByText("Orders list panel");
     expect(panel).toHaveAttribute("role", "tabpanel");
   });
+
+  // J10-V5 Block 4e — dark variants asserted via class string presence
+  // (JSDom doesn't activate the `.dark` ancestor selector).
+  it("List applies dark border class", () => {
+    render(<Harness />);
+    expect(screen.getByTestId("tabs-list")).toHaveClass(
+      "dark:border-celo-light/[8%]",
+    );
+  });
+
+  it("active Trigger applies dark variant classes (forest-bright border + text)", () => {
+    render(<Harness />);
+    const active = screen.getByTestId("trigger-orders");
+    expect(active).toHaveClass(
+      "dark:data-[state=active]:border-celo-forest-bright",
+    );
+    expect(active).toHaveClass(
+      "dark:data-[state=active]:text-celo-forest-bright",
+    );
+    expect(active).toHaveClass("dark:focus-visible:ring-celo-forest-bright");
+    expect(active).toHaveClass(
+      "dark:focus-visible:ring-offset-celo-dark-bg",
+    );
+  });
+
+  it("inactive Trigger applies dark muted text + hover classes", () => {
+    render(<Harness />);
+    const inactive = screen.getByTestId("trigger-products");
+    expect(inactive).toHaveClass("dark:text-celo-light/60");
+    expect(inactive).toHaveClass("dark:hover:text-celo-light");
+  });
 });
 

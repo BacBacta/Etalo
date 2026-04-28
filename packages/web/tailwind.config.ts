@@ -76,6 +76,7 @@ const config: Config = {
           "forest-bright": "#5C8B2D",
           "forest-bright-soft": "rgba(92,139,45,0.15)",
           "red-bright": "#FF5247",
+          "red-bright-soft": "rgba(255,82,71,0.15)",
           "blue-bright": "#42A5F5",
         },
       },
