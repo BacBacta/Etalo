@@ -127,6 +127,108 @@ Goal : 10-15 micro-animations cles + page transitions + button feedback + confet
 
 **Validation** : visual check toutes animations smooth, no jank, bundle size respecte budget Phase 1.
 
+### Phase 2 — CLOSURE 2026-04-29 ✅ COMPLET 9/9 blocks
+
+**Status** : 5 V4 components extension Motion (Button press, Card lift,
+Tabs sliding indicator, Dialog fade+zoom, Sheet slide per side) + 3
+nouvelles utilities (PageTransition App Router, fireMilestone 5
+confetti presets, AnimatedNumber rAF tween). All animations smooth +
+bundle budget respecté strict.
+
+**Stats** :
+- 10 commits Phase 2 (Block 1 `c6a0c64` → Block 8 v3 `280016b`) + closure
+- +14 specs Vitest cumulés (120 → 134 PASS)
+- 5 V4 components extension Motion
+- 3 utilities/wrappers : PageTransition (Next.js App Router),
+  fireMilestone (5 confetti presets palette V5 exact + a11y),
+  AnimatedNumber (custom rAF tween easeOutCubic)
+- Bundle final `/seller/dashboard` 260 KB First Load — strict trigger
+  respect 280 KB après refactor v3 Block 8 (motion hooks abandonnés
+  pour AnimatedNumber au profit rAF native)
+
+**Block timeline** (chronologique, commits hashes) :
+
+| Block | Item | Commit | Date |
+|---|---|---|---|
+| 1 | Motion library setup + LazyMotion scaffold | `c6a0c64` | 2026-04-29 |
+| 2 | ButtonV4 motion press + hover + V5 doc align | `8980e72` | 2026-04-29 |
+| 3 | CardV4 motion hover lift | `2a2692c` | 2026-04-29 |
+| 4 | Page transitions Next.js App Router | `9d7df39` | 2026-04-29 |
+| 5 | TabsV4 sliding indicator | `41b1572` | 2026-04-29 |
+| 6 | DialogV4 + SheetV4 motion entry animations | `00b0d1c` | 2026-04-29 |
+| 7 | canvas-confetti milestones (5 presets + 4 wired) | `6731a60` | 2026-04-29 |
+| 8 v1 | AnimatedNumber animate() imperative (+28 KB alert) | `db820f8` | 2026-04-29 |
+| 8 v2 | AnimatedNumber useSpring refactor (282 KB still over) | `34b985f` | 2026-04-29 |
+| 8 v3 | AnimatedNumber custom rAF tween (0 KB delta restored) | `280016b` | 2026-04-29 |
+| 9 | Phase 2 closure docs (THIS) | `<closure>` | 2026-04-29 |
+
+**Tokens motion utilisés** :
+- `motion@12.38.0` + `LazyMotion features={domAnimation} strict` (Block 1 scaffold)
+- `m.div` / `m.span` / `m.button` declarative components
+- `AnimatePresence` (mode="wait" PageTransition, default Dialog/Sheet/Tabs)
+- `forceMount` + `asChild` Radix integration pattern (Block 6 — Lesson #71)
+- `canvas-confetti@1.9.4` + V5 palette EXACT tailwind.config.ts tokens (Block 7)
+- `requestAnimationFrame` + `easeOutCubic` custom (Block 8 v3 final — abandonne motion pour AnimatedNumber suite bundle alert Block 8 v1/v2)
+
+**Bundle analysis** :
+- Block 1-6 : 0 KB delta production routes (motion runtime baseline
+  established Block 1, declarative `m.*` chargé via LazyMotion
+  `domAnimation` features chunk shared)
+- Block 7 : `canvas-confetti` +5 KB `/seller/dashboard` (3 consumers
+  OrdersTab + StakeActionDialog + MarketingTab)
+- Block 8 v1 : `animate()` imperative +28 KB → trigger 280 KB dépassé
+- Block 8 v2 : useSpring -6 KB (282 KB still 2 KB over) — hooks
+  motion/react main bundle pas tree-shakable depuis LazyMotion chunk
+- Block 8 v3 : custom rAF -22 KB (260 KB restored strict)
+- **Phase 2 final budget-neutral** vs Phase 1 closure baseline + Block 1
+  motion setup
+
+**Lessons critiques #65-#71** (7 nouveaux patterns persistés) :
+- **#65** LazyMotion `features={domAnimation}` chunk vs hooks main
+  bundle — `m.div`/`m.span` declarative bénéficient du lazy chunk,
+  mais `useSpring`/`useTransform`/`animate()` hooks viennent du main
+  bundle motion/react (pas tree-shakable côté hooks). Bundle savings
+  via LazyMotion limité aux features visuelles drag/layout/gesture.
+- **#66** canvas-confetti palette V5 EXACTE vs hex approximations —
+  toujours utiliser tailwind.config.ts tokens directement (forest
+  #476520, forest-bright #5C8B2D, yellow #FBCC5C, light #FCFBF7,
+  green #00C853 Robinhood signature). Anti-approximation lock pour
+  cohérence visuelle multi-surface.
+- **#67** `MotionGlobalConfig.skipAnimations = true` test setup —
+  sans ça, AnimatePresence exit garde child mounted pendant tick RAF
+  JSDom → assertions sync `not.toBeInTheDocument()` cassent
+  (DialogV4 / SheetV4 specs Block 6 Esc + close button tests).
+- **#68** `vi.mock("canvas-confetti")` global test setup — JSDom
+  canvas null `getContext("2d")` → `clearRect` crash dans RAF loop si
+  tests adjacents (MarketingTab, BuyCreditsDialog) trigger success
+  path qui fire confetti. Mock global au setup neutralise le crash.
+- **#69** Bundle trigger respect via custom rAF tween standalone —
+  motion hooks (useSpring/useTransform) coûtent ~22 KB First Load
+  malgré LazyMotion déjà chargée pour les features. Pour composants
+  animés simples (counter), custom rAF + easeOutCubic coûte 0 KB
+  bundle et delivers identique perception visuelle (Block 8 v3).
+- **#70** Spring tunings différenciés Dialog 350/28 (fade+zoom)
+  vs Sheet 350/30 (translation pure) — translation pure feel plus
+  lourd visuellement, damping plus haut évite overshoot bouncy.
+  Adapter physics tuning per shape, pas one-size-fits-all.
+- **#71** Radix `forceMount` + `asChild m.div` pattern AnimatePresence
+  exit animations — pattern documenté Radix→Framer Motion.
+  `DialogPrimitive.Portal/Overlay/Content forceMount` + `asChild`
+  délègue mount/unmount à motion. Sans forceMount, Radix unmount
+  immédiat kill l'exit animation. Wrapper Context lift open state
+  pour que Content read open via context (API publique préservée
+  100% pour consumers).
+
+**Pas de tag intermédiaire** (Option A confirmée Phase 1) — tag final
+`v2.0.0-design-system-v5-sepolia` post Phase 5 closure J10-V5.
+
+**Sign-off** : Phase 2 motion + interactions COMPLETE. 9/9 blocks
+livrés. Tests 134/134 PASS, bundle `/seller/dashboard` 260 KB First
+Load (strict trigger respect 280 KB), 0 régression. Ready pour
+Phase 3 (Visuals premium, 7-10j) — Recraft.ai illustrations +
+skeleton screens + charts integration. Mike's time investment
+Phase 3 : ~5-10h validation cycles Recraft.ai.
+
 ### Phase 3 — Visuals premium (7-10j)
 
 Goal : illustrations custom + skeleton screens + charts integration.

@@ -128,7 +128,10 @@ detaille dans `docs/SPRINT_J10_V5.md`. Branche `feat/design-system-v5`.
 
 Phase 1 (Foundations) CLOTUREE 2026-04-29 — 8/8 V4 dark variants +
 Switzer + Phosphor + perf budget livrés (16 commits, 120/120 vitest).
-Phase 2 (Motion) à demarrer.
+Phase 2 (Motion + interactions) CLOTUREE 2026-04-29 — 5 V4 components
+motion + page transitions + confetti milestones + AnimatedNumber
+(10 commits, 134/134 vitest, bundle /seller/dashboard 260 KB strict).
+Phase 3 (Visuals premium) à demarrer.
 
 Pivot strategique V4 → V5 valide 2026-04-27 mid-J10 Block 3 apres visual
 check Block 2 PublicHeader migration (V4 trop modeste vs 2026 standards).
