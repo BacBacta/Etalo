@@ -139,6 +139,13 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
         },
+        // V5 skeleton-screen shimmer — gradient sweep left→right for the
+        // SkeletonV5 component (J10-V5 Phase 3 Block 3a, voir
+        // docs/DESIGN_V5_PREVIEW.md §Skeleton screens systematic V5).
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         // shadcn legacy Radix accordion — DO NOT MODIFY.
@@ -146,6 +153,8 @@ const config: Config = {
         "accordion-up": "accordion-up 0.2s ease-out",
         // V4 skeleton screens.
         "celo-pulse": "celo-pulse 1.5s ease-in-out infinite",
+        // V5 skeleton screens.
+        shimmer: "shimmer 1.5s linear infinite",
       },
     },
   },

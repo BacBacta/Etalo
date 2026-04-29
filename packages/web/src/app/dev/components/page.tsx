@@ -58,6 +58,7 @@ import {
 } from "@/components/ui/v4/Tabs";
 import { toastV4 } from "@/components/ui/v4/Toast";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { fireMilestone } from "@/lib/confetti/milestones";
 
 const sections = [
@@ -71,6 +72,7 @@ const sections = [
   { id: "toast", label: "Toast" },
   { id: "confetti", label: "Confetti" },
   { id: "animated-number", label: "AnimatedNumber" },
+  { id: "skeleton-v5", label: "Skeleton (V5)" },
 ];
 
 export default function DevComponentsPage() {
@@ -127,6 +129,8 @@ export default function DevComponentsPage() {
             <ConfettiSection />
             <Separator />
             <AnimatedNumberSection />
+            <Separator />
+            <SkeletonV5Section />
           </main>
         </div>
 
@@ -625,6 +629,50 @@ function AnimatedNumberSection() {
         <ButtonV4 variant="ghost" onClick={() => setUsdt(0)}>
           Reset
         </ButtonV4>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function SkeletonV5Section() {
+  return (
+    <Section
+      id="skeleton-v5"
+      title="Skeleton (V5)"
+      importPath="@/components/ui/v5/Skeleton"
+    >
+      <ShowcaseRow label="text — single line">
+        <div className="w-full max-w-sm">
+          <SkeletonV5 variant="text" />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="text-multi — 3 stacked rows">
+        <div className="w-full max-w-sm">
+          <SkeletonV5 variant="text-multi" />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="circle — sizes 32 / 48 / 64">
+        <SkeletonV5 variant="circle" size={32} />
+        <SkeletonV5 variant="circle" size={48} />
+        <SkeletonV5 variant="circle" size={64} />
+      </ShowcaseRow>
+      <ShowcaseRow label="rectangle — image / banner placeholder">
+        <SkeletonV5
+          variant="rectangle"
+          className="aspect-square w-full max-w-xs"
+        />
+      </ShowcaseRow>
+      <ShowcaseRow label="card — full block">
+        <div className="w-full max-w-xs">
+          <SkeletonV5 variant="card" />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="row — list-item placeholder ×3">
+        <div className="w-full max-w-sm flex flex-col gap-3">
+          <SkeletonV5 variant="row" />
+          <SkeletonV5 variant="row" />
+          <SkeletonV5 variant="row" />
+        </div>
       </ShowcaseRow>
     </Section>
   );
