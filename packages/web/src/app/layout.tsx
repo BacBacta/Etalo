@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 
 import "./globals.css";
+import { PageTransition } from "@/components/PageTransition";
 import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
 import { ToasterV4 } from "@/components/ui/v4/Toast";
@@ -47,7 +48,7 @@ export default function RootLayout({
       <body className="min-h-screen bg-celo-light text-celo-dark antialiased dark:bg-celo-dark-bg dark:text-celo-light">
         <Providers>
           <PublicHeader />
-          {children}
+          <PageTransition>{children}</PageTransition>
           <ToasterV4 position="bottom-center" />
         </Providers>
       </body>
