@@ -1,10 +1,11 @@
 "use client";
 
 import { Truck } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
 import { Button } from "@/components/ui/button";
+import { fireMilestone } from "@/lib/confetti/milestones";
 import {
   fetchSellerOrders,
   formatRawUsdt,
@@ -47,6 +48,22 @@ export function OrdersTab({ address }: Props) {
   useEffect(() => {
     refetch();
   }, [refetch]);
+
+  // J10-V5 Block 7 — first-sale milestone. Track previous orders.length
+  // and fire confetti when transition is 0 → ≥1 within the same mount.
+  // Initial null → ≥1 (refetch lands with orders already present from a
+  // past purchase) is NOT a first-sale event for this session, so the
+  // ref stays null until the first refetch resolves.
+  const prevOrdersCountRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!data) return;
+    const count = data.orders.length;
+    const prev = prevOrdersCountRef.current;
+    if (prev === 0 && count > 0) {
+      fireMilestone("first-sale");
+    }
+    prevOrdersCountRef.current = count;
+  }, [data]);
 
   const totalNum =
     data && typeof (data.pagination as Record<string, unknown>).total === "number"

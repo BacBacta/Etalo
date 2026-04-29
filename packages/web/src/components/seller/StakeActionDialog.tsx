@@ -19,6 +19,7 @@ import {
   buildExplorerUrl,
   classifyError,
 } from "@/lib/checkout-orchestration";
+import { fireMilestone } from "@/lib/confetti/milestones";
 
 const stakeAbi = stakeAbiJson as Abi;
 const STAKE_ADDRESS = process.env.NEXT_PUBLIC_STAKE_ADDRESS as `0x${string}`;
@@ -198,6 +199,11 @@ export function StakeActionDialog({
           ? "Withdrawal initiated. Cooldown applies."
           : "Stake updated",
       );
+      // J10-V5 Block 7 — celebrate withdrawals only (deposits/top-ups are
+      // routine ops). 3 staggered green waves per the preset definition.
+      if (action === "withdraw") {
+        fireMilestone("withdrawal-complete");
+      }
       onSuccess();
       onOpenChange(false);
     } catch (err) {

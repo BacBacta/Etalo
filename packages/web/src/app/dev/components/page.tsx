@@ -57,6 +57,7 @@ import {
   TabsV4Trigger,
 } from "@/components/ui/v4/Tabs";
 import { toastV4 } from "@/components/ui/v4/Toast";
+import { fireMilestone } from "@/lib/confetti/milestones";
 
 const sections = [
   { id: "button", label: "Button" },
@@ -67,6 +68,7 @@ const sections = [
   { id: "tabs", label: "Tabs" },
   { id: "badge", label: "Badge" },
   { id: "toast", label: "Toast" },
+  { id: "confetti", label: "Confetti" },
 ];
 
 export default function DevComponentsPage() {
@@ -119,6 +121,8 @@ export default function DevComponentsPage() {
             <BadgeSection />
             <Separator />
             <ToastSection />
+            <Separator />
+            <ConfettiSection />
           </main>
         </div>
 
@@ -515,6 +519,55 @@ function ToastSection() {
           onClick={() => toastV4.loading("Confirming on-chain...")}
         >
           Loading
+        </ButtonV4>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function ConfettiSection() {
+  return (
+    <Section
+      id="confetti"
+      title="Confetti"
+      importPath="@/lib/confetti/milestones"
+    >
+      <p className="font-sans text-body-sm opacity-60">
+        Click to fire a milestone burst. Palette colors mirror V5 tokens
+        (forest, forest-bright, yellow, light, green) exactly. Bursts
+        respect <code>prefers-reduced-motion</code> — toggle in OS
+        settings to verify the noop path.
+      </p>
+      <ShowcaseRow label="Milestones">
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("first-sale")}
+        >
+          First sale
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("withdrawal-complete")}
+        >
+          Withdrawal complete
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("credit-purchase")}
+        >
+          Credit purchase
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("image-generated")}
+        >
+          Image generated
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("onboarding-complete")}
+        >
+          Onboarding complete
         </ButtonV4>
       </ShowcaseRow>
     </Section>

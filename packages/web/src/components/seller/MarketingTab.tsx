@@ -13,6 +13,7 @@ import {
 } from "@/components/seller/marketing/TemplateSelector";
 import { Button } from "@/components/ui/button";
 import { useCreditsBalance } from "@/hooks/useCreditsBalance";
+import { fireMilestone } from "@/lib/confetti/milestones";
 import {
   generateImage,
   InsufficientCreditsError,
@@ -51,6 +52,9 @@ export function MarketingTab() {
       });
       setResult(r);
       await refetchBalance();
+      // J10-V5 Block 7 — subtle 30-particle burst (scalar 0.8) for the
+      // routine creative win; not as loud as a sale or withdrawal.
+      fireMilestone("image-generated");
       toast.success("Marketing image generated!");
     } catch (err) {
       if (err instanceof InsufficientCreditsError) {

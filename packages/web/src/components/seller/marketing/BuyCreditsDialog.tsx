@@ -22,6 +22,7 @@ import {
   buildExplorerUrl,
   shortHash,
 } from "@/lib/checkout-orchestration";
+import { fireMilestone } from "@/lib/confetti/milestones";
 import { USDT_PER_CREDIT } from "@/lib/contracts";
 
 interface Props {
@@ -94,6 +95,15 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
       setCustomAmount("");
     }
   }, [open, reset]);
+
+  // J10-V5 Block 7 — celebrate the moment the success view appears
+  // (not on Done click), so the burst is in-context with the cheering
+  // copy. Fires once per success transition (re-entry needs a reset).
+  useEffect(() => {
+    if (state.phase === "success") {
+      fireMilestone("credit-purchase");
+    }
+  }, [state.phase]);
 
   const creditAmount = useMemo<number | null>(() => {
     if (customAmount.trim() !== "") {
