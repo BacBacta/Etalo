@@ -1,5 +1,6 @@
-import { forwardRef, type HTMLAttributes } from "react";
+import { forwardRef, type ElementType, type HTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
+import { m } from "motion/react";
 
 import { cn } from "@/components/ui/v4/utils";
 
@@ -7,7 +8,11 @@ const cardV4Variants = cva(
   [
     "rounded-3xl",
     "border",
-    "transition-all duration-200 ease-out",
+    // J10-V5 Phase 2 Block 3 — explicit list excludes `transform` so
+    // motion's whileHover y can drive the lift on its own without the
+    // CSS transition fighting the spring on transform updates. Colors
+    // + shadow + border still transition smoothly via CSS.
+    "transition-[background-color,box-shadow,border-color] duration-200 ease-out",
   ].join(" "),
   {
     variants: {
@@ -24,7 +29,11 @@ const cardV4Variants = cva(
         compact: "p-4",
       },
       interactive: {
-        true: "cursor-pointer hover:-translate-y-px hover:shadow-celo-lg dark:hover:bg-celo-dark-surface",
+        // CSS hover:-translate-y-px removed — motion drives y: -2 (V5
+        // doc spec) via whileHover when interactive=true. Shadow shift
+        // stays on CSS (separation: motion = transform / CSS = colors,
+        // shadows, borders).
+        true: "cursor-pointer hover:shadow-celo-lg dark:hover:bg-celo-dark-surface",
         false: "",
       },
     },
@@ -40,19 +49,38 @@ export interface CardV4Props
   extends HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof cardV4Variants> {}
 
+// J10-V5 Phase 2 Block 3 — first structural component to gain motion
+// (vs ButtonV4 atomic in Block 2). Spring stiffness=300 damping=20
+// lands ~250-300ms perceived (V5 doc 200-400ms timing range), softer
+// than ButtonV4 press (400/17) — lift is contemplative, not snappy.
+// data-motion-active marker reflects the runtime decision so vitest
+// can regression-guard control flow (JSDom doesn't run motion).
 export const CardV4 = forwardRef<HTMLDivElement, CardV4Props>(
   (
     { className, variant, padding, interactive, ...props },
     ref,
   ) => {
+    const motionActive = interactive === true;
+    const Comp: ElementType = motionActive ? m.div : "div";
     return (
-      <div
+      <Comp
         ref={ref}
         data-interactive={interactive || undefined}
+        data-motion-active={motionActive || undefined}
         className={cn(
           cardV4Variants({ variant, padding, interactive }),
           className,
         )}
+        {...(motionActive
+          ? {
+              whileHover: { y: -2 },
+              transition: {
+                type: "spring" as const,
+                stiffness: 300,
+                damping: 20,
+              },
+            }
+          : {})}
         {...props}
       />
     );

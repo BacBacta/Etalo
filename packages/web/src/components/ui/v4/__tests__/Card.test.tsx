@@ -57,7 +57,9 @@ describe("CardV4 root", () => {
     const { container } = render(<CardV4 interactive>x</CardV4>);
     const card = container.firstChild as HTMLElement;
     expect(card).toHaveClass("cursor-pointer");
-    expect(card).toHaveClass("hover:-translate-y-px");
+    // J10-V5 Phase 2 Block 3: CSS hover:-translate-y-px removed —
+    // motion drives whileHover y: -2 (V5 doc spec). The lift assertion
+    // moved to the data-motion-active spec below.
     expect(card).toHaveClass("hover:shadow-celo-lg");
     expect(card).toHaveAttribute("data-interactive", "true");
   });
@@ -127,6 +129,22 @@ describe("CardV4 dark variants", () => {
     const { container } = render(<CardFooterV4>actions</CardFooterV4>);
     const footer = container.firstChild as HTMLElement;
     expect(footer).toHaveClass("dark:border-celo-light/[8%]");
+  });
+
+  // J10-V5 Phase 2 Block 3 — motion control flow regression-guards.
+  // JSDom doesn't execute motion's whileHover y: -2, so we test the
+  // runtime decision via the data-motion-active marker rather than
+  // asserting transform values directly.
+  it("applies data-motion-active=true when interactive=true (motion enabled)", () => {
+    const { container } = render(<CardV4 interactive>x</CardV4>);
+    const card = container.firstChild as HTMLElement;
+    expect(card).toHaveAttribute("data-motion-active", "true");
+  });
+
+  it("omits data-motion-active when interactive=false / default (motion bypassed)", () => {
+    const { container } = render(<CardV4>x</CardV4>);
+    const card = container.firstChild as HTMLElement;
+    expect(card).not.toHaveAttribute("data-motion-active");
   });
 });
 
