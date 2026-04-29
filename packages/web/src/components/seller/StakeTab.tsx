@@ -7,6 +7,7 @@ import {
   type StakeAction,
 } from "@/components/seller/StakeActionDialog";
 import { Button } from "@/components/ui/button";
+import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import type { SellerProfileResponse } from "@/lib/seller-api";
 
 interface Props {
@@ -26,6 +27,10 @@ export function StakeTab({ onchain, onProfileRefresh }: Props) {
 
   const tier = onchain.stake.tier;
   const amount = onchain.stake.amount_human;
+  // amount_human ships as a decimal string (api.gen.ts) — parse for the
+  // counter; fall back to 0 if the API ever returns a non-numeric form.
+  const amountNum = Number.parseFloat(amount);
+  const amountSafe = Number.isFinite(amountNum) ? amountNum : 0;
   const activeSales = onchain.stake.active_sales;
   const hasStake = tier !== "None";
 
@@ -35,7 +40,10 @@ export function StakeTab({ onchain, onProfileRefresh }: Props) {
         <h3 className="mb-2 text-lg font-semibold">
           Current tier: {TIER_LABEL[tier] ?? tier}
         </h3>
-        <p className="text-base">{amount} USDT staked</p>
+        <p className="text-base">
+          <AnimatedNumber value={amountSafe} decimals={2} suffix=" USDT" />{" "}
+          staked
+        </p>
         <p className="mt-1 text-sm text-neutral-600">
           {activeSales} active sale{activeSales === 1 ? "" : "s"} ·{" "}
           {onchain.recent_orders_count} order

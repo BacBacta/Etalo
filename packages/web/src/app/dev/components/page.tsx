@@ -15,7 +15,7 @@
  */
 
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BadgeV4 } from "@/components/ui/v4/Badge";
 import { ButtonV4 } from "@/components/ui/v4/Button";
@@ -57,6 +57,7 @@ import {
   TabsV4Trigger,
 } from "@/components/ui/v4/Tabs";
 import { toastV4 } from "@/components/ui/v4/Toast";
+import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import { fireMilestone } from "@/lib/confetti/milestones";
 
 const sections = [
@@ -69,6 +70,7 @@ const sections = [
   { id: "badge", label: "Badge" },
   { id: "toast", label: "Toast" },
   { id: "confetti", label: "Confetti" },
+  { id: "animated-number", label: "AnimatedNumber" },
 ];
 
 export default function DevComponentsPage() {
@@ -123,6 +125,8 @@ export default function DevComponentsPage() {
             <ToastSection />
             <Separator />
             <ConfettiSection />
+            <Separator />
+            <AnimatedNumberSection />
           </main>
         </div>
 
@@ -568,6 +572,58 @@ function ConfettiSection() {
           onClick={() => fireMilestone("onboarding-complete")}
         >
           Onboarding complete
+        </ButtonV4>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function AnimatedNumberSection() {
+  const [credits, setCredits] = useState(10);
+  const [usdt, setUsdt] = useState(0);
+  return (
+    <Section
+      id="animated-number"
+      title="AnimatedNumber"
+      importPath="@/components/ui/v4/AnimatedNumber"
+    >
+      <p className="font-sans text-body-sm opacity-60">
+        Counter that tweens between values on prop change. Tabular nums
+        inline keep digit width fixed during the tween (no layout
+        shift). Respects <code>prefers-reduced-motion</code>.
+      </p>
+      <ShowcaseRow label="Credits (integer)">
+        <span
+          className="font-display text-display-3"
+          data-testid="dev-credits"
+        >
+          <AnimatedNumber value={credits} decimals={0} suffix=" credits" />
+        </span>
+        <ButtonV4 variant="ghost" onClick={() => setCredits((c) => c + 1)}>
+          +1
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setCredits((c) => c + 10)}>
+          +10
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setCredits(10)}>
+          Reset
+        </ButtonV4>
+      </ShowcaseRow>
+      <ShowcaseRow label="USDT (2 decimals)">
+        <span
+          className="font-display text-display-3"
+          data-testid="dev-usdt"
+        >
+          <AnimatedNumber value={usdt} decimals={2} suffix=" USDT" />
+        </span>
+        <ButtonV4 variant="ghost" onClick={() => setUsdt((v) => v + 1.5)}>
+          +1.50
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setUsdt((v) => v + 12.34)}>
+          +12.34
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setUsdt(0)}>
+          Reset
         </ButtonV4>
       </ShowcaseRow>
     </Section>

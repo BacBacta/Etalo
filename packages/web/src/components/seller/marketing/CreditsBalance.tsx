@@ -4,6 +4,7 @@ import { Coins } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
 import { BuyCreditsDialog } from "@/components/seller/marketing/BuyCreditsDialog";
+import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import { useCreditsBalance } from "@/hooks/useCreditsBalance";
 
 const LOW_BALANCE_THRESHOLD = 5;
@@ -50,7 +51,13 @@ export function CreditsBalance() {
           <div>
             <div className="text-sm text-neutral-600">Marketing credits</div>
             <div className="text-xl font-semibold" data-testid="credits-amount">
-              {loading ? "…" : error ? "?" : `${balance} credits`}
+              {loading ? (
+                "…"
+              ) : error ? (
+                "?"
+              ) : (
+                <AnimatedNumber value={balance} decimals={0} suffix=" credits" />
+              )}
             </div>
             {!loading && !error && balance < LOW_BALANCE_THRESHOLD && (
               <div

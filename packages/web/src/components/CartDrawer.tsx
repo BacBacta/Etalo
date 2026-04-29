@@ -14,6 +14,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import { type SellerGroup, useCartStore } from "@/lib/cart-store";
 import { CartValidationError, postCartToken } from "@/lib/checkout";
 
@@ -161,7 +162,11 @@ export function CartDrawer({ open, onOpenChange }: Props) {
             <div className="flex w-full items-center justify-between">
               <span className="text-base font-semibold">Total</span>
               <span className="text-base font-semibold">
-                {totalUsdt.toFixed(2)} USDT
+                <AnimatedNumber
+                  value={totalUsdt}
+                  decimals={2}
+                  suffix=" USDT"
+                />
               </span>
             </div>
             <Button
