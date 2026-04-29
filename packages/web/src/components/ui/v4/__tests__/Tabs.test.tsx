@@ -7,7 +7,7 @@
  * use `userEvent` (Radix Tabs needs the full pointer/keyboard sequence;
  * `fireEvent.click` alone does not propagate the state change).
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
@@ -61,11 +61,13 @@ describe("TabsV4", () => {
     expect(list).toHaveAttribute("role", "tablist");
   });
 
-  it("active Trigger has border-celo-forest + text-celo-forest classes + data-state=active", () => {
+  it("active Trigger has text-celo-forest class + data-state=active", () => {
     render(<Harness />);
     const active = screen.getByTestId("trigger-orders");
     expect(active).toHaveAttribute("data-state", "active");
-    expect(active).toHaveClass("data-[state=active]:border-celo-forest");
+    // J10-V5 Phase 2 Block 5: data-[state=active]:border-celo-forest
+    // removed — the motion sliding indicator on TabsV4List replaces
+    // the static border. Text-color active state preserved.
     expect(active).toHaveClass("data-[state=active]:text-celo-forest");
   });
 
@@ -123,12 +125,12 @@ describe("TabsV4", () => {
     );
   });
 
-  it("active Trigger applies dark variant classes (forest-bright border + text)", () => {
+  it("active Trigger applies dark variant classes (forest-bright text + focus ring)", () => {
     render(<Harness />);
     const active = screen.getByTestId("trigger-orders");
-    expect(active).toHaveClass(
-      "dark:data-[state=active]:border-celo-forest-bright",
-    );
+    // J10-V5 Phase 2 Block 5: dark border-color active assertion
+    // removed alongside the light-mode counterpart (motion indicator
+    // replaces the static border).
     expect(active).toHaveClass(
       "dark:data-[state=active]:text-celo-forest-bright",
     );
@@ -143,6 +145,26 @@ describe("TabsV4", () => {
     const inactive = screen.getByTestId("trigger-products");
     expect(inactive).toHaveClass("dark:text-celo-light/60");
     expect(inactive).toHaveClass("dark:hover:text-celo-light");
+  });
+
+  // J10-V5 Phase 2 Block 5 — sliding indicator regression-guards.
+  // JSDom can't observe spring physics or DOMRect measurements (jsdom
+  // returns 0 for offsetLeft/offsetWidth), so we verify structural
+  // contract: relative positioning on List (indicator absolute base),
+  // and the data-tabs-indicator-active marker flipping after the
+  // first useEffect measurement runs.
+  it("TabsV4List has relative positioning (regression-guard for indicator absolute placement)", () => {
+    render(<Harness />);
+    const list = screen.getByRole("tablist");
+    expect(list).toHaveClass("relative");
+  });
+
+  it("TabsV4List sets data-tabs-indicator-active=true after first measurement", async () => {
+    render(<Harness />);
+    const list = screen.getByRole("tablist");
+    await waitFor(() => {
+      expect(list).toHaveAttribute("data-tabs-indicator-active", "true");
+    });
   });
 });
 
