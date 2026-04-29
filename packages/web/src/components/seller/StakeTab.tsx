@@ -8,6 +8,7 @@ import {
 } from "@/components/seller/StakeActionDialog";
 import { Button } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import type { SellerProfileResponse } from "@/lib/seller-api";
 
 interface Props {
@@ -36,32 +37,35 @@ export function StakeTab({ onchain, onProfileRefresh }: Props) {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
-        <h3 className="mb-2 text-lg font-semibold">
-          Current tier: {TIER_LABEL[tier] ?? tier}
-        </h3>
-        <p className="text-base">
-          <AnimatedNumber value={amountSafe} decimals={2} suffix=" USDT" />{" "}
-          staked
-        </p>
-        <p className="mt-1 text-sm text-neutral-600">
-          {activeSales} active sale{activeSales === 1 ? "" : "s"} ·{" "}
-          {onchain.recent_orders_count} order
-          {onchain.recent_orders_count === 1 ? "" : "s"} indexed
-        </p>
-      </div>
+      {hasStake ? (
+        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+          <h3 className="mb-2 text-lg font-semibold">
+            Current tier: {TIER_LABEL[tier] ?? tier}
+          </h3>
+          <p className="text-base">
+            <AnimatedNumber value={amountSafe} decimals={2} suffix=" USDT" />{" "}
+            staked
+          </p>
+          <p className="mt-1 text-sm text-neutral-600">
+            {activeSales} active sale{activeSales === 1 ? "" : "s"} ·{" "}
+            {onchain.recent_orders_count} order
+            {onchain.recent_orders_count === 1 ? "" : "s"} indexed
+          </p>
+        </div>
+      ) : (
+        <EmptyStateV5
+          illustration="no-stake"
+          title="Top up your stake"
+          description="Cross-border orders require a seller stake — Starter 10 USDT, Established 25 USDT, Top Seller 50 USDT."
+          action={{
+            label: "Deposit stake",
+            onClick: () => setAction("deposit"),
+          }}
+        />
+      )}
 
-      <div className="flex flex-wrap gap-2">
-        {!hasStake ? (
-          <Button
-            type="button"
-            onClick={() => setAction("deposit")}
-            className="min-h-[44px]"
-          >
-            Deposit stake
-          </Button>
-        ) : null}
-        {hasStake ? (
+      {hasStake ? (
+        <div className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
@@ -70,8 +74,6 @@ export function StakeTab({ onchain, onProfileRefresh }: Props) {
           >
             Top up
           </Button>
-        ) : null}
-        {hasStake ? (
           <Button
             type="button"
             variant="outline"
@@ -80,8 +82,8 @@ export function StakeTab({ onchain, onProfileRefresh }: Props) {
           >
             Initiate withdrawal
           </Button>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
       <div className="space-y-2 text-sm text-neutral-600">
         <p>

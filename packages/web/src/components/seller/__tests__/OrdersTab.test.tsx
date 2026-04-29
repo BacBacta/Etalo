@@ -61,6 +61,47 @@ describe("OrdersTab — false-empty regression-guard (Block 3b)", () => {
     expect(screen.getByText(/No orders yet/i)).toBeInTheDocument();
   });
 
+  it("renders EmptyStateV5 no-orders illustration when [] (no filter applied)", async () => {
+    fetchSellerOrdersMock.mockResolvedValue({
+      orders: [],
+      pagination: { total: 0, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+    const img = screen.getByTestId("empty-illustration");
+    expect(img).toHaveAttribute("data-asset", "no-orders");
+    expect(
+      screen.getByRole("heading", { name: /No orders yet/i }),
+    ).toBeInTheDocument();
+  });
+
+  it("falls back to plain copy when filter is set (no illustration)", async () => {
+    fetchSellerOrdersMock.mockResolvedValue({
+      orders: [],
+      pagination: { total: 0, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [],
+      pagination: { total: 0, has_more: false, next_cursor: null },
+    });
+    fireEvent.change(screen.getByLabelText(/Filter:/i), {
+      target: { value: "Funded" },
+    });
+    await waitFor(() =>
+      expect(
+        screen.getByText(/No orders with status .*Funded/i),
+      ).toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("empty-illustration")).not.toBeInTheDocument();
+  });
+
   it("re-shows skeleton on filter change → catch path (setData(null))", async () => {
     fetchSellerOrdersMock.mockResolvedValueOnce({
       orders: [],

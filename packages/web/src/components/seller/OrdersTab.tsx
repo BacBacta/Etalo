@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
 import { Button } from "@/components/ui/button";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { fireMilestone } from "@/lib/confetti/milestones";
 import {
@@ -101,9 +102,17 @@ export function OrdersTab({ address }: Props) {
           <SkeletonV5 variant="row" />
         </div>
       ) : data.orders.length === 0 ? (
-        <p className="text-base text-neutral-600">
-          No orders{statusFilter ? ` with status "${statusFilter}"` : " yet"}.
-        </p>
+        statusFilter ? (
+          <p className="text-base text-neutral-600">
+            No orders with status &ldquo;{statusFilter}&rdquo;.
+          </p>
+        ) : (
+          <EmptyStateV5
+            illustration="no-orders"
+            title="No orders yet"
+            description="Share your boutique link with customers to receive your first sale."
+          />
+        )
       ) : (
         <ul className="space-y-2">
           {data.orders.map((o) => {

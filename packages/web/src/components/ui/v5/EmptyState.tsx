@@ -13,13 +13,34 @@
  */
 import {
   forwardRef,
-  type AnchorHTMLAttributes,
   type HTMLAttributes,
   type MouseEventHandler,
 } from "react";
 
-import { ButtonV4 } from "@/components/ui/v4/Button";
 import { cn } from "@/components/ui/v4/utils";
+
+// Visual match for ButtonV4 primary (forest / pill / md size) without
+// pulling ButtonV4 itself into the bundle. EmptyStateV5 is consumed
+// from /seller/dashboard tabs (Orders / Products / Marketing / Stake)
+// where the dashboard chunk did not previously depend on motion/react
+// or @radix-ui/react-slot — using ButtonV4 here pulled +17 KB into the
+// route's First Load JS, exhausting the 280 KB strict budget. Empty-
+// state CTAs are low-frequency taps, so the motion press-scale of
+// ButtonV4 is not worth that cost. Keep classes in lockstep with
+// ButtonV4 primary if the design palette shifts.
+const ACTION_CLASSES = [
+  "inline-flex items-center justify-center gap-2",
+  "h-11 px-5",
+  "font-sans font-medium text-body",
+  "rounded-pill whitespace-nowrap",
+  "bg-celo-forest text-celo-light hover:bg-celo-forest-dark",
+  "dark:bg-celo-green dark:text-celo-dark dark:hover:bg-celo-green-hover",
+  "transition-colors duration-200 ease-out",
+  "outline-none",
+  "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-white",
+  "dark:focus-visible:ring-celo-forest-bright dark:focus-visible:ring-offset-celo-dark-bg",
+  "disabled:opacity-50 disabled:cursor-not-allowed",
+].join(" ");
 
 export type EmptyStateV5Asset =
   | "no-orders"
@@ -119,33 +140,24 @@ EmptyStateV5.displayName = "EmptyStateV5";
 function EmptyStateAction({ action }: { action: EmptyStateV5Action }) {
   if ("href" in action && action.href) {
     return (
-      <ButtonV4 asChild variant="primary">
-        <EmptyStateLink href={action.href}>{action.label}</EmptyStateLink>
-      </ButtonV4>
+      <a
+        href={action.href}
+        data-testid="empty-state-action"
+        className={ACTION_CLASSES}
+      >
+        {action.label}
+      </a>
     );
   }
   return (
-    <ButtonV4
+    <button
       type="button"
-      variant="primary"
       onClick={action.onClick}
       data-testid="empty-state-action"
+      className={ACTION_CLASSES}
     >
       {action.label}
-    </ButtonV4>
-  );
-}
-
-// Plain anchor — keeping the asChild path framework-agnostic. Surfaces
-// that need next/link can wrap their own <Link> via asChild themselves.
-function EmptyStateLink({
-  children,
-  ...rest
-}: AnchorHTMLAttributes<HTMLAnchorElement>) {
-  return (
-    <a data-testid="empty-state-action" {...rest}>
-      {children}
-    </a>
+    </button>
   );
 }
 

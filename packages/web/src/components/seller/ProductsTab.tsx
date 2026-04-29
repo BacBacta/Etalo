@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
 import { ProductFormDialog } from "@/components/seller/ProductFormDialog";
 import { Button } from "@/components/ui/button";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchMyProducts,
@@ -115,9 +116,12 @@ export function ProductsTab({ profile, walletAddress }: Props) {
       </div>
 
       {products.length === 0 ? (
-        <p className="py-8 text-center text-base text-neutral-600">
-          No products yet. Click &ldquo;Add product&rdquo; to get started.
-        </p>
+        <EmptyStateV5
+          illustration="no-products"
+          title="No products yet"
+          description="Add your first product to start selling 24/7."
+          action={{ label: "Add your first product", onClick: openCreate }}
+        />
       ) : (
         <ul className="space-y-2">
           {products.map((p) => (

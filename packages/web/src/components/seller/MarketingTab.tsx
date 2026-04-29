@@ -12,6 +12,7 @@ import {
   type TemplateKey,
 } from "@/components/seller/marketing/TemplateSelector";
 import { Button } from "@/components/ui/button";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useCreditsBalance } from "@/hooks/useCreditsBalance";
 import { fireMilestone } from "@/lib/confetti/milestones";
@@ -166,6 +167,14 @@ export function MarketingTab() {
           productId={selectedProduct.id}
           productTitle={selectedProduct.title}
           initialLang={captionLang}
+        />
+      )}
+
+      {!generating && !result && (
+        <EmptyStateV5
+          illustration="no-marketing"
+          title="No assets generated yet"
+          description="Pick a product, choose a template, and generate marketing visuals using the form above."
         />
       )}
     </div>
