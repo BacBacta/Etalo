@@ -59,6 +59,7 @@ import {
 import { toastV4 } from "@/components/ui/v4/Toast";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { SparklineV5 } from "@/components/ui/v5/SparklineV5";
 import { fireMilestone } from "@/lib/confetti/milestones";
@@ -76,6 +77,7 @@ const sections = [
   { id: "animated-number", label: "AnimatedNumber" },
   { id: "skeleton-v5", label: "Skeleton (V5)" },
   { id: "chart-v5", label: "Chart (V5)" },
+  { id: "empty-state-v5", label: "EmptyState (V5)" },
 ];
 
 export default function DevComponentsPage() {
@@ -136,12 +138,14 @@ export default function DevComponentsPage() {
             <SkeletonV5Section />
             <Separator />
             <ChartV5Section />
+            <Separator />
+            <EmptyStateV5Section />
           </main>
         </div>
 
         <footer className="mt-24 pt-8 border-t border-celo-dark/[8%]">
           <p className="font-sans text-caption opacity-60">
-            Generated J10-V5 Phase 3 Block 4 — see{" "}
+            Generated J10-V5 Phase 3 Block 5 — see{" "}
             <code className="font-mono">docs/SPRINT_J10_V5.md</code>
           </p>
         </footer>
@@ -725,6 +729,74 @@ function ChartV5Section() {
       </ShowcaseRow>
       <ShowcaseRow label="SparklineV5 — trend variant: flat → grey">
         <SparklineV5 data={SPARK_FLAT} variant="trend" />
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function EmptyStateV5Section() {
+  return (
+    <Section
+      id="empty-state-v5"
+      title="EmptyState (V5)"
+      importPath="@/components/ui/v5/EmptyState"
+    >
+      <ShowcaseRow label="no-orders — share boutique CTA">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-orders"
+            title="No orders yet"
+            description="Share your boutique link to get your first sale."
+            action={{
+              label: "Share boutique link",
+              onClick: () => toastV4.info("Demo — share flow lands in Phase 4"),
+            }}
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="no-products — href CTA to product creation">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-products"
+            title="No products yet"
+            description="Add your first product to start selling 24/7."
+            action={{
+              label: "Add your first product",
+              href: "/seller/dashboard?tab=products&new=1",
+            }}
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="no-marketing — descriptive only (form is above)">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-marketing"
+            title="No assets generated yet"
+            description="Generate marketing visuals from your products with the form above."
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="no-stake — top-up CTA">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-stake"
+            title="Top up your stake"
+            description="Cross-border orders require a seller stake (Tier 1 from 10 USDT)."
+            action={{
+              label: "Deposit stake",
+              onClick: () => toastV4.info("Demo — stake deposit flow"),
+            }}
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="compact variant — no-orders, no action">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-orders"
+            title="No orders"
+            variant="compact"
+          />
+        </div>
       </ShowcaseRow>
     </Section>
   );
