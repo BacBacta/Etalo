@@ -145,7 +145,7 @@ export default function DevComponentsPage() {
 
         <footer className="mt-24 pt-8 border-t border-celo-dark/[8%]">
           <p className="font-sans text-caption opacity-60">
-            Generated J10-V5 Phase 3 Block 5 — see{" "}
+            Generated J10-V5 Phase 3 Block 6 — see{" "}
             <code className="font-mono">docs/SPRINT_J10_V5.md</code>
           </p>
         </footer>
