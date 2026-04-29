@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
 import { Button } from "@/components/ui/button";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { fireMilestone } from "@/lib/confetti/milestones";
 import {
   fetchSellerOrders,
@@ -90,7 +91,16 @@ export function OrdersTab({ address }: Props) {
         </select>
       </div>
 
-      {!data || data.orders.length === 0 ? (
+      {data === null ? (
+        <div
+          className="space-y-3"
+          data-testid="orders-skeleton"
+        >
+          <SkeletonV5 variant="row" />
+          <SkeletonV5 variant="row" />
+          <SkeletonV5 variant="row" />
+        </div>
+      ) : data.orders.length === 0 ? (
         <p className="text-base text-neutral-600">
           No orders{statusFilter ? ` with status "${statusFilter}"` : " yet"}.
         </p>

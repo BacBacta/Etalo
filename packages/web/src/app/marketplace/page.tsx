@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { MarketplaceGrid } from "@/components/MarketplaceGrid";
 import { Button } from "@/components/ui/button";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchMarketplaceProducts,
   type MarketplaceProductItem,
@@ -86,9 +87,16 @@ export default function MarketplacePage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-base text-neutral-600">Loading marketplace…</p>
-      </div>
+      <main className="min-h-screen" data-testid="marketplace-loading">
+        <div className="mx-auto max-w-3xl px-4 py-6">
+          <h1 className="mb-1 text-xl font-semibold">Marketplace</h1>
+          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonV5 key={i} variant="card" />
+            ))}
+          </div>
+        </div>
+      </main>
     );
   }
 

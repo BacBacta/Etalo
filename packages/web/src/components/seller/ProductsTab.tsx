@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
 import { ProductFormDialog } from "@/components/seller/ProductFormDialog";
 import { Button } from "@/components/ui/button";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchMyProducts,
   type MyProductsListItem,
@@ -92,7 +93,13 @@ export function ProductsTab({ profile, walletAddress }: Props) {
   };
 
   if (products === null) {
-    return <p className="text-base text-neutral-600">Loading…</p>;
+    return (
+      <div className="space-y-3" data-testid="products-skeleton">
+        <SkeletonV5 variant="row" />
+        <SkeletonV5 variant="row" />
+        <SkeletonV5 variant="row" />
+      </div>
+    );
   }
 
   return (

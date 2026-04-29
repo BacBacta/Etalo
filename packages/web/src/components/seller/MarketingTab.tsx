@@ -12,6 +12,7 @@ import {
   type TemplateKey,
 } from "@/components/seller/marketing/TemplateSelector";
 import { Button } from "@/components/ui/button";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useCreditsBalance } from "@/hooks/useCreditsBalance";
 import { fireMilestone } from "@/lib/confetti/milestones";
 import {
@@ -144,6 +145,19 @@ export function MarketingTab() {
           You need at least 1 credit to generate. Purchase more credits
           (Block 7b).
         </p>
+      )}
+
+      {generating && !result && (
+        <div
+          className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4"
+          data-testid="marketing-skeleton"
+        >
+          <SkeletonV5
+            variant="rectangle"
+            className="aspect-square max-w-md mx-auto"
+          />
+          <SkeletonV5 variant="text-multi" className="max-w-md mx-auto" />
+        </div>
       )}
 
       {result && selectedProduct && (

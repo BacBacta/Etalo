@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchSellerOrders,
   formatRawUsdt,
@@ -55,7 +56,13 @@ export function OverviewTab({ onchain, address }: Props) {
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">Recent orders</h2>
-        {!recent || recent.orders.length === 0 ? (
+        {recent === null ? (
+          <div className="space-y-3" data-testid="overview-skeleton">
+            <SkeletonV5 variant="row" />
+            <SkeletonV5 variant="row" />
+            <SkeletonV5 variant="row" />
+          </div>
+        ) : recent.orders.length === 0 ? (
           <p className="text-base text-neutral-600">No orders yet.</p>
         ) : (
           <ul className="space-y-2">
