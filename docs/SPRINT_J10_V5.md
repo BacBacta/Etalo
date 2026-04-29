@@ -445,7 +445,7 @@ refactor + V5 applications migration, 5-7j) — wiring data fetcher
 analytics + cards depth + top tabs Robinhood-styled +
 OnboardingScreenV5 + MilestoneDialogV5.
 
-### Phase 4 — Layout refactor (5-7j)
+### Phase 4 — Layout refactor + V5 applications migration (5-7j)
 
 Goal : cards depth + top tabs Robinhood-styled (PAS bottom nav, conflict MiniPay) + onboarding V1 + Phase 3 carry-overs (data wiring + MilestoneDialogV5).
 
@@ -454,15 +454,14 @@ Goal : cards depth + top tabs Robinhood-styled (PAS bottom nav, conflict MiniPay
   à créer dans `lib/seller-api.ts` consumer
   `/api/v1/analytics/summary` (RevenueBlock.timeline_7d).
   Composant ChartLineV5 lui-même livré Block 4 Phase 3 (lazy-load
-  recharts). À intégrer dans Block 5 Phase 4 (« Migration
-  applications V5 sur pages cles »).
+  recharts). À intégrer Block 5 Phase 4.
 - **SparklineV5 wire-up** : trend backend endpoints à exposer
   d'abord (credits usage / per-product sales / seller KPIs), puis
   consumer choice (CreditsBalance / ProductCard / OverviewTab tier
-  card). À ajouter Block 5 Phase 4 si endpoints prêts, sinon
-  reporter Phase 5.
+  card). Décision GO/DEFER mid-Block 5 selon backend endpoint
+  ready. Soft-red dependency.
 - **MilestoneDialogV5 component creation + 2 triggers** : nouveau
-  composant Phase 4 wrapping `success-first-sale.svg` +
+  composant Block 6 Phase 4 wrapping `success-first-sale.svg` +
   `success-withdrawal-complete.svg` (assets staged Phase 3). Wire
   triggers : count first order Released → fire dialog
   une-fois-only (localStorage flag), withdrawal-complete →
@@ -472,13 +471,90 @@ Goal : cards depth + top tabs Robinhood-styled (PAS bottom nav, conflict MiniPay
 
 **Blocks** :
 
-1. **Plan Phase 4 + competitive analysis Robinhood layout** (0.5j) — capture screenshots Robinhood marketplace + dashboard + onboarding pour reference
-2. **Cards refactor depth + shadows tuning** (2-3j) — toutes les cards (ProductCard, MarketplaceProductCard, FeaturedSellers, dashboard cards) → depth Robinhood-style avec shadows celo-md/lg/hero plus tuned
-3. **Top tabs Robinhood-styled SellerDashboardInner** (1-2j) — sliding indicator animated entre tabs + scroll-aware auto-hide (PAS bottom nav, conflict MiniPay)
-4. **OnboardingScreenV5 component + 3-screen flow V1** (2-3j) — Welcome / What you can do / Get started + skippable + persist localStorage. Consume `onboarding-welcome.svg` (Phase 3 staged asset).
-5. **Migration applications V5 sur pages cles** (2j) — landing + marketplace + seller dashboard + checkout flow → utiliser tous les patterns V5 (cards depth, top tabs animated, illustrations). Inclut **ChartLineV5 wire-up OverviewTab** + **SparklineV5 wire-up** si endpoints prêts (carry-overs Phase 3).
-6. **MilestoneDialogV5 component + 2 triggers wired** (1-1.5j) — nouveau composant + first-sale + withdrawal-complete + tests regression-guard one-shot localStorage flag (carry-over Phase 3).
-7. **Closure Phase 4** (0.5j) — bilan + commit + tag intermediaire optionnel
+1. **Audit visuel + plan migration detaille** (0.5j) — DELIVERED 2026-04-29 — voir sous-section "Block 1 audit findings" ci-dessous
+2. **CardV5 elevation tiers + migration ProductCard / MarketplaceProductCard / FeaturedSellers / StatCard** (1j) — composant CardV5 (elevation: sm / md / lg / hero) + 4-5 surfaces migrées + bundle measure
+3. **TabsV5 sliding underline + migration seller dashboard tabs** (1j) — composant TabsV5 (sliding indicator animated) + migration `SellerDashboardInner` legacy `@/components/ui/tabs` → V5. NOTE : TabsV4 sliding indicator existe déjà (Phase 2 Block 5 commit `41b1572`), Mike décide Block 3 si nouveau TabsV5 ou migration vers TabsV4 existant
+4. **OnboardingScreenV5 V1 + integration first-time flow** (1.5j) — 3-screen flow (Welcome / What you can do / Get started) + skippable + persist localStorage `etalo-onboarded=true`. Consume `onboarding-welcome.svg` (Phase 3 staged asset). Integration `/marketplace` + `/seller/dashboard` first-launch
+5. **ChartLineV5 + SparklineV5 wire-up real data** (1.5j) — analytics fetcher dans `lib/seller-api.ts` consumer `/api/v1/analytics/summary` + integration OverviewTab revenue 7d. SparklineV5 wire-up CreditsBalance OR DEFER Phase 5 selon backend trend endpoint dispo
+6. **MilestoneDialogV5 component + 2 triggers (first-sale + withdrawal)** (1j) — nouveau composant + localStorage `milestone-shown-{key}` flag + first-sale + withdrawal-complete + tests regression-guard one-shot
+7. **Phase 4 closure docs** (0.5j) — bilan + commit + tag intermediaire optionnel
+
+**Total wall-clock estime** : 7-9j (vs original 5-7j avec carry-overs intégrés).
+
+#### Block 1 audit findings (2026-04-29)
+
+Audit cumulative parcourant 6 surfaces principales pour identifier les écarts vs Robinhood-target 75-85%. Findings consolidés ci-dessous.
+
+**1a. Cards depth — état vs Robinhood reference** :
+
+| Surface | File | Style actuel | Gap |
+|---|---|---|---|
+| ProductCard | `components/ProductCard.tsx` | image `aspect-square rounded-lg`, texte plain dessous (zero card wrapper) | Pas de elevation/border. Robinhood : card `bg-white rounded-2xl shadow-sm hover:shadow-md` englobe image + text |
+| MarketplaceProductCard | `components/MarketplaceProductCard.tsx` | Idem ProductCard | Idem |
+| FeaturedSellers | `components/FeaturedSellers.tsx` | `border border-neutral-200 rounded-lg hover:border-neutral-400` flat outline | Border-only, pas de shadow elevation |
+| OverviewTab StatCard | `components/seller/OverviewTab.tsx:89-95` | `rounded-md border border-neutral-200 bg-neutral-50 p-3` flat | Robinhood KPI cards : `bg-white shadow-sm rounded-xl` + sparkline interne |
+| StakeTab tier card | `components/seller/StakeTab.tsx` | Idem flat outline | Idem |
+| OrdersTab order item | list item | `rounded-md border border-neutral-200 p-3` flat | Idem |
+| CardV4 (existant) | `components/ui/v4/Card.tsx` | shadow-celo-md + border + rounded-lg + motion lift hover | Bien styled MAIS consommé seulement /dev/components + PublicHeader, **PAS** dans surfaces prod ci-dessus |
+
+**Verdict cards** : tokens `shadow-celo-sm/md/lg/hero` existent (tailwind.config.ts Phase 1 Block 4d). CardV4 component existe avec motion lift. Aucune surface prod consume — c'est le coeur du Block 2 Phase 4.
+
+**1b. Tabs styling — état vs Robinhood** :
+
+| Surface | File:line | Current | Gap |
+|---|---|---|---|
+| SellerDashboardInner | `app/seller/dashboard/SellerDashboardInner.tsx:14-18,165-173` | Imports legacy `@/components/ui/tabs` (shadcn primitive) — `TabsList grid grid-cols-3 sm:grid-cols-6` | Legacy shadcn flat, no animated underline indicator |
+| TabsV4 (existant) | `components/ui/v4/Tabs.tsx` | Phase 2 Block 5 commit `41b1572` — sliding indicator motion + V5 doc align | Bien styled MAIS PAS consommé par dashboard, seul /dev/components l'utilise |
+
+**Verdict tabs** : TabsV4 sliding indicator existe et fonctionne. **Décision Block 3** : nouveau TabsV5 dans namespace V5 (cohérence) OR migration `SellerDashboardInner` vers TabsV4 existant (frugalité, 1-line import swap). Mike tranche au démarrage Block 3.
+
+**1c. Spacing / typography hierarchy** :
+- Landing hero (Block 6 Phase 3) : `font-bold` + `text-3xl/4xl` — pas font-display Switzer V5
+- Dashboard h1 "Your shop" : `text-xl font-semibold` — pas font-display
+- StatCard label/value : `text-sm` label + `text-base font-semibold` value — pas tabular-nums
+- ProductCard price : `text-base font-semibold` — pas tabular-nums
+
+font-display Switzer Variable + tabular-nums utility absents hors `/dev/components`. Lift typography = scope Block 2 (cards titles → font-display) + Phase 5 Block 1 (tabular-nums systematic).
+
+**1d. V4/V5 mix — surfaces inventory** :
+
+| Surface | V4 atoms | V5 utilities | Legacy/raw |
+|---|---|---|---|
+| `/` HomeLanding | aucun | landing-hero img only (Block 6 P3) | inline divs |
+| `/marketplace` | aucun | SkeletonV5 (Block 3b P3) | MarketplaceProductCard raw div |
+| `/[handle]` boutique | aucun | aucun | BoutiqueHeader / ProductGrid / ProductCard / EmptyState legacy |
+| `/[handle]/[slug]` product | (à audit fin Block 5) | (à audit fin) | ShareButtons / ProductAddToCartButton |
+| `/seller/dashboard` shell | aucun | aucun | legacy shadcn `Tabs` |
+| `/seller/dashboard` Overview | AnimatedNumber (StakeTab) | SkeletonV5 (Block 3b) | StatCard plain div |
+| `/seller/dashboard` Orders | aucun | SkeletonV5 + EmptyStateV5 (P3) | order item plain div |
+| `/seller/dashboard` Products | aucun | SkeletonV5 + EmptyStateV5 (P3) | product item plain div |
+| `/seller/dashboard` Marketing | aucun | SkeletonV5 + EmptyStateV5 (P3) | CreditsBalance/ProductPicker custom |
+| `/seller/dashboard` Stake | AnimatedNumber | EmptyStateV5 (P3) | tier card plain div |
+| `/dev/components` | TOUS V4 | TOUS V5 | — |
+
+**Verdict V4/V5 mix** : V5 utilities (Skeleton + EmptyState) bien intégrés Phase 3. V4 atoms (ButtonV4 / CardV4 / TabsV4 / BadgeV4 / InputV4) **quasi-zero adoption surfaces prod**. C'est le coeur du refactor Phase 4.
+
+**1e. Onboarding entry points** :
+- `/seller/dashboard` route `error === "not_found"` (line 120-134) : message "Etalo is in a curated launch phase. Contact our team." — onboarding manuel
+- `/marketplace` first-time MiniPay user : aucun welcome screen — direct grid produits
+- Aucun `localStorage.etalo-onboarded` flag dans le code (`grep "etalo-onboarded"` = 0 hit)
+- Asset `onboarding-welcome.svg` staged Phase 3 Block 6, attend OnboardingScreenV5 (Block 4 Phase 4)
+
+**1f. Dependencies critiques** :
+
+| Block | Hard/Soft | Status | Remediation si bloqué |
+|---|---|---|---|
+| 2 CardV5 | Hard | ✓ green | tokens shadow-celo-* + tailwind config existent |
+| 3 TabsV5 | Hard | ✓ green | TabsV4 référence existante, design tokens cohérents |
+| 4 OnboardingScreenV5 | Hard | ✓ green | asset onboarding-welcome.svg staged P3 |
+| 5 ChartLineV5 wire-up | Hard endpoint | ✓ green (OpenAPI confirme `/api/v1/analytics/summary` existe) | fetcher frontend à créer trivial |
+| 5 SparklineV5 wire-up | Hard endpoint | ⚠️ **soft red** — aucun trend endpoint backend (credits usage / per-product sales) exposé | DEFER Phase 5 si endpoint pas ready Block 5 mid-flight |
+| 6 MilestoneDialogV5 first-sale | Soft frontend-only | ✓ green | tracking 0→1 déjà OrdersTab `prevOrdersCountRef` (P2 B7) |
+| 6 MilestoneDialogV5 withdrawal | Soft frontend-only | ✓ green | post-tx callback déjà StakeActionDialog handleConfirm (P2 B7) |
+
+**1 alerte soft-red** : Block 5 SparklineV5 wire-up dépend d'un trend endpoint backend non-exposé. Décision GO (Mike ajoute endpoint mid-Block 5) OR DEFER Phase 5 prise au démarrage Block 5.
+
+**Sign-off Block 1** : Audit DELIVERED. 7 blocks Phase 4 estimés 7-9j wall-clock. Dependencies majeures green; 1 soft-red flagué pour décision Block 5. Ready pour Block 2 (CardV5 elevation tiers + migration 4-5 surfaces).
 
 **Validation** : visual check pages cles cohérentes, mobile responsive, onboarding flow smooth, MilestoneDialogV5 fires une-fois-only post first-sale + withdrawal.
 

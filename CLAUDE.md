@@ -123,30 +123,27 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J10-V5 — Design System V5 Robinhood-target (mai-juin 2026). Plan
-detaille dans `docs/SPRINT_J10_V5.md`. Branche `feat/design-system-v5`.
+Sprint J10-V5 — Design System V5 Robinhood-target, Phase 4 (Layout
+refactor + V5 applications migration) IN PROGRESS depuis 2026-04-29.
+Plan detaille dans `docs/SPRINT_J10_V5.md`. Branche
+`feat/design-system-v5`.
 
-Phase 1 (Foundations) CLOTUREE 2026-04-29 — 8/8 V4 dark variants +
-Switzer + Phosphor + perf budget livrés (16 commits, 120/120 vitest).
-Phase 2 (Motion + interactions) CLOTUREE 2026-04-29 — 5 V4 components
-motion + page transitions + confetti milestones + AnimatedNumber
-(10 commits, 134/134 vitest, bundle /seller/dashboard 260 KB strict).
-Phase 3 (Visuals premium) CLOTUREE 2026-04-29 — 4 composants V5
-(SkeletonV5 / ChartLineV5 / SparklineV5 / EmptyStateV5) + 5
-illustrations Recraft.ai consommées (4 empty states + landing hero) +
-recharts ^3.8.1 lazy-loaded (8 commits, 166/166 vitest, bundle
-/seller/dashboard 262 KB First Load).
-Phase 4 (Layout refactor) à demarrer.
+Phase 1-3 closures :
 
-Pivot strategique V4 → V5 valide 2026-04-27 mid-J10 Block 3 apres visual
-check Block 2 PublicHeader migration (V4 trop modeste vs 2026 standards).
-Voir ADR-040 pour rationale.
+- Phase 1 (Foundations) ✓ 16 commits
+- Phase 2 (Motion) ✓ 11 commits
+- Phase 3 (Visuals) ✓ 9 commits — bundle 262 KB strict, 4 composants
+  V5 livres, 8 lessons #73-#80
 
-Cible quality realistic : 75-85% Robinhood-quality (solo dev + budget
-$50-80). 6-10 semaines wall-clock. Mainnet target Q2 2027.
+Phase 4 (Layout refactor + V5 applications migration) IN PROGRESS —
+carry-overs Phase 3 integres : ChartLineV5/SparklineV5 wire-up,
+MilestoneDialogV5, OnboardingScreenV5, cards depth Robinhood, tabs
+sliding.
+Phase 5 (Polish + Submission + tag final
+`v2.0.0-design-system-v5-sepolia`) NEXT.
 
-When user says "start Phase N" ou "start Block N", read that section in
-docs/SPRINT_J10_V5.md and execute.
+When user says "start Phase 4 Block N" or "continue Block X", read
+that block in `docs/SPRINT_J10_V5.md` and execute.
 
 Always propose a plan before executing, and wait for validation.
 Report what was done at the end of each block.
