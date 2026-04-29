@@ -1,81 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { m, useSpring, useTransform } from "motion/react";
+import { useEffect, useRef, useState } from "react";
 
-// J10-V5 Phase 2 Block 8 (refactored bundle fix) — premium counter
-// for USDT amounts + credit balances. Pattern: useSpring drives the
-// MotionValue, useTransform formats it for display, m.span subscribes
-// textContent to the formatted MotionValue.
-//
-// Why useSpring (not animate() imperative) — animate() pulled in the
-// tween/keyframes engine on top of LazyMotion's domAnimation features
-// (~28 KB First Load growth on /seller/dashboard, breaking the 280 KB
-// trigger budget). useSpring is part of the spring-physics path
-// already shared with the LazyMotion chunk that Block 4-6 use, so the
-// switch costs ~0 fresh bundle.
+// J10-V5 Phase 2 Block 8 (refactored bundle fix v2) — premium counter
+// for USDT amounts + credit balances. Custom rAF tween + easeOutCubic,
+// no motion runtime dependency. Replaces the useSpring variant (refactor
+// v1) which still pulled spring physics from the motion/react main
+// bundle and kept /seller/dashboard 2 KB above the 280 KB First Load
+// trigger. Net cost: ~30 lines, zero new bundle deps.
 //
 // Behaviors:
-// - First render: useSpring(value) initializes the spring at value
-//   (at rest). No animation, no 0 → value flash.
-// - Prop change: useEffect fires spring.set(newValue) → spring tweens
-//   to new target via physics.
-// - prefers-reduced-motion: spring config switches to high
-//   stiffness/damping so the spring settles in ~1 frame (effectively
-//   instant). matchMedia is read once at mount — consistent with
-//   Block 7's confetti util.
+// - First render: useState(value) sets initial state to value, useEffect
+//   takes the early-return path (fromValue === value). No animation,
+//   no 0 → value flash.
+// - Prop change: useEffect captures the latest displayed value (via
+//   currentValueRef so the read isn't a stale-closure hazard) as
+//   fromValue, schedules rAF loop that interpolates fromValue → value
+//   over `duration` seconds with easeOutCubic. Cleans up via
+//   cancelAnimationFrame on dep change / unmount.
+// - prefers-reduced-motion: instant setCurrentValue(value), no tween.
+//   matchMedia is read fresh on each value change so a user toggling
+//   the OS pref mid-session sees the new behavior on the next update.
 // - Tabular nums inline (font-variant-numeric: tabular-nums) so digit
 //   width stays fixed during the tween — no layout shift. Phase 5 will
 //   standardize via Tailwind utility on every USDT amount surface.
+// - easeOutCubic = 1 - (1-t)^3 — visually similar to V5's
+//   cubic-bezier(0.16, 1, 0.3, 1) used elsewhere (Block 4 PageTransition,
+//   Block 6 Overlay), without the motion runtime.
 
 interface AnimatedNumberProps {
   value: number;
   /** Decimals shown via toFixed. 0 for credit counts, 2 for USDT. */
   decimals?: number;
+  /** Tween duration in seconds. Defaults to 0.4 (V5 200-400ms range). */
+  duration?: number;
   /** Optional suffix concatenated to the formatted number, e.g. " USDT". */
   suffix?: string;
   className?: string;
   "data-testid"?: string;
 }
 
-const SPRING_NORMAL = { stiffness: 100, damping: 30 };
-const SPRING_REDUCED_MOTION = { stiffness: 10000, damping: 100 };
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
 export function AnimatedNumber({
   value,
   decimals = 0,
+  duration = 0.4,
   suffix = "",
   className,
   "data-testid": dataTestId,
 }: AnimatedNumberProps) {
-  const [reducedMotion] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      typeof window.matchMedia === "function" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-  );
-
-  const spring = useSpring(
-    value,
-    reducedMotion ? SPRING_REDUCED_MOTION : SPRING_NORMAL,
-  );
+  const [currentValue, setCurrentValue] = useState(value);
+  // Track the latest displayed value without making it a useEffect dep
+  // (which would re-trigger the effect on every tick → infinite loop).
+  const currentValueRef = useRef(value);
+  currentValueRef.current = currentValue;
 
   useEffect(() => {
-    spring.set(value);
-  }, [value, spring]);
+    const fromValue = currentValueRef.current;
+    if (fromValue === value) return;
 
-  const formatted = useTransform(
-    spring,
-    (v) => v.toFixed(decimals) + suffix,
-  );
+    const reducedMotion =
+      typeof window !== "undefined" &&
+      typeof window.matchMedia === "function" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reducedMotion) {
+      setCurrentValue(value);
+      return;
+    }
+
+    const startTime = performance.now();
+    const durationMs = duration * 1000;
+    let frameId = 0;
+
+    const tick = (now: number) => {
+      const elapsed = now - startTime;
+      const t = Math.min(1, elapsed / durationMs);
+      const eased = easeOutCubic(t);
+      setCurrentValue(fromValue + (value - fromValue) * eased);
+      if (t < 1) {
+        frameId = requestAnimationFrame(tick);
+      }
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, [value, duration]);
 
   return (
-    <m.span
+    <span
       className={className}
       data-testid={dataTestId}
       style={{ fontVariantNumeric: "tabular-nums" }}
     >
-      {formatted}
-    </m.span>
+      {currentValue.toFixed(decimals) + suffix}
+    </span>
   );
 }

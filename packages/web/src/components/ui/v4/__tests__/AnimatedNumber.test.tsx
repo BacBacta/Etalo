@@ -1,33 +1,24 @@
 /**
- * Vitest specs for AnimatedNumber (J10-V5 Phase 2 Block 8 refactored).
+ * Vitest specs for AnimatedNumber (J10-V5 Phase 2 Block 8 refactored v2).
  *
  * Coverage:
  * - initial render shows the formatted value (decimals + suffix) +
- *   tabular nums inline style applied. useSpring(value) initializes
- *   at value, so no 0-flash regardless of any imperative dispatch.
- * - prefers-reduced-motion swaps the spring config to a near-instant
- *   settle (a11y contract). We assert via per-file useSpring spy on
- *   the config argument — that's the dispatch decision motion makes,
- *   independent of jsdom's RAF tick behavior.
+ *   tabular nums inline style applied. useState(value) initializes at
+ *   value, useEffect early-returns (fromValue === value), so no
+ *   0-flash and no rAF loop on mount.
+ * - prefers-reduced-motion: matchMedia stub matches=true → on prop
+ *   change useEffect takes the instant-set branch (setCurrentValue
+ *   directly, no rAF), so the new value lands on the next render.
+ *   Verified via waitFor (single React commit cycle).
+ *
+ * No motion runtime → no MotionGlobalConfig.skipAnimations dependency,
+ * no per-file mock of motion/react. Custom rAF tween is testable
+ * directly via state assertions.
  */
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("motion/react", async () => {
-  const actual = await vi.importActual<typeof import("motion/react")>(
-    "motion/react",
-  );
-  return {
-    ...actual,
-    useSpring: vi.fn(actual.useSpring),
-  };
-});
-
-import { useSpring } from "motion/react";
-
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
-
-const useSpringSpy = useSpring as unknown as ReturnType<typeof vi.fn>;
 
 function stubMatchMedia(matches: boolean) {
   vi.stubGlobal(
@@ -47,7 +38,6 @@ function stubMatchMedia(matches: boolean) {
 
 describe("AnimatedNumber", () => {
   beforeEach(() => {
-    useSpringSpy.mockClear();
     stubMatchMedia(false);
   });
 
@@ -66,18 +56,14 @@ describe("AnimatedNumber", () => {
     );
     const node = screen.getByTestId("amount");
     expect(node).toHaveTextContent("1.50 USDT");
-    // Tabular nums applied inline so digit width stays fixed during
-    // the spring tween — Phase 5 will standardize via Tailwind utility.
+    // Tabular nums inline keeps digit width fixed during the tween —
+    // Phase 5 will standardize via a Tailwind utility on every amount.
     expect(node).toHaveStyle({ fontVariantNumeric: "tabular-nums" });
-    // Normal V5 spring tuning when reduced-motion is off.
-    const lastCallConfig =
-      useSpringSpy.mock.calls[useSpringSpy.mock.calls.length - 1]?.[1];
-    expect(lastCallConfig).toEqual({ stiffness: 100, damping: 30 });
   });
 
-  it("swaps to a near-instant spring when prefers-reduced-motion: reduce matches (a11y)", () => {
+  it("instant-sets the value when prefers-reduced-motion: reduce matches (a11y)", async () => {
     stubMatchMedia(true);
-    render(
+    const { rerender } = render(
       <AnimatedNumber
         value={10}
         decimals={0}
@@ -85,8 +71,20 @@ describe("AnimatedNumber", () => {
         data-testid="amount"
       />,
     );
-    const lastCallConfig =
-      useSpringSpy.mock.calls[useSpringSpy.mock.calls.length - 1]?.[1];
-    expect(lastCallConfig).toEqual({ stiffness: 10000, damping: 100 });
+    expect(screen.getByTestId("amount")).toHaveTextContent("10 credits");
+    rerender(
+      <AnimatedNumber
+        value={25}
+        decimals={0}
+        suffix=" credits"
+        data-testid="amount"
+      />,
+    );
+    // Under reduced-motion the effect calls setCurrentValue(value) on
+    // the same effect tick — no rAF, no easing — so the next React
+    // commit shows the new value.
+    await waitFor(() =>
+      expect(screen.getByTestId("amount")).toHaveTextContent("25 credits"),
+    );
   });
 });
