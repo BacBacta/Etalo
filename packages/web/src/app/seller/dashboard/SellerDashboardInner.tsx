@@ -11,11 +11,11 @@ import { ProductsTab } from "@/components/seller/ProductsTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 import { StakeTab } from "@/components/seller/StakeTab";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  TabsV4Content,
+  TabsV4List,
+  TabsV4Root,
+  TabsV4Trigger,
+} from "@/components/ui/v4/Tabs";
 import {
   fetchMyProfile,
   fetchSellerOnchainProfile,
@@ -162,43 +162,52 @@ export function SellerDashboardInner() {
         <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
         <p className="mb-6 text-sm text-neutral-600">@{profile.shop_handle}</p>
 
-        <Tabs value={safeTab} onValueChange={setTab}>
-          <TabsList className="mb-6 grid w-full grid-cols-3 sm:grid-cols-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="stake">Stake</TabsTrigger>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="marketing">Marketing</TabsTrigger>
-          </TabsList>
+        <TabsV4Root value={safeTab} onValueChange={setTab}>
+          {/*
+            TabsV4List is a horizontal flex with a sliding indicator that
+            measures `data-state="active"` descendants. The legacy grid
+            `grid-cols-3 sm:grid-cols-6` is dropped — the V4 list is
+            already responsive and the sliding indicator is the visual
+            anchor instead of equal-width columns. Wrap with
+            overflow-x-auto so 6 tabs remain reachable on 360px viewports
+            without breaking the indicator measurement.
+          */}
+          <TabsV4List className="mb-6 w-full overflow-x-auto">
+            <TabsV4Trigger value="overview">Overview</TabsV4Trigger>
+            <TabsV4Trigger value="products">Products</TabsV4Trigger>
+            <TabsV4Trigger value="orders">Orders</TabsV4Trigger>
+            <TabsV4Trigger value="stake">Stake</TabsV4Trigger>
+            <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
+            <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
+          </TabsV4List>
 
-          <TabsContent value="overview">
+          <TabsV4Content value="overview">
             <OverviewTab
               profile={profile}
               onchain={onchain}
               address={address}
             />
-          </TabsContent>
-          <TabsContent value="products">
+          </TabsV4Content>
+          <TabsV4Content value="products">
             <ProductsTab profile={profile} walletAddress={address} />
-          </TabsContent>
-          <TabsContent value="orders">
+          </TabsV4Content>
+          <TabsV4Content value="orders">
             <OrdersTab address={address} />
-          </TabsContent>
-          <TabsContent value="stake">
+          </TabsV4Content>
+          <TabsV4Content value="stake">
             <StakeTab onchain={onchain} onProfileRefresh={refreshOnchain} />
-          </TabsContent>
-          <TabsContent value="profile">
+          </TabsV4Content>
+          <TabsV4Content value="profile">
             <ProfileTab
               profile={profile}
               address={address}
               onUpdated={setProfile}
             />
-          </TabsContent>
-          <TabsContent value="marketing">
+          </TabsV4Content>
+          <TabsV4Content value="marketing">
             <MarketingTab />
-          </TabsContent>
-        </Tabs>
+          </TabsV4Content>
+        </TabsV4Root>
       </div>
     </Shell>
   );

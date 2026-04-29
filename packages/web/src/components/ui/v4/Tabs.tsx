@@ -10,7 +10,6 @@ import {
   type MutableRefObject,
 } from "react";
 import * as TabsPrimitive from "@radix-ui/react-tabs";
-import { m } from "motion/react";
 
 import { cn } from "@/components/ui/v4/utils";
 
@@ -22,22 +21,22 @@ interface IndicatorState {
   measured: boolean;
 }
 
-// J10-V5 Phase 2 Block 5 — sliding indicator under the active tab.
-// Strategy B retenue (manual position tracking via MutationObserver +
-// ResizeObserver) over Strategy A (domMax + layoutId) — bundle stays
-// on `domAnimation` because both produce the same spring-driven
-// visual; A would also require lifting Radix Tabs Root state via a
-// custom Context (Radix doesn't expose the active value to children
-// Triggers). Strategy A reserved for Phase 5 polish if popLayout
-// page transitions justify the cumulative `domMax` upgrade.
+// J10-V5 Phase 4 Block 3 — sliding indicator under the active tab.
+// Phase 2 Block 5 originally drove the indicator with motion/react
+// spring 500/30; Phase 4 Block 3 dropped the motion dep (Lesson #80
+// récidive — module-level motion import injected ~15-20 KB into every
+// route consumer that imported TabsV4, making the dashboard tree
+// brush against the 280 KB strict trigger). CSS transform +
+// transition-[transform,width] duration-300 ease-out approximates the
+// snappy spring well enough at the small distances tabs travel; tabs
+// UX is instant feedback rather than spring exploration.
 //
-// Spring 500/30 snappy is distinct from CardV4 hover (300/20
-// contemplatif): tab UX = instant feedback, card UX = lift
-// exploration.
-//
-// CSS / motion separation respected (cohérent Block 2-3): CSS still
-// drives colors and the List border; motion drives only the
-// indicator's transform (translateX) + width.
+// State strategy unchanged (manual position tracking via
+// MutationObserver + ResizeObserver — Radix Tabs Root doesn't expose
+// the active value to children Triggers, so the List measures the
+// active descendant directly). Conditional render
+// `{indicator.measured && ...}` still avoids a flash at position 0,0
+// during the first paint.
 export const TabsV4List = forwardRef<
   ElementRef<typeof TabsPrimitive.List>,
   ComponentPropsWithoutRef<typeof TabsPrimitive.List>
@@ -112,13 +111,14 @@ export const TabsV4List = forwardRef<
     >
       {children}
       {indicator.measured && (
-        <m.div
+        <div
           aria-hidden="true"
           data-testid="tabs-indicator"
-          className="absolute bottom-0 left-0 h-0.5 bg-celo-forest dark:bg-celo-forest-bright"
-          initial={false}
-          animate={{ x: indicator.x, width: indicator.width }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
+          className="absolute bottom-0 left-0 h-0.5 bg-celo-forest transition-[transform,width] duration-300 ease-out dark:bg-celo-forest-bright"
+          style={{
+            transform: `translateX(${indicator.x}px)`,
+            width: `${indicator.width}px`,
+          }}
         />
       )}
     </TabsPrimitive.List>
