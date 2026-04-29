@@ -58,7 +58,9 @@ import {
 } from "@/components/ui/v4/Tabs";
 import { toastV4 } from "@/components/ui/v4/Toast";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
+import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
+import { SparklineV5 } from "@/components/ui/v5/SparklineV5";
 import { fireMilestone } from "@/lib/confetti/milestones";
 
 const sections = [
@@ -73,6 +75,7 @@ const sections = [
   { id: "confetti", label: "Confetti" },
   { id: "animated-number", label: "AnimatedNumber" },
   { id: "skeleton-v5", label: "Skeleton (V5)" },
+  { id: "chart-v5", label: "Chart (V5)" },
 ];
 
 export default function DevComponentsPage() {
@@ -131,13 +134,15 @@ export default function DevComponentsPage() {
             <AnimatedNumberSection />
             <Separator />
             <SkeletonV5Section />
+            <Separator />
+            <ChartV5Section />
           </main>
         </div>
 
         <footer className="mt-24 pt-8 border-t border-celo-dark/[8%]">
           <p className="font-sans text-caption opacity-60">
-            Generated J9 Block 4 — see{" "}
-            <code className="font-mono">docs/DESIGN_V4_PREVIEW.md</code>
+            Generated J10-V5 Phase 3 Block 4 — see{" "}
+            <code className="font-mono">docs/SPRINT_J10_V5.md</code>
           </p>
         </footer>
       </div>
@@ -673,6 +678,53 @@ function SkeletonV5Section() {
           <SkeletonV5 variant="row" />
           <SkeletonV5 variant="row" />
         </div>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+const REVENUE_7D = [
+  { label: "Mon", value: 120 },
+  { label: "Tue", value: 145 },
+  { label: "Wed", value: 132 },
+  { label: "Thu", value: 178 },
+  { label: "Fri", value: 210 },
+  { label: "Sat", value: 195 },
+  { label: "Sun", value: 240 },
+];
+
+const SPARK_UP = [10, 14, 12, 18, 22, 25, 32];
+const SPARK_DOWN = [32, 28, 25, 20, 15, 11, 9];
+const SPARK_FLAT = [15, 15, 15, 15, 15, 15, 15];
+
+function ChartV5Section() {
+  return (
+    <Section
+      id="chart-v5"
+      title="Chart (V5)"
+      importPath="@/components/ui/v5/ChartLineV5 + SparklineV5"
+    >
+      <ShowcaseRow label="ChartLineV5 — revenue 7 days (forest, default)">
+        <div className="w-full max-w-2xl">
+          <ChartLineV5 data={REVENUE_7D} height={240} />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="ChartLineV5 — empty data fallback">
+        <div className="w-full max-w-md">
+          <ChartLineV5 data={[]} height={160} />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — default forest (ascending)">
+        <SparklineV5 data={SPARK_UP} />
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — trend variant: ascending → forest">
+        <SparklineV5 data={SPARK_UP} variant="trend" />
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — trend variant: descending → red">
+        <SparklineV5 data={SPARK_DOWN} variant="trend" />
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — trend variant: flat → grey">
+        <SparklineV5 data={SPARK_FLAT} variant="trend" />
       </ShowcaseRow>
     </Section>
   );
