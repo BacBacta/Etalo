@@ -1,18 +1,74 @@
 import {
+  createContext,
   forwardRef,
+  useContext,
+  useState,
   type ComponentPropsWithoutRef,
   type ElementRef,
   type HTMLAttributes,
+  type ReactNode,
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { AnimatePresence, m } from "motion/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "@phosphor-icons/react";
 
 import { cn } from "@/components/ui/v4/utils";
 
-export const SheetV4 = DialogPrimitive.Root;
+// J10-V5 Phase 2 Block 6 — SheetV4 mirrors DialogV4's Block 6 refactor:
+// Root becomes a Context wrapper that lifts open state, Content uses
+// AnimatePresence + forceMount + asChild to drive enter/exit slide
+// animations per side. Spring damping 30 (vs Dialog 28) because pure
+// translation feels heavier than fade+zoom — the higher damping keeps
+// the slide premium without bouncy overshoot.
+type SheetV4ContextValue = {
+  open: boolean;
+};
+
+const SheetV4Context = createContext<SheetV4ContextValue | null>(null);
+
+export interface SheetV4Props {
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  modal?: boolean;
+  children?: ReactNode;
+}
+
+export function SheetV4({
+  open: openProp,
+  defaultOpen,
+  onOpenChange,
+  modal,
+  children,
+}: SheetV4Props) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+
+  const handleOpenChange = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
+
+  return (
+    <SheetV4Context.Provider value={{ open }}>
+      <DialogPrimitive.Root
+        open={open}
+        onOpenChange={handleOpenChange}
+        modal={modal}
+      >
+        {children}
+      </DialogPrimitive.Root>
+    </SheetV4Context.Provider>
+  );
+}
+
 export const SheetV4Trigger = DialogPrimitive.Trigger;
 export const SheetV4Portal = DialogPrimitive.Portal;
+
+const overlayBaseClasses =
+  "fixed inset-0 z-50 bg-celo-dark/40 backdrop-blur-md dark:bg-black/60";
 
 export const SheetV4Overlay = forwardRef<
   ElementRef<typeof DialogPrimitive.Overlay>,
@@ -20,12 +76,7 @@ export const SheetV4Overlay = forwardRef<
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-celo-dark/40 backdrop-blur-md dark:bg-black/60",
-      "data-[state=open]:animate-in data-[state=closed]:animate-out",
-      "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className,
-    )}
+    className={cn(overlayBaseClasses, className)}
     {...props}
   />
 ));
@@ -59,21 +110,19 @@ export const SheetV4Close = forwardRef<
 ));
 SheetV4Close.displayName = "SheetV4Close";
 
+// Positioning + size only — slide animation classes from V4 stripped
+// because motion now drives translation. Border-radius per side stays
+// because it's static layout, not animation.
 const sheetV4ContentVariants = cva(
-  [
-    "fixed z-50 bg-celo-light text-celo-dark shadow-celo-lg p-6 dark:bg-celo-dark-elevated dark:text-celo-light dark:border dark:border-celo-light/[8%]",
-    "data-[state=open]:animate-in data-[state=closed]:animate-out",
-    "duration-300",
-  ].join(" "),
+  "fixed z-50 bg-celo-light text-celo-dark shadow-celo-lg p-6 dark:bg-celo-dark-elevated dark:text-celo-light dark:border dark:border-celo-light/[8%]",
   {
     variants: {
       side: {
         right:
-          "right-0 top-0 h-full w-[calc(100%-3rem)] max-w-[400px] rounded-l-3xl data-[state=open]:slide-in-from-right data-[state=closed]:slide-out-to-right",
-        left: "left-0 top-0 h-full w-[calc(100%-3rem)] max-w-[400px] rounded-r-3xl data-[state=open]:slide-in-from-left data-[state=closed]:slide-out-to-left",
-        top: "top-0 left-0 w-full max-h-[80vh] rounded-b-3xl data-[state=open]:slide-in-from-top data-[state=closed]:slide-out-to-top",
-        bottom:
-          "bottom-0 left-0 w-full max-h-[80vh] rounded-t-3xl data-[state=open]:slide-in-from-bottom data-[state=closed]:slide-out-to-bottom",
+          "right-0 top-0 h-full w-[calc(100%-3rem)] max-w-[400px] rounded-l-3xl",
+        left: "left-0 top-0 h-full w-[calc(100%-3rem)] max-w-[400px] rounded-r-3xl",
+        top: "top-0 left-0 w-full max-h-[80vh] rounded-b-3xl",
+        bottom: "bottom-0 left-0 w-full max-h-[80vh] rounded-t-3xl",
       },
     },
     defaultVariants: {
@@ -82,6 +131,49 @@ const sheetV4ContentVariants = cva(
   },
 );
 
+type SheetSide = "right" | "left" | "top" | "bottom";
+
+const sheetMotionVariantsBySide: Record<
+  SheetSide,
+  {
+    initial: { x?: string; y?: string };
+    animate: { x?: number; y?: number };
+    exit: { x?: string; y?: string };
+  }
+> = {
+  right: {
+    initial: { x: "100%" },
+    animate: { x: 0 },
+    exit: { x: "100%" },
+  },
+  left: {
+    initial: { x: "-100%" },
+    animate: { x: 0 },
+    exit: { x: "-100%" },
+  },
+  top: {
+    initial: { y: "-100%" },
+    animate: { y: 0 },
+    exit: { y: "-100%" },
+  },
+  bottom: {
+    initial: { y: "100%" },
+    animate: { y: 0 },
+    exit: { y: "100%" },
+  },
+};
+
+const overlayMotionTransition = {
+  duration: 0.2,
+  ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+};
+
+const sheetContentMotionTransition = {
+  type: "spring" as const,
+  stiffness: 350,
+  damping: 30,
+};
+
 export interface SheetV4ContentProps
   extends ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
     VariantProps<typeof sheetV4ContentVariants> {}
@@ -89,20 +181,44 @@ export interface SheetV4ContentProps
 export const SheetV4Content = forwardRef<
   ElementRef<typeof DialogPrimitive.Content>,
   SheetV4ContentProps
->(({ className, side, children, ...props }, ref) => (
-  <SheetV4Portal>
-    <SheetV4Overlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      data-side={side ?? "right"}
-      className={cn(sheetV4ContentVariants({ side }), className)}
-      {...props}
-    >
-      {children}
-      <SheetV4Close />
-    </DialogPrimitive.Content>
-  </SheetV4Portal>
-));
+>(({ className, side, children, ...props }, ref) => {
+  const ctx = useContext(SheetV4Context);
+  const open = ctx?.open ?? false;
+  const resolvedSide: SheetSide = side ?? "right";
+  const motionVariants = sheetMotionVariantsBySide[resolvedSide];
+  return (
+    <AnimatePresence>
+      {open ? (
+        <DialogPrimitive.Portal forceMount>
+          <DialogPrimitive.Overlay asChild forceMount>
+            <m.div
+              data-motion-active
+              className={overlayBaseClasses}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={overlayMotionTransition}
+            />
+          </DialogPrimitive.Overlay>
+          <DialogPrimitive.Content ref={ref} asChild forceMount {...props}>
+            <m.div
+              data-side={resolvedSide}
+              data-motion-active
+              className={cn(sheetV4ContentVariants({ side }), className)}
+              initial={motionVariants.initial}
+              animate={motionVariants.animate}
+              exit={motionVariants.exit}
+              transition={sheetContentMotionTransition}
+            >
+              {children}
+              <SheetV4Close />
+            </m.div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      ) : null}
+    </AnimatePresence>
+  );
+});
 SheetV4Content.displayName = "SheetV4Content";
 
 export interface SheetV4HeaderProps extends HTMLAttributes<HTMLDivElement> {

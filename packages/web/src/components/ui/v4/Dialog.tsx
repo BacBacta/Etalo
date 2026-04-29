@@ -1,30 +1,87 @@
 import {
+  createContext,
   forwardRef,
+  useContext,
+  useState,
   type ComponentPropsWithoutRef,
   type ElementRef,
   type HTMLAttributes,
+  type ReactNode,
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
+import { AnimatePresence, m } from "motion/react";
 import { X } from "@phosphor-icons/react";
 
 import { cn } from "@/components/ui/v4/utils";
 
-export const DialogV4 = DialogPrimitive.Root;
+// J10-V5 Phase 2 Block 6 — DialogV4 Root becomes a Context wrapper that
+// lifts Radix's open state so DialogV4Content's AnimatePresence can drive
+// motion enter + exit animations via forceMount + asChild. Trigger,
+// Title, Description, Header, Footer, Close, Portal stay 1:1 with Radix
+// (no API change for consumers — open / defaultOpen / onOpenChange /
+// modal mirror Radix Root). Pattern is the documented Radix→Framer
+// Motion integration; without forceMount the exit animation can't play
+// because Radix would unmount immediately.
+type DialogV4ContextValue = {
+  open: boolean;
+};
+
+const DialogV4Context = createContext<DialogV4ContextValue | null>(null);
+
+export interface DialogV4Props {
+  open?: boolean;
+  defaultOpen?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  modal?: boolean;
+  children?: ReactNode;
+}
+
+export function DialogV4({
+  open: openProp,
+  defaultOpen,
+  onOpenChange,
+  modal,
+  children,
+}: DialogV4Props) {
+  const [internalOpen, setInternalOpen] = useState(defaultOpen ?? false);
+  const isControlled = openProp !== undefined;
+  const open = isControlled ? openProp : internalOpen;
+
+  const handleOpenChange = (next: boolean) => {
+    if (!isControlled) setInternalOpen(next);
+    onOpenChange?.(next);
+  };
+
+  return (
+    <DialogV4Context.Provider value={{ open }}>
+      <DialogPrimitive.Root
+        open={open}
+        onOpenChange={handleOpenChange}
+        modal={modal}
+      >
+        {children}
+      </DialogPrimitive.Root>
+    </DialogV4Context.Provider>
+  );
+}
+
 export const DialogV4Trigger = DialogPrimitive.Trigger;
 export const DialogV4Portal = DialogPrimitive.Portal;
 
+const overlayBaseClasses =
+  "fixed inset-0 z-50 bg-celo-dark/40 backdrop-blur-md dark:bg-black/60";
+
+// Standalone Overlay export retained for any direct consumer (kept the
+// V4 contract). Block 6 motion lives inside DialogV4Content's
+// composition, not on this standalone primitive — direct users still
+// get a static overlay via plain DialogPrimitive.Overlay.
 export const DialogV4Overlay = forwardRef<
   ElementRef<typeof DialogPrimitive.Overlay>,
   ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
-    className={cn(
-      "fixed inset-0 z-50 bg-celo-dark/40 backdrop-blur-md dark:bg-black/60",
-      "data-[state=open]:animate-in data-[state=closed]:animate-out",
-      "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-      className,
-    )}
+    className={cn(overlayBaseClasses, className)}
     {...props}
   />
 ));
@@ -58,31 +115,65 @@ export const DialogV4Close = forwardRef<
 ));
 DialogV4Close.displayName = "DialogV4Close";
 
+// Centering translate is folded into motion variants (x:"-50%", y:"-50%")
+// so motion's transform composition doesn't fight a CSS translate. Scale
+// 0.95→1 lives in the same transform alongside the translate.
+const dialogContentClasses = [
+  "fixed left-1/2 top-1/2 z-50",
+  "w-[calc(100%-2rem)] max-w-[480px]",
+  "bg-celo-light text-celo-dark rounded-3xl p-6 shadow-celo-lg",
+  "dark:bg-celo-dark-elevated dark:text-celo-light dark:border dark:border-celo-light/[8%]",
+].join(" ");
+
+const overlayMotionTransition = {
+  duration: 0.2,
+  ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
+};
+
+const dialogContentMotionTransition = {
+  type: "spring" as const,
+  stiffness: 350,
+  damping: 28,
+};
+
 export const DialogV4Content = forwardRef<
   ElementRef<typeof DialogPrimitive.Content>,
   ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
-  <DialogV4Portal>
-    <DialogV4Overlay />
-    <DialogPrimitive.Content
-      ref={ref}
-      className={cn(
-        "fixed left-1/2 top-1/2 z-50",
-        "-translate-x-1/2 -translate-y-1/2",
-        "w-[calc(100%-2rem)] max-w-[480px]",
-        "bg-celo-light text-celo-dark rounded-3xl p-6 shadow-celo-lg dark:bg-celo-dark-elevated dark:text-celo-light dark:border dark:border-celo-light/[8%]",
-        "data-[state=open]:animate-in data-[state=closed]:animate-out",
-        "data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
-        "data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
-        className,
-      )}
-      {...props}
-    >
-      {children}
-      <DialogV4Close />
-    </DialogPrimitive.Content>
-  </DialogV4Portal>
-));
+>(({ className, children, ...props }, ref) => {
+  const ctx = useContext(DialogV4Context);
+  const open = ctx?.open ?? false;
+  return (
+    <AnimatePresence>
+      {open ? (
+        <DialogPrimitive.Portal forceMount>
+          <DialogPrimitive.Overlay asChild forceMount>
+            <m.div
+              data-motion-active
+              className={overlayBaseClasses}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={overlayMotionTransition}
+            />
+          </DialogPrimitive.Overlay>
+          <DialogPrimitive.Content ref={ref} asChild forceMount {...props}>
+            <m.div
+              data-motion-active
+              className={cn(dialogContentClasses, className)}
+              initial={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
+              animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
+              exit={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
+              transition={dialogContentMotionTransition}
+            >
+              {children}
+              <DialogV4Close />
+            </m.div>
+          </DialogPrimitive.Content>
+        </DialogPrimitive.Portal>
+      ) : null}
+    </AnimatePresence>
+  );
+});
 DialogV4Content.displayName = "DialogV4Content";
 
 export interface DialogV4HeaderProps extends HTMLAttributes<HTMLDivElement> {

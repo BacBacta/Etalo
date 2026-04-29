@@ -158,4 +158,23 @@ describe("SheetV4", () => {
       unmount();
     }
   });
+
+  // J10-V5 Phase 2 Block 6 — motion control flow regression-guard.
+  // JSDom doesn't execute motion (skipAnimations on in test setup), so
+  // we test the runtime decision via data-motion-active + verify each
+  // side variant resolves data-side without losing the marker.
+  it("Content + Overlay carry data-motion-active across all 4 side variants (Block 6 motion entry)", () => {
+    const sides = ["right", "left", "top", "bottom"] as const;
+    for (const side of sides) {
+      const { unmount } = render(<Harness defaultOpen side={side} />);
+      const content = screen.getByTestId("sheet-content");
+      expect(content).toHaveAttribute("data-motion-active");
+      expect(content).toHaveAttribute("data-side", side);
+      const overlay = document.querySelector(
+        '[data-state="open"].fixed.inset-0',
+      );
+      expect(overlay).toHaveAttribute("data-motion-active");
+      unmount();
+    }
+  });
 });

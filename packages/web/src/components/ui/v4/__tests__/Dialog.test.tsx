@@ -150,4 +150,16 @@ describe("DialogV4", () => {
       "dark:focus-visible:ring-offset-celo-dark-elevated",
     );
   });
+
+  // J10-V5 Phase 2 Block 6 — motion control flow regression-guard.
+  // JSDom doesn't execute motion (skipAnimations on in test setup), so
+  // we test the runtime decision via the data-motion-active marker
+  // rather than asserting opacity / scale values directly.
+  it("Content + Overlay carry data-motion-active when open (Block 6 motion entry)", () => {
+    render(<Harness defaultOpen />);
+    const content = screen.getByTestId("dialog-content");
+    expect(content).toHaveAttribute("data-motion-active");
+    const overlay = document.querySelector('[data-state="open"].fixed.inset-0');
+    expect(overlay).toHaveAttribute("data-motion-active");
+  });
 });
