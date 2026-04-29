@@ -233,22 +233,51 @@ Phase 3 : ~5-10h validation cycles Recraft.ai.
 
 Goal : illustrations custom + skeleton screens + charts integration.
 
+**Plan refined Block 1 (2026-04-29)** : 7 blocks atomiques (vs 10 initial
+trop granulaire, production sessions consolidées en 1 block, component
+creation + refactor mergés par feature area).
+
 **Blocks** :
 
-1. **Plan Phase 3 + Recraft.ai setup** (0.5j) — Mike subscribe ($12), familiarize tool
-2. **Recraft.ai illustrations production session 1** (2-3j) — Mike + Cowork generate + validate 3-4 illustrations cles (landing hero + 2-3 empty states critiques). 5-10h Mike's time investment validation cycles.
-3. **Recraft.ai illustrations production session 2** (2-3j) — generate + validate 3-4 illustrations restantes (success states + error states + onboarding)
-4. **SkeletonV5 component creation** (0.5j) — `packages/web/src/components/ui/v5/Skeleton.tsx` avec variants text/circle/rectangle/card + shimmer animation
-5. **Skeleton screens systematic refactor** (2-3j) — replace tous les spinners actuels par skeleton screens (marketplace, dashboard tabs, single product, asset generation page)
-6. **EmptyStateV5 component creation** (0.5j) — wrapper avec illustration + copy + CTA proactive
-7. **Empty states systematic refactor** (1-2j) — boutique vide, marketing tab no images, orders tab no orders, stake tab no stake (CTAs proactifs)
-8. **ChartLineV5 + SparklineV5 components** (1j) — wrappers recharts custom-styled palette V5
-9. **Sparklines integration credit balance + USDT prices** (1j) — embed dans CreditsBalance + ProductCard si applicable
-10. **Closure Phase 3** (0.5j) — bilan + commit + tag intermediaire optionnel
+1. **Setup + illustrations production specs** (0.5j) — docs Block 1 :
+   8 Recraft.ai prompts ready-to-use + style guide tightening + Phase 3
+   plan refined + top 5 surfaces skeleton identifiées + decisions
+   verrouillées (Recraft Pro $12, recharts, EmptyStateV5 standalone)
+2. **Recraft.ai subscription + illustrations production** (2-3j) — Mike
+   souscrit Recraft Pro $12/mois, itère 8 illustrations (1 hero + 4
+   empty + 2 success + 1 onboarding) avec ~5-10h validation cycles
+   cumulés (3-6 cycles per illustration). Output : 8 SVG dans
+   `packages/web/public/illustrations/v5/`. Cancel sub post-Block 2.
+3. **SkeletonV5 component + systematic refactor** (1.5-2j) — création
+   `packages/web/src/components/ui/v5/Skeleton.tsx` avec variants
+   text/circle/rectangle/card + shimmer animation. Replace top 5
+   surfaces critiques : marketplace + OrdersTab + ProductsTab +
+   OverviewTab + MarketingTab GeneratedAssets.
+4. **ChartLineV5 + SparklineV5 components** (1j) — wrappers recharts
+   custom-styled palette V5 token-by-token (déjà installed J7, 0 KB
+   additional). API simple : data array + dimensions + variant.
+5. **EmptyStateV5 component + 3-4 empty states refactor** (1.5-2j) —
+   création EmptyStateV5 standalone (illustration + title + desc + CTA
+   props). Wire OrdersTab + ProductsTab + MarketingTab + StakeTab avec
+   illustrations Block 2 + CTA proactives.
+6. **Integration applications page-level** (0.5-1j) — landing hero
+   illustration wired + sparklines CreditsBalance (si data over time
+   disponible) + skeleton screens systematic.
+7. **Closure Phase 3** (0.5j) — bilan + commit closure docs (pas de tag
+   intermédiaire, Option A confirmée).
 
-**Validation** : illustrations rendues, skeleton screens partout, charts custom-styled, empty states engagement, Mike valide qualitativement.
+**Validation** : illustrations rendues, skeleton screens partout, charts
+custom-styled, empty states engagement, Mike valide qualitativement.
 
-**Mike's time investment** : ~5-10h cumule juste pour validation Recraft.ai illustrations cycles.
+**Mike's time investment** : ~5-10h cumule juste pour validation
+Recraft.ai illustrations cycles Block 2.
+
+**Decisions Block 1 verrouillées** :
+- Recraft.ai Pro $12/mois (SVG vectoriel scalable, Midjourney raster
+  rejeté, SD local qualité variable)
+- recharts (déjà installed J7) custom-styled palette V5 — 0 KB additional
+- EmptyStateV5 standalone (illustration + title + desc + CTA props),
+  compose CardV4 internally si shadow/border requis
 
 ### Phase 4 — Layout refactor (5-7j)
 

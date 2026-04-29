@@ -175,6 +175,164 @@ Recraft.ai genere SVG vectoriel (pas raster Midjourney). $12/mois 1 mois suffit 
 
 ~5-10h cumule pour les 5-8 illustrations validees (3-5 prompts cycles par illustration). Block dedie Phase 3 J11.
 
+## Illustrations production specs (Phase 3 Block 1 ready-to-use)
+
+8 illustrations spécifiées avec Recraft.ai prompts ready-to-use copy-paste.
+Production planifiée Phase 3 Block 2 (post Mike souscription Recraft Pro $12/mois).
+
+**Palette commune verrouillée** (toutes illustrations) :
+- Warm cream background : `#FCFBF7` (celo-light)
+- Primary forest : `#476520` (celo-forest)
+- Mid-tone forest bright : `#5C8B2D` (celo-forest-bright)
+- Warm accent : `#FBCC5C` (celo-yellow)
+- Dark detail : `#0F1115` (celo-dark-bg)
+- Vibrant green : `#00C853` (celo-green) — **CELEBRATION/SUCCESS only**
+- Red : `#A8362F` (celo-red) — **ERRORS only** (pas dans les 8 specs ci-dessous)
+
+3-4 colors max par illustration, pas full palette systématique.
+
+**Style guide tightening** :
+- ❌ Pas de characters humains, faces, mascots, emojis, stock-illustration look
+- ❌ Pas de gradients excessifs (1-2 stops max si vraiment nécessaire)
+- ❌ Pas de réalisme texturé (pas de feuilles, briques, tissus détaillés)
+- ✅ Geometric shapes, lines, dots, abstract symbols
+- ✅ Generous negative space (60%+ canvas)
+- ✅ Clean confident lines (pas de hand-drawn feel)
+- ✅ Reference visuelle : Stripe blog illustrations + Linear empty states + Robinhood onboarding screens
+
+### #1 — Landing hero illustration
+
+**Brief** : Abstract premium digital stall — non-custodial commerce promise, 24/7
+always-on. Aspirational expansive horizontal hero, NO literal "African seller"
+clichés.
+
+**Format** : 1600×900 horizontal SVG vector
+
+**Use case** : Landing page hero above the fold (HomeLanding)
+
+**Iteration target** : 4-6 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration of a non-custodial digital storefront, expansive horizontal composition. Center-left: a stylized minimalist building or stall silhouette as a clean geometric form (rectangles + triangle roof, no realistic detail). Right two-thirds: open negative space with subtle sun-disc or upward-radiating geometric lines suggesting always-open, 24/7 availability and possibility. Floor or ground line clean and confident. Style: Stripe-meets-Linear-meets-Robinhood premium minimalism, clean lines, generous negative space, no characters, no faces, no mascots, no emoji, no stock illustration look, no realistic textures. Palette: warm cream `#FCFBF7` background, forest green `#476520` for primary architectural shapes, bright forest `#5C8B2D` for one mid-tone accent, yellow `#FBCC5C` for the sun-disc focal accent (single warm highlight), tiny dark `#0F1115` detail line for grounding. 1600×900 horizontal SVG vector, scalable, suitable for landing page hero above the fold.
+
+### #2 — Empty state — no orders
+
+**Brief** : Boutique is ready, waiting for first customer to land. Expectation +
+share-to-get-first energy, not absence/failure.
+
+**Format** : 1080×1080 square SVG vector
+
+**Use case** : `OrdersTab` empty state via `EmptyStateV5`
+
+**Iteration target** : 3-4 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration of an empty digital storefront waiting for its first customer. Composition: a stylized small shop display in the lower-third with a friendly minimalist building shape (clean rectangles + simple roof line, no realistic detail). Above the building: a subtle outward-radiating geometric pattern (3-5 thin lines or dots) suggesting share/broadcast/possibility. Style: Stripe-meets-Linear minimalist, clean lines, generous negative space (60%+ canvas), no characters, no faces, no mascots, no emoji, no stock illustration look. Palette: warm cream `#FCFBF7` background, forest green `#476520` for primary shop shapes, bright forest `#5C8B2D` for the radiating lines highlight, yellow `#FBCC5C` for one warm accent dot (small sun or door light). Premium SVG vector format, 1080×1080 square, suitable for empty state component card.
+
+### #3 — Empty state — no products
+
+**Brief** : Empty shelves, invitation to add first product. Capacity available,
+not failure.
+
+**Format** : 1080×1080 square SVG vector
+
+**Use case** : `ProductsTab` empty state via `EmptyStateV5`
+
+**Iteration target** : 3-4 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration of an empty product shelf inviting the first item. Composition: a clean minimalist shelving structure in the center-bottom (3 horizontal lines as shelves, simple framing rectangle). One subtle plus-sign or upward arrow geometric mark in the center of the shelves indicating add-here. Style: Stripe-meets-Linear minimalist, clean lines, generous negative space, no characters, no faces, no mascots, no emoji, no stock illustration look, no realistic shelf textures. Palette: warm cream `#FCFBF7` background, forest green `#476520` for shelf structure, bright forest `#5C8B2D` for the plus/arrow indicator, yellow `#FBCC5C` for one corner accent dot. Premium SVG vector format, 1080×1080 square, suitable for empty state component card.
+
+### #4 — Empty state — no marketing assets
+
+**Brief** : Blank creative canvas, invitation to generate first image. Anticipation
+of creative spark.
+
+**Format** : 1080×1080 square SVG vector
+
+**Use case** : `MarketingTab` empty state (pre-first-generation) via `EmptyStateV5`
+
+**Iteration target** : 3-4 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration of a blank creative canvas inviting the first generation. Composition: a clean rectangular frame in the center (like a picture frame or canvas, simple geometric border). Inside the frame: one subtle abstract spark, sparkle, or burst pattern (3-5 short radiating lines from a center point) suggesting generation and creativity. Style: Stripe-meets-Linear minimalist, clean lines, generous negative space, no characters, no faces, no mascots, no emoji, no stock illustration look. Palette: warm cream `#FCFBF7` background, forest green `#476520` for the frame, bright forest `#5C8B2D` for the burst lines, yellow `#FBCC5C` for the central spark dot. Premium SVG vector format, 1080×1080 square, suitable for empty state component card.
+
+### #5 — Empty state — no stake
+
+**Brief** : Secure foundation needed for cross-border tier unlock. Trust-building,
+not gating-frustration.
+
+**Format** : 1080×1080 square SVG vector
+
+**Use case** : `StakeTab` tier=None empty state via `EmptyStateV5`
+
+**Iteration target** : 3-4 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration of a foundation or anchor representing trust and security for cross-border commerce. Composition: a clean stylized geometric shield, anchor, or pillar shape in the center (simple symmetric form, not literal heraldic shield, more like an upright rectangular monolith with a subtle base). One subtle padlock detail or small dot of structured stability inside the shape. Style: Stripe-meets-Linear minimalist, clean lines, generous negative space, no characters, no faces, no mascots, no emoji, no stock illustration look. Palette: warm cream `#FCFBF7` background, forest green `#476520` for the foundation shape (sober, trust-conveying), bright forest `#5C8B2D` for one mid-tone accent line, yellow `#FBCC5C` for a single small confidence dot. Premium SVG vector format, 1080×1080 square, suitable for empty state component card.
+
+### #6 — Success — first sale celebration
+
+**Brief** : Restrained elegance, NOT loud confetti chaos. Quiet confidence,
+moment-of-pride. (Confetti dynamic burst already lives in canvas-confetti
+Block 7 — illustration is the calm celebratory layer behind.)
+
+**Format** : 1080×1080 square SVG vector
+
+**Use case** : `OrdersTab` post-first-sale full-screen layer OR `EmptyStateV5`
+success variant
+
+**Iteration target** : 3-4 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration celebrating a first sale — restrained elegance, not loud festivity. Composition: in the center, a simple geometric checkmark or upward arrow inside a clean circle (success motif). Around the circle in the upper third: 3-5 small celebratory dots or short radiating lines, asymmetric for organic feel but not chaotic. Lower third: clean negative space. Style: Stripe-meets-Linear-meets-Robinhood premium, restrained celebration, clean lines, generous negative space, no characters, no faces, no mascots, no emoji, no exploded confetti chaos, no stock illustration look. Palette: warm cream `#FCFBF7` background, forest green `#476520` for the success circle border, vibrant green `#00C853` (Robinhood signature) for the checkmark or arrow inside (celebration moment), yellow `#FBCC5C` for 2-3 of the celebratory dots, bright forest `#5C8B2D` for the remaining dots. Premium SVG vector format, 1080×1080 square, suitable for success state component card or post-first-sale layer.
+
+### #7 — Success — withdrawal complete
+
+**Brief** : Calm completion — USDT in your wallet, money flowed safely. Serious
+money moment, NOT festive (use vibrant green sparingly, no yellow accents to keep
+the gravity).
+
+**Format** : 1080×1080 square SVG vector
+
+**Use case** : `StakeActionDialog` withdraw success layer (post withdrawal-complete
+confetti milestone Block 7)
+
+**Iteration target** : 3-4 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration of completed withdrawal — USDT safely arrived. Composition: in the center, a clean geometric wallet or pouch shape (simple rounded rectangle with a subtle clasp line). Above the wallet: a single downward-flowing line or small dollar/coin disc symbol indicating arrival. Around the wallet: a soft glow or 2-3 short radiating arc lines suggesting safety and confirmation, restrained. Style: Stripe-meets-Linear-meets-Robinhood premium, calm completion, clean lines, generous negative space, no characters, no faces, no mascots, no emoji, no stock illustration look. Palette: warm cream `#FCFBF7` background, forest green `#476520` for the wallet structure, vibrant green `#00C853` (Robinhood signature) for the coin/arrival disc and confirmation glow, tiny dark `#0F1115` clasp detail. Yellow accent NOT used here (keep palette clean for serious money moment). Premium SVG vector format, 1080×1080 square, suitable for StakeActionDialog withdraw success layer.
+
+### #8 — Onboarding welcome hero
+
+**Brief** : Premium aspirational hero for first-launch experience. Journey
+beginning, NOT grandiose. Echo of #1 landing hero but more intimate.
+
+**Format** : 1200×800 horizontal SVG vector
+
+**Use case** : `OnboardingScreenV5` screen 1 hero (Phase 4 Block 4)
+
+**Iteration target** : 4-6 cycles
+
+**Recraft.ai prompt** :
+
+> Abstract geometric premium vector illustration of beginning a digital commerce journey — expansive horizontal composition for first-launch onboarding hero. Composition: lower-third grounded with a subtle horizon line or pathway leading rightward into open space. Center-right: a stylized small geometric stall or building silhouette (echoing the landing hero but smaller, more intimate). Upper-third: 3-5 small geometric dots or stars suggesting possibility and the journey ahead, asymmetric for organic feel. Style: Stripe-meets-Linear-meets-Robinhood premium, aspirational without being grandiose, clean lines, generous negative space, no characters, no faces, no mascots, no emoji, no stock illustration look. Palette: warm cream `#FCFBF7` background, forest green `#476520` for the building and horizon line, bright forest `#5C8B2D` for path/journey accents, yellow `#FBCC5C` for one warm welcome dot (sun or focal star), tiny dark `#0F1115` grounding detail. Premium SVG vector format, 1200×800 horizontal, suitable for onboarding screen 1 hero.
+
+### Production budget recap
+
+- 8 illustrations × 3-6 cycles = ~30-40 prompt iterations cumulés
+- Mike validation time : ~5-10h (estimate sprint plan, cohérent)
+- Recraft.ai Pro $12/mois : 1 mois suffit (cancel post Block 2)
+- Output : 8 SVG vector files dans `packages/web/public/illustrations/v5/`
+  (paths à confirmer Block 2)
+
 ## Components V4 → V5 extension
 
 ### Strategy
