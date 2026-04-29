@@ -131,7 +131,12 @@ Switzer + Phosphor + perf budget livrés (16 commits, 120/120 vitest).
 Phase 2 (Motion + interactions) CLOTUREE 2026-04-29 — 5 V4 components
 motion + page transitions + confetti milestones + AnimatedNumber
 (10 commits, 134/134 vitest, bundle /seller/dashboard 260 KB strict).
-Phase 3 (Visuals premium) à demarrer.
+Phase 3 (Visuals premium) CLOTUREE 2026-04-29 — 4 composants V5
+(SkeletonV5 / ChartLineV5 / SparklineV5 / EmptyStateV5) + 5
+illustrations Recraft.ai consommées (4 empty states + landing hero) +
+recharts ^3.8.1 lazy-loaded (8 commits, 166/166 vitest, bundle
+/seller/dashboard 262 KB First Load).
+Phase 4 (Layout refactor) à demarrer.
 
 Pivot strategique V4 → V5 valide 2026-04-27 mid-J10 Block 3 apres visual
 check Block 2 PublicHeader migration (V4 trop modeste vs 2026 standards).

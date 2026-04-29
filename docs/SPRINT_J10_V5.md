@@ -254,8 +254,13 @@ creation + refactor mergés par feature area).
    surfaces critiques : marketplace + OrdersTab + ProductsTab +
    OverviewTab + MarketingTab GeneratedAssets.
 4. **ChartLineV5 + SparklineV5 components** (1j) — wrappers recharts
-   custom-styled palette V5 token-by-token (déjà installed J7, 0 KB
-   additional). API simple : data array + dimensions + variant.
+   custom-styled palette V5 token-by-token. API simple : data array +
+   dimensions + variant. (NOTE post-Block 4 : la mention initiale
+   « recharts déjà installed J7 » était inexacte — package.json ne
+   contenait pas de dep recharts. Installé Block 4 J10-V5 en
+   `recharts ^3.8.1` avec lazy-load strict via next/dynamic — 0 KB
+   delta routes prod, ~70 KB isolé dans chunk dynamic chargé
+   on-demand uniquement quand ChartLineV5 ou SparklineV5 est rendu.)
 5. **EmptyStateV5 component + 3-4 empty states refactor** (1.5-2j) —
    création EmptyStateV5 standalone (illustration + title + desc + CTA
    props). Wire OrdersTab + ProductsTab + MarketingTab + StakeTab avec
@@ -275,24 +280,207 @@ Recraft.ai illustrations cycles Block 2.
 **Decisions Block 1 verrouillées** :
 - Recraft.ai Pro $12/mois (SVG vectoriel scalable, Midjourney raster
   rejeté, SD local qualité variable)
-- recharts (déjà installed J7) custom-styled palette V5 — 0 KB additional
+- recharts custom-styled palette V5. (NOTE post-Block 4 : la mention
+  initiale « déjà installed J7 — 0 KB additional » était inexacte —
+  installé Block 4 J10-V5 en `recharts ^3.8.1` avec lazy-load strict
+  via next/dynamic — 0 KB delta routes prod.)
 - EmptyStateV5 standalone (illustration + title + desc + CTA props),
   compose CardV4 internally si shadow/border requis
 
+### Phase 3 — CLOSURE 2026-04-29 ✅ COMPLET 7/7 blocks
+
+**Status** : 4 composants V5 livres (SkeletonV5 / ChartLineV5 /
+SparklineV5 / EmptyStateV5) + 8 illustrations Recraft.ai produites
+(5 consommées : 4 empty states + landing hero ; 3 staged Phase 4 :
+onboarding-welcome + 2 success). recharts ^3.8.1 installé avec
+lazy-load strict via next/dynamic. 2 false-empty UX bugs fixés
+(OrdersTab + OverviewTab). 1 alerte bundle caught + remédiée
+pre-commit (Block 5b ButtonV4 motion injection).
+
+**Stats** :
+- 8 commits Phase 3 (Block 3a `c4fdca5` → Block 6 `ba4442e`) + closure
+- +32 specs Vitest cumulés (134 → 166 PASS) — aucune régression
+  sur 35 specs J7 baseline
+- 4 composants V5 livres : SkeletonV5 (6 variants + shimmer),
+  ChartLineV5 (recharts wrapper + 4 colors + tooltip V5),
+  SparklineV5 (minimal trend + auto-color variant),
+  EmptyStateV5 (default/compact + asset enum 4 illustrations +
+  discriminated union action)
+- 5 surfaces refactored skeleton screens (marketplace + Orders +
+  Products + Overview + Marketing) + 4 surfaces refactored empty
+  states (Orders + Products + Marketing + Stake)
+- Bundle final `/seller/dashboard` 262 KB First Load — strict
+  trigger 280 KB respecté (18 KB headroom)
+- recharts ^3.8.1 ajouté avec 0 KB delta routes prod (lazy chunk
+  isolé via next/dynamic ssr:false)
+
+**Block timeline** (chronologique, commits hashes) :
+
+| # | Block | Commit | Tests | Livrable |
+|---|---|---|---|---|
+| 1 | Setup illustrations specs | (docs) | — | Specs Recraft + brief 8 illustrations |
+| 2 | Recraft.ai illustrations production | (SVGs+docs) | — | 8 SVG produits |
+| 3a | SkeletonV5 component | `c4fdca5` | +5 → 139 | 6 variants + shimmer keyframe + /dev demo |
+| 3b | 5 surfaces refactor | `c625e48` | +5 → 144 | marketplace + Orders/Products/Overview/Marketing tabs + 2 false-empty fixes |
+| 4 | ChartLineV5 + SparklineV5 | `8969900` | +10 → 154 | recharts ^3.8.1 lazy-load + 2 components + /dev demo |
+| 5a | EmptyStateV5 component | `b767aa2` | +5 → 159 | discriminated union action + 4 illustration assets enum |
+| 5b | 4 surfaces refactor + bundle alert remediated | `91afc9c` | +7 → 166 | OrdersTab/ProductsTab/MarketingTab/StakeTab + ButtonV4 dep removed (motion injection avoided) |
+| 6 | Page-level integrations | `ba4442e` | 0 → 166 | landing-hero integrated + 4 SVGs landed staged Phase 4 |
+| 7 | Phase 3 closure docs (THIS) | `<closure>` | 0 → 166 | bilan + Phase 4 deferrals + recharts discrepancy fix + CLAUDE.md current sprint update |
+
+**Bundle analysis** :
+- Block 3a-3b : +1 KB `/seller/dashboard` (260 → 261) — SkeletonV5
+  composant atomique reusable, refactor 5 surfaces critiques avec
+  shimmer 1.5s linear infinite
+- Block 4 : 0 KB delta routes prod (recharts lazy via next/dynamic
+  ssr:false isole dans chunk dynamic), +1 KB `/dev/components` demo
+- Block 5a : 0 KB delta routes prod (EmptyStateV5 lib-only),
+  +1 KB `/dev/components` demo
+- Block 5b : alerte +17 KB initial sur `/seller/dashboard` (ButtonV4
+  → motion/react + Slot Radix injection inattendue) → fix
+  EmptyStateV5 avec hand-rolled `<button>`/`<a>` styled match
+  ButtonV4 primary, motion press-scale abandonné (faible-fréquence
+  empty-state CTA). Final +1 KB (261 → 262)
+- Block 6 : +1 KB `/` route (landing-hero integration markup),
+  0 KB autres routes
+- **Phase 3 final : +2 KB `/seller/dashboard`** (260 → 262 KB),
+  trigger 280 KB largement respecté (18 KB headroom préservé pour
+  Phase 4-5)
+
+**Lessons critiques #72-#80** (9 nouveaux patterns persistés) :
+- **#72** Recraft.ai brief intent prime over literal detail —
+  illustration #3 (no-products) outline-only style intentionnel
+  matche cohérence visuelle « vide » (Block 2 production lesson).
+  Brief intent (« montrer absence ») > brief littéral
+  (« 3 boîtes vides »).
+- **#73** SkeletonV5 frugality cumulee — composant atomique reusable
+  avec shimmer pseudo-element (`before:` gradient sweep) coûte +1 KB
+  cumulee `/seller/dashboard` malgré 5 surfaces consumers (marketplace
+  + Orders + Products + Overview + Marketing). Tailwind keyframe
+  shimmer gratuit (CSS class).
+- **#74** false-empty UX bug pattern — `data === null` (loading) vs
+  `data === []` (empty) conflated dans plusieurs surfaces
+  (OrdersTab + OverviewTab pre-Block 3b). Anti-flash regression-guard :
+  test `loading state shows skeleton not empty state` avec
+  `mockReturnValue(new Promise(() => {}))` pending promise pour
+  bloquer la résolution. Pattern obligatoire toute surface
+  fetch-then-render.
+- **#75** recharts 3.x TypeScript `tick` prop strict —
+  `fontVariantNumeric` rejeté inside `tick={{...}}` (typings
+  SVGTextProps only). Workaround : CSS inline `font-variant-numeric:
+  "tabular-nums"` sur le wrapper parent — propage aux SVG `<text>`
+  ticks via inheritance. Documenté ChartLineV5Inner header.
+- **#76** lazy import next/dynamic ssr:false — heavy libs (recharts
+  ~70 KB tree-shaken) isolees dans chunk dynamique on-demand,
+  0 KB delta routes prod. Pattern : `dynamic(() => import('./X'),
+  { ssr: false, loading: () => <SkeletonV5 variant="card" /> })`.
+  Inner component default-export pour résoudre via dynamic; tests
+  ciblent l'Inner directement (jsdom ne résout pas next/dynamic).
+- **#77** URL-safe SVG filename slug — Recraft.ai exports
+  filenames avec espaces + em-dash (`Empty state — no orders.svg`)
+  brisent paths URL. Rename systematique en slug matchant asset
+  enum (`empty-no-orders.svg` matche `EmptyStateV5Asset` value
+  `"no-orders"`). Convention `{prefix}-{slug}.svg`.
+- **#78** discriminated union action props TS-safe —
+  `{ label, onClick } | { label, href }` empêche au compile-time
+  de passer les deux. Pattern : `'href' in action && action.href`
+  type-narrows au branch correct. Préférable à
+  `onClick?: ... ; href?: ...` qui autorise `{}`-vide ou les deux.
+- **#79** decorative img + role=region — illustrations empty-state
+  ont `alt="" aria-hidden="true"` (décoratives), le wrapper a
+  `role="region" aria-label={title}` qui porte le sens via le
+  heading. Conforme WCAG illustrations décoratives (le contenu
+  textuel n'est pas dupliqué dans alt).
+- **#80** transitive dep cost analysis avant import cross-tree —
+  ButtonV4 → motion/react + @radix-ui/react-slot inject 17 KB
+  unwanted dans `/seller/dashboard` tree (motion pas payé ailleurs
+  car AnimatedNumber rAF custom Lesson #69). Composants V5 utility
+  (EmptyStateV5, futurs Empty/Loading composables) doivent rester
+  frugaux — préférer hand-rolled styled `<button>`/`<a>` matchant
+  ButtonV4 visuel quand le component cible un bundle déjà tendu.
+  Bundle alert pre-commit (delta > 5 KB) = blocker, investigate
+  transitive deps.
+
+**Tokens clés Phase 3** :
+- `recharts@3.8.1` avec lazy-load strict next/dynamic ssr:false
+  (Block 4 — Lesson #76)
+- `keyframes.shimmer` translateX(-100% → 100%) + animation
+  shimmer 1.5s linear infinite (Block 3a, coexiste celo-pulse V4)
+- `EmptyStateV5Asset` enum (`no-orders` / `no-products` /
+  `no-marketing` / `no-stake`) → `/illustrations/v5/empty-{key}.svg`
+- 8 SVG Recraft.ai dans `packages/web/public/illustrations/v5/` :
+  empty-no-orders, empty-no-products, empty-no-marketing,
+  empty-no-stake, landing-hero, onboarding-welcome,
+  success-first-sale, success-withdrawal-complete
+
+**Carry-overs Phase 4** (deferrals scope-honest) :
+- ChartLineV5 wire-up OverviewTab revenue 7d : `/api/v1/analytics/summary`
+  endpoint existe dans OpenAPI (RevenueBlock.timeline_7d), MAIS
+  aucun fetcher frontend wired. Real-data integration scope Phase 4
+  « Migration applications V5 sur pages cles ». Mock data sur
+  surface prod = anti-pattern.
+- SparklineV5 wire-up : aucun endpoint trend exposé pour credits
+  usage / per-product sales / seller KPIs. Phase 4 expose
+  endpoints d'abord, puis consumer choice (CreditsBalance /
+  ProductCard / OverviewTab tier card).
+- MilestoneDialogV5 component creation + first-sale +
+  withdrawal-complete triggers : nouveau composant Phase 4 +
+  tracking logic count first order Released / post-tx withdrawal
+  callback. Confetti milestone existe deja Phase 2 Block 7 ;
+  Dialog modal créerait double-célébration sans ce nouveau
+  composant.
+- OnboardingScreenV5 V1 : consume `onboarding-welcome.svg` pour
+  landing first-time user flow (Phase 4 plan Block 4 existing).
+
+**Pas de tag intermédiaire** (Option A confirmée Phase 1) — tag
+final `v2.0.0-design-system-v5-sepolia` post Phase 5 closure J10-V5.
+
+**Sign-off** : Phase 3 visuals premium COMPLETE. 7/7 blocks livrés
+(plus 1 closure docs). Tests 166/166 PASS, bundle
+`/seller/dashboard` 262 KB First Load (trigger 280 KB respecté,
+18 KB headroom), 2 false-empty UX bugs fixés au passage, 1 alerte
+bundle caught + remédiée pre-commit. Discipline frugality preservée
+via lazy-load + transitive dep audit. Ready pour Phase 4 (Layout
+refactor + V5 applications migration, 5-7j) — wiring data fetcher
+analytics + cards depth + top tabs Robinhood-styled +
+OnboardingScreenV5 + MilestoneDialogV5.
+
 ### Phase 4 — Layout refactor (5-7j)
 
-Goal : cards depth + top tabs Robinhood-styled (PAS bottom nav, conflict MiniPay) + onboarding V1.
+Goal : cards depth + top tabs Robinhood-styled (PAS bottom nav, conflict MiniPay) + onboarding V1 + Phase 3 carry-overs (data wiring + MilestoneDialogV5).
+
+**Carry-overs Phase 3 (rationale détaillée Phase 3 closure section)** :
+- **ChartLineV5 wire-up OverviewTab revenue 7d** : analytics fetcher
+  à créer dans `lib/seller-api.ts` consumer
+  `/api/v1/analytics/summary` (RevenueBlock.timeline_7d).
+  Composant ChartLineV5 lui-même livré Block 4 Phase 3 (lazy-load
+  recharts). À intégrer dans Block 5 Phase 4 (« Migration
+  applications V5 sur pages cles »).
+- **SparklineV5 wire-up** : trend backend endpoints à exposer
+  d'abord (credits usage / per-product sales / seller KPIs), puis
+  consumer choice (CreditsBalance / ProductCard / OverviewTab tier
+  card). À ajouter Block 5 Phase 4 si endpoints prêts, sinon
+  reporter Phase 5.
+- **MilestoneDialogV5 component creation + 2 triggers** : nouveau
+  composant Phase 4 wrapping `success-first-sale.svg` +
+  `success-withdrawal-complete.svg` (assets staged Phase 3). Wire
+  triggers : count first order Released → fire dialog
+  une-fois-only (localStorage flag), withdrawal-complete →
+  post-tx success callback. Confetti milestone Phase 2 Block 7
+  reste, dialog vient en complément (illustration + copy explicit
+  + dismiss ack vs confetti seul).
 
 **Blocks** :
 
 1. **Plan Phase 4 + competitive analysis Robinhood layout** (0.5j) — capture screenshots Robinhood marketplace + dashboard + onboarding pour reference
 2. **Cards refactor depth + shadows tuning** (2-3j) — toutes les cards (ProductCard, MarketplaceProductCard, FeaturedSellers, dashboard cards) → depth Robinhood-style avec shadows celo-md/lg/hero plus tuned
 3. **Top tabs Robinhood-styled SellerDashboardInner** (1-2j) — sliding indicator animated entre tabs + scroll-aware auto-hide (PAS bottom nav, conflict MiniPay)
-4. **OnboardingScreenV5 component + 3-screen flow V1** (2-3j) — Welcome / What you can do / Get started + skippable + persist localStorage
-5. **Migration applications V5 sur pages cles** (2j) — landing + marketplace + seller dashboard + checkout flow → utiliser tous les patterns V5 (cards depth, top tabs animated, illustrations)
-6. **Closure Phase 4** (0.5j) — bilan + commit + tag intermediaire optionnel
+4. **OnboardingScreenV5 component + 3-screen flow V1** (2-3j) — Welcome / What you can do / Get started + skippable + persist localStorage. Consume `onboarding-welcome.svg` (Phase 3 staged asset).
+5. **Migration applications V5 sur pages cles** (2j) — landing + marketplace + seller dashboard + checkout flow → utiliser tous les patterns V5 (cards depth, top tabs animated, illustrations). Inclut **ChartLineV5 wire-up OverviewTab** + **SparklineV5 wire-up** si endpoints prêts (carry-overs Phase 3).
+6. **MilestoneDialogV5 component + 2 triggers wired** (1-1.5j) — nouveau composant + first-sale + withdrawal-complete + tests regression-guard one-shot localStorage flag (carry-over Phase 3).
+7. **Closure Phase 4** (0.5j) — bilan + commit + tag intermediaire optionnel
 
-**Validation** : visual check pages cles cohérentes, mobile responsive, onboarding flow smooth.
+**Validation** : visual check pages cles cohérentes, mobile responsive, onboarding flow smooth, MilestoneDialogV5 fires une-fois-only post first-sale + withdrawal.
 
 ### Phase 5 — Polish + Submission (5-7j)
 
