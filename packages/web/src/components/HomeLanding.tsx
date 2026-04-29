@@ -1,4 +1,9 @@
 import { FeaturedSellers } from "@/components/FeaturedSellers";
+import {
+  CardDescriptionV4,
+  CardTitleV4,
+  CardV4,
+} from "@/components/ui/v4/Card";
 import type { FeaturedSeller } from "@/lib/api";
 
 interface Props {
@@ -68,27 +73,27 @@ export function HomeLanding({ featuredSellers }: Props) {
 
       <section className="bg-neutral-50 px-4 py-12">
         <div className="mx-auto grid max-w-3xl grid-cols-1 gap-6 md:grid-cols-3">
-          <div className="text-center">
-            <h3 className="mb-2 text-lg font-semibold">USDT escrow</h3>
-            <p className="text-base text-neutral-700">
+          <CardV4 variant="elevated" className="text-center">
+            <CardTitleV4 className="mb-2">USDT escrow</CardTitleV4>
+            <CardDescriptionV4 className="opacity-100 text-celo-dark/70">
               Your funds are held in audited smart contracts on Celo. No
               middleman.
-            </p>
-          </div>
-          <div className="text-center">
-            <h3 className="mb-2 text-lg font-semibold">Buyer protection</h3>
-            <p className="text-base text-neutral-700">
+            </CardDescriptionV4>
+          </CardV4>
+          <CardV4 variant="elevated" className="text-center">
+            <CardTitleV4 className="mb-2">Buyer protection</CardTitleV4>
+            <CardDescriptionV4 className="opacity-100 text-celo-dark/70">
               Disputes are resolved through community voting. Auto-refund
               if seller doesn&apos;t ship.
-            </p>
-          </div>
-          <div className="text-center">
-            <h3 className="mb-2 text-lg font-semibold">Multi-seller cart</h3>
-            <p className="text-base text-neutral-700">
+            </CardDescriptionV4>
+          </CardV4>
+          <CardV4 variant="elevated" className="text-center">
+            <CardTitleV4 className="mb-2">Multi-seller cart</CardTitleV4>
+            <CardDescriptionV4 className="opacity-100 text-celo-dark/70">
               Buy from multiple sellers across Africa in a single seamless
               flow.
-            </p>
-          </div>
+            </CardDescriptionV4>
+          </CardV4>
         </div>
       </section>
 

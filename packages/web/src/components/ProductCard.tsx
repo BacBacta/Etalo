@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { AddToCartIcon } from "@/components/AddToCartIcon";
+import { CardV4 } from "@/components/ui/v4/Card";
 import type { BoutiquePublic } from "@/lib/api";
 
 interface Props {
@@ -15,37 +16,45 @@ export function ProductCard({ product, handle, sellerShopName }: Props) {
   const price = Number(product.price_usdt).toFixed(2);
   return (
     <div className="relative">
-      <Link
-        href={`/${handle}/${product.slug}`}
-        className="block min-h-[44px] focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2"
+      <CardV4
+        variant="default"
+        padding="none"
+        interactive
+        className="overflow-hidden"
+        data-testid="product-card-wrapper"
       >
-        <div className="relative aspect-square overflow-hidden rounded-lg bg-neutral-100">
-          {product.primary_image_url ? (
-            <Image
-              src={product.primary_image_url}
-              alt={product.title}
-              fill
-              sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-              className="object-cover"
-            />
-          ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
-              No image
-            </div>
-          )}
-          {isOutOfStock ? (
-            <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-base font-medium text-white">
-              Out of stock
-            </div>
-          ) : null}
-        </div>
-        <div className="mt-2">
-          <h3 className="line-clamp-2 text-base font-medium">
-            {product.title}
-          </h3>
-          <p className="mt-1 text-base font-semibold">{price} USDT</p>
-        </div>
-      </Link>
+        <Link
+          href={`/${handle}/${product.slug}`}
+          className="block min-h-[44px] focus:outline-none focus:ring-2 focus:ring-celo-forest focus:ring-offset-2"
+        >
+          <div className="relative aspect-square bg-neutral-100">
+            {product.primary_image_url ? (
+              <Image
+                src={product.primary_image_url}
+                alt={product.title}
+                fill
+                sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
+                className="object-cover"
+              />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
+                No image
+              </div>
+            )}
+            {isOutOfStock ? (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/60 text-base font-medium text-white">
+                Out of stock
+              </div>
+            ) : null}
+          </div>
+          <div className="p-3">
+            <h3 className="line-clamp-2 text-base font-medium">
+              {product.title}
+            </h3>
+            <p className="mt-1 text-base font-semibold">{price} USDT</p>
+          </div>
+        </Link>
+      </CardV4>
       <AddToCartIcon
         productId={product.id}
         productSlug={product.slug}

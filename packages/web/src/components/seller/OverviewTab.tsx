@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { CardV4 } from "@/components/ui/v4/Card";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchSellerOrders,
@@ -67,22 +68,25 @@ export function OverviewTab({ onchain, address }: Props) {
         ) : (
           <ul className="space-y-2">
             {recent.orders.slice(0, 5).map((o) => (
-              <li
-                key={o.id}
-                className="rounded-md border border-neutral-200 p-3"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-base font-medium">
-                    Order #{o.onchain_order_id}
-                  </span>
-                  <span className="text-sm text-neutral-600">
-                    {o.global_status}
-                  </span>
-                </div>
-                <div className="mt-1 text-sm text-neutral-600">
-                  {formatRawUsdt(o.total_amount_usdt)} USDT ·{" "}
-                  {new Date(o.created_at_chain).toLocaleDateString()}
-                </div>
+              <li key={o.id}>
+                <CardV4
+                  variant="default"
+                  padding="compact"
+                  interactive={false}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-base font-medium">
+                      Order #{o.onchain_order_id}
+                    </span>
+                    <span className="text-sm text-celo-dark/60">
+                      {o.global_status}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-sm text-celo-dark/60">
+                    {formatRawUsdt(o.total_amount_usdt)} USDT ·{" "}
+                    {new Date(o.created_at_chain).toLocaleDateString()}
+                  </div>
+                </CardV4>
               </li>
             ))}
           </ul>
@@ -95,9 +99,9 @@ export function OverviewTab({ onchain, address }: Props) {
 
 function StatCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3">
-      <div className="text-sm text-neutral-600">{label}</div>
+    <CardV4 variant="default" padding="compact" interactive={false}>
+      <div className="text-sm text-celo-dark/60">{label}</div>
       <div className="mt-1 text-base font-semibold">{value}</div>
-    </div>
+    </CardV4>
   );
 }

@@ -8,6 +8,7 @@ import {
 } from "@/components/seller/StakeActionDialog";
 import { Button } from "@/components/ui/button";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
+import { CardV4 } from "@/components/ui/v4/Card";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import type { SellerProfileResponse } from "@/lib/seller-api";
 
@@ -38,7 +39,7 @@ export function StakeTab({ onchain, onProfileRefresh }: Props) {
   return (
     <div className="space-y-4">
       {hasStake ? (
-        <div className="rounded-md border border-neutral-200 bg-neutral-50 p-4">
+        <CardV4 variant="elevated" padding="default" interactive={false}>
           <h3 className="mb-2 text-lg font-semibold">
             Current tier: {TIER_LABEL[tier] ?? tier}
           </h3>
@@ -46,12 +47,12 @@ export function StakeTab({ onchain, onProfileRefresh }: Props) {
             <AnimatedNumber value={amountSafe} decimals={2} suffix=" USDT" />{" "}
             staked
           </p>
-          <p className="mt-1 text-sm text-neutral-600">
+          <p className="mt-1 text-sm text-celo-dark/60">
             {activeSales} active sale{activeSales === 1 ? "" : "s"} ·{" "}
             {onchain.recent_orders_count} order
             {onchain.recent_orders_count === 1 ? "" : "s"} indexed
           </p>
-        </div>
+        </CardV4>
       ) : (
         <EmptyStateV5
           illustration="no-stake"

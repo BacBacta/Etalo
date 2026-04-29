@@ -1,6 +1,5 @@
-import { forwardRef, type ElementType, type HTMLAttributes } from "react";
+import { forwardRef, type HTMLAttributes } from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { m } from "motion/react";
 
 import { cn } from "@/components/ui/v4/utils";
 
@@ -8,11 +7,13 @@ const cardV4Variants = cva(
   [
     "rounded-3xl",
     "border",
-    // J10-V5 Phase 2 Block 3 — explicit list excludes `transform` so
-    // motion's whileHover y can drive the lift on its own without the
-    // CSS transition fighting the spring on transform updates. Colors
-    // + shadow + border still transition smoothly via CSS.
-    "transition-[background-color,box-shadow,border-color] duration-200 ease-out",
+    // J10-V5 Phase 4 Block 2 — transition includes `transform` so the
+    // CSS hover lift on `interactive=true` is animated. Phase 2 Block 3
+    // had excluded `transform` because motion drove it; Phase 4 Block 2
+    // dropped the motion dep on CardV4 (Lesson #80 recidive — every
+    // route consumer was paying ~15-60 KB of motion/react module cost
+    // even when interactive=false), so CSS owns the transform now.
+    "transition-[background-color,box-shadow,border-color,transform] duration-200 ease-out",
   ].join(" "),
   {
     variants: {
@@ -27,13 +28,19 @@ const cardV4Variants = cva(
       padding: {
         default: "p-6",
         compact: "p-4",
+        // J10-V5 Phase 4 Block 2 — `none` for cards whose children
+        // manage their own internal spacing (e.g. ProductCard /
+        // MarketplaceProductCard wrap a full-bleed aspect-square image
+        // with text below; an outer p-4/p-6 would leave a white
+        // border around the image).
+        none: "",
       },
       interactive: {
-        // CSS hover:-translate-y-px removed — motion drives y: -2 (V5
-        // doc spec) via whileHover when interactive=true. Shadow shift
-        // stays on CSS (separation: motion = transform / CSS = colors,
-        // shadows, borders).
-        true: "cursor-pointer hover:shadow-celo-lg dark:hover:bg-celo-dark-surface",
+        // J10-V5 Phase 4 Block 2 — pure CSS hover lift (vs Phase 2
+        // Block 3 motion spring). 0.5 unit = 2px translate matching
+        // the prior motion target. Shadow shift on hover provides the
+        // "lift" affordance.
+        true: "cursor-pointer hover:-translate-y-0.5 hover:shadow-celo-lg dark:hover:bg-celo-dark-surface",
         false: "",
       },
     },
@@ -49,42 +56,29 @@ export interface CardV4Props
   extends HTMLAttributes<HTMLDivElement>,
     VariantProps<typeof cardV4Variants> {}
 
-// J10-V5 Phase 2 Block 3 — first structural component to gain motion
-// (vs ButtonV4 atomic in Block 2). Spring stiffness=300 damping=20
-// lands ~250-300ms perceived (V5 doc 200-400ms timing range), softer
-// than ButtonV4 press (400/17) — lift is contemplative, not snappy.
-// data-motion-active marker reflects the runtime decision so vitest
-// can regression-guard control flow (JSDom doesn't run motion).
+// J10-V5 Phase 4 Block 2 — motion/react import dropped. CardV4 is
+// consumed cross-tree (ProductCard / MarketplaceProductCard rendered
+// N times on /[handle] + /marketplace; StatCard / Recent orders /
+// Stake tier on /seller/dashboard; HomeLanding feature cards on /).
+// Motion at module scope was injecting +15-60 KB into each route's
+// First Load JS even when interactive=false (Lesson #80 récidive).
+// CSS hover:-translate-y-0.5 + transition-transform approximates the
+// prior motion spring well enough at this 2px translate distance.
 export const CardV4 = forwardRef<HTMLDivElement, CardV4Props>(
   (
     { className, variant, padding, interactive, ...props },
     ref,
-  ) => {
-    const motionActive = interactive === true;
-    const Comp: ElementType = motionActive ? m.div : "div";
-    return (
-      <Comp
-        ref={ref}
-        data-interactive={interactive || undefined}
-        data-motion-active={motionActive || undefined}
-        className={cn(
-          cardV4Variants({ variant, padding, interactive }),
-          className,
-        )}
-        {...(motionActive
-          ? {
-              whileHover: { y: -2 },
-              transition: {
-                type: "spring" as const,
-                stiffness: 300,
-                damping: 20,
-              },
-            }
-          : {})}
-        {...props}
-      />
-    );
-  },
+  ) => (
+    <div
+      ref={ref}
+      data-interactive={interactive || undefined}
+      className={cn(
+        cardV4Variants({ variant, padding, interactive }),
+        className,
+      )}
+      {...props}
+    />
+  ),
 );
 CardV4.displayName = "CardV4";
 

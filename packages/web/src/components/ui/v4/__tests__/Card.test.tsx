@@ -53,13 +53,25 @@ describe("CardV4 root", () => {
     expect(container.firstChild).not.toHaveClass("p-6");
   });
 
+  it("applies no inner spacing when padding=none (J10-V5 P4 B2)", () => {
+    const { container } = render(<CardV4 padding="none">x</CardV4>);
+    const card = container.firstChild as HTMLElement;
+    expect(card).not.toHaveClass("p-4");
+    expect(card).not.toHaveClass("p-6");
+    // Wrapper-level styling stays (rounded + shadow + border + bg).
+    expect(card).toHaveClass("rounded-3xl");
+    expect(card).toHaveClass("shadow-celo-md");
+  });
+
   it("applies interactive hover styles when interactive=true", () => {
     const { container } = render(<CardV4 interactive>x</CardV4>);
     const card = container.firstChild as HTMLElement;
     expect(card).toHaveClass("cursor-pointer");
-    // J10-V5 Phase 2 Block 3: CSS hover:-translate-y-px removed —
-    // motion drives whileHover y: -2 (V5 doc spec). The lift assertion
-    // moved to the data-motion-active spec below.
+    // J10-V5 Phase 4 Block 2: motion/react import dropped from CardV4
+    // (Lesson #80 récidive — module-level motion import injected
+    // 15-60 KB into every route consumer). Lift driven by pure CSS
+    // hover:-translate-y-0.5 + transition-transform.
+    expect(card).toHaveClass("hover:-translate-y-0.5");
     expect(card).toHaveClass("hover:shadow-celo-lg");
     expect(card).toHaveAttribute("data-interactive", "true");
   });
@@ -131,20 +143,18 @@ describe("CardV4 dark variants", () => {
     expect(footer).toHaveClass("dark:border-celo-light/[8%]");
   });
 
-  // J10-V5 Phase 2 Block 3 — motion control flow regression-guards.
-  // JSDom doesn't execute motion's whileHover y: -2, so we test the
-  // runtime decision via the data-motion-active marker rather than
-  // asserting transform values directly.
-  it("applies data-motion-active=true when interactive=true (motion enabled)", () => {
-    const { container } = render(<CardV4 interactive>x</CardV4>);
-    const card = container.firstChild as HTMLElement;
-    expect(card).toHaveAttribute("data-motion-active", "true");
-  });
+  // J10-V5 Phase 4 Block 2 — motion dep dropped from CardV4 module.
+  // The prior `data-motion-active` regression-guard is replaced by an
+  // assertion on the CSS-only hover lift utility class (the lift now
+  // ships via Tailwind, not Framer Motion).
+  it("emits the CSS hover lift class only when interactive=true", () => {
+    const { container, rerender } = render(<CardV4>plain</CardV4>);
+    const cardPlain = container.firstChild as HTMLElement;
+    expect(cardPlain).not.toHaveClass("hover:-translate-y-0.5");
 
-  it("omits data-motion-active when interactive=false / default (motion bypassed)", () => {
-    const { container } = render(<CardV4>x</CardV4>);
-    const card = container.firstChild as HTMLElement;
-    expect(card).not.toHaveAttribute("data-motion-active");
+    rerender(<CardV4 interactive>active</CardV4>);
+    const cardActive = container.firstChild as HTMLElement;
+    expect(cardActive).toHaveClass("hover:-translate-y-0.5");
   });
 });
 
