@@ -143,3 +143,22 @@ describe("HomeRouter — view dispatch landing|minipay (Block 4c)", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("HomeRouter — lazy synchronous init (Phase 4 hotfix #5)", () => {
+  // Hotfix #5 swapped useState("landing") for a lazy initializer that
+  // runs detectMiniPay() at mount time. Eliminates the SSR→hydration
+  // flash MiniPay tunnel users observed during JS bundle download.
+  it("lazy init returns minipay synchronously when detectMiniPay returns true at mount time", () => {
+    setMiniPay(true);
+    window.localStorage.setItem("etalo-onboarded", "true");
+    render(<HomeRouter featuredSellers={[]} />);
+    // Synchronous assertion — no waitFor — proves the very first
+    // React commit already shows HomeMiniPay (no useEffect tick
+    // required). HomeLanding marketing heading must NEVER appear,
+    // not even transiently.
+    expect(screen.getByTestId("minipay-browse-marketplace")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { level: 1, name: LANDING_HEADING }),
+    ).not.toBeInTheDocument();
+  });
+});

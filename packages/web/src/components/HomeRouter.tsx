@@ -22,19 +22,31 @@ const ONBOARDED_KEY = "etalo-onboarded";
 type View = "landing" | "minipay";
 
 export function HomeRouter({ featuredSellers }: Props) {
-  // Initial render = HomeLanding so SSR / non-MiniPay first paint /
-  // crawler output stay aligned (SEO marketing surface). The client
-  // useEffect detects MiniPay context post-mount and swaps to
-  // HomeMiniPay (split landed Block 4c — the dual-purpose landing was
-  // creating UX trous for MiniPay users : Get-MiniPay store CTAs
-  // absurd in MiniPay context, Discover-sellers preempting marketplace,
-  // no explicit mode-selection path).
-  const [view, setView] = useState<View>("landing");
+  // Lazy synchronous init for instant view dispatch — eliminates
+  // SSR→hydration flash for MiniPay tunnel context (Phase 4 hotfix #5).
+  // SSR remains HomeLanding for SEO (window === undefined → fallback
+  // "landing"); client first render swaps immediately to HomeMiniPay
+  // if ngrok hostname signals or window.ethereum.isMiniPay are
+  // detected at mount. useEffect retained as safety net for late
+  // provider injection (Opera can inject window.ethereum.isMiniPay
+  // after first paint on slower devices).
+  //
+  // Hydration divergence (server HomeLanding vs client HomeMiniPay
+  // when MiniPay detected) is intentional — suppressHydrationWarning
+  // applied on the wrapper div below to silence the expected mismatch.
+  // Architecture follow-up : Option C (server-side UA hint via
+  // headers()) recommended Phase 5 Polish to avoid the mismatch
+  // entirely (zero client-specific divergence at SSR time).
+  const [view, setView] = useState<View>(() =>
+    typeof window !== "undefined" && detectMiniPay() ? "minipay" : "landing",
+  );
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     if (!detectMiniPay()) return; // Web visitors stay on HomeLanding.
 
+    // Safety net : if lazy init missed (e.g. window.ethereum injected
+    // late), bring view in line. No-op if already "minipay".
     setView("minipay");
 
     const onboarded =
@@ -53,11 +65,13 @@ export function HomeRouter({ featuredSellers }: Props) {
 
   return (
     <>
-      {view === "minipay" ? (
-        <HomeMiniPay />
-      ) : (
-        <HomeLanding featuredSellers={featuredSellers} />
-      )}
+      <div suppressHydrationWarning>
+        {view === "minipay" ? (
+          <HomeMiniPay />
+        ) : (
+          <HomeLanding featuredSellers={featuredSellers} />
+        )}
+      </div>
       {showOnboarding ? (
         <OnboardingScreenV5
           title="Welcome to Etalo"
