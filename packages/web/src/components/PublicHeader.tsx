@@ -10,8 +10,6 @@ import { CartDrawer } from "@/components/CartDrawer";
 import { CartTrigger } from "@/components/CartTrigger";
 import { ButtonV4 } from "@/components/ui/v4/Button";
 
-const MODE_PREFERENCE_KEY = "etalo-mode-preference";
-
 // V4 logo (J10 Block 2) — exact SVG from docs/DESIGN_V4_PREVIEW.md
 // §63-80. Rounded rectangle dark background + yellow circle + arc +
 // 2 forest dots. Inlined (not <Image>) for crisp render at every
@@ -60,10 +58,12 @@ export function PublicHeader() {
 
   useEffect(() => setMounted(true), []);
 
+  // J10-V5 Phase 4 Block 4b — `etalo-mode-preference` localStorage
+  // key dropped from HomeRouter (sticky-preference auto-redirect was
+  // creating a perceived "5s redirect" UX bug per Mike's MiniPay
+  // testing). The button now just navigates the user back to landing
+  // (home) so they can pick a different surface explicitly.
   const handleSwitchMode = () => {
-    if (typeof window !== "undefined") {
-      window.localStorage.removeItem(MODE_PREFERENCE_KEY);
-    }
     router.push("/");
   };
 

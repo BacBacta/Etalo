@@ -1,46 +1,68 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { HomeLanding } from "@/components/HomeLanding";
-import { HomeMode } from "@/components/HomeMode";
+import { OnboardingScreenV5 } from "@/components/ui/v5/OnboardingScreen";
 import type { FeaturedSeller } from "@/lib/api";
 
 interface Props {
   featuredSellers: FeaturedSeller[];
 }
 
-const MODE_PREFERENCE_KEY = "etalo-mode-preference";
+// J10-V5 Phase 4 Block 4b — first-visit overlay flag. Independent
+// from the legacy `etalo-mode-preference` key (sticky preference that
+// auto-redirected MiniPay visitors to /marketplace or /seller/
+// dashboard on every paint, dropped this block).
+const ONBOARDED_KEY = "etalo-onboarded";
 
 export function HomeRouter({ featuredSellers }: Props) {
-  const router = useRouter();
-  const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
+  // Initial paint always renders HomeLanding — keeps SSR consistent
+  // with non-MiniPay first paint (SEO + crawlers + web visitors). The
+  // onboarding overlay only mounts once the client useEffect has
+  // confirmed we are in a MiniPay context AND the visitor has not
+  // accepted the welcome screen before.
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const provider = (window as unknown as { ethereum?: { isMiniPay?: boolean } })
-      .ethereum;
-    const detected = provider?.isMiniPay === true;
-    setIsMiniPay(detected);
 
-    if (detected) {
-      const pref = window.localStorage.getItem(MODE_PREFERENCE_KEY);
-      if (pref === "buyer") {
-        router.replace("/marketplace");
-      } else if (pref === "seller") {
-        router.replace("/seller/dashboard");
-      }
-      // pref === null → first visit, fall through to HomeMode picker.
+    const provider = (window as unknown as {
+      ethereum?: { isMiniPay?: boolean };
+    }).ethereum;
+    const isMiniPay = provider?.isMiniPay === true;
+
+    // Web visitors land on HomeLanding directly — the welcome overlay
+    // would block the marketing surface SEO drives them to. Onboarding
+    // is scoped to the Mini App entry path, where the surface is the
+    // first thing a MiniPay user sees.
+    if (!isMiniPay) return;
+
+    const onboarded =
+      window.localStorage.getItem(ONBOARDED_KEY) === "true";
+    if (!onboarded) {
+      setShowOnboarding(true);
     }
-  }, [router]);
+  }, []);
 
-  // SEO note: render HomeLanding by default (including during the brief
-  // server-render / detection-pending window). MiniPay users see a flash
-  // of the landing before HomeMode swaps in — acceptable trade-off so
-  // crawlers + non-MiniPay first paint get the full marketing copy.
-  if (isMiniPay === true) {
-    return <HomeMode />;
-  }
-  return <HomeLanding featuredSellers={featuredSellers} />;
+  const handleOnboarded = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(ONBOARDED_KEY, "true");
+    }
+    setShowOnboarding(false);
+  };
+
+  return (
+    <>
+      <HomeLanding featuredSellers={featuredSellers} />
+      {showOnboarding ? (
+        <OnboardingScreenV5
+          title="Welcome to Etalo"
+          description="Your digital stall, open 24/7. Buy and sell with African sellers using USDT escrow on Celo."
+          ctaLabel="Get Started"
+          onCtaClick={handleOnboarded}
+        />
+      ) : null}
+    </>
+  );
 }
