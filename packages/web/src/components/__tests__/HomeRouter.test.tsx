@@ -1,14 +1,14 @@
 /**
- * Vitest specs for HomeRouter — J10-V5 Phase 4 Block 4b.
+ * Vitest specs for HomeRouter — J10-V5 Phase 4 Blocks 4b + 4c.
  *
- * Covers the new first-visit OnboardingScreenV5 flow gated on
- * MiniPay context + `etalo-onboarded` localStorage flag :
- *   1. First MiniPay visit (no flag) → overlay mounts after useEffect
- *   2. Subsequent visit (flag set) → no overlay
- *   3. CTA Get Started sets the flag + dismisses the overlay
+ * Covers :
+ *   - Block 4b : first-visit OnboardingScreenV5 overlay gated on
+ *     MiniPay context + `etalo-onboarded` localStorage flag.
+ *   - Block 4c : view dispatch landing|minipay (HomeMiniPay split
+ *     for MiniPay-native context, HomeLanding for web SEO context).
  *
- * The legacy `etalo-mode-preference` auto-redirect was dropped this
- * block — perceived "5s auto-redirect" bug per Mike's MiniPay testing
+ * The legacy `etalo-mode-preference` auto-redirect was dropped Block
+ * 4b — perceived "5s auto-redirect" bug per Mike's MiniPay testing
  * (sticky preference + Wagmi provider injection latency).
  */
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
@@ -16,8 +16,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { HomeRouter } from "@/components/HomeRouter";
 
-// next/navigation isn't available in jsdom — stub useRouter so HomeLanding
-// + Link work without a real Next.js navigation context.
+// next/navigation isn't available in jsdom — stub useRouter so
+// HomeLanding + HomeMiniPay + Link work without a real Next.js
+// navigation context.
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
 }));
@@ -45,6 +46,9 @@ const clearMiniPay = () => {
   });
 };
 
+const LANDING_HEADING = /Etalo — Your digital stall, open 24\/7/i;
+const MINIPAY_HEADING = /Welcome to Etalo/i;
+
 beforeEach(() => {
   window.localStorage.clear();
 });
@@ -62,25 +66,16 @@ describe("HomeRouter — onboarding overlay (Block 4b)", () => {
         screen.getByRole("dialog", { name: /Welcome to Etalo/i }),
       ).toBeInTheDocument();
     });
-    // Landing renders underneath (consistent SSR + non-MiniPay behavior).
-    expect(
-      screen.getByRole("heading", {
-        name: /Etalo — Your digital stall, open 24\/7/i,
-      }),
-    ).toBeInTheDocument();
   });
 
-  it("subsequent MiniPay visit (flag = 'true') renders landing without overlay", async () => {
+  it("subsequent MiniPay visit (flag = 'true') renders HomeMiniPay without overlay", async () => {
     setMiniPay(true);
     window.localStorage.setItem("etalo-onboarded", "true");
     render(<HomeRouter featuredSellers={[]} />);
-    // Give useEffect a tick to run (it's a no-op in this scenario but
-    // we still want to assert the overlay never appears).
     await waitFor(() => {
+      // HomeMiniPay h1 visible (post-Block 4c view dispatch).
       expect(
-        screen.getByRole("heading", {
-          name: /Etalo — Your digital stall, open 24\/7/i,
-        }),
+        screen.getByRole("heading", { level: 1, name: MINIPAY_HEADING }),
       ).toBeInTheDocument();
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -89,12 +84,10 @@ describe("HomeRouter — onboarding overlay (Block 4b)", () => {
   it("non-MiniPay (web) visitors never see the overlay even on first visit", async () => {
     setMiniPay(false);
     render(<HomeRouter featuredSellers={[]} />);
-    // Allow useEffect to run.
     await waitFor(() => {
+      // HomeLanding marketing heading visible (web SEO surface).
       expect(
-        screen.getByRole("heading", {
-          name: /Etalo — Your digital stall, open 24\/7/i,
-        }),
+        screen.getByRole("heading", { level: 1, name: LANDING_HEADING }),
       ).toBeInTheDocument();
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
@@ -113,11 +106,40 @@ describe("HomeRouter — onboarding overlay (Block 4b)", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
-    // Landing remains visible after dismissal.
+    // HomeMiniPay still visible underneath the dismissed overlay.
     expect(
-      screen.getByRole("heading", {
-        name: /Etalo — Your digital stall, open 24\/7/i,
-      }),
+      screen.getByRole("heading", { level: 1, name: MINIPAY_HEADING }),
     ).toBeInTheDocument();
+  });
+});
+
+describe("HomeRouter — view dispatch landing|minipay (Block 4c)", () => {
+  it("MiniPay context renders HomeMiniPay (with 2 mode CTAs), not HomeLanding", async () => {
+    setMiniPay(true);
+    window.localStorage.setItem("etalo-onboarded", "true");
+    render(<HomeRouter featuredSellers={[]} />);
+    await waitFor(() => {
+      expect(screen.getByTestId("minipay-browse-marketplace")).toBeInTheDocument();
+    });
+    expect(screen.getByTestId("minipay-open-boutique")).toBeInTheDocument();
+    // The legacy HomeLanding marketing heading must NOT appear in
+    // MiniPay context — Get-MiniPay store CTAs + Discover-sellers grid
+    // were Mike's #1 + #2 UX trous post Block 4b.
+    expect(
+      screen.queryByRole("heading", { level: 1, name: LANDING_HEADING }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("non-MiniPay context renders HomeLanding (not HomeMiniPay)", async () => {
+    setMiniPay(false);
+    render(<HomeRouter featuredSellers={[]} />);
+    await waitFor(() => {
+      expect(
+        screen.getByRole("heading", { level: 1, name: LANDING_HEADING }),
+      ).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByTestId("minipay-browse-marketplace"),
+    ).not.toBeInTheDocument();
   });
 });

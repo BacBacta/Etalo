@@ -3,7 +3,6 @@
 import { MoonStars, SunDim } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { CartDrawer } from "@/components/CartDrawer";
@@ -37,35 +36,21 @@ const EtaloLogo = () => (
 );
 
 export function PublicHeader() {
-  const router = useRouter();
   const { theme, setTheme } = useTheme();
   const [cartOpen, setCartOpen] = useState(false);
-  // Same 3-state pattern as HomeRouter / marketplace — null distinguishes
-  // "detection pending" from "non-MiniPay" so the Switch button doesn't
-  // flash on first paint.
-  const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
   // next-themes resolves `theme` only on the client; rendering an icon
   // server-side based on it would mismatch hydration. Render a sized
   // placeholder until mounted to keep the header width stable.
   const [mounted, setMounted] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const provider = (window as unknown as { ethereum?: { isMiniPay?: boolean } })
-      .ethereum;
-    setIsMiniPay(provider?.isMiniPay === true);
-  }, []);
-
   useEffect(() => setMounted(true), []);
 
-  // J10-V5 Phase 4 Block 4b — `etalo-mode-preference` localStorage
-  // key dropped from HomeRouter (sticky-preference auto-redirect was
-  // creating a perceived "5s redirect" UX bug per Mike's MiniPay
-  // testing). The button now just navigates the user back to landing
-  // (home) so they can pick a different surface explicitly.
-  const handleSwitchMode = () => {
-    router.push("/");
-  };
+  // J10-V5 Phase 4 Block 4c — "Switch mode" button removed (vestigial
+  // post Block 4b's drop of `etalo-mode-preference` auto-redirect).
+  // Mode selection now lives on HomeMiniPay's two primary CTAs
+  // ("Browse marketplace" / "Open my boutique") which is reachable
+  // via the logo Link below ("/" → HomeRouter dispatches to
+  // HomeMiniPay in MiniPay context).
 
   return (
     <>
@@ -103,15 +88,6 @@ export function PublicHeader() {
                 <span className="block h-5 w-5" aria-hidden="true" />
               )}
             </ButtonV4>
-            {isMiniPay === true ? (
-              <ButtonV4
-                variant="ghost"
-                size="md"
-                onClick={handleSwitchMode}
-              >
-                Switch mode
-              </ButtonV4>
-            ) : null}
             <CartTrigger onClick={() => setCartOpen(true)} />
           </div>
         </div>
