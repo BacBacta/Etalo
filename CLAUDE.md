@@ -5,9 +5,14 @@
 Etalo is a non-custodial social commerce Mini App for African sellers,
 built on Celo and distributed via MiniPay.
 
-Target markets: Nigeria, Ghana, Kenya primary, diaspora secondary.
+Target markets: Nigeria, Ghana, Kenya, South Africa primary (4 markets V1
+big bang launch, see ADR-041), diaspora secondary.
 Target user: informal sellers on Instagram/WhatsApp/TikTok who want a real
 24/7 shop with secure USDT payments and buyer protection.
+
+V1 scope is **intra-Africa only** — cross-border transactions are deferred
+V2 (see ADR-041). The 4 launch markets transact among themselves; diaspora
+buying is a public-funnel-only signal in V1.
 
 **V1 Boutique model** (see ADR-014): three integrated pillars:
 1. Per-seller Boutique at `etalo.app/[handle]` — full catalog, cart,
@@ -61,11 +66,15 @@ power is structurally bounded by code.
     Practices > Wallet connection.
 8. Transaction states: 4 precise states (Preparing / Confirming / Success / Error)
 9. Commit frequently with clear Conventional Commit messages
-10. Cross-border orders require seller stake (ADR-020) — `createOrder`
-    must revert if the seller has not met the applicable tier's stake
+10. V1 is intra-Africa only (ADR-041) — no `isCrossBorder` flag, no
+    seller stake, no destination-country selection. Cross-border
+    surfaces (ADR-018 / ADR-019 cross clause / ADR-020 / ADR-021)
+    are deferred V2.
 11. Architectural limits are hardcoded (ADR-026) — never propose code
     that bypasses: `MAX_ORDER = 500 USDT`, `MAX_TVL = 50_000 USDT`,
-    `MAX_SELLER_WEEKLY = 5_000 USDT`, `EMERGENCY_PAUSE_MAX = 7 days`
+    `MAX_SELLER_WEEKLY = 5_000 USDT`, `EMERGENCY_PAUSE_MAX = 7 days`.
+    Numerical values may be revisited at V1 mainnet deploy time given
+    4-market big-bang load patterns (per ADR-041).
 12. `forceRefund` is gated by THREE codified conditions (ADR-023) —
     dispute contract inactive + 90+ days order inactivity + registered
     legal hold. Never remove or relax these.
@@ -102,19 +111,16 @@ power is structurally bounded by code.
 
 ## Economics (locked, see ADRs for rationale)
 
-- Commission intra-Africa: 1.8%
-- Commission cross-border: 2.7%
-- Commission Top Seller (intra): 1.2%
-- Auto-release intra: 3 days (2 days for Top Seller)
-- Cross-border release (ADR-018): 20% on shipping proof / 70% at
-  destination-country arrival + 72h without dispute / 10% at buyer
-  confirmation or auto-release 5 days after majority release
-- Seller inactivity deadlines (ADR-019): 7 days intra / 14 days
-  cross-border → permissionless auto-refund
-- Seller stake cross-border (ADR-020): Tier 1 Starter 10 USDT /
-  Tier 2 Established 25 USDT / Tier 3 Top Seller 50 USDT
+- Commission V1: **1.8% single rate** (ADR-041) — Top Seller 1.2%
+  program deferred V1.1 with volume / ratings / dispute criteria.
+- Auto-release intra: **3 days standard** (ADR-041) — single timer V1.
+- Seller inactivity deadline (ADR-019 intra clause): 7 days intra →
+  permissionless auto-refund.
+- Cross-border release flow, 14-day cross-border deadline, and seller
+  stake (ADR-018 / ADR-019 cross clause / ADR-020 / ADR-021) →
+  **DEFERRED V2** by ADR-041.
 - Credits (ADR-014): 0.15 USDT/credit, 5 free/month, 10 welcome bonus,
-  no subscription (see `docs/PRICING_MODEL_CREDITS.md`)
+  no subscription (see `docs/PRICING_MODEL_CREDITS.md`).
 
 ## Developer
 
@@ -168,6 +174,15 @@ ADR-XXX format. When deviating from this file or making a new
 architectural decision, add an entry there before implementing. When
 CLAUDE.md and DECISIONS.md disagree, DECISIONS.md wins until
 CLAUDE.md is updated.
+
+Most-load-bearing recent ADRs for V1 scope:
+
+- ADR-041 (V1 scope restriction — intra-only, 4-market big bang,
+  single 1.8% rate, stake retired) — drives this file's Economics +
+  Critical rules + Target markets sections.
+- ADR-040 (V5 design pivot) — drives Current sprint section.
+- ADR-035 (single Next.js app at etalo.app) — drives Architecture.
+- ADR-034 (no new EIP-191 backend auth) — Critical rules #14.
 
 ## Design standards (from MiniPay official docs)
 

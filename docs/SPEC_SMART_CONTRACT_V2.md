@@ -1,9 +1,85 @@
 # Etalo Smart Contract V2 — Spécification Technique
 
-**Version** : 1.0  
-**Date** : 23 avril 2026  
-**Auteur** : Mike (Etalo)  
+**Version** : 1.1
+**Date** : 23 avril 2026, révisée 30 avril 2026 (ADR-041)
+**Auteur** : Mike (Etalo)
 **Statut** : Spécification du refactor — source de vérité pour l'implémentation Sprint J4
+
+---
+
+## 0. Bandeau scope V1 (ADR-041, 2026-04-30)
+
+**V1 mainnet est intra-Africa only.** Les sections de cette spec
+restent canoniques pour le design V2 mais leur statut de livraison
+**au mainnet V1** est le suivant :
+
+| Surface spec | Section(s) | V1 mainnet ? | Référence |
+|---|---|---|---|
+| Order multi-items + ShipmentGroups | §2-§5 | **Livré V1** | ADR-014 / ADR-015 |
+| Flow cross-border progressif 20%/70%/10% | §4 (cross-border partie) | **Deferred V2** | ADR-018 / ADR-041 |
+| Flow intra-Afrique simplifié | §4.4 | **Livré V1** | — |
+| Stake vendeur 3 tiers | §6 | **Deferred V2** | ADR-020 / ADR-041 |
+| forceRefund 3 conditions | §7 | **Livré V1** | ADR-023 |
+| Auto-refund inactif intra (7d) | §8 partie intra | **Livré V1** | ADR-019 intra clause |
+| Auto-refund inactif cross (14d) | §8 partie cross | **Deferred V2** | ADR-019 cross / ADR-041 |
+| Limites architecturales | §9 | **Livré V1** (numéros révisables au déploiement mainnet) | ADR-026 |
+| Commission intra 1.8% | §10 | **Livré V1 — single rate** | ADR-041 |
+| Commission cross-border 2.7% | §10 | **Deferred V2** | ADR-041 |
+| Commission Top Seller 1.2% | §10.4 | **Deferred V1.1** | ADR-041 |
+| Constantes complètes | §11 | Voir overrides V1 ci-dessous | ADR-041 |
+| Fonctions publiques | §12 | Voir overrides V1 ci-dessous | ADR-041 |
+
+### Overrides V1 contre §11 (constantes)
+
+V1 binary doit retirer ces constantes du contrat compilé :
+- `COMMISSION_CROSS_BPS = 270` (deferred V2)
+- `COMMISSION_TOP_SELLER_BPS = 120` (deferred V1.1)
+- `AUTO_RELEASE_TOP_SELLER = 2 days` (deferred V1.1)
+- `AUTO_RELEASE_CROSS_FINAL = 5 days` (deferred V2)
+- `MAJORITY_RELEASE_DELAY = 72 hours` (deferred V2)
+- `AUTO_REFUND_INACTIVE_CROSS = 14 days` (deferred V2)
+- `SHIPPING_RELEASE_PCT` / `MAJORITY_RELEASE_PCT` / `FINAL_RELEASE_PCT` (deferred V2)
+- Tous les `TIER_*_STAKE` / `TIER_*_MAX_CONCURRENT` / `TIER_*_MAX_PRICE` / `STAKE_COOLDOWN` (deferred V2)
+
+V1 binary garde donc la constante commission unifiée :
+
+```solidity
+// V1 single rate (ADR-041)
+uint256 public constant COMMISSION_RATE = 180;  // 1.8%
+uint256 public constant BPS_DENOMINATOR = 10000;
+
+// V1 single timer (ADR-041)
+uint256 public constant AUTO_RELEASE_INTRA = 3 days;
+
+// V1 single deadline (ADR-019 intra clause + ADR-041)
+uint256 public constant AUTO_REFUND_INACTIVE = 7 days;
+```
+
+### Overrides V1 contre §12 (fonctions)
+
+V1 binary doit retirer ces fonctions du contrat compilé :
+- `enableCrossBorderSelling()` / `disableCrossBorderSelling()` (deferred V2)
+- `uploadShipmentProof()` / `markArrived()` / `triggerMajorityRelease()`
+  / final release cross-border (deferred V2)
+- Toutes les fonctions stake (`depositStake`, `initiateWithdrawal`,
+  `finalizeWithdrawal`, `slashStake`, etc.) — l'ensemble du contrat
+  `EtaloStake` n'est pas déployé V1
+
+V1 binary doit modifier la signature de `createOrderWithItems` :
+- **Avant** : `createOrderWithItems(seller, prices[], isCrossBorder) returns (orderId)`
+- **V1 (ADR-041)** : `createOrderWithItems(seller, prices[]) returns (orderId)` —
+  le flag `isCrossBorder` est retiré, tout order est intra par défaut.
+
+Le champ `bool isCrossBorder` du struct `Order` (§3.1) est aussi
+retiré V1.
+
+### Note d'opportunité de simplification
+
+L'ampleur du retrait V1 ouvre une fenêtre de simplification
+matérielle : `EtaloEscrow` V1 peut perdre ~30-40% de son LOC vs la
+version full-spec, et `EtaloStake` n'a pas besoin d'être déployé du
+tout. Cela réduit l'audit surface et le coût audit freelance
+(ADR-039) de manière significative.
 
 ---
 

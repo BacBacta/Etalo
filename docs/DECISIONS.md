@@ -452,7 +452,7 @@ releases when triggered.
 
 ## ADR-018 · 2026-04-23 — Cross-border progressive release: 20% / 70% / 10%
 
-**Status**: Accepted
+**Status**: Deferred V2 by ADR-041 (2026-04-30) — V1 is intra-Africa only; this release schedule remains the canonical design for cross-border when it ships post-V1.
 
 **Context**: With the Items/ShipmentGroups hierarchy (ADR-015) and the
 removal of fixed milestones (ADR-017), cross-border orders need a
@@ -489,7 +489,7 @@ between parties.
 
 ## ADR-019 · 2026-04-23 — Strict seller inactivity deadlines (7d intra / 14d cross-border)
 
-**Status**: Accepted
+**Status**: Partially deferred V2 by ADR-041 (2026-04-30) — the 7-day intra deadline ships in V1; the 14-day cross-border deadline is deferred until cross-border itself ships post-V1.
 
 **Context**: Funds sitting in escrow while a seller fails to ship block
 the buyer's capital indefinitely. V1 had no code-enforced deadline —
@@ -527,7 +527,7 @@ third-party helper.
 
 ## ADR-020 · 2026-04-23 — Cross-border seller stake — 3-tier structure
 
-**Status**: Accepted
+**Status**: Deferred V2 by ADR-041 (2026-04-30) — V1 retires the seller stake mechanism entirely (intra-only scope makes auto-release 3d a sufficient guarantee); the 3-tier design is preserved here as the canonical reference for the V2 cross-border re-introduction.
 
 **Context**: ADR-018 releases 20% of cross-border funds to the seller
 before buyer-side arrival confirmation. A malicious seller could submit
@@ -1949,3 +1949,180 @@ Pas de conflict avec design pivot :
 - Side-by-side comparison Robinhood QA pass each sprint
 - 75-85% Robinhood-quality atteint (Mike valide qualitativement)
 - Mainnet pre-deploy ready Q2 2027
+
+---
+
+## ADR-041 · 2026-04-30 — V1 Scope Restriction — Intra-Only + South Africa + Single Commission Rate
+
+**Status**: Accepted
+
+### Context
+
+V1 launch is approaching mainnet (target Q2 2027 per ADR-040 timeline)
+and three coupled scope questions need to be locked before Phase 4
+Block 5 V5 application work proceeds further:
+
+1. **Cross-border vs intra-only** — ADR-018 / ADR-019 / ADR-020 / ADR-021
+   collectively define a substantial cross-border surface (progressive
+   3-stage release, asymmetric deadlines, 3-tier seller stake with
+   slashing and 14-day cooldown). That surface is auditable, but it is
+   also the highest dispute-risk surface of the protocol and the
+   biggest contributor to V1 smart-contract complexity.
+2. **Market footprint at launch** — CLAUDE.md targets Nigeria / Ghana /
+   Kenya as primary markets. South Africa was being evaluated as a
+   fourth market based on Celo Camp Africa presence + MiniPay
+   availability + ZAR/USDT corridor liquidity.
+3. **Commission structure** — economics tracked three rates
+   (intra 1.8%, cross-border 2.7%, Top Seller intra 1.2%). The Top
+   Seller program requires reputation-tier gating logic and
+   volume/ratings/dispute criteria that have not yet been authored.
+
+The narrative for grants Celo Foundation submission (ADR-013) and
+MiniPay Proof of Ship is materially cleaner if V1 scope is bounded to
+"the simplest credible thing that works": one corridor type, one
+commission rate, one stake-free flow.
+
+### Decision
+
+V1 scope is locked to the following constraints. Decisions reached
+with Mike on 2026-04-30:
+
+1. **D1 (stake) = A** — Seller stake mechanism is **RETIRED V1**.
+   Auto-release 3 days intra-Africa (per ADR-019 intra clause) is
+   sufficient guarantee for V1; the stake layer was sized for
+   cross-border risk that is no longer in V1 scope.
+2. **D2 (markets) = A** — V1 launches **big bang on 4 markets
+   simultaneously** at mainnet: Nigeria + Ghana + Kenya + South Africa.
+   No staged rollout per market.
+3. **D3 (timing) = A** — ADR-041 is **documented now**, before Phase 4
+   Block 5 V5 application work, so subsequent UI / contract / backend
+   decisions inherit the locked scope.
+4. **Commission = A** — V1 ships a **single commission rate of 1.8%**.
+   The Top Seller 1.2% program is **deferred V1.1** with criteria
+   (volume, ratings, dispute history) authored separately at that time.
+
+Concrete consequences of those four choices:
+
+- **Cross-border transactions are DEFERRED V2** (post-trust-establishment,
+  6-12 months after V1 mainnet, contingent on V1 dispute-rate data and
+  protocol maturity).
+- **ADR-018 (cross-border progressive release), ADR-019 cross-border
+  clause, ADR-020 (cross-border seller stake)** transition to status
+  *Deferred V2 by ADR-041*.
+- ADR-021 (stake withdrawal cooldown) is also implicitly deferred since
+  the stake itself is retired V1; the document remains as the
+  canonical V2 reference.
+- **Single commission constant**: `COMMISSION_RATE = 180 bps (1.8%)` —
+  no `isCrossBorder` flag, no Top Seller discount branch, no per-tier
+  reputation gating in the commission path V1.
+- **Auto-release timer**: a single `AUTO_RELEASE_INTRA = 3 days`
+  constant. The 2-day Top Seller short-circuit is deferred to V1.1
+  alongside the Top Seller program.
+
+### Consequences
+
+#### Smart contract V2
+
+- The cross-border release flow (`uploadShipmentProof`,
+  `markArrived`, majority/final triggers) is removed from V1 binaries
+  but the logic remains documented in `docs/SPEC_SMART_CONTRACT_V2.md`
+  as a "Deferred V2" section so the V2 re-introduction has a head start.
+- The 3-tier stake structure, `EtaloStake` deployment, slashing path,
+  and 14-day cooldown are removed from V1 binaries.
+- `EtaloEscrow` simplifies materially: no `isCrossBorder` field on
+  `Order`, no commission tier branch, no stake-balance check at
+  `createOrder`, no 14-day auto-refund branch.
+- The 7-day intra auto-refund inactivity deadline (ADR-019 intra
+  clause) is retained.
+- `forceRefund` 3-condition gate (ADR-023) is unchanged.
+- Architectural limits (ADR-026) `MAX_ORDER` / `MAX_TVL` /
+  `MAX_SELLER_WEEKLY` / `EMERGENCY_PAUSE_MAX` may be revisited at V1
+  time-of-deploy if 4-market big-bang load patterns warrant it; for
+  now they remain authoritative.
+
+#### Frontend (V5 in progress)
+
+- Remove `isCrossBorder` flag from order creation flows and checkout
+  surfaces.
+- Remove destination-country selection from listing/cart/checkout.
+- Remove Top Seller badge surface V1 (badge can ship in V1.1 alongside
+  the program); reputation visualization elsewhere unchanged.
+- Remove stake deposit / withdrawal flow from seller dashboard
+  (currently scaffolded in V5 Phase 4 work — to be cleaned up in
+  Phase 4 Block 5).
+- Country-list selector keeps Nigeria + Ghana + Kenya + **South Africa
+  added** as 4th supported market for both buyer and seller flows.
+
+#### Backend / indexer
+
+- Indexer drops cross-border progressive-release event handlers
+  (events still defined in Solidity in `Deferred V2` section but not
+  emitted in V1 binary).
+- No stake-balance tracking table; remove or never create
+  `stakes` mirror table for V1 (re-introduce in V2).
+- Single `commission_rate` column or constant in any analytic view.
+
+#### Marketing / grants narrative
+
+The simplified scope yields a single, clean grants Celo Foundation
+pitch: **"African intra-trade USDT escrow, 1 transparent rate, 4
+markets at launch (NG + GH + KE + ZA), big-bang mainnet, MiniPay
+distribution."** The narrative is materially stronger than a
+"complex multi-tier multi-corridor" V1 because:
+
+- Reviewers can audit one corridor and one rate.
+- Volume signal at launch is concentrated across 4 of the largest
+  African MiniPay markets simultaneously instead of staged.
+- Dispute-rate reporting is one number, not a 2-corridor split.
+
+### Trade-offs accepted
+
+- **Top Seller incentive layer absent V1** — partial mitigation: the
+  3-day auto-release is already a short fast-payout incentive vs the
+  industry norm of 7-14 days, so motivated sellers still see a
+  liquidity advantage on this protocol vs alternatives. Full Top
+  Seller economics ship V1.1.
+- **Cross-border revenue opportunity deferred** — diaspora corridor
+  was a secondary target per CLAUDE.md anyway; V2 introduction with
+  hardened V1 dispute infrastructure is safer than a V1 launch with
+  cross-border risk present from day one.
+- **South Africa regulatory risk** — ZAR is a regulated currency and
+  SARB has made statements on stablecoins. Mitigations: Celo Camp
+  Africa presence (legal + community network), MiniPay already
+  operational on ZA market, Etalo is non-custodial (per ADR-022) so
+  the regulatory surface is lighter than a custodial alternative. If
+  a SARB action surfaces post-launch, the 4th-market dependency can
+  be hot-disabled at the country-allow-list level without contract
+  redeploy.
+
+### Supersedes
+
+- Implicit assumption "ADR-018 / ADR-019 / ADR-020 ship at V1 mainnet"
+  carried by CLAUDE.md and the J4 V2 spec. Those ADRs remain in the
+  decision log as the authoritative V2 design but their *V1 launch*
+  status is now Deferred.
+
+### Does not supersede
+
+- ADR-014 (V1 Boutique multi-product model) — unchanged.
+- ADR-022 (non-custodial criteria) — unchanged.
+- ADR-023 (forceRefund 3-condition gate) — unchanged.
+- ADR-024 (treasury 3-wallet separation) — unchanged.
+- ADR-026 (architectural limits hardcoded) — unchanged in spirit;
+  numerical values may be revisited at V1 mainnet deploy time.
+- ADR-034 (no new EIP-191 backend auth) — unchanged.
+- ADR-040 (V5 design pivot) — unchanged.
+
+### Re-introduction plan
+
+Cross-border + stake + Top Seller program are not abandoned. They
+re-enter the roadmap in the following order:
+
+1. **V1.1** (3-6 months post mainnet, contingent on dispute-rate
+   data) — Top Seller program + 1.2% rate + reputation criteria.
+2. **V2 (cross-border)** (6-12 months post mainnet) — re-enable
+   ADR-018 / ADR-019 cross-border / ADR-020 / ADR-021 with
+   parameters tuned to V1 dispute-rate evidence.
+
+ADR-041 will be partially superseded at each of those points by the
+V1.1 / V2 ADRs that re-enable the deferred surfaces.

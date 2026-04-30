@@ -562,19 +562,34 @@ font-display Switzer Variable + tabular-nums utility absents hors `/dev/componen
 
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
+**Scope narrative locked par ADR-041 (2026-04-30)** :
+V1 = intra-Africa only, 4 markets big bang (Nigeria + Ghana + Kenya
++ South Africa), single commission rate 1.8%, no seller stake.
+Toutes les surfaces V5 Phase 5 (demo video, README, grants pitch,
+Proof of Ship narrative) doivent refleter ce scope simplifie.
+
 **Blocks** :
 
 1. **Tabular nums systematic application** (1j) — `font-feature-settings: "tnum"` partout sur amounts USDT, credit balance, transaction counts, sparkline values
 2. **Mobile gestures critiques** (1-2j) — swipe-to-close cart drawer + pull-to-refresh marketplace
 3. **Side-by-side comparison Robinhood QA pass** (1j) — Mike capture screenshots + compare 10 critères (typography, spacing, contrast, motion, density, icons, depth, tabular nums, empty states, loading)
-4. **Polish details pass** (1-2j) — hover states cohérents, transitions 200ms uniformes, micro-spacings ajustes selon QA findings
-5. **Demo video 3 min** (1j) — screen capture flow buyer + flow seller end-to-end avec V5 design
-6. **Karma GAP profile + Farcaster post + repo README polish** (1j) — submission package preparation
-7. **Submission package** (1-2j) — ToS draft, Privacy draft, Support URL setup, icon 512×512, manifest, sample tx links
-8. **Grants application Celo Foundation** (1-2j) — formulaire complet + dossier + reference V5 design + tag preview
-9. **Closure J10-V5 final** (0.5j) — PR #7 final + tag `v2.0.0-design-system-v5-sepolia` + bilan complet sprint
+4. **Proof of Ship submission** (1-2j) — narrative locked par ADR-041 :
+   - Pitch one-liner : "African intra-trade USDT escrow, 1 transparent rate, 4 markets at launch (NG + GH + KE + ZA), big-bang mainnet, MiniPay distribution"
+   - Demo video 3 min : flow buyer + flow seller end-to-end V5 design, no cross-border surfaces, no stake deposit screen, no Top Seller badge
+   - ToS / Privacy / Support URL setup, icon 512×512, manifest, sample tx links Sepolia
+   - 4-markets country selector visible dans demo (NG + GH + KE + ZA)
+   - Single commission 1.8% transparency : montrer dans demo le breakdown order
+5. **Grants application Celo Foundation** (1-2j) — Africa-first single-market submission strategy ADR-041 :
+   - Narrative simplifie : 1 corridor type + 1 rate + 4 markets concurrent launch
+   - Argument simplification : "reviewers can audit one corridor, dispute-rate signal is one number not 2-corridor split"
+   - Reference Celo Camp Africa presence (mitigation South Africa regulatory risk)
+   - Reference V5 design premium + non-custodial positioning (ADR-022)
+   - Roadmap V1.1 (Top Seller program) + V2 (cross-border re-introduction) clearly indique
+6. **Polish details pass** (1-2j) — hover states cohérents, transitions 200ms uniformes, micro-spacings ajustes selon QA findings
+7. **Karma GAP profile + Farcaster post + repo README polish** (1j) — submission package preparation, README highlighting 4-market intra-Africa scope
+8. **Closure J10-V5 final** (0.5j) — PR #7 final + tag `v2.0.0-design-system-v5-sepolia` + bilan complet sprint
 
-**Validation** : tout V5 complet, side-by-side comparison Mike valide qualitative 75-85% Robinhood-feel, submission Proof of Ship envoye, grants Celo applique.
+**Validation** : tout V5 complet, side-by-side comparison Mike valide qualitative 75-85% Robinhood-feel, submission Proof of Ship envoye avec narrative ADR-041 intra-Africa, grants Celo applique avec Africa-first message.
 
 ## Plan B grants Celo Sept 2026
 
@@ -636,6 +651,7 @@ Option B (tags intermediaires par phase) : `v2.0.0-design-v5-foundations-sepolia
 ## Voir aussi
 
 - `docs/DECISIONS.md` ADR-040 (pivot rationale)
+- `docs/DECISIONS.md` ADR-041 (V1 scope restriction — intra-only + 4 markets + single rate)
 - `docs/DESIGN_V5_PREVIEW.md` (spec complete)
 - `docs/SPRINT_J9.md` (V4 component library livree, base extension V5)
 - `docs/V1.5_BACKLOG.md` (items deferred V1.5+)
