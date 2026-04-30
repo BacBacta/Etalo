@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { DebugMiniPayOverlay } from "@/components/DebugMiniPayOverlay";
 import { HomeLanding } from "@/components/HomeLanding";
 import { HomeMiniPay } from "@/components/HomeMiniPay";
 import { OnboardingScreenV5 } from "@/components/ui/v5/OnboardingScreen";
@@ -65,6 +66,7 @@ export function HomeRouter({ featuredSellers }: Props) {
           onCtaClick={handleOnboarded}
         />
       ) : null}
+      <DebugMiniPayOverlay />
     </>
   );
 }

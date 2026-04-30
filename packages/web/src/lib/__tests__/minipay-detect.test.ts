@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { detectMiniPay } from "@/lib/minipay-detect";
 
 const ORIGINAL_UA = navigator.userAgent;
+const ORIGINAL_HOSTNAME = window.location.hostname;
 
 const setUA = (ua: string) => {
   Object.defineProperty(navigator, "userAgent", {
@@ -29,17 +30,27 @@ const setEthereum = (eth: unknown) => {
   });
 };
 
+const setHostname = (hostname: string) => {
+  Object.defineProperty(window, "location", {
+    value: { ...window.location, hostname },
+    configurable: true,
+    writable: true,
+  });
+};
+
 beforeEach(() => {
   // Reset all signals before each test.
   vi.unstubAllEnvs();
   setEthereum(undefined);
   setUA(ORIGINAL_UA);
+  setHostname(ORIGINAL_HOSTNAME);
 });
 
 afterEach(() => {
   vi.unstubAllEnvs();
   setEthereum(undefined);
   setUA(ORIGINAL_UA);
+  setHostname(ORIGINAL_HOSTNAME);
 });
 
 describe("detectMiniPay()", () => {
@@ -86,5 +97,35 @@ describe("detectMiniPay()", () => {
     setEthereum(undefined);
     setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/120.0");
     expect(detectMiniPay()).toBe(true);
+  });
+
+  // J10-V5 Phase 4 hotfix #4 — pragmatic hostname signal for the
+  // ngrok-tunnel workflow Mike uses for MiniPay Developer / Test mode
+  // testing. Runtime check, immune to NEXT_PUBLIC_* build-time inlining
+  // staleness.
+  it("returns true when hostname matches *.ngrok-free.dev (Mike's workflow)", () => {
+    setHostname("upright-henna-armless.ngrok-free.dev");
+    expect(detectMiniPay()).toBe(true);
+  });
+
+  it("returns true when hostname matches *.ngrok.io (legacy ngrok)", () => {
+    setHostname("abc123.ngrok.io");
+    expect(detectMiniPay()).toBe(true);
+  });
+
+  it("returns true when hostname matches *.ngrok.app (newer ngrok TLD)", () => {
+    setHostname("xyz789.ngrok.app");
+    expect(detectMiniPay()).toBe(true);
+  });
+
+  it("returns false on regular production / localhost hostnames", () => {
+    const hosts = ["etalo.app", "localhost", "127.0.0.1", "vercel.app"];
+    for (const host of hosts) {
+      setHostname(host);
+      // Reset other signals so only hostname is in play.
+      setEthereum(undefined);
+      setUA("Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/120.0");
+      expect(detectMiniPay(), `host=${host}`).toBe(false);
+    }
   });
 });
