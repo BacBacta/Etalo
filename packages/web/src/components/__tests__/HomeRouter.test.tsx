@@ -144,19 +144,25 @@ describe("HomeRouter — view dispatch landing|minipay (Block 4c)", () => {
   });
 });
 
-describe("HomeRouter — lazy synchronous init (Phase 4 hotfix #5)", () => {
-  // Hotfix #5 swapped useState("landing") for a lazy initializer that
-  // runs detectMiniPay() at mount time. Eliminates the SSR→hydration
-  // flash MiniPay tunnel users observed during JS bundle download.
-  it("lazy init returns minipay synchronously when detectMiniPay returns true at mount time", () => {
+describe("HomeRouter — dynamic import HomeMiniPay (Phase 4 hotfix #6)", () => {
+  // Hotfix #6 replaced the lazy-init + suppressHydrationWarning
+  // (hotfix #5) with next/dynamic + ssr: false. The previous approach
+  // eliminated the visible flash but left React hydration error #5
+  // ("Expected server HTML to contain a matching <img> in <div>")
+  // because HomeMiniPay's hero <img> had no SSR analogue. Dynamic
+  // import bypasses hydration entirely for the MiniPay subtree.
+  it("renders HomeMiniPay after dynamic chunk load when MiniPay detected", async () => {
     setMiniPay(true);
     window.localStorage.setItem("etalo-onboarded", "true");
     render(<HomeRouter featuredSellers={[]} />);
-    // Synchronous assertion — no waitFor — proves the very first
-    // React commit already shows HomeMiniPay (no useEffect tick
-    // required). HomeLanding marketing heading must NEVER appear,
-    // not even transiently.
-    expect(screen.getByTestId("minipay-browse-marketplace")).toBeInTheDocument();
+    // waitFor handles the dynamic import resolution + Suspense
+    // fallback transition. The assertion succeeds once the lazy
+    // chunk finishes resolving and HomeMiniPay's CTA mounts.
+    await waitFor(() => {
+      expect(
+        screen.getByTestId("minipay-browse-marketplace"),
+      ).toBeInTheDocument();
+    });
     expect(
       screen.queryByRole("heading", { level: 1, name: LANDING_HEADING }),
     ).not.toBeInTheDocument();
