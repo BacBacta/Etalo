@@ -60,6 +60,7 @@ import { toastV4 } from "@/components/ui/v4/Toast";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
+import { OnboardingScreenV5 } from "@/components/ui/v5/OnboardingScreen";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { SparklineV5 } from "@/components/ui/v5/SparklineV5";
 import { fireMilestone } from "@/lib/confetti/milestones";
@@ -78,6 +79,7 @@ const sections = [
   { id: "skeleton-v5", label: "Skeleton (V5)" },
   { id: "chart-v5", label: "Chart (V5)" },
   { id: "empty-state-v5", label: "EmptyState (V5)" },
+  { id: "onboarding-v5", label: "OnboardingScreen (V5)" },
 ];
 
 export default function DevComponentsPage() {
@@ -140,12 +142,14 @@ export default function DevComponentsPage() {
             <ChartV5Section />
             <Separator />
             <EmptyStateV5Section />
+            <Separator />
+            <OnboardingScreenV5Section />
           </main>
         </div>
 
         <footer className="mt-24 pt-8 border-t border-celo-dark/[8%]">
           <p className="font-sans text-caption opacity-60">
-            Generated J10-V5 Phase 3 Block 6 — see{" "}
+            Generated J10-V5 Phase 4 Block 4a — see{" "}
             <code className="font-mono">docs/SPRINT_J10_V5.md</code>
           </p>
         </footer>
@@ -798,6 +802,40 @@ function EmptyStateV5Section() {
           />
         </div>
       </ShowcaseRow>
+    </Section>
+  );
+}
+
+function OnboardingScreenV5Section() {
+  // Mounting OnboardingScreenV5 inline would cover the entire dev page
+  // (fixed inset-0 z-50). Trigger via a button so the rest of the dev
+  // page stays usable; dismiss via the skip button on the overlay.
+  const [open, setOpen] = useState(false);
+  return (
+    <Section
+      id="onboarding-v5"
+      title="OnboardingScreen (V5)"
+      importPath="@/components/ui/v5/OnboardingScreen"
+    >
+      <ShowcaseRow label="full-screen overlay — click to mount">
+        <ButtonV4 onClick={() => setOpen(true)}>Show onboarding</ButtonV4>
+        <p className="text-overline text-celo-dark/60">
+          Skip in the top-right of the overlay to dismiss.
+        </p>
+      </ShowcaseRow>
+      {open ? (
+        <OnboardingScreenV5
+          title="Welcome to Etalo"
+          description="Your digital stall, open 24/7. Buy and sell with African sellers using USDT escrow on Celo."
+          ctaLabel="Get Started"
+          onCtaClick={() => {
+            toastV4.success("Demo — onboarding accepted");
+            setOpen(false);
+          }}
+          skipLabel="Skip"
+          onSkip={() => setOpen(false)}
+        />
+      ) : null}
     </Section>
   );
 }
