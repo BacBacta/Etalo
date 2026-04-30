@@ -11,6 +11,7 @@ import {
   resolveCartToken,
   type ResolvedCart,
 } from "@/lib/checkout";
+import { detectMiniPay } from "@/lib/minipay-detect";
 
 function LoadingShell() {
   return (
@@ -29,9 +30,7 @@ function CheckoutPageInner() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const provider = (window as unknown as { ethereum?: { isMiniPay?: boolean } })
-      .ethereum;
-    setIsMiniPay(provider?.isMiniPay === true);
+    setIsMiniPay(detectMiniPay());
   }, []);
 
   useEffect(() => {

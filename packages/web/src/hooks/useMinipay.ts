@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { useAccount, useConnect } from "wagmi";
 
+import { detectMiniPay } from "@/lib/minipay-detect";
+
 /**
  * Silent MiniPay auto-connect.
  *
@@ -10,15 +12,17 @@ import { useAccount, useConnect } from "wagmi";
  * "Connecting..." to the user.
  *
  * Returns `{ isInMinipay, address, isConnected, isConnecting }` so
- * callers can gate UI without building their own detection.
- * `address` is only ever passed around internally — never render it.
+ * callers can gate UI without building their own detection. The
+ * `isInMinipay` flag uses the shared `detectMiniPay()` helper
+ * (Pattern D — env override + canonical flag + UA fallback for
+ * Mini App Test mode). `address` is only ever passed around
+ * internally — never render it.
  */
 export function useMinipay() {
   const { connect, connectors, status } = useConnect();
   const { address, isConnected } = useAccount();
 
-  const isInMinipay =
-    typeof window !== "undefined" && window.ethereum?.isMiniPay === true;
+  const isInMinipay = detectMiniPay();
 
   useEffect(() => {
     if (!isInMinipay || isConnected || status === "pending") return;

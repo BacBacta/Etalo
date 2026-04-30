@@ -16,6 +16,7 @@ import {
   TabsV4Root,
   TabsV4Trigger,
 } from "@/components/ui/v4/Tabs";
+import { detectMiniPay } from "@/lib/minipay-detect";
 import {
   fetchMyProfile,
   fetchSellerOnchainProfile,
@@ -46,12 +47,12 @@ export function SellerDashboardInner() {
   );
   const [loading, setLoading] = useState(true);
 
-  // 1) MiniPay gating — same pattern as /marketplace.
+  // 1) MiniPay gating — same pattern as /marketplace, via the shared
+  // detectMiniPay() helper (Pattern D : env override + canonical flag
+  // + UA fallback for Mini App Test mode).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const provider = (window as unknown as { ethereum?: { isMiniPay?: boolean } })
-      .ethereum;
-    const detected = provider?.isMiniPay === true;
+    const detected = detectMiniPay();
     setIsMiniPay(detected);
     if (!detected) router.replace("/");
   }, [router]);

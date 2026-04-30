@@ -10,6 +10,7 @@ import {
   fetchMarketplaceProducts,
   type MarketplaceProductItem,
 } from "@/lib/api";
+import { detectMiniPay } from "@/lib/minipay-detect";
 
 export default function MarketplacePage() {
   const router = useRouter();
@@ -21,13 +22,11 @@ export default function MarketplacePage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 1) MiniPay gating — non-MiniPay users redirect to landing (Étape 7.3
-  // will deliver the home picker for non-MiniPay).
+  // 1) MiniPay gating — non-MiniPay users redirect to landing (HomeRouter
+  // dispatches them to HomeMiniPay if it later detects MiniPay context).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const provider = (window as unknown as { ethereum?: { isMiniPay?: boolean } })
-      .ethereum;
-    const detected = provider?.isMiniPay === true;
+    const detected = detectMiniPay();
     setIsMiniPay(detected);
     if (!detected) {
       router.replace("/");

@@ -6,6 +6,7 @@ import { HomeLanding } from "@/components/HomeLanding";
 import { HomeMiniPay } from "@/components/HomeMiniPay";
 import { OnboardingScreenV5 } from "@/components/ui/v5/OnboardingScreen";
 import type { FeaturedSeller } from "@/lib/api";
+import { detectMiniPay } from "@/lib/minipay-detect";
 
 interface Props {
   featuredSellers: FeaturedSeller[];
@@ -31,14 +32,7 @@ export function HomeRouter({ featuredSellers }: Props) {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const provider = (window as unknown as {
-      ethereum?: { isMiniPay?: boolean };
-    }).ethereum;
-    const isMiniPay = provider?.isMiniPay === true;
-
-    if (!isMiniPay) return; // Web visitors stay on HomeLanding.
+    if (!detectMiniPay()) return; // Web visitors stay on HomeLanding.
 
     setView("minipay");
 
