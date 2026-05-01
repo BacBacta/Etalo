@@ -142,9 +142,9 @@ Phase 1-3 closures :
   V5 livres, 8 lessons #73-#80
 
 Phase 4 (Layout refactor + V5 applications migration) IN PROGRESS —
-Blocks 1-4c shipped + 9 hotfixes (MiniPay detection / HomeRouter
+Blocks 1-4c shipped + 10 hotfixes (MiniPay detection / HomeRouter
 flash / hydration / mobile horizontal overflow / two-physical-
-checkouts footgun / etc.). Block 5 (OverviewTab analytics surface :
+checkouts footgun frontend #9 + backend #10 / etc.). Block 5 (OverviewTab analytics surface :
 4 KPI tiles + ChartLineV5 revenue 7-day trend + Top products) ✓
 done 2026-05-01 — 7 sub-blocks. Block 6 (MilestoneDialogV5 +
 first-sale celebration ceremony) ✓ done 2026-05-01 — 4 sub-blocks,

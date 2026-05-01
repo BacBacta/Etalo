@@ -884,6 +884,61 @@ conditionally rendered (e.g. modals, overlays).
 layer ceremony ; withdrawal variant is forward-compat for V2.
 Ready for Phase 5 closure (Polish + Submission) per Mike's call.
 
+#### Hotfix #10 — Backend dual-repo footgun (2026-05-02)
+
+**Surfaced** during live MiniPay validation of Block 5 + Block 6 on
+the canonical inner frontend. The dashboard's KPI tiles painted
+em-dash placeholders ; the chart card sat on its skeleton ; top
+products empty. Network panel showed `GET /api/v1/analytics/summary
+-> 500 Internal Server Error`. The reflex was "the analytics route
+must be broken" — but Block 5 had pinned the contract via 5 e2e
+tests in sub-block 5.2a, all passing. Logical contradiction
+forcing the question : which `analytics.py` is the live backend
+actually serving ?
+
+**Root cause** : same dual-repo footgun as hotfix #9, but for
+backend instead of frontend. The Python venv + `.env` lived in the
+OUTER backend (`C:/Users/Oxfam/projects/etalo/packages/backend/`)
+since project init ; the inner backend
+(`C:/Users/Oxfam/projects/etalo/Etalo/packages/backend/`) had only
+source code, no venv, no `.env`. Mike had been launching `python
+scripts/run_dev.py` from the outer all along — even after hotfix
+#9 neutralized the outer FRONTEND, the outer backend kept being
+launched out of habit, serving stale code (V1 schema
+`Order.amount_usdt`) against the canonical frontend on the same
+ngrok tunnel. The 30-day backend drift was masked by every
+endpoint Block 5 didn't exercise — `/sellers/me`,
+`/sellers/{addr}/profile`, `/products/...` all worked because they
+hadn't been touched in V2 schema migration. `/analytics/summary`
+was the first endpoint that exposed the divergence.
+
+**Immediate stop-gap (Phase 1)** : `Copy-Item analytics.py inner -> outer` + restart backend. Live MiniPay analytics surface returned 200 immediately ; Block 5 Overview tab finally rendered live KPI tiles + ChartLineV5 + Top products against real seller data.
+
+**Phase 2 neutralization (THIS hotfix)** :
+- Setup backend venv + `.env` in INNER tree (was missing — root cause of why Mike launched from outer in the first place).
+- Fail-fast hook in OUTER's `scripts/run_dev.py` : path-normalised detection (POSIX-slash check survives Windows backslash interpretation), exits 1 with descriptive abort message before uvicorn can boot. Verified empirically — outer venv `python scripts/run_dev.py` exits 1.
+- Canonical banner in INNER's `scripts/run_dev.py` : prints `✓ Running backend from CANONICAL inner repo (...) — Phase 4 hotfix #10 banner` to stderr before uvicorn boots, so future sessions visually confirm placement at every launch (mirror of hotfix #9's frontend banner).
+- Defensive `cp -ru app/ inner -> outer` to ensure source-file parity even if the fail-fast guard is somehow bypassed (e.g. `python -m app.main` direct, someone disables the guard locally). One-time defensive measure since neither tree's backend should be modified going forward.
+- `README_OUTER_REPO_DEPRECATED.md` (created in hotfix #9) extended with a backend section : footgun history, hotfix #10 remediation, post-hotfix dev session procedure, deletion-safe-after-both-hotfixes notice.
+
+**Lessons (cumulative across hotfix #9 + #10)** :
+1. Two physical checkouts sharing branch name + env-config file + port (frontend) or venv + `.env` (backend) is silent-failure heaven. The fail-fast + canonical-banner pattern is now applied to BOTH frontend (`predev` script hook) and backend (`run_dev.py` top-of-file path check). Any future tooling additions (e.g. an admin dashboard package, a CLI runner) should follow the same pattern at creation time.
+2. Backend fail-fast at script entry (Python `sys.exit(1)`) is the equivalent of frontend's npm `predev` hook + `exit 1`. Both rely on path-string detection ; both need normalisation for cross-shell compatibility on Windows.
+3. The 30-day backend drift was invisible because no test exercised an end-to-end "frontend ngrok URL → backend localhost:8000 → real seller with orders" path. Phase 5 polish candidate : add a tiny integration smoke that hits `/api/v1/analytics/summary` from a frontend test (or via a dedicated CI job) so backend drift is caught before live validation.
+
+**Backend dev session procedure (post-hotfix #10)** :
+```powershell
+cd C:\Users\Oxfam\projects\etalo\Etalo\packages\backend
+.\venv\Scripts\Activate.ps1
+python scripts\run_dev.py
+# Expected first stderr line : ✓ Running backend from CANONICAL inner repo (...) — Phase 4 hotfix #10 banner
+# Then : INFO: Uvicorn running on http://127.0.0.1:8000
+```
+
+If the `[ABORT]` message prints instead, the cwd is the outer — `cd` into the inner tree and retry.
+
+**Outer tree deletion** : safe after both hotfix #9 + #10 are committed. Defer to Phase 5 polish item or Mike's explicit call.
+
 ### Phase 5 — Polish + Submission (5-7j)
 
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
