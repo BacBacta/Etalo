@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "echo === Canonical inner repo (etalo/Etalo/packages/web) — Phase 4 hotfix #9 banner ===",
     "dev": "next dev",
     "build": "next build",
     "analyze": "cross-env ANALYZE=true next build",

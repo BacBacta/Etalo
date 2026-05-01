@@ -681,6 +681,94 @@ explicitly in `docs/BACKEND.md`).
 real V1-aligned analytics surface. Ready for Block 6
 (MilestoneDialogV5) or Phase 5 closure depending on Mike's call.
 
+#### Hotfix #9 — Two-physical-checkouts footgun (2026-05-01)
+
+**Surfaced** during Block 5 closure live MiniPay validation. Mike
+opened the dashboard via the ngrok tunnel and saw a 30-day-old
+version of the site (no KPI tiles, no chart, stake StatCards still
+present, 6 tabs including "Stake"). Initial symptom was a `GET / 404`
+loop ; deeper audit revealed the root cause :
+
+**Root cause** : Two physical checkouts of `feat/design-system-v5`
+on disk :
+- **Outer** : `C:\Users\Oxfam\projects\etalo\` (HEAD `e283263`,
+  Phase 1 Block 3, 2026-04-04). Stale, dirty, never received any
+  Phase 4 work.
+- **Inner** : `C:\Users\Oxfam\projects\etalo\Etalo\` (HEAD
+  `b7494b4`, Block 5 closure, 2026-05-01). Canonical per CLAUDE.md
+  primary working dir. All Phase 4 + Block 5 work landed here.
+
+The currently-running dev server (PID 21356, parent 4768) was
+launched from the OUTER tree. Both `.env.local` files point to the
+SAME ngrok URL (`upright-henna-armless.ngrok-free.dev`) and the
+SAME port 3000 — only one Next dev server can listen at a time, so
+whichever tree gets `pnpm dev` first owns the tunnel. The footgun
+was completely silent : no warning, no compile error, just the
+wrong codebase served against the right URL.
+
+**Blast radius** :
+- The 404 was an artifact of Next.js dev-server cold-compile
+  window — when the audit probed live, all routes returned 200.
+  Not a structural defect.
+- Hotfixes #5, #6, #7 (HomeRouter lazy init, dynamic import,
+  `etalo-mode-preference` defensive cleanup) were "validated live
+  in MiniPay" — but in fact validated against the OUTER tree's
+  legacy code. The inner-tree hotfixes are correct (verified by
+  the 199→228 PASS jsdom suite + repeated build success across
+  sub-blocks 5.1–5.7), but they have NEVER actually been
+  exercised in MiniPay against the inner tree.
+- Block 5 hand-off procedure documented in this file's Block 5
+  closure section is invalidated until Mike re-validates against
+  the inner tree.
+
+**Remediation shipped (Phase 4 hotfix #9)** :
+- Outer tree neutralized via :
+  - `README_OUTER_REPO_DEPRECATED.md` at outer root explaining the
+    situation + safeguards + cleanup instructions.
+  - `packages/web/package.json` `name` renamed to
+    `web-DEPRECATED-OUTER-REPO-DO-NOT-RUN`.
+  - `packages/web/package.json` `predev` hook : `echo ABORT ... &&
+    exit 1` so `pnpm dev` from outer fails fast before Next can
+    boot. Verified via `npm run dev` from outer → exits 1, no
+    next-dev process spawned.
+- Inner tree gains a defensive banner :
+  - `packages/web/package.json` `predev` hook prints
+    `=== Canonical inner repo (etalo/Etalo/packages/web) — Phase 4
+    hotfix #9 banner ===` before `next dev` boots, so Mike can
+    visually confirm at every dev session that he's in the right
+    tree.
+- Outer-tree changes are local-only (not committed to outer's
+  git, since outer is abandoned). Inner-tree changes ship as a
+  single commit on `feat/design-system-v5`.
+
+**Lessons** :
+1. When two repo trees share a branch name + the same
+   `.env.local` + the same port, the working-dir mismatch is
+   silent. Always verify cwd + branch + last commit hash at the
+   start of a dev session ; the inner banner now makes this
+   automatic.
+2. "Validated live in MiniPay" is only as good as the codebase
+   the tunnel actually serves. Future live-validation
+   procedures should print + log the served-version's
+   commit hash (e.g. via a hidden `/__build-hash` endpoint or a
+   hash baked into the page footer at build time). Phase 5 polish
+   candidate.
+3. Multi-checkout setups should fail loudly on misuse, not
+   silently. The `predev` fail-fast pattern is reusable for any
+   future "do-not-run-this-tree" situation.
+
+**Re-validation required (Mike)** :
+- Stop the wrong dev server, restart from inner tree (banner
+  confirms placement).
+- Clear MiniPay app storage (so localStorage from outer-tree
+  sessions, including any stale `etalo-mode-preference="buyer"`,
+  is wiped).
+- Hard-reload the ngrok URL in MiniPay.
+- Re-walk the Block 5 hand-off procedure documented above. Also
+  re-confirm hotfixes #5/#6/#7 behavior (HomeRouter swap,
+  HomeMiniPay V5 visible on `/`, no auto-redirect to
+  `/marketplace`).
+
 ### Phase 5 — Polish + Submission (5-7j)
 
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
