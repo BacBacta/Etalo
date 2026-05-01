@@ -18,18 +18,16 @@ interface Props {
   // wiring; remove on the next OverviewTab refactor pass if still
   // unused.
   profile: SellerProfilePublic; // eslint-disable-line @typescript-eslint/no-unused-vars
-  onchain: SellerProfileResponse;
+  // Block 5 sub-block 5.1: stake-derived StatCard grid (Stake tier /
+  // Stake amount / Recent orders) was retired per ADR-041 V1 scope.
+  // `onchain` is kept on the prop signature for API parity with the
+  // dashboard wiring; sub-block 5.4 will replace it with KPI tiles
+  // sourced from useAnalyticsSummary (/api/v1/analytics/summary).
+  onchain: SellerProfileResponse; // eslint-disable-line @typescript-eslint/no-unused-vars
   address: string;
 }
 
-const TIER_LABEL: Record<string, string> = {
-  None: "None",
-  Starter: "Starter",
-  Established: "Established",
-  TopSeller: "Top Seller",
-};
-
-export function OverviewTab({ onchain, address }: Props) {
+export function OverviewTab({ address }: Props) {
   const [recent, setRecent] = useState<SellerOrdersPage | null>(null);
 
   useEffect(() => {
@@ -40,21 +38,6 @@ export function OverviewTab({ onchain, address }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
-        <StatCard
-          label="Stake tier"
-          value={TIER_LABEL[onchain.stake.tier] ?? onchain.stake.tier}
-        />
-        <StatCard
-          label="Stake amount"
-          value={`${onchain.stake.amount_human} USDT`}
-        />
-        <StatCard
-          label="Recent orders"
-          value={String(onchain.recent_orders_count)}
-        />
-      </div>
-
       <div>
         <h2 className="mb-3 text-lg font-semibold">Recent orders</h2>
         {recent === null ? (
@@ -94,14 +77,5 @@ export function OverviewTab({ onchain, address }: Props) {
       </div>
 
     </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <CardV4 variant="default" padding="compact" interactive={false}>
-      <div className="text-sm text-celo-dark/60">{label}</div>
-      <div className="mt-1 text-base font-semibold">{value}</div>
-    </CardV4>
   );
 }

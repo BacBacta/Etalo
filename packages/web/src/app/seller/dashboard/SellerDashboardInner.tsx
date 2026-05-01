@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { MarketingTab } from "@/components/seller/MarketingTab";
@@ -9,7 +9,6 @@ import { OrdersTab } from "@/components/seller/OrdersTab";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProductsTab } from "@/components/seller/ProductsTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
-import { StakeTab } from "@/components/seller/StakeTab";
 import {
   TabsV4Content,
   TabsV4List,
@@ -24,11 +23,12 @@ import {
   type SellerProfileResponse,
 } from "@/lib/seller-api";
 
+// Block 5 sub-block 5.1 — "stake" tab dropped per ADR-041 V1 scope
+// (stake retired, cross-border deferred V2). Five tabs remain.
 const VALID_TABS = [
   "overview",
   "products",
   "orders",
-  "stake",
   "profile",
   "marketing",
 ] as const;
@@ -57,13 +57,12 @@ export function SellerDashboardInner() {
     if (!detected) router.replace("/");
   }, [router]);
 
-  // 2) Combined fetch: identity (/sellers/me) + on-chain (/sellers/{addr}/profile)
-  // Bumped on each `refreshKey` increment so children can request a re-pull
-  // after on-chain mutations (Stake actions, Mark shipped) without a full
-  // page reload.
-  const [refreshKey, setRefreshKey] = useState(0);
-  const refreshOnchain = useCallback(() => setRefreshKey((k) => k + 1), []);
-
+  // 2) Combined fetch: identity (/sellers/me) + on-chain (/sellers/{addr}/profile).
+  // Block 5 sub-block 5.1 dropped the `refreshKey` mechanism — its only
+  // consumer was StakeTab's `onProfileRefresh` (now removed per ADR-041).
+  // OrdersTab handles its own refetch on Mark-shipped success. Block 5.4
+  // will introduce a TanStack Query-driven analytics summary that supersedes
+  // this manual fetch entirely.
   useEffect(() => {
     if (isMiniPay !== true || !address) return;
     let cancelled = false;
@@ -89,7 +88,7 @@ export function SellerDashboardInner() {
     return () => {
       cancelled = true;
     };
-  }, [isMiniPay, address, refreshKey]);
+  }, [isMiniPay, address]);
 
   const requestedTab = searchParams.get("tab") as TabKey | null;
   const safeTab: TabKey =
@@ -177,7 +176,6 @@ export function SellerDashboardInner() {
             <TabsV4Trigger value="overview">Overview</TabsV4Trigger>
             <TabsV4Trigger value="products">Products</TabsV4Trigger>
             <TabsV4Trigger value="orders">Orders</TabsV4Trigger>
-            <TabsV4Trigger value="stake">Stake</TabsV4Trigger>
             <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
             <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
           </TabsV4List>
@@ -194,9 +192,6 @@ export function SellerDashboardInner() {
           </TabsV4Content>
           <TabsV4Content value="orders">
             <OrdersTab address={address} />
-          </TabsV4Content>
-          <TabsV4Content value="stake">
-            <StakeTab onchain={onchain} onProfileRefresh={refreshOnchain} />
           </TabsV4Content>
           <TabsV4Content value="profile">
             <ProfileTab
