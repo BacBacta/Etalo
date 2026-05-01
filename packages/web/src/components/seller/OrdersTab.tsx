@@ -1,18 +1,38 @@
 "use client";
 
 import { Truck } from "@phosphor-icons/react";
+import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
+import { useMilestoneOnce } from "@/hooks/useMilestoneOnce";
 import { fireMilestone } from "@/lib/confetti/milestones";
 import {
   fetchSellerOrders,
   formatRawUsdt,
   type SellerOrdersPage,
 } from "@/lib/seller-api";
+
+// Block 6 sub-block 6.3 — MilestoneDialogV5 imported dynamically with
+// ssr:false. The dialog is shown at most once per seller-wallet
+// (guarded by useMilestoneOnce) AND only on the 0 → 1+ orders
+// transition, so eager-loading its DialogV4 + ButtonV4 dependency
+// chain (Radix + motion) for every dashboard mount is wasted weight.
+// Static import busted the 280 kB strict First Load trigger by 1 kB
+// on the first run of 6.3 ; lazy-loading reclaims the bundle budget.
+// loading: () => null because the dialog renders into a Radix Portal
+// that is invisible until `open` flips, so no fallback shape is
+// required during the chunk fetch window.
+const MilestoneDialogV5 = dynamic(
+  () =>
+    import("@/components/ui/v5/MilestoneDialog").then((mod) => ({
+      default: mod.MilestoneDialogV5,
+    })),
+  { ssr: false, loading: () => null },
+);
 
 interface Props {
   address: string;
@@ -56,16 +76,32 @@ export function OrdersTab({ address }: Props) {
   // Initial null → ≥1 (refetch lands with orders already present from a
   // past purchase) is NOT a first-sale event for this session, so the
   // ref stays null until the first refetch resolves.
+  //
+  // Block 6 sub-block 6.3 extension : same trigger ALSO opens the
+  // celebratory MilestoneDialogV5, gated by the cross-session one-shot
+  // guard (useMilestoneOnce). Confetti continues to fire independently
+  // — additive, not a replacement. Pattern : Robinhood transaction
+  // success — confetti behind, dialog focal-point at the same moment.
   const prevOrdersCountRef = useRef<number | null>(null);
+  const { shouldShow: showFirstSaleDialog, markShown: markFirstSaleShown } =
+    useMilestoneOnce("first-sale");
+  const [milestoneOpen, setMilestoneOpen] = useState(false);
+
   useEffect(() => {
     if (!data) return;
     const count = data.orders.length;
     const prev = prevOrdersCountRef.current;
     if (prev === 0 && count > 0) {
       fireMilestone("first-sale");
+      // Dialog open is gated by the persistent one-shot guard so a
+      // seller who has already seen the celebration on a previous
+      // device session doesn't get it re-fired.
+      if (showFirstSaleDialog) {
+        setMilestoneOpen(true);
+      }
     }
     prevOrdersCountRef.current = count;
-  }, [data]);
+  }, [data, showFirstSaleDialog]);
 
   const totalNum =
     data && typeof (data.pagination as Record<string, unknown>).total === "number"
@@ -176,6 +212,16 @@ export function OrdersTab({ address }: Props) {
           onSuccess={refetch}
         />
       ) : null}
+
+      <MilestoneDialogV5
+        open={milestoneOpen}
+        onOpenChange={setMilestoneOpen}
+        variant="first-sale"
+        title="First sale!"
+        description="Congratulations on your first completed order. Keep growing your boutique — momentum builds from here."
+        ctaLabel="Continue"
+        onCtaClick={markFirstSaleShown}
+      />
     </div>
   );
 }

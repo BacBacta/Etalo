@@ -24,14 +24,35 @@ vi.mock("@/lib/seller-api", async () => {
   };
 });
 
+const fireMilestoneMock = vi.fn();
 vi.mock("@/lib/confetti/milestones", () => ({
-  fireMilestone: vi.fn(),
+  fireMilestone: (...args: unknown[]) => fireMilestoneMock(...args),
+}));
+
+// Block 6 sub-block 6.3 — control useMilestoneOnce per spec so the
+// dialog wire-up is testable independently of the localStorage
+// hydration timing (the hook itself has its own 5 specs in
+// hooks/__tests__/useMilestoneOnce.test.tsx). markShownMock is
+// re-created per spec so click-count assertions stay isolated.
+const useMilestoneOnceMock = vi.fn();
+vi.mock("@/hooks/useMilestoneOnce", () => ({
+  useMilestoneOnce: (...args: unknown[]) => useMilestoneOnceMock(...args),
 }));
 
 const ADDRESS = "0xabc0000000000000000000000000000000000001";
 
 beforeEach(() => {
   fetchSellerOrdersMock.mockReset();
+  fireMilestoneMock.mockReset();
+  useMilestoneOnceMock.mockReset();
+  // Default the hook to "guard says don't show" so the existing
+  // Block 3b regression specs aren't perturbed by the milestone
+  // dialog opening on the empty-orders fixture path. The new Block
+  // 6.3 specs override per-spec.
+  useMilestoneOnceMock.mockReturnValue({
+    shouldShow: false,
+    markShown: vi.fn(),
+  });
 });
 
 afterEach(() => {
@@ -120,6 +141,129 @@ describe("OrdersTab — false-empty regression-guard (Block 3b)", () => {
     });
     await waitFor(() =>
       expect(screen.getByTestId("orders-skeleton")).toBeInTheDocument(),
+    );
+  });
+});
+
+// ============================================================
+// Block 6 sub-block 6.3 — first-sale milestone dialog wire-up
+// ============================================================
+
+const ORDER_FIXTURE = {
+  id: "order-1",
+  onchain_order_id: 1,
+  buyer_address: "0xbuyer000000000000000000000000000000000001",
+  total_amount_usdt: 70_000_000,
+  global_status: "Completed",
+  created_at_chain: "2026-05-01T10:00:00Z",
+};
+
+describe("OrdersTab — first-sale milestone dialog (Block 6 sub-block 6.3)", () => {
+  it("opens MilestoneDialogV5 + fires confetti on the 0 → 1 transition when shouldShow=true", async () => {
+    useMilestoneOnceMock.mockReturnValue({
+      shouldShow: true,
+      markShown: vi.fn(),
+    });
+    // First fetch lands with [] — establishes prev=0 in the ref.
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [],
+      pagination: { total: 0, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+    // No transition yet, no confetti, no dialog.
+    expect(fireMilestoneMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("milestone-dialog")).not.toBeInTheDocument();
+
+    // Trigger 0 → 1 transition via filter change refetch.
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [ORDER_FIXTURE],
+      pagination: { total: 1, has_more: false, next_cursor: null },
+    });
+    fireEvent.change(screen.getByLabelText(/Filter:/i), {
+      target: { value: "Completed" },
+    });
+
+    // Confetti AND dialog — the Block 6.3 contract.
+    await waitFor(() =>
+      expect(fireMilestoneMock).toHaveBeenCalledWith("first-sale"),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("milestone-dialog")).toBeInTheDocument(),
+    );
+    expect(screen.getByText(/First sale!/i)).toBeInTheDocument();
+    expect(
+      screen.getByText(/Congratulations on your first completed order/i),
+    ).toBeInTheDocument();
+  });
+
+  it("fires confetti but does NOT open the dialog when shouldShow=false (already-seen guard)", async () => {
+    useMilestoneOnceMock.mockReturnValue({
+      shouldShow: false,
+      markShown: vi.fn(),
+    });
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [],
+      pagination: { total: 0, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [ORDER_FIXTURE],
+      pagination: { total: 1, has_more: false, next_cursor: null },
+    });
+    fireEvent.change(screen.getByLabelText(/Filter:/i), {
+      target: { value: "Completed" },
+    });
+
+    // Confetti still fires — additive, not gated by the dialog guard.
+    await waitFor(() =>
+      expect(fireMilestoneMock).toHaveBeenCalledWith("first-sale"),
+    );
+    // Dialog stays hidden because the seller has already been shown
+    // the celebration in a prior session.
+    expect(screen.queryByTestId("milestone-dialog")).not.toBeInTheDocument();
+  });
+
+  it("CTA click fires markShown — the persistent guard is updated and the dialog closes", async () => {
+    const markShownSpy = vi.fn();
+    useMilestoneOnceMock.mockReturnValue({
+      shouldShow: true,
+      markShown: markShownSpy,
+    });
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [],
+      pagination: { total: 0, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [ORDER_FIXTURE],
+      pagination: { total: 1, has_more: false, next_cursor: null },
+    });
+    fireEvent.change(screen.getByLabelText(/Filter:/i), {
+      target: { value: "Completed" },
+    });
+    await waitFor(() =>
+      expect(screen.getByTestId("milestone-dialog")).toBeInTheDocument(),
+    );
+
+    fireEvent.click(screen.getByTestId("milestone-dialog-cta"));
+
+    expect(markShownSpy).toHaveBeenCalledTimes(1);
+    // MilestoneDialogV5 propagates onOpenChange(false) immediately
+    // after firing onCtaClick, so the dialog leaves the DOM in the
+    // same React batch.
+    await waitFor(() =>
+      expect(screen.queryByTestId("milestone-dialog")).not.toBeInTheDocument(),
     );
   });
 });
