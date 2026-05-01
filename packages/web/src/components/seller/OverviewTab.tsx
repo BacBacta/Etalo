@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useState } from "react";
 
 import {
@@ -15,6 +16,13 @@ import {
   type SellerOrdersPage,
   type SellerProfilePublic,
 } from "@/lib/seller-api";
+
+// Block 5 sub-block 5.6 — IPFS gateway constant. Mirrors the local
+// constant in ImageUploader.tsx (the only other current consumer) ;
+// if a 3rd consumer surfaces, promote both to lib/ipfs.ts. Phase 5
+// polish candidate. `gateway.pinata.cloud` is whitelisted in
+// next.config.mjs `images.remotePatterns` so next/image accepts it.
+const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
 
 interface Props {
   // J7 Block 7a: Marketing stub moved to its own MarketingTab. `profile`
@@ -181,6 +189,60 @@ export function OverviewTab({ address }: Props) {
         )}
       </CardV4>
 
+      {/*
+        Top products surface — capped at 3 entries server-side
+        (analytics router `_top_products` LIMIT 3, sub-block 5.2a).
+        Empty array is a normal happy-path state for new sellers,
+        not an error — copy nudges them toward "your first sale" UX
+        rather than "something broke".
+      */}
+      <CardV4
+        variant="default"
+        padding="compact"
+        interactive={false}
+        data-testid="overview-top-products-card"
+      >
+        <h2 className="mb-3 text-base font-semibold">Top products</h2>
+        {analytics.isPending ? (
+          <div
+            className="space-y-2"
+            data-testid="overview-top-products-skeleton"
+          >
+            {[0, 1, 2].map((i) => (
+              <SkeletonV5
+                key={i}
+                variant="rectangle"
+                className="h-14 w-full"
+              />
+            ))}
+          </div>
+        ) : analytics.isError || !analytics.data ? (
+          <p
+            className="py-4 text-sm text-celo-dark/60 dark:text-celo-light/60"
+            data-testid="overview-top-products-error"
+          >
+            Unable to load top products
+          </p>
+        ) : analytics.data.top_products.length === 0 ? (
+          <p
+            className="py-4 text-sm text-celo-dark/60 dark:text-celo-light/60"
+            data-testid="overview-top-products-empty"
+          >
+            No top products yet — your top sellers will appear here
+            once orders complete.
+          </p>
+        ) : (
+          <ul
+            className="space-y-2"
+            data-testid="overview-top-products-list"
+          >
+            {analytics.data.top_products.map((product) => (
+              <TopProductRow key={product.product_id} product={product} />
+            ))}
+          </ul>
+        )}
+      </CardV4>
+
       <div>
         <h2 className="mb-3 text-lg font-semibold">Recent orders</h2>
         {recent === null ? (
@@ -269,6 +331,44 @@ function KpiTile({ label, subText, value, loading, error }: KpiTileProps) {
         </p>
       ) : null}
     </CardV4>
+  );
+}
+
+interface TopProductRowProps {
+  product: AnalyticsSummaryParsed["top_products"][number];
+}
+
+function TopProductRow({ product }: TopProductRowProps) {
+  return (
+    <li
+      className="flex items-center gap-3 rounded-lg border border-celo-dark/[8%] p-2 dark:border-celo-light/[8%]"
+      data-testid="overview-top-product-row"
+      data-product-id={product.product_id}
+    >
+      {product.image_ipfs_hash ? (
+        <Image
+          src={`${PINATA_GATEWAY}${product.image_ipfs_hash}`}
+          alt={product.title}
+          width={48}
+          height={48}
+          className="h-12 w-12 shrink-0 rounded-md object-cover"
+        />
+      ) : (
+        <div
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs text-celo-dark/40 dark:bg-celo-dark-elevated dark:text-celo-light/40"
+          data-testid="overview-top-product-no-image"
+          aria-label="No image available"
+        >
+          No image
+        </div>
+      )}
+      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+        {product.title}
+      </p>
+      <p className="shrink-0 text-sm font-semibold tabular-nums">
+        {displayUsdtNumber(product.revenue_usdt)}
+      </p>
+    </li>
   );
 }
 

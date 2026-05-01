@@ -57,6 +57,28 @@ vi.mock("@/components/ui/v5/ChartLineV5", () => ({
   ),
 }));
 
+// Block 5 sub-block 5.6 — next/image stub. The real component pulls
+// in the Next.js image-loader runtime which doesn't run cleanly under
+// jsdom. Same per-file mock pattern used by ProductCard.test.tsx,
+// HomeRouter.test.tsx, MarketingTab.test.tsx — there's no shared
+// global stub in src/test/setup.ts.
+vi.mock("next/image", () => ({
+  default: ({
+    src,
+    alt,
+    width,
+    height,
+  }: {
+    src: string;
+    alt: string;
+    width?: number;
+    height?: number;
+  }) => (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} width={width} height={height} />
+  ),
+}));
+
 const fetchSellerOrdersMock = vi.fn();
 vi.mock("@/lib/seller-api", async () => {
   const actual =
@@ -437,5 +459,199 @@ describe("OverviewTab — revenue trend ChartLineV5 (Block 5 sub-block 5.5)", ()
         screen.getByTestId(`chart-line-mock-point-${i}`).textContent,
       ).toMatch(new RegExp(`^${expectedLabels[i]}:`));
     }
+  });
+});
+
+// ============================================================
+// Block 5 sub-block 5.6 — Top products section
+// ============================================================
+const TOP_PRODUCTS_FIXTURE: AnalyticsSummaryParsed["top_products"] = [
+  {
+    product_id: "p1",
+    title: "Red Ankara Dress",
+    revenue_usdt: 150,
+    image_ipfs_hash: "QmHash1",
+  },
+  {
+    product_id: "p2",
+    title: "Hand-Beaded Bracelet",
+    revenue_usdt: 75.5,
+    image_ipfs_hash: "QmHash2",
+  },
+  {
+    product_id: "p3",
+    title: "Test Product (no image)",
+    revenue_usdt: 30.25,
+    image_ipfs_hash: null,
+  },
+];
+
+function withTopProducts(
+  products: AnalyticsSummaryParsed["top_products"],
+): AnalyticsSummaryParsed {
+  return { ...POPULATED, top_products: products };
+}
+
+describe("OverviewTab — top products (Block 5 sub-block 5.6)", () => {
+  it("renders 3 skeleton rows while the analytics hook is pending", () => {
+    useAnalyticsSummaryMock.mockReturnValue(loadingState());
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    expect(screen.getByText(/^Top products$/)).toBeInTheDocument();
+    const skeletonGroup = screen.getByTestId(
+      "overview-top-products-skeleton",
+    );
+    expect(skeletonGroup).toBeInTheDocument();
+    expect(skeletonGroup.children).toHaveLength(3);
+    expect(
+      screen.queryByTestId("overview-top-products-list"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders an 'Unable to load top products' fallback when the hook errors", () => {
+    useAnalyticsSummaryMock.mockReturnValue(errorState());
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    expect(
+      screen.getByTestId("overview-top-products-error"),
+    ).toHaveTextContent(/Unable to load top products/i);
+    expect(
+      screen.queryByTestId("overview-top-products-list"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("overview-top-products-empty"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders the empty-state copy when top_products is []", () => {
+    useAnalyticsSummaryMock.mockReturnValue(dataState(withTopProducts([])));
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    const empty = screen.getByTestId("overview-top-products-empty");
+    expect(empty).toHaveTextContent(/No top products yet/i);
+    expect(empty).toHaveTextContent(/once orders complete/i);
+    expect(
+      screen.queryByTestId("overview-top-products-list"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("renders 3 rows with title + USDT-formatted revenue + IPFS image when populated", () => {
+    useAnalyticsSummaryMock.mockReturnValue(
+      dataState(withTopProducts(TOP_PRODUCTS_FIXTURE)),
+    );
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    const rows = screen.getAllByTestId("overview-top-product-row");
+    expect(rows).toHaveLength(3);
+
+    // Row 0 — full data path : title + image (Pinata gateway URL) +
+    // 2-decimal USDT.
+    expect(rows[0]).toHaveAttribute("data-product-id", "p1");
+    expect(rows[0]).toHaveTextContent("Red Ankara Dress");
+    expect(rows[0]).toHaveTextContent("150.00 USDT");
+    const img0 = rows[0].querySelector("img");
+    expect(img0).not.toBeNull();
+    expect(img0!.getAttribute("src")).toBe(
+      "https://gateway.pinata.cloud/ipfs/QmHash1",
+    );
+    expect(img0!.getAttribute("alt")).toBe("Red Ankara Dress");
+
+    // Row 1 — confirms decimal precision (75.5 -> "75.50 USDT").
+    expect(rows[1]).toHaveTextContent("Hand-Beaded Bracelet");
+    expect(rows[1]).toHaveTextContent("75.50 USDT");
+
+    // Row 2 — null image_ipfs_hash falls back to the "No image"
+    // placeholder, NOT a broken <img> tag.
+    expect(rows[2]).toHaveTextContent("Test Product (no image)");
+    expect(rows[2]).toHaveTextContent("30.25 USDT");
+    expect(rows[2].querySelector("img")).toBeNull();
+    expect(
+      rows[2].querySelector(
+        '[data-testid="overview-top-product-no-image"]',
+      ),
+    ).not.toBeNull();
+  });
+
+  it("renders only one row + the no-image fallback when the single top product has null image_ipfs_hash", () => {
+    useAnalyticsSummaryMock.mockReturnValue(
+      dataState(
+        withTopProducts([
+          {
+            product_id: "solo",
+            title: "Lone Product",
+            revenue_usdt: 12,
+            image_ipfs_hash: null,
+          },
+        ]),
+      ),
+    );
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    const rows = screen.getAllByTestId("overview-top-product-row");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("Lone Product");
+    expect(rows[0]).toHaveTextContent("12.00 USDT");
+    expect(rows[0].querySelector("img")).toBeNull();
+    expect(
+      screen.getByTestId("overview-top-product-no-image"),
+    ).toBeInTheDocument();
+  });
+
+  it("constructs the IPFS image src via the canonical Pinata gateway", () => {
+    useAnalyticsSummaryMock.mockReturnValue(
+      dataState(
+        withTopProducts([
+          {
+            product_id: "p1",
+            title: "Test",
+            revenue_usdt: 1,
+            image_ipfs_hash: "QmTestHash",
+          },
+        ]),
+      ),
+    );
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    const img = screen
+      .getByTestId("overview-top-product-row")
+      .querySelector("img");
+    expect(img).not.toBeNull();
+    // The exact URL format must match what next.config.mjs's
+    // remotePatterns whitelists ; if someone swaps the gateway host
+    // here without updating the config, next/image will reject the
+    // src in production. Pin the contract.
+    expect(img!.getAttribute("src")).toBe(
+      "https://gateway.pinata.cloud/ipfs/QmTestHash",
+    );
   });
 });
