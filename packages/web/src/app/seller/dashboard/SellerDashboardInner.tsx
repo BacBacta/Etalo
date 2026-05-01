@@ -103,24 +103,24 @@ export function SellerDashboardInner() {
 
   if (isMiniPay === null) {
     return (
-      <Shell>
+      <StatusShell>
         <p className="text-base text-neutral-600">Loading…</p>
-      </Shell>
+      </StatusShell>
     );
   }
   if (isMiniPay === false) return null;
 
   if (loading) {
     return (
-      <Shell>
+      <StatusShell>
         <p className="text-base text-neutral-600">Loading dashboard…</p>
-      </Shell>
+      </StatusShell>
     );
   }
 
   if (error === "not_found") {
     return (
-      <Shell>
+      <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
           <h2 className="mb-3 text-xl font-semibold">No seller profile yet</h2>
           <p className="mb-4 text-base text-neutral-700">
@@ -131,13 +131,13 @@ export function SellerDashboardInner() {
             Self-service onboarding coming in V1.5.
           </p>
         </div>
-      </Shell>
+      </StatusShell>
     );
   }
 
   if (error === "fetch_failed" || !profile || !onchain || !address) {
     return (
-      <Shell>
+      <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
           <h2 className="mb-3 text-xl font-semibold">
             Couldn&apos;t load dashboard
@@ -153,13 +153,13 @@ export function SellerDashboardInner() {
             Retry
           </button>
         </div>
-      </Shell>
+      </StatusShell>
     );
   }
 
   return (
-    <Shell>
-      <div className="mx-auto max-w-3xl px-4 py-6">
+    <main className="min-h-screen">
+      <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
         <p className="mb-6 text-sm text-neutral-600">@{profile.shop_handle}</p>
 
@@ -210,14 +210,27 @@ export function SellerDashboardInner() {
           </TabsV4Content>
         </TabsV4Root>
       </div>
-    </Shell>
+    </main>
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+// Phase 4 hotfix #8 — Shell renamed to StatusShell + scope narrowed to
+// short loading/error messages only. The previous Shell wrapped EVERY
+// render path including the main dashboard; its `flex flex-col
+// items-center justify-center` makes flex children content-sized on
+// the cross axis. With no `w-full` on the inner container, the parent
+// grew to fit `TabsV4List`'s natural ~536 px width (6 triggers x ~86
+// px + gaps), which defeated the tabs' `overflow-x-auto` (no overflow
+// when container == content) and pushed the whole `<main>` past a
+// 360-414 px viewport — page-level horizontal scroll, header shifted
+// right, KPI grid extending off-screen. The main render now bypasses
+// StatusShell entirely with `<main><div className="w-full max-w-3xl
+// ...">`, which constrains TabsV4List to viewport width and lets its
+// own `overflow-x-auto` scope contain the tab scroll properly.
+function StatusShell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen">
-      <div className="flex min-h-screen flex-col items-center justify-center">
+      <div className="flex min-h-screen flex-col items-center justify-center px-4">
         {children}
       </div>
     </main>
