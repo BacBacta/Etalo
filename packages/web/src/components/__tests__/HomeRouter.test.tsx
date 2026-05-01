@@ -144,6 +144,43 @@ describe("HomeRouter — view dispatch landing|minipay (Block 4c)", () => {
   });
 });
 
+describe("HomeRouter — legacy etalo-mode-preference cleanup (Phase 4 hotfix #7)", () => {
+  // Hotfix #7 defensive cleanup : the pre-Block-4b HomeMode auto-
+  // redirect used `etalo-mode-preference` ("buyer" | "seller") to
+  // `router.replace` to /marketplace or /seller/dashboard on every
+  // paint. Block 4b removed the call site, but Mike observed in
+  // MiniPay live that `/` was still flipping to `/marketplace` before
+  // HomeMiniPay V5 could paint — leading hypothesis is a cached pre-
+  // Block-4b JS bundle resident in the WebView, reading the stale key
+  // from prior test sessions. HomeRouter now wipes the key on every
+  // mount so even the cached old bundle finds nothing to act on.
+  it("wipes the legacy etalo-mode-preference key from localStorage on mount", async () => {
+    setMiniPay(true);
+    window.localStorage.setItem("etalo-mode-preference", "buyer");
+    window.localStorage.setItem("etalo-onboarded", "true");
+    render(<HomeRouter featuredSellers={[]} />);
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem("etalo-mode-preference"),
+      ).toBeNull();
+    });
+    // The active onboarding flag MUST survive the cleanup — only the
+    // legacy key is targeted.
+    expect(window.localStorage.getItem("etalo-onboarded")).toBe("true");
+  });
+
+  it("cleanup runs even in non-MiniPay (web) context", async () => {
+    setMiniPay(false);
+    window.localStorage.setItem("etalo-mode-preference", "seller");
+    render(<HomeRouter featuredSellers={[]} />);
+    await waitFor(() => {
+      expect(
+        window.localStorage.getItem("etalo-mode-preference"),
+      ).toBeNull();
+    });
+  });
+});
+
 describe("HomeRouter — dynamic import HomeMiniPay (Phase 4 hotfix #6)", () => {
   // Hotfix #6 replaced the lazy-init + suppressHydrationWarning
   // (hotfix #5) with next/dynamic + ssr: false. The previous approach

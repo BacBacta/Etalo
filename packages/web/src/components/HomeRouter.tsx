@@ -49,6 +49,19 @@ interface Props {
 // dashboard on every paint, dropped Block 4b).
 const ONBOARDED_KEY = "etalo-onboarded";
 
+// Phase 4 hotfix #7 — defensive cleanup of the legacy sticky-mode key
+// dropped in Block 4b (4279186). Mike observed live in MiniPay
+// WebView : load `/` → URL flips to `/marketplace` before HomeMiniPay
+// V5 can paint (h1 "Welcome to Etalo" never visible in the DOM).
+// Source-code audit found NO call site that can navigate `/` →
+// `/marketplace` without a user click on the CTA, so the leading
+// hypothesis is a cached pre-Block-4b JS bundle still resident in the
+// MiniPay WebView, running the old HomeMode `router.replace` against
+// `etalo-mode-preference="buyer"` left over from prior test sessions.
+// Removing the key here is idempotent (no-op if never set) and shrinks
+// the blast radius even if the cached bundle later evicts on its own.
+const LEGACY_MODE_PREFERENCE_KEY = "etalo-mode-preference";
+
 type View = "landing" | "minipay";
 
 export function HomeRouter({ featuredSellers }: Props) {
@@ -61,6 +74,13 @@ export function HomeRouter({ featuredSellers }: Props) {
   const [showOnboarding, setShowOnboarding] = useState(false);
 
   useEffect(() => {
+    // Defensive cleanup runs on every mount, regardless of context —
+    // the legacy key has no remaining consumer in the post-Block-4b
+    // codebase, so unconditional removal cannot regress anything.
+    if (typeof window !== "undefined") {
+      window.localStorage.removeItem(LEGACY_MODE_PREFERENCE_KEY);
+    }
+
     if (!detectMiniPay()) return; // Web visitors stay on HomeLanding.
 
     setView("minipay");
