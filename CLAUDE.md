@@ -142,13 +142,15 @@ Phase 1-3 closures :
   V5 livres, 8 lessons #73-#80
 
 Phase 4 (Layout refactor + V5 applications migration) IN PROGRESS —
-Blocks 1-4c shipped + 8 hotfixes (MiniPay detection / HomeRouter
-flash / hydration / mobile horizontal overflow / etc.). Block 5
-(OverviewTab analytics surface : 4 KPI tiles + ChartLineV5 revenue
-7-day trend + Top products) ✓ done 2026-05-01 — 7 sub-blocks, 7
-commits, /seller/dashboard 22.9 KB / 263 KB First Load (-2.4 KB
-route net). Block 6 (MilestoneDialogV5) NEXT or skip-to Phase 5
-per Mike's call.
+Blocks 1-4c shipped + 9 hotfixes (MiniPay detection / HomeRouter
+flash / hydration / mobile horizontal overflow / two-physical-
+checkouts footgun / etc.). Block 5 (OverviewTab analytics surface :
+4 KPI tiles + ChartLineV5 revenue 7-day trend + Top products) ✓
+done 2026-05-01 — 7 sub-blocks. Block 6 (MilestoneDialogV5 +
+first-sale celebration ceremony) ✓ done 2026-05-01 — 4 sub-blocks,
+243 PASS frontend, /seller/dashboard 23.2 KB / 263 KB First Load
+(0 KB net Block 6 via dynamic-import). Phase 4 sign-off NEXT or
+skip-to Phase 5 per Mike's call.
 Phase 5 (Polish + Submission + tag final
 `v2.0.0-design-system-v5-sepolia`) NEXT.
 

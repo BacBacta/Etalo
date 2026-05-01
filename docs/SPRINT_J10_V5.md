@@ -769,6 +769,121 @@ wrong codebase served against the right URL.
   HomeMiniPay V5 visible on `/`, no auto-redirect to
   `/marketplace`).
 
+#### Block 6 — CLOSURE 2026-05-01 ✅ COMPLET 4/4 sub-blocks
+
+**Status** : MilestoneDialogV5 lib component + `useMilestoneOnce`
+hook + OrdersTab first-sale wire-up shipped. The first-sale
+celebration is now a 2-layer ceremony : confetti burst (Phase 2
+Block 7's `fireMilestone`) + celebratory dialog with the staged
+`success-first-sale.svg` illustration. Persistent across sessions
+per seller-wallet via the `etalo-milestone-shown-first-sale`
+localStorage flag (one-shot guard, mirror of Block 4b's
+`etalo-onboarded` pattern).
+
+**Sub-blocks livrés (4 commits sur `feat/design-system-v5`)** :
+
+| # | Scope | Commit | Tests Δ | Bundle Δ /seller/dashboard |
+|---|---|---|---|---|
+| 6.1 | `MilestoneDialogV5` lib component supporting first-sale + withdrawal-complete variants (DialogV4 reuse, no DialogV5 extracted per "promote-on-3rd-consumer" pattern) | `dcfc366` | +7 (228 → 235) | unchanged (no consumer yet) |
+| 6.2 | `useMilestoneOnce` hook with localStorage one-shot guard + try/catch silent fail (hotfix #7 lesson) | `2e92d10` | +5 (235 → 240) | unchanged (no consumer yet) |
+| 6.3 | OrdersTab wire-up : first-sale 0→1 transition opens MilestoneDialogV5 alongside the existing confetti burst, gated by `useMilestoneOnce` | `3872411` | +3 (240 → 243) | route +0.3 kB / FLJ 0 net (after dynamic-import fix) |
+| 6.4 | `/dev/components` showcase section (2 variants, bypasses `useMilestoneOnce` for free re-open) + this docs closure + final regression sweep | `<this>` | +0 net | minor (showcase only, prod surfaces unchanged) |
+
+**Métriques cumulées vs pre-6.1 baseline (Block 5 closure
+`b7494b4`)** :
+
+- Frontend tests : 228 → **243 PASS** (**+15 net**, all green, 0 lint)
+- Backend tests : **120 PASS** (unchanged — Block 6 is frontend-only)
+- TypeScript `tsc --noEmit` : **clean**
+- `/seller/dashboard` bundle : 22.9 → **23.2 kB** route (+0.3 kB), 263 → **263 kB** First Load (**0 kB net** — DialogV4 + ButtonV4 motion deps stay in the lazy chunk via the dynamic-import in OrdersTab)
+- 17 kB headroom remains under the 280 kB strict trigger
+
+**Bundle near-miss caught + fixed during sub-block 6.3** : the
+initial static import of `MilestoneDialogV5` from OrdersTab pushed
+`/seller/dashboard` First Load to **281 kB** — **1 kB OVER the
+280 kB strict trigger**. Root cause : DialogV4 + ButtonV4 motion
+dep chain got eagerly pulled into the dashboard's bundle. Fixed by
+switching the consumer to `next/dynamic({ ssr: false, loading: ()
+=> null })` ; the dialog renders into a Radix Portal that's
+invisible until `open` flips, so no fallback shape is required
+during chunk fetch. Bonus side-effect : `/checkout` reverted from
+15.2 → 13.5 kB because the static import had inadvertently pushed
+motion into a shared chunk that /checkout was eagerly loading.
+Lesson logged for the next V5-component wire-up : default to
+`next/dynamic` for any DialogV4/motion-pulling consumer that's
+conditionally rendered (e.g. modals, overlays).
+
+**Pattern decisions locked Block 6** :
+
+- **DialogV4 reuse over DialogV5 extraction** — DialogV4 (Phase 2
+  Block 6, Radix + motion-tuned spring + dark-mode aware) covers
+  every need for celebratory modals. Mike's "promote-on-3rd-
+  consumer" pattern (sub-blocks 5.6 IPFS gateway + 5.4
+  displayUsdtNumber) defers DialogV5 extraction until a 3rd
+  V5-styled dialog surfaces in Phase 5 polish.
+- **Per-type localStorage namespace** — `etalo-milestone-shown-
+  ${type}` keeps the 5 MilestoneType variants independent. Future
+  surfaces (banners, toasts) can reuse `useMilestoneOnce` for the
+  3 currently-unused variants (credit-purchase, image-generated,
+  onboarding-complete) without an API change.
+- **Dynamic-load any DialogV4 consumer that's conditionally
+  rendered** — caught by the 281 kB bust on first run of 6.3.
+  `next/dynamic({ ssr: false, loading: () => null })` is the right
+  shape for portal-rendered overlays.
+- **Defensive try/catch around localStorage** — hotfix #7
+  investigation surfaced that MiniPay's WebView occasionally
+  blocks Storage in incognito-style sessions. `useMilestoneOnce`
+  silently degrades : worst case the dialog re-fires on every
+  mount until storage works again, vs the alternative of crashing
+  the consumer.
+- **Confetti + dialog complementary, not redundant** — pattern
+  matches Robinhood transaction success : particle burst behind,
+  dialog focal-point at the same trigger moment. Both fire on the
+  0→1 transition ; the dialog is gated by the one-shot guard, the
+  confetti always fires.
+
+**Phase 5 polish items identified en route** :
+
+- Promote `MilestoneDialogV5` to a `DialogV5` lib if a 3rd
+  V5-styled dialog surfaces.
+- `useMilestoneOnce` could grow a `reset()` API for V2 (e.g. a
+  "show me the celebration again" admin trigger). Out of scope V1.
+- Withdrawal-complete trigger lands when stake/withdrawal returns
+  V2 (ADR-041 deferral). The component variant is already wired ;
+  V2 just needs to call `setMilestoneOpen(true)` on the post-tx
+  success callback.
+- `prefers-reduced-motion` for DialogV4's spring animation — pre-
+  existing condition flagged in Block 6 Phase 1 audit, out of
+  scope this block.
+
+**Hand-off Mike for live MiniPay validation** :
+1. Restart dev server from canonical inner repo (banner from
+   hotfix #9 confirms placement) :
+   ```powershell
+   cd C:\Users\Oxfam\projects\etalo\Etalo\packages\web
+   npm run dev
+   ```
+2. Navigate to `/dev/components#milestone-dialog-v5` first to
+   preview both variants visually (showcase bypasses the one-shot
+   guard so re-open is free).
+3. To test the live first-sale trigger : in MiniPay seller
+   wallet, ensure the seller has 0 completed orders, then trigger
+   a buyer flow that completes one ; the dashboard's Orders tab
+   should fire confetti + open MilestoneDialogV5 simultaneously
+   on the next refetch tick.
+4. Click "Continue" CTA → dialog dismisses, localStorage gets
+   `etalo-milestone-shown-first-sale=true`. Subsequent dashboard
+   reloads should NOT re-fire the dialog (confetti also won't
+   fire because the ref-based 0→1 condition can't recur in a
+   single mount lifetime).
+5. To re-test : clear MiniPay app storage (wipes the localStorage
+   flag) → next 0→1 transition re-fires both layers.
+
+**Sign-off Block 6** : DELIVERED 4/4 sub-blocks. 4 commits on
+`feat/design-system-v5`. First-sale celebration is a complete 2-
+layer ceremony ; withdrawal variant is forward-compat for V2.
+Ready for Phase 5 closure (Polish + Submission) per Mike's call.
+
 ### Phase 5 — Polish + Submission (5-7j)
 
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.

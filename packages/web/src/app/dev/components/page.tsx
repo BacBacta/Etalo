@@ -60,6 +60,7 @@ import { toastV4 } from "@/components/ui/v4/Toast";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
+import { MilestoneDialogV5 } from "@/components/ui/v5/MilestoneDialog";
 import { OnboardingScreenV5 } from "@/components/ui/v5/OnboardingScreen";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { SparklineV5 } from "@/components/ui/v5/SparklineV5";
@@ -80,6 +81,7 @@ const sections = [
   { id: "chart-v5", label: "Chart (V5)" },
   { id: "empty-state-v5", label: "EmptyState (V5)" },
   { id: "onboarding-v5", label: "OnboardingScreen (V5)" },
+  { id: "milestone-dialog-v5", label: "MilestoneDialog (V5)" },
 ];
 
 export default function DevComponentsPage() {
@@ -144,6 +146,8 @@ export default function DevComponentsPage() {
             <EmptyStateV5Section />
             <Separator />
             <OnboardingScreenV5Section />
+            <Separator />
+            <MilestoneDialogV5Section />
           </main>
         </div>
 
@@ -836,6 +840,60 @@ function OnboardingScreenV5Section() {
           onSkip={() => setOpen(false)}
         />
       ) : null}
+    </Section>
+  );
+}
+
+// J10-V5 Phase 4 Block 6 sub-block 6.4 — preview surface for both
+// MilestoneDialogV5 variants. Showcase intentionally bypasses
+// `useMilestoneOnce` so Mike can re-open the dialogs as many times as
+// needed for visual review (the prod consumer in OrdersTab respects
+// the one-shot guard).
+function MilestoneDialogV5Section() {
+  const [firstSaleOpen, setFirstSaleOpen] = useState(false);
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false);
+  return (
+    <Section
+      id="milestone-dialog-v5"
+      title="MilestoneDialog (V5)"
+      importPath="@/components/ui/v5/MilestoneDialog"
+    >
+      <p className="font-sans text-body-sm opacity-60">
+        Two variants : <code>first-sale</code> (V1 trigger LIVE in
+        OrdersTab) and <code>withdrawal-complete</code> (V2 trigger
+        deferred per ADR-041 — variant kept on the component for
+        forward-compat). Each preview button bypasses the
+        <code> useMilestoneOnce</code> guard so the dialog can be
+        re-opened freely ; the prod consumer respects the one-shot
+        flag.
+      </p>
+      <ShowcaseRow label="Variants">
+        <ButtonV4 onClick={() => setFirstSaleOpen(true)}>
+          Show first-sale dialog
+        </ButtonV4>
+        <ButtonV4
+          variant="outline"
+          onClick={() => setWithdrawalOpen(true)}
+        >
+          Show withdrawal-complete dialog
+        </ButtonV4>
+      </ShowcaseRow>
+      <MilestoneDialogV5
+        open={firstSaleOpen}
+        onOpenChange={setFirstSaleOpen}
+        variant="first-sale"
+        title="First sale!"
+        description="Congratulations on your first completed order. Keep growing your boutique — momentum builds from here."
+        ctaLabel="Continue"
+      />
+      <MilestoneDialogV5
+        open={withdrawalOpen}
+        onOpenChange={setWithdrawalOpen}
+        variant="withdrawal-complete"
+        title="Withdrawal complete"
+        description="Your funds have been transferred. Check your wallet for the deposit confirmation."
+        ctaLabel="Done"
+      />
     </Section>
   );
 }
