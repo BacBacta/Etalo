@@ -18,9 +18,7 @@ import {
 import { detectMiniPay } from "@/lib/minipay-detect";
 import {
   fetchMyProfile,
-  fetchSellerOnchainProfile,
   type SellerProfilePublic,
-  type SellerProfileResponse,
 } from "@/lib/seller-api";
 
 // Block 5 sub-block 5.1 — "stake" tab dropped per ADR-041 V1 scope
@@ -41,7 +39,6 @@ export function SellerDashboardInner() {
 
   const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
   const [profile, setProfile] = useState<SellerProfilePublic | null>(null);
-  const [onchain, setOnchain] = useState<SellerProfileResponse | null>(null);
   const [error, setError] = useState<"not_found" | "fetch_failed" | null>(
     null,
   );
@@ -57,25 +54,24 @@ export function SellerDashboardInner() {
     if (!detected) router.replace("/");
   }, [router]);
 
-  // 2) Combined fetch: identity (/sellers/me) + on-chain (/sellers/{addr}/profile).
-  // Block 5 sub-block 5.1 dropped the `refreshKey` mechanism — its only
-  // consumer was StakeTab's `onProfileRefresh` (now removed per ADR-041).
-  // OrdersTab handles its own refetch on Mark-shipped success. Block 5.4
-  // will introduce a TanStack Query-driven analytics summary that supersedes
-  // this manual fetch entirely.
+  // 2) Identity fetch (/sellers/me). Block 5 sub-block 5.4 dropped the
+  // parallel `fetchSellerOnchainProfile` call — its only consumers were
+  // StakeTab (retired in 5.1) and OverviewTab's stake StatCards (also
+  // retired in 5.1). The dashboard's KPI surface now sources its
+  // numbers from useAnalyticsSummary (sub-block 5.3) directly inside
+  // OverviewTab, so the parent only needs the off-chain identity row.
   useEffect(() => {
     if (isMiniPay !== true || !address) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([fetchMyProfile(address), fetchSellerOnchainProfile(address)])
-      .then(([me, on]) => {
+    fetchMyProfile(address)
+      .then((me) => {
         if (cancelled) return;
         if (!me) {
           setError("not_found");
           return;
         }
         setProfile(me);
-        setOnchain(on);
         setError(null);
       })
       .catch(() => {
@@ -134,7 +130,7 @@ export function SellerDashboardInner() {
     );
   }
 
-  if (error === "fetch_failed" || !profile || !onchain || !address) {
+  if (error === "fetch_failed" || !profile || !address) {
     return (
       <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
@@ -181,11 +177,7 @@ export function SellerDashboardInner() {
           </TabsV4List>
 
           <TabsV4Content value="overview">
-            <OverviewTab
-              profile={profile}
-              onchain={onchain}
-              address={address}
-            />
+            <OverviewTab profile={profile} address={address} />
           </TabsV4Content>
           <TabsV4Content value="products">
             <ProductsTab profile={profile} walletAddress={address} />
