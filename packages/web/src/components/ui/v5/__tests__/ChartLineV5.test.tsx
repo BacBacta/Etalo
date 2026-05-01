@@ -17,12 +17,11 @@ import ChartLineV5Inner, {
 beforeAll(() => {
   // Recharts ResponsiveContainer needs ResizeObserver. jsdom doesn't ship
   // one, so stub a no-op.
-  // @ts-expect-error — augmenting the global for the test environment.
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
-  };
+  } as unknown as typeof globalThis.ResizeObserver;
 });
 
 const SAMPLE_DATA: ChartLineV5Datum[] = [

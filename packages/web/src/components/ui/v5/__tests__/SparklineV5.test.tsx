@@ -15,12 +15,11 @@ import SparklineV5Inner, {
 } from "@/components/ui/v5/SparklineV5Inner";
 
 beforeAll(() => {
-  // @ts-expect-error — augmenting the global for the test environment.
   globalThis.ResizeObserver = class {
     observe() {}
     unobserve() {}
     disconnect() {}
-  };
+  } as unknown as typeof globalThis.ResizeObserver;
 });
 
 describe("SparklineV5Inner", () => {

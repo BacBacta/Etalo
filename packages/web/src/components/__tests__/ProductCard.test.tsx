@@ -83,6 +83,7 @@ describe("MarketplaceProductCard — CardV4 wrapper migration (P4 B2)", () => {
     seller_handle: "ekene",
     seller_shop_name: "Ekene Shoes",
     seller_country: "NGA",
+    created_at: "2026-04-01T00:00:00Z",
   };
 
   it("renders product info inside a CardV4 wrapper with seller line", () => {

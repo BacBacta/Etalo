@@ -558,6 +558,129 @@ font-display Switzer Variable + tabular-nums utility absents hors `/dev/componen
 
 **Validation** : visual check pages cles cohérentes, mobile responsive, onboarding flow smooth, MilestoneDialogV5 fires une-fois-only post first-sale + withdrawal.
 
+#### Block 5 — CLOSURE 2026-05-01 ✅ COMPLET 7/7 sub-blocks
+
+**Status** : OverviewTab refactor complet. 4 KPI tiles + ChartLineV5
+revenue 7-day trend + Top products section, tous wired sur le real
+backend `/api/v1/analytics/summary` via le hook
+`useAnalyticsSummary` (TanStack Query + Decimal selector centralisé
++ ADR-041 badge shim). Le dashboard sort enfin de l'ère stake-derived
+StatCards (legacy Phase 3 / pre-ADR-041) et arrive sur une surface
+analytics V1-coherente.
+
+**Sub-blocks livrés (7 commits sur `feat/design-system-v5`)** :
+
+| # | Scope | Commit | Tests Δ | Bundle Δ /seller/dashboard |
+|---|---|---|---|---|
+| 5.1 | ADR-041 cleanup : drop StakeTab + StakeActionDialog + Top Seller refs (5 → 4 tabs) | `e1152e8` | -3 (StakeTab specs) | route 25.3 → 22.7 kB / FLJ 263 → 260 kB |
+| 5.2a | Backend `analytics.py` V2 schema migration + 5 e2e contract tests | `de8ffb0` | +5 backend (115 → 120) | n/a |
+| 5.2b | Frontend `lib/analytics-api.ts` typed wrapper + 3 unit tests | `69c9cbc` | +3 (196 → 199) | unchanged (no consumer yet) |
+| 5.3 | `useAnalyticsSummary` hook : TanStack Query + Decimal selector + badge shim + 12 tests | `8f6dd90` | +12 (199 → 211) | unchanged (no consumer yet) |
+| 5.4 | OverviewTab 4 KPI tiles wire-up + 6 tests + dropped dead `onchain` state in dashboard parent | `15aed82` | +6 (211 → 217) | route +0.7 kB / FLJ +1 kB |
+| 5.5 | OverviewTab ChartLineV5 revenue 7-day trend section + 5 tests (first prod consumer of ChartLineV5) | `c10eb38` | +5 (217 → 222) | route -0.9 kB (Webpack chunk reshuffle) / FLJ +1 kB |
+| 5.6 | OverviewTab Top products section (max 3, IPFS images, empty state) + 6 tests | `fc65f42` | +6 (222 → 228) | route +0.4 kB / FLJ +1 kB |
+| 5.7 | Closure : full regression + tsc cleanup (3 latent pre-Block-5 errors) + this docs update + wrap-up | `<this>` | +0 net | unchanged |
+
+**Métriques cumulées vs pre-5.1 baseline (hotfix #8 `e6ccad9`)** :
+
+- Frontend tests : 196 → **228 PASS** (**+32 net**, all green, 0 lint)
+- Backend tests : 115 → **120 PASS** (**+5**, full pytest suite 64 s)
+- TypeScript `tsc --noEmit` : **clean** (after 5.7 sweep of 3 latent pre-Block-5 errors)
+- `/seller/dashboard` bundle : 25.3 → **22.9 kB** route (**−2.4 kB**), 263 → **263 kB** First Load (**0 kB net**)
+  - 17 kB headroom remains under the 280 kB strict trigger
+  - 4 new sections (KPI tiles + chart + top products + IPFS images via next/image) shipped at zero net First Load cost — recharts stayed code-split via next/dynamic, the StakeTab + StakeActionDialog removal in 5.1 over-recouped the new section overhead
+
+**Pattern decisions locked Block 5 (referenceable Phase 5 + future)** :
+
+- **Decimal-as-JSON-string contract** : pinned both server-side (e2e
+  test in 5.2a asserts every Decimal field serialises as JSON string)
+  and client-side (centralised `parseFloat` in
+  `useAnalyticsSummary.select`, sub-block 5.3). Single boundary,
+  consumers always see `number`. Future analytics endpoints follow
+  the same pattern.
+- **TanStack Query as the dashboard data layer** : sub-block 5.3 is
+  the second TQ hook (after `useOrderInitiate`). `staleTime: 30_000`
+  + `retry: 1` empirically right for read-only seller analytics ;
+  `useCreditsBalance`'s plain useState pattern stays unchanged but
+  is the legacy approach.
+- **ADR-041 defensive shims** : `badge "top_seller" → "active"` filter
+  in the hook selector (with TODO marker pointing to backend ADR-041
+  sweep PR). Same pattern usable for any future enum-narrowing.
+- **Locale + timezone pinning for display** : `displayUsdtNumber`
+  (sub-block 5.4) and `formatChartDate` (sub-block 5.5) both pin
+  `locale: "en-US"` ; the chart formatter additionally pins
+  `timeZone: "UTC"`. Caught a `fr_FR` bug on first test run (Mike's
+  box) — the convention is now well-tested across 4 specs.
+- **IPFS gateway constant** : local `PINATA_GATEWAY` in 2 consumers
+  (ImageUploader + OverviewTab/TopProductRow). Promotion to
+  `lib/ipfs.ts` deferred to Phase 5 polish if a 3rd consumer surfaces.
+
+**Phase 5 polish items identified en route** :
+
+- Promote `PINATA_GATEWAY` constant to `lib/ipfs.ts` if a 3rd
+  consumer surfaces (e.g., MarketingTab generated-image preview).
+- Backend ADR-041 sweep PR : drop `"top_seller"` literal from
+  `app/schemas/analytics.py` `ReputationBlock.badge` enum + lift
+  hard-coded `auto_release_days = 3` into a config setting. Removes
+  the frontend defensive shim in 5.3 and the test allow-list TODO
+  in `tests/e2e/test_analytics_e2e.py`.
+- `displayUsdtNumber` (currently OverviewTab-local) is a candidate
+  helper for `lib/usdt.ts` once 5.6's tests confirm 2+ consumers
+  benefit from a shared formatter.
+- SSR prefetch via `dehydrate(queryClient)` for `useAnalyticsSummary`
+  → eliminates the dashboard's loading-state flash on first paint.
+  Out of Block 5 scope (premature optimization for V1) ; Phase 5
+  perf candidate.
+- The 3 latent tsc errors fixed in 5.7 closure (ProductCard.test
+  missing `created_at`, ChartLineV5/SparklineV5 unused
+  `@ts-expect-error`) suggest `tsc --noEmit` should run in CI
+  alongside `next build` so test-only TS regressions are caught
+  before they accumulate. Phase 5 CI hygiene candidate.
+
+**Workflow detail noted in passing** : the inner-repo
+(`/etalo/Etalo` per CLAUDE.md primary working dir) has no `.env` /
+`venv` for backend ; backend pytest runs against the outer repo's
+venv (`/etalo/packages/backend/venv` with `.env` configured). Model
+files + conftest are byte-identical between the two trees so test
+results transfer. Backend code authored in inner, validated against
+outer venv, then committed to inner. Phase 5 candidate to clean up
+(set up backend venv in inner OR document the dual-tree workflow
+explicitly in `docs/BACKEND.md`).
+
+**Hand-off Mike for live MiniPay validation (ngrok tunnel + chrome
+://inspect/#devices)** :
+1. Reload dev server clean : `rm -rf .next && pnpm dev`
+2. Open `https://upright-henna-armless.ngrok-free.dev/seller/
+   dashboard` in MiniPay on phone via DevTools attached to the
+   WebView.
+3. Expected on Overview tab :
+   - 4 KPI tiles render in 2x2 grid on mobile (Revenue 24h /
+     Revenue 7d / Active orders / In escrow with "Released: X
+     USDT" sub-text). Loading: 4 skeleton placeholders. Error: 4
+     em-dash fallbacks.
+   - "Revenue trend (last 7 days)" CardV4 below the tiles. Chart
+     skeleton during fetch ; ChartLineV5 forest line on populated
+     data ; "No data yet" if backend ever returns empty array
+     (it shouldn't — backend zero-fills).
+   - "Top products" CardV4 : 0-3 product rows with IPFS image +
+     truncate title + tabular-nums revenue. Empty state copy "No
+     top products yet — your top sellers will appear here once
+     orders complete." for fresh sellers.
+   - "Recent orders" section (Block 3b unchanged) at the bottom.
+4. Tab switches Overview ↔ Products / Orders / Profile / Marketing
+   should be smooth (5-tab list, sliding indicator preserved).
+5. NO horizontal page scroll on 360-414 px viewports (hotfix #8
+   protection holds — verified via class cascade analysis).
+6. If badge "top_seller" ever appears in the API response, the
+   frontend should display it as "active" (5.3 shim). Backend
+   currently never emits "top_seller" (Reputation contract not
+   indexed yet), so this is purely defensive.
+
+**Sign-off Block 5** : DELIVERED 7/7 sub-blocks. 7 commits on
+`feat/design-system-v5`. /seller/dashboard Overview tab is now a
+real V1-aligned analytics surface. Ready for Block 6
+(MilestoneDialogV5) or Phase 5 closure depending on Mike's call.
+
 ### Phase 5 — Polish + Submission (5-7j)
 
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.

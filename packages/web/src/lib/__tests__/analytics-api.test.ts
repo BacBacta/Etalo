@@ -22,24 +22,27 @@ const SAMPLE_WALLET = "0xabc0000000000000000000000000000000000001";
 // Mirrors the shape the backend ships (sub-block 5.2a). Decimal fields
 // are JSON strings, dates are ISO date strings.
 const SAMPLE_RESPONSE: AnalyticsSummary = {
+  // Decimal fields are typed as `string` in api.gen.ts (FastAPI ships
+  // Pydantic Decimal as JSON string — sub-block 5.2a's contract test
+  // pins this). Fixtures use plain strings to mirror the wire shape.
   revenue: {
-    h24: "12.50" as unknown as number, // openapi-typescript types Decimal as number; runtime is string
-    d7: "75.30" as unknown as number,
-    d30: "240.10" as unknown as number,
+    h24: "12.50",
+    d7: "75.30",
+    d30: "240.10",
     timeline_7d: [
-      { date: "2026-04-25", revenue_usdt: "0" as unknown as number },
-      { date: "2026-04-26", revenue_usdt: "10.00" as unknown as number },
-      { date: "2026-04-27", revenue_usdt: "0" as unknown as number },
-      { date: "2026-04-28", revenue_usdt: "25.50" as unknown as number },
-      { date: "2026-04-29", revenue_usdt: "0" as unknown as number },
-      { date: "2026-04-30", revenue_usdt: "27.30" as unknown as number },
-      { date: "2026-05-01", revenue_usdt: "12.50" as unknown as number },
+      { date: "2026-04-25", revenue_usdt: "0" },
+      { date: "2026-04-26", revenue_usdt: "10.00" },
+      { date: "2026-04-27", revenue_usdt: "0" },
+      { date: "2026-04-28", revenue_usdt: "25.50" },
+      { date: "2026-04-29", revenue_usdt: "0" },
+      { date: "2026-04-30", revenue_usdt: "27.30" },
+      { date: "2026-05-01", revenue_usdt: "12.50" },
     ],
   },
   active_orders: 3,
   escrow: {
-    in_escrow: "180.00" as unknown as number,
-    released: "60.10" as unknown as number,
+    in_escrow: "180.00",
+    released: "60.10",
   },
   reputation: {
     score: 42,
@@ -50,7 +53,7 @@ const SAMPLE_RESPONSE: AnalyticsSummary = {
     {
       product_id: "11111111-1111-1111-1111-111111111111",
       title: "Top Product A",
-      revenue_usdt: "120.00" as unknown as number,
+      revenue_usdt: "120.00",
       image_ipfs_hash: "QmTest1",
     },
   ],
