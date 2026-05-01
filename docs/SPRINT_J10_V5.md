@@ -38,6 +38,126 @@ Robinhood post-2024 redesign : dark-first, bold typography, motion-rich, custom 
 
 `feat/design-system-v5` cree depuis `feat/design-vitrine-v4` HEAD = `35d12f2` (preserve Block 2 PublicHeader work qui restera relevant). Branche `feat/design-vitrine-v4` reste ouverte audit trail.
 
+## Phase 4 — SIGN-OFF 2026-05-02 ✅ COMPLET 6 Blocks + 10 hotfixes
+
+**Status** : Phase 4 (Layout refactor + V5 applications migration)
+DELIVERED. All 6 planned Blocks shipped + 10 hotfixes (most
+significantly #9 dual-repo frontend footgun + #10 dual-repo backend
+footgun, neither anticipated in the original plan but both
+load-bearing for future contributor sanity).
+
+**Lessons doc** : see `docs/PHASE_4_LESSONS_LEARNED.md` for the
+cumulative pattern catalogue (bundle discipline, mobile-first
+responsive, locale/timezone safety, testing patterns, hydration
+safety, backend V2 schema discipline, auth pattern, dual-repo
+footgun neutralization, build-vs-dev workflow).
+
+### Blocks recap
+
+| Block | Scope | Closing commit |
+|---|---|---|
+| 1 | Audit + plan migration détaillé | `b87ae51` |
+| 2 | CardV4 adoption across 5 prod surfaces (motion drop + CSS hover lift) | `a953d8e` |
+| 3 | TabsV4 adoption SellerDashboardInner (motion drop + CSS sliding indicator) | `05c9847` |
+| 4a | OnboardingScreenV5 V1 component + audit HomeRouter | `bf1f7c1` |
+| 4b | HomeRouter first-time flow refactor + OnboardingScreenV5 wire-up | `4279186` |
+| 4c | HomeMiniPay split + landing context discrimination | `f2542f4` |
+| 5.1 | ADR-041 cleanup : drop StakeTab + StakeActionDialog + Top Seller refs | `e1152e8` |
+| 5.2a | Backend `analytics.py` V2 schema migration + 5 e2e contract tests | `de8ffb0` |
+| 5.2b | Frontend `lib/analytics-api.ts` typed wrapper + 3 unit tests | `69c9cbc` |
+| 5.3 | `useAnalyticsSummary` hook + Decimal selector + ADR-041 badge shim | `8f6dd90` |
+| 5.4 | OverviewTab 4 KPI tiles wire-up + dropped dead `onchain` state | `15aed82` |
+| 5.5 | OverviewTab ChartLineV5 revenue 7-day trend section | `c10eb38` |
+| 5.6 | OverviewTab Top products section consuming analytics.data.top_products | `fc65f42` |
+| 5.7 | Block 5 closure : full regression + tsc cleanup + sprint doc | `b7494b4` |
+| 6.1 | MilestoneDialogV5 lib component (first-sale + withdrawal-complete variants) | `dcfc366` |
+| 6.2 | `useMilestoneOnce` hook with localStorage one-shot guard | `2e92d10` |
+| 6.3 | Wire MilestoneDialogV5 into OrdersTab first-sale trigger | `3872411` |
+| 6.4 | Block 6 closure : showcase + sprint doc + final regression | `9b6f909` |
+| 7 (sign-off) | Phase 4 cumulative closure docs (lessons + sprint doc + this) | `<this>` |
+
+### Hotfixes recap
+
+| # | Subject | Commit | Status |
+|---|---|---|---|
+| Combo β+δ | MiniPay detection multi-signal helper + 5-site refactor | `2edc32e` | ✓ shipped |
+| (side-quest) | dev-ngrok.ps1 Windows-1252 codepage compat | `be1cc0d` | ✓ shipped |
+| 4 | Hostname signal + DebugMiniPayOverlay | `9fa7043` | ✓ shipped |
+| 5 | HomeRouter lazy synchronous init (eliminate landing→minipay flash) | `69ba6ea` | ✓ shipped (superseded by #6) |
+| 6 | HomeMiniPay dynamic import ssr:false (cure hydration error #5) | `2e4d99f` | ✓ shipped |
+| 7 | Defensive cleanup of legacy `etalo-mode-preference` localStorage key | `094e07b` | ✓ shipped |
+| 8 | Seller dashboard mobile responsive (`w-full` shell fix on 360-414 px) | `e6ccad9` | ✓ shipped |
+| 9 | Dual-repo FRONTEND footgun neutralization (predev fail-fast + canonical banner) | `5a13a78` | ✓ shipped |
+| 10 | Dual-repo BACKEND footgun neutralization (run_dev.py fail-fast + inner venv setup + defensive app/ sync) | `fafdc52` | ✓ shipped |
+
+### Métriques cumulées Phase 4 (vs Phase 3 closure baseline `f3dd4ba`)
+
+| Metric | Pre-Phase-4 | Post-Phase-4 | Δ |
+|---|---|---|---|
+| Frontend tests PASS | ~178 | **243** | **+65 net** |
+| Backend tests PASS | 115 | **120** | **+5** |
+| TypeScript `tsc --noEmit` | 4 latent errors | **clean** | **−4** (5.7 sweep) |
+| ESLint warnings | 0 | **0** | unchanged |
+| `/seller/dashboard` route | ~25 kB | **22.9 kB** | **−2.1 kB** (5.1 cleanup) |
+| `/seller/dashboard` First Load JS | ~280 kB (alerte Phase 3 Block 5b) | **263 kB** | **−17 kB** (cleanup + dynamic import discipline) |
+| 280 kB strict trigger headroom | 0 kB (alerte) | **17 kB** | **+17 kB** |
+
+**Live MiniPay validation** : confirmed end-to-end on INNER frontend +
+INNER backend (post-hotfix-#9 + post-hotfix-#10). HomeMiniPay V5 visible
+on `/`, 5-tab dashboard, 4 KPI tiles + ChartLineV5 + Top products on
+Overview, MilestoneDialogV5 + confetti on first-sale 0→1 transition,
+no horizontal scroll on 360-414 px viewports.
+
+### Branches state
+
+`feat/design-system-v5` is even with `origin` post-hotfix-#10 push
+(if pushed) — this sign-off commit will land 1 commit ahead. Recommended
+next steps :
+
+1. `git push origin feat/design-system-v5` so the sign-off lands on GitHub.
+2. Open PR `feat/design-system-v5` → `main` (or an integration branch)
+   for code review before Phase 5 starts. Phase 4 represents 28 commits
+   covering Blocks 1-6 + 10 hotfixes ; PR description should reference
+   `docs/PHASE_4_LESSONS_LEARNED.md` and the closure sections in this
+   sprint doc.
+3. Once merged, `feat/design-system-v5` can either continue being
+   the Phase 5 working branch (rebase on main) OR be retired in favor
+   of a fresh `feat/phase-5-polish` branch.
+
+### Phase 5 — what's next
+
+Items identified in route during Phase 4 (full list with file:line
+context in `docs/PHASE_4_LESSONS_LEARNED.md` "Architecture follow-ups"
+section) :
+
+1. **Tabular nums systematic application** — `font-feature-settings:
+   "tnum"` on every USDT amount surface, credit balance, transaction
+   counts, sparkline values (Phase 5 Block 1, ~1j).
+2. **Mobile gestures critiques** — swipe-to-close cart drawer,
+   pull-to-refresh marketplace (Phase 5 Block 2, 1-2j).
+3. **Side-by-side Robinhood QA pass** (Phase 5 Block 3, ~1j).
+4. **Polish details pass** — hover states cohérents, transitions
+   200ms uniformes, micro-spacings selon QA findings (~1-2j).
+5. **Architecture follow-ups** : Option C server-side middleware
+   UA detection, `useCreditsBalance` migration to TanStack Query,
+   `dehydrate(queryClient)` SSR prefetch for `useAnalyticsSummary`,
+   `prefers-reduced-motion` for `DialogV4` spring, `displayUsdt
+   Number` + `PINATA_GATEWAY` constant promotion if 3rd consumers
+   surface, `tsc --noEmit` in CI, integration smoke for backend
+   drift catch.
+6. **Demo video 3 min + Karma GAP profile + Farcaster post + repo
+   README polish + grants Celo Foundation submission** (Phase 5
+   Blocks 5-8, ~3-4j).
+7. **Tag final** `v2.0.0-design-system-v5-sepolia` + closure (Phase
+   5 Block 9, ~0.5j).
+
+**Mainnet target Q2 2027 stays comfortable** — Phase 4 cumulative
+~6-8 days wall-clock (vs original 5-7j estimate), Phase 5 estimated
+5-7j, leaves substantial buffer for grants application + Mike's
+real-life cadence.
+
+---
+
 ## 5 phases (sprints J10-V5 a J10-V5e ou splits selon validation Mike)
 
 ### Phase 1 — Foundations elevation (8-10j)

@@ -129,32 +129,36 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J10-V5 — Design System V5 Robinhood-target, Phase 4 (Layout
-refactor + V5 applications migration) IN PROGRESS depuis 2026-04-29.
-Plan detaille dans `docs/SPRINT_J10_V5.md`. Branche
-`feat/design-system-v5`.
+Sprint J10-V5 — Design System V5 Robinhood-target. Plan détaillé
+dans `docs/SPRINT_J10_V5.md`. Branche `feat/design-system-v5`.
 
-Phase 1-3 closures :
+Phase closures :
 
 - Phase 1 (Foundations) ✓ 16 commits
 - Phase 2 (Motion) ✓ 11 commits
-- Phase 3 (Visuals) ✓ 9 commits — bundle 262 KB strict, 4 composants
-  V5 livres, 8 lessons #73-#80
+- Phase 3 (Visuals) ✓ 9 commits — bundle 262 KB strict, 4
+  composants V5 livrés, 8 lessons #73-#80
+- **Phase 4 (Layout refactor + V5 applications migration) ✓ done
+  2026-05-02** — 6 Blocks (1-4 + 5 + 6) + 10 hotfixes (incl. #9
+  dual-repo frontend + #10 dual-repo backend footgun
+  neutralization). 243 PASS frontend (+65 net Phase 4) / 120
+  PASS backend (+5). `/seller/dashboard` 22.9 kB route /
+  **263 kB First Load** (17 kB headroom préservé sous trigger
+  280 kB strict, −17 kB net Phase 4). Live MiniPay validation
+  confirmed end-to-end sur INNER frontend + INNER backend.
+  Cumulative pattern catalogue dans
+  `docs/PHASE_4_LESSONS_LEARNED.md`.
 
-Phase 4 (Layout refactor + V5 applications migration) IN PROGRESS —
-Blocks 1-4c shipped + 10 hotfixes (MiniPay detection / HomeRouter
-flash / hydration / mobile horizontal overflow / two-physical-
-checkouts footgun frontend #9 + backend #10 / etc.). Block 5 (OverviewTab analytics surface :
-4 KPI tiles + ChartLineV5 revenue 7-day trend + Top products) ✓
-done 2026-05-01 — 7 sub-blocks. Block 6 (MilestoneDialogV5 +
-first-sale celebration ceremony) ✓ done 2026-05-01 — 4 sub-blocks,
-243 PASS frontend, /seller/dashboard 23.2 KB / 263 KB First Load
-(0 KB net Block 6 via dynamic-import). Phase 4 sign-off NEXT or
-skip-to Phase 5 per Mike's call.
-Phase 5 (Polish + Submission + tag final
-`v2.0.0-design-system-v5-sepolia`) NEXT.
+**Phase 5 (Polish + Submission) NEXT**. Items identifiés en route
+Phase 4 : tabular nums systematic application, mobile gestures
+critiques (swipe-cart, pull-to-refresh marketplace), side-by-side
+Robinhood QA pass, polish details, demo video 3 min, Karma GAP
+profile + Farcaster post + repo README polish, grants Celo
+Foundation submission, tag final
+`v2.0.0-design-system-v5-sepolia`. Liste complete + Phase 5
+Block 1-9 plan dans `docs/SPRINT_J10_V5.md`.
 
-When user says "start Phase 4 Block N" or "continue Block X", read
+When user says "start Phase 5 Block N" or "continue Block X", read
 that block in `docs/SPRINT_J10_V5.md` and execute.
 
 Always propose a plan before executing, and wait for validation.
