@@ -17,7 +17,11 @@ import { OverviewTab } from "@/components/seller/OverviewTab";
 import type { AnalyticsSummaryParsed } from "@/hooks/useAnalyticsSummary";
 
 // ============================================================
-// Mocks — analytics hook (5.3) + recent-orders fetch (Block 3b)
+// Mocks — analytics hook (5.3) + recent-orders fetch (Block 3b) +
+// ChartLineV5 (5.5 ; the real component is dynamic ssr:false +
+// recharts which crashes in jsdom without a ResizeObserver stub —
+// stubbing the wrapper at the module boundary is simpler and lets
+// the test assert on the data the component would receive).
 // ============================================================
 const useAnalyticsSummaryMock = vi.fn();
 vi.mock("@/hooks/useAnalyticsSummary", async () => {
@@ -30,6 +34,28 @@ vi.mock("@/hooks/useAnalyticsSummary", async () => {
       useAnalyticsSummaryMock(...args),
   };
 });
+
+vi.mock("@/components/ui/v5/ChartLineV5", () => ({
+  ChartLineV5: ({
+    data,
+    height,
+  }: {
+    data: { label: string; value: number }[];
+    height?: number;
+  }) => (
+    <div
+      data-testid="chart-line-mock"
+      data-height={height}
+      data-point-count={data.length}
+    >
+      {data.map((p, i) => (
+        <span key={i} data-testid={`chart-line-mock-point-${i}`}>
+          {p.label}:{p.value}
+        </span>
+      ))}
+    </div>
+  ),
+}));
 
 const fetchSellerOrdersMock = vi.fn();
 vi.mock("@/lib/seller-api", async () => {
@@ -71,12 +97,25 @@ function dataState(parsed: AnalyticsSummaryParsed) {
   return { data: parsed, isPending: false, isError: false };
 }
 
+// Backend zero-fills timeline_7d to exactly 7 entries — fixtures
+// mirror that. Dates chosen UTC so the locale-pinned formatter
+// produces deterministic "Apr 25" through "May 1" labels.
+const POPULATED_TIMELINE: AnalyticsSummaryParsed["revenue"]["timeline_7d"] = [
+  { date: "2026-04-25", revenue_usdt: 0 },
+  { date: "2026-04-26", revenue_usdt: 12.5 },
+  { date: "2026-04-27", revenue_usdt: 0 },
+  { date: "2026-04-28", revenue_usdt: 25.5 },
+  { date: "2026-04-29", revenue_usdt: 0 },
+  { date: "2026-04-30", revenue_usdt: 100 },
+  { date: "2026-05-01", revenue_usdt: 70.5 },
+];
+
 const POPULATED: AnalyticsSummaryParsed = {
   revenue: {
     h24: 70.5,
     d7: 245,
     d30: 980,
-    timeline_7d: [],
+    timeline_7d: POPULATED_TIMELINE,
   },
   active_orders: 3,
   escrow: { in_escrow: 100, released: 50 },
@@ -85,7 +124,15 @@ const POPULATED: AnalyticsSummaryParsed = {
 };
 
 const ZEROED: AnalyticsSummaryParsed = {
-  revenue: { h24: 0, d7: 0, d30: 0, timeline_7d: [] },
+  revenue: {
+    h24: 0,
+    d7: 0,
+    d30: 0,
+    timeline_7d: POPULATED_TIMELINE.map((p) => ({
+      date: p.date,
+      revenue_usdt: 0,
+    })),
+  },
   active_orders: 0,
   escrow: { in_escrow: 0, released: 0 },
   reputation: { score: 0, badge: "new_seller", auto_release_days: 3 },
@@ -272,5 +319,123 @@ describe("OverviewTab — 4 KPI tiles (Block 5 sub-block 5.4)", () => {
       />,
     );
     expect(useAnalyticsSummaryMock).toHaveBeenCalledWith(ADDRESS);
+  });
+});
+
+// ============================================================
+// Block 5 sub-block 5.5 — Revenue trend chart
+// ============================================================
+describe("OverviewTab — revenue trend ChartLineV5 (Block 5 sub-block 5.5)", () => {
+  it("renders the chart card heading and a skeleton placeholder while pending", () => {
+    useAnalyticsSummaryMock.mockReturnValue(loadingState());
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    expect(
+      screen.getByText(/Revenue trend \(last 7 days\)/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("overview-revenue-chart-skeleton"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("chart-line-mock")).not.toBeInTheDocument();
+  });
+
+  it("renders an 'Unable to load chart' fallback when the hook errors", () => {
+    useAnalyticsSummaryMock.mockReturnValue(errorState());
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    expect(
+      screen.getByTestId("overview-revenue-chart-error"),
+    ).toHaveTextContent(/Unable to load chart/i);
+    expect(screen.queryByTestId("chart-line-mock")).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("overview-revenue-chart-skeleton"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("forwards 7 mapped data points to ChartLineV5 with formatted date labels + numeric values", () => {
+    useAnalyticsSummaryMock.mockReturnValue(dataState(POPULATED));
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    const chart = screen.getByTestId("chart-line-mock");
+    expect(chart).toHaveAttribute("data-point-count", "7");
+    expect(chart).toHaveAttribute("data-height", "200");
+    // Each point's label must come from the en-US UTC formatter, not
+    // the system locale (sub-block 5.4 lesson : Mike's box is fr_FR
+    // which would otherwise emit "26 avr." instead of "Apr 26").
+    expect(
+      screen.getByTestId("chart-line-mock-point-1"),
+    ).toHaveTextContent("Apr 26:12.5");
+    expect(
+      screen.getByTestId("chart-line-mock-point-3"),
+    ).toHaveTextContent("Apr 28:25.5");
+    expect(
+      screen.getByTestId("chart-line-mock-point-6"),
+    ).toHaveTextContent("May 1:70.5");
+  });
+
+  it("still renders 7 points (all value=0) when the seller has no sales — empty state belongs to ChartLineV5, not OverviewTab", () => {
+    useAnalyticsSummaryMock.mockReturnValue(dataState(ZEROED));
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    const chart = screen.getByTestId("chart-line-mock");
+    expect(chart).toHaveAttribute("data-point-count", "7");
+    // Every value passes through as numeric 0 — no NaN, no missing
+    // entries. ChartLineV5 itself renders a flat baseline for all-
+    // zero data; its data.length === 0 empty branch isn't triggered
+    // because the backend zero-fills the timeline.
+    for (let i = 0; i < 7; i++) {
+      expect(
+        screen.getByTestId(`chart-line-mock-point-${i}`),
+      ).toHaveTextContent(/:0$/);
+    }
+  });
+
+  it("date labels are timezone-stable (UTC) and locale-stable (en-US)", () => {
+    useAnalyticsSummaryMock.mockReturnValue(dataState(POPULATED));
+    render(
+      <OverviewTab
+        // @ts-expect-error — minimal stub
+        profile={PROFILE}
+        address={ADDRESS}
+      />,
+    );
+    // The 7 fixture dates are 2026-04-25 ... 2026-05-01 inclusive.
+    // En-US UTC formatting yields "Apr 25" .. "May 1". A non-UTC
+    // formatter on a UTC- offset machine would shift one or more
+    // dates back by a day; this assertion catches that regression.
+    const expectedLabels = [
+      "Apr 25",
+      "Apr 26",
+      "Apr 27",
+      "Apr 28",
+      "Apr 29",
+      "Apr 30",
+      "May 1",
+    ];
+    for (let i = 0; i < expectedLabels.length; i++) {
+      expect(
+        screen.getByTestId(`chart-line-mock-point-${i}`).textContent,
+      ).toMatch(new RegExp(`^${expectedLabels[i]}:`));
+    }
   });
 });

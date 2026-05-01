@@ -7,6 +7,7 @@ import {
   type AnalyticsSummaryParsed,
 } from "@/hooks/useAnalyticsSummary";
 import { CardV4 } from "@/components/ui/v4/Card";
+import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchSellerOrders,
@@ -45,6 +46,25 @@ function displayUsdtNumber(amount: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })} USDT`;
+}
+
+// Block 5 sub-block 5.5 — chart x-axis label formatter. Backend ships
+// each timeline_7d entry's `date` as an ISO calendar string ("2026-04-
+// 28"), already computed against UTC chain timestamps. Formatting
+// also in UTC keeps the displayed day stable regardless of the user's
+// browser timezone (a UTC-7 user opening the dashboard at 23:30 local
+// would otherwise see yesterday's bar labelled with today's date).
+// Locale pinned "en-US" same as displayUsdtNumber (sub-block 5.4
+// lesson : avoid system-locale leak — Mike's box is fr_FR which
+// would output "28 avr.").
+const CHART_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  timeZone: "UTC",
+});
+
+function formatChartDate(isoDate: string): string {
+  return CHART_DATE_FORMATTER.format(new Date(isoDate));
 }
 
 export function OverviewTab({ address }: Props) {
@@ -116,6 +136,50 @@ export function OverviewTab({ address }: Props) {
           error={analytics.isError}
         />
       </div>
+
+      {/*
+        Revenue trend over the last 7 rolling days. The backend
+        zero-fills the timeline so the array is always 7 entries —
+        ChartLineV5's empty-state branch (data.length === 0) doesn't
+        fire from this consumer; an all-zero week renders as a flat
+        baseline, which is the correct visual for "no sales yet".
+        ChartLineV5 itself is dynamic ssr:false with a SkeletonV5
+        loading fallback bundled in, so the recharts chunk only ships
+        on routes that actually mount the chart (this is its first
+        production consumer).
+      */}
+      <CardV4
+        variant="default"
+        padding="compact"
+        interactive={false}
+        data-testid="overview-revenue-chart-card"
+      >
+        <h2 className="mb-3 text-base font-semibold">
+          Revenue trend (last 7 days)
+        </h2>
+        {analytics.isPending ? (
+          <SkeletonV5
+            variant="rectangle"
+            className="h-[200px] w-full"
+            data-testid="overview-revenue-chart-skeleton"
+          />
+        ) : analytics.isError || !analytics.data ? (
+          <p
+            className="py-8 text-center text-sm text-celo-dark/60 dark:text-celo-light/60"
+            data-testid="overview-revenue-chart-error"
+          >
+            Unable to load chart
+          </p>
+        ) : (
+          <ChartLineV5
+            data={analytics.data.revenue.timeline_7d.map((p) => ({
+              label: formatChartDate(p.date),
+              value: p.revenue_usdt,
+            }))}
+            height={200}
+          />
+        )}
+      </CardV4>
 
       <div>
         <h2 className="mb-3 text-lg font-semibold">Recent orders</h2>
