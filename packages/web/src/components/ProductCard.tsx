@@ -51,7 +51,7 @@ export function ProductCard({ product, handle, sellerShopName }: Props) {
             <h3 className="line-clamp-2 text-base font-medium">
               {product.title}
             </h3>
-            <p className="mt-1 text-base font-semibold">{price} USDT</p>
+            <p className="mt-1 text-base font-semibold tabular-nums">{price} USDT</p>
           </div>
         </Link>
       </CardV4>

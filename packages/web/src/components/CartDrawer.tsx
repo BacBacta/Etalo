@@ -139,7 +139,7 @@ export function CartDrawer({ open, onOpenChange }: Props) {
                   >
                     {group.sellerShopName}
                   </Link>
-                  <span className="text-sm text-neutral-600">
+                  <span className="text-sm text-neutral-600 tabular-nums">
                     {group.subtotalUsdt.toFixed(2)} USDT
                   </span>
                 </div>

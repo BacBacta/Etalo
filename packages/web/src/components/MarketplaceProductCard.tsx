@@ -54,7 +54,7 @@ export function MarketplaceProductCard({ product }: Props) {
             <h3 className="line-clamp-2 text-base font-medium">
               {product.title}
             </h3>
-            <p className="mt-1 text-base font-semibold">
+            <p className="mt-1 text-base font-semibold tabular-nums">
               {Number(product.price_usdt).toFixed(2)} USDT
             </p>
             <p className="mt-1 truncate text-sm text-neutral-600">

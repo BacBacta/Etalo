@@ -47,7 +47,7 @@ export function CartItemRow({ item, onNavigate }: Props) {
         >
           {item.title}
         </Link>
-        <div className="mt-1 text-sm text-neutral-600">
+        <div className="mt-1 text-sm text-neutral-600 tabular-nums">
           {Number(item.priceUsdt).toFixed(2)} USDT each
         </div>
 
@@ -86,7 +86,7 @@ export function CartItemRow({ item, onNavigate }: Props) {
         </div>
       </div>
 
-      <div className="self-start text-sm font-medium text-neutral-900">
+      <div className="self-start text-sm font-medium text-neutral-900 tabular-nums">
         {subtotal}
       </div>
     </div>

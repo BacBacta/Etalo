@@ -58,7 +58,7 @@ export function CheckoutFlow({ cart, token }: Props) {
             <p className="text-base">
               {sellerCount} {sellerLabel} · {itemCount} items
             </p>
-            <p className="text-base font-semibold">
+            <p className="text-base font-semibold tabular-nums">
               Total: {cart.total_usdt} USDT
             </p>
             <p className="text-sm text-neutral-600">
