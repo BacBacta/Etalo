@@ -10,6 +10,7 @@ import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useMilestoneOnce } from "@/hooks/useMilestoneOnce";
 import { fireMilestone } from "@/lib/confetti/milestones";
+import { formatRowDate } from "@/lib/format";
 import {
   fetchSellerOrders,
   formatRawUsdt,
@@ -160,19 +161,16 @@ export function OrdersTab({ address }: Props) {
                 className="rounded-md border border-neutral-200 p-3"
               >
                 <div className="mb-1 flex items-center justify-between">
-                  <span className="text-base font-medium">
+                  <span className="text-base font-medium tabular-nums">
                     Order #{o.onchain_order_id}
                   </span>
                   <span className="rounded bg-neutral-100 px-2 py-1 text-sm">
                     {o.global_status}
                   </span>
                 </div>
-                <div className="text-sm text-neutral-600">
-                  Buyer {buyerShort} ·{" "}
-                  <span className="tabular-nums">
-                    {formatRawUsdt(o.total_amount_usdt)}
-                  </span>{" "}
-                  USDT · {new Date(o.created_at_chain).toLocaleDateString()}
+                <div className="text-sm text-neutral-600 tabular-nums">
+                  Buyer {buyerShort} · {formatRawUsdt(o.total_amount_usdt)}{" "}
+                  USDT · {formatRowDate(o.created_at_chain)}
                 </div>
                 {canShip ? (
                   <div className="mt-3">
@@ -199,7 +197,7 @@ export function OrdersTab({ address }: Props) {
       )}
 
       {data && totalNum !== null && data.orders.length < totalNum ? (
-        <p className="text-sm text-neutral-500">
+        <p className="text-sm text-neutral-500 tabular-nums">
           Showing {data.orders.length} of {totalNum} — pagination coming.
         </p>
       ) : null}

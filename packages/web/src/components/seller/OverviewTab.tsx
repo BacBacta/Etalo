@@ -10,6 +10,7 @@ import {
 import { CardV4 } from "@/components/ui/v4/Card";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
+import { formatChartDate, formatRowDate } from "@/lib/format";
 import {
   fetchSellerOrders,
   formatRawUsdt,
@@ -56,24 +57,12 @@ function displayUsdtNumber(amount: number): string {
   })} USDT`;
 }
 
-// Block 5 sub-block 5.5 — chart x-axis label formatter. Backend ships
-// each timeline_7d entry's `date` as an ISO calendar string ("2026-04-
-// 28"), already computed against UTC chain timestamps. Formatting
-// also in UTC keeps the displayed day stable regardless of the user's
-// browser timezone (a UTC-7 user opening the dashboard at 23:30 local
-// would otherwise see yesterday's bar labelled with today's date).
-// Locale pinned "en-US" same as displayUsdtNumber (sub-block 5.4
-// lesson : avoid system-locale leak — Mike's box is fr_FR which
-// would output "28 avr.").
-const CHART_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  timeZone: "UTC",
-});
-
-function formatChartDate(isoDate: string): string {
-  return CHART_DATE_FORMATTER.format(new Date(isoDate));
-}
+// Block 5 sub-block 5.5 introduced `formatChartDate` locally here ;
+// Phase 5 Block 1 sub-block 1.5 promoted it to lib/format.ts when
+// `formatRowDate` joined as a 2nd locale-pinned date consumer
+// (Recent orders + OrdersTab list rows). Both formatters share the
+// "en-US" + UTC pin to avoid system-locale leak / browser-timezone
+// shift bugs (sub-block 5.4 + 5.5 lessons).
 
 export function OverviewTab({ address }: Props) {
   const analytics = useAnalyticsSummary(address);
@@ -263,19 +252,16 @@ export function OverviewTab({ address }: Props) {
                   interactive={false}
                 >
                   <div className="flex items-center justify-between">
-                    <span className="text-base font-medium">
+                    <span className="text-base font-medium tabular-nums">
                       Order #{o.onchain_order_id}
                     </span>
                     <span className="text-sm text-celo-dark/60">
                       {o.global_status}
                     </span>
                   </div>
-                  <div className="mt-1 text-sm text-celo-dark/60">
-                    <span className="tabular-nums">
-                      {formatRawUsdt(o.total_amount_usdt)}
-                    </span>{" "}
-                    USDT ·{" "}
-                    {new Date(o.created_at_chain).toLocaleDateString()}
+                  <div className="mt-1 text-sm text-celo-dark/60 tabular-nums">
+                    {formatRawUsdt(o.total_amount_usdt)} USDT ·{" "}
+                    {formatRowDate(o.created_at_chain)}
                   </div>
                 </CardV4>
               </li>

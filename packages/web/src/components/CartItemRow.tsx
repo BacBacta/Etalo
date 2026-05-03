@@ -60,7 +60,7 @@ export function CartItemRow({ item, onNavigate }: Props) {
           >
             <Minus className="h-4 w-4" />
           </button>
-          <span className="min-w-[24px] text-center text-base">
+          <span className="min-w-[24px] text-center text-base tabular-nums">
             {item.qty}
           </span>
           <button

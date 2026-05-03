@@ -138,11 +138,8 @@ export function ProductsTab({ profile, walletAddress }: Props) {
                     {STATUS_LABEL[p.status] ?? p.status}
                   </span>
                 </div>
-                <div className="text-sm text-neutral-600">
-                  <span className="tabular-nums">
-                    {Number(p.price_usdt).toFixed(2)}
-                  </span>{" "}
-                  USDT · stock {p.stock}
+                <div className="text-sm text-neutral-600 tabular-nums">
+                  {Number(p.price_usdt).toFixed(2)} USDT · stock {p.stock}
                 </div>
               </div>
               <div className="flex flex-shrink-0 gap-2">
