@@ -168,7 +168,10 @@ export function OrdersTab({ address }: Props) {
                   </span>
                 </div>
                 <div className="text-sm text-neutral-600">
-                  Buyer {buyerShort} · {formatRawUsdt(o.total_amount_usdt)}{" "}
+                  Buyer {buyerShort} ·{" "}
+                  <span className="tabular-nums">
+                    {formatRawUsdt(o.total_amount_usdt)}
+                  </span>{" "}
                   USDT · {new Date(o.created_at_chain).toLocaleDateString()}
                 </div>
                 {canShip ? (

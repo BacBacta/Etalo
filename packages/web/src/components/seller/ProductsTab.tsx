@@ -139,7 +139,10 @@ export function ProductsTab({ profile, walletAddress }: Props) {
                   </span>
                 </div>
                 <div className="text-sm text-neutral-600">
-                  {Number(p.price_usdt).toFixed(2)} USDT · stock {p.stock}
+                  <span className="tabular-nums">
+                    {Number(p.price_usdt).toFixed(2)}
+                  </span>{" "}
+                  USDT · stock {p.stock}
                 </div>
               </div>
               <div className="flex flex-shrink-0 gap-2">

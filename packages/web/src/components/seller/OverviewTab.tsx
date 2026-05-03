@@ -271,7 +271,10 @@ export function OverviewTab({ address }: Props) {
                     </span>
                   </div>
                   <div className="mt-1 text-sm text-celo-dark/60">
-                    {formatRawUsdt(o.total_amount_usdt)} USDT ·{" "}
+                    <span className="tabular-nums">
+                      {formatRawUsdt(o.total_amount_usdt)}
+                    </span>{" "}
+                    USDT ·{" "}
                     {new Date(o.created_at_chain).toLocaleDateString()}
                   </div>
                 </CardV4>
