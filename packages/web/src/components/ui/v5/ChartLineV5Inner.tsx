@@ -63,6 +63,14 @@ function ChartTooltip({ active, payload, label }: TooltipProps) {
       <p className="font-display text-celo-dark text-body-sm">{label}</p>
       <p
         className="font-sans text-body text-celo-forest"
+        // Inline style intentionally retained to mirror the chart
+        // container's pattern below (line ~107). Both sites use the
+        // same mechanism for in-file consistency ; the container's
+        // inline style is load-bearing for SVG inheritance, this
+        // tooltip <p> could use the Tailwind class but keeping the
+        // two on the same mechanism reduces drift risk if one is
+        // ever refactored. Phase 5 Block 1 sub-block 1.1 deliberate
+        // retention.
         style={{ fontVariantNumeric: "tabular-nums" }}
       >
         {value}
@@ -104,6 +112,14 @@ export default function ChartLineV5Inner({
         // SVG <text> nodes recharts emits for axis ticks. Recharts 3.x
         // typings reject `fontVariantNumeric` inside `tick` props
         // directly, so we lift the rule onto the parent.
+        //
+        // Phase 5 Block 1 sub-block 1.1 deliberate retention: do NOT
+        // refactor to Tailwind className. Tailwind's `tabular-nums`
+        // class compiles to the same CSS rule, BUT className on this
+        // outer <div> doesn't cascade into Recharts' nested SVG
+        // <text> children — only inline `style` does, via the
+        // computed-style inheritance path. Switching loses the
+        // tabular alignment on every chart axis tick.
         fontVariantNumeric: "tabular-nums",
       }}
     >

@@ -56,9 +56,13 @@ describe("AnimatedNumber", () => {
     );
     const node = screen.getByTestId("amount");
     expect(node).toHaveTextContent("1.50 USDT");
-    // Tabular nums inline keeps digit width fixed during the tween —
-    // Phase 5 will standardize via a Tailwind utility on every amount.
-    expect(node).toHaveStyle({ fontVariantNumeric: "tabular-nums" });
+    // Tabular nums via Tailwind class keeps digit width fixed during
+    // the tween — no layout shift. Phase 5 Block 1 sub-block 1.1
+    // converted from inline `style` to className. jsdom does NOT
+    // resolve className-derived computed styles, so toHaveStyle no
+    // longer works here ; toHaveClass catches the same intent at the
+    // class boundary.
+    expect(node).toHaveClass("tabular-nums");
   });
 
   it("instant-sets the value when prefers-reduced-motion: reduce matches (a11y)", async () => {

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { cn } from "@/components/ui/v4/utils";
+
 // J10-V5 Phase 2 Block 8 (refactored bundle fix v2) — premium counter
 // for USDT amounts + credit balances. Custom rAF tween + easeOutCubic,
 // no motion runtime dependency. Replaces the useSpring variant (refactor
@@ -21,9 +23,13 @@ import { useEffect, useRef, useState } from "react";
 // - prefers-reduced-motion: instant setCurrentValue(value), no tween.
 //   matchMedia is read fresh on each value change so a user toggling
 //   the OS pref mid-session sees the new behavior on the next update.
-// - Tabular nums inline (font-variant-numeric: tabular-nums) so digit
-//   width stays fixed during the tween — no layout shift. Phase 5 will
-//   standardize via Tailwind utility on every USDT amount surface.
+// - Tabular nums via Tailwind class `tabular-nums` (compiles to
+//   font-variant-numeric: tabular-nums) so digit width stays fixed
+//   during the tween — no layout shift. Phase 5 Block 1 sub-block 1.1
+//   converted from inline `style` to className for systematic
+//   consistency across the design system; caller-supplied className
+//   passed through `cn()` so additional utilities (text-xl, etc.)
+//   compose cleanly.
 // - easeOutCubic = 1 - (1-t)^3 — visually similar to V5's
 //   cubic-bezier(0.16, 1, 0.3, 1) used elsewhere (Block 4 PageTransition,
 //   Block 6 Overlay), without the motion runtime.
@@ -88,9 +94,8 @@ export function AnimatedNumber({
 
   return (
     <span
-      className={className}
+      className={cn("tabular-nums", className)}
       data-testid={dataTestId}
-      style={{ fontVariantNumeric: "tabular-nums" }}
     >
       {currentValue.toFixed(decimals) + suffix}
     </span>
