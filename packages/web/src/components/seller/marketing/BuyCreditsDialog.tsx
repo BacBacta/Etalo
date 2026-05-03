@@ -209,8 +209,10 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
                             : "border-neutral-200 hover:border-neutral-300"
                         }`}
                       >
-                        <div className="text-lg font-semibold">{p} credits</div>
-                        <div className="text-sm text-neutral-600">
+                        <div className="text-lg font-semibold tabular-nums">
+                          {p} credits
+                        </div>
+                        <div className="text-sm text-neutral-600 tabular-nums">
                           {usdtCostHuman(BigInt(p))} USDT
                         </div>
                       </button>
@@ -239,7 +241,7 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
                   />
                   {customAmount.trim() !== "" && !customAmountInvalid && (
                     <p
-                      className="mt-1 text-sm text-neutral-600"
+                      className="mt-1 text-sm text-neutral-600 tabular-nums"
                       data-testid="custom-amount-cost"
                     >
                       {customAmount} credits = {usdtCost} USDT
@@ -280,7 +282,7 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
                 type="button"
                 onClick={() => void handleBuy()}
                 disabled={!creditAmount || inFlight}
-                className="min-h-[48px] flex-1"
+                className="min-h-[48px] flex-1 tabular-nums"
                 data-testid="buy-cta"
               >
                 {inFlight && (
@@ -380,7 +382,7 @@ function SuccessView({
           <h3 className="text-base font-semibold text-green-900">
             Purchase confirmed
           </h3>
-          <p className="text-sm text-green-800">
+          <p className="text-sm text-green-800 tabular-nums">
             {credits !== undefined ? `+${credits.toString()} credits` : "Credits"}{" "}
             ({usdtHuman} USDT spent)
           </p>
