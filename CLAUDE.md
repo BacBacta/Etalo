@@ -149,14 +149,22 @@ Phase closures :
   Cumulative pattern catalogue dans
   `docs/PHASE_4_LESSONS_LEARNED.md`.
 
-**Phase 5 (Polish + Submission) NEXT**. Items identifiés en route
-Phase 4 : tabular nums systematic application, mobile gestures
-critiques (swipe-cart, pull-to-refresh marketplace), side-by-side
-Robinhood QA pass, polish details, demo video 3 min, Karma GAP
-profile + Farcaster post + repo README polish, grants Celo
-Foundation submission, tag final
-`v2.0.0-design-system-v5-sepolia`. Liste complete + Phase 5
-Block 1-9 plan dans `docs/SPRINT_J10_V5.md`.
+**Phase 5 (Polish + Submission) IN PROGRESS depuis 2026-05-03**.
+Block 1 (Tabular nums systematic application + bonus dates
+locale-pin sweep) ✓ done 2026-05-03 — 6 sub-blocks, 6 commits,
+~25 sites touched across dashboard + cart + checkout + boutique +
+marketplace, new `lib/format.ts` (formatChartDate + formatRowDate
+both pinned en-US UTC), 243 PASS conserved, /seller/dashboard
+22.9 → 23.2 kB route / 263 kB First Load (0 net), 17 kB headroom
+preserved. Closure section in `docs/SPRINT_J10_V5.md` Phase 5
+Block 1.
+
+Phase 5 Blocks restants : mobile gestures critiques (swipe-cart,
+pull-to-refresh marketplace), side-by-side Robinhood QA pass,
+polish details, demo video 3 min, Karma GAP profile + Farcaster
+post + repo README polish, grants Celo Foundation submission, tag
+final `v2.0.0-design-system-v5-sepolia`. Liste complete + plan
+Block 2-9 dans `docs/SPRINT_J10_V5.md`.
 
 When user says "start Phase 5 Block N" or "continue Block X", read
 that block in `docs/SPRINT_J10_V5.md` and execute.

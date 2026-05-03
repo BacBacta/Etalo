@@ -1061,6 +1061,139 @@ If the `[ABORT]` message prints instead, the cwd is the outer — `cd` into the 
 
 ### Phase 5 — Polish + Submission (5-7j)
 
+#### Block 1 — CLOSURE 2026-05-03 ✅ COMPLET 6/6 sub-blocks
+
+**Status** : Tabular-nums systematic application DELIVERED. Every
+USDT amount, credit balance, integer count, and date display
+across the production surfaces (dashboard 5 tabs, marketplace
+grid, boutique pages, cart drawer, checkout flow, BuyCreditsDialog
+modal, MilestoneDialogV5) now renders with
+`font-variant-numeric: tabular-nums` so digits stay vertically
+aligned across rows + during animations.
+
+Bonus : the 1.5 sweep also killed two latent locale-leaking
+`toLocaleDateString()` calls in OrdersTab + OverviewTab Recent
+orders (a sub-block 5.4 lesson regression latent for ~30 days).
+Both are now routed through the new `lib/format.ts`'s
+`formatRowDate(isoDate)` — pinned `locale: "en-US"` +
+`timeZone: "UTC"`.
+
+**Sub-blocks livrés (6 commits sur `feat/design-system-v5`)** :
+
+| # | Scope | Commit | Sites |
+|---|---|---|---|
+| 1.1 | Standardize `AnimatedNumber` from inline `style` to Tailwind `className`, document `ChartLineV5Inner` inline-style retention (Recharts SVG inheritance load-bearing) | `a7fb227` | 1 (+ 1 test assertion swap) |
+| 1.2 | Dashboard USDT amounts (OverviewTab Recent orders, OrdersTab list, ProductsTab list ; CreditsBalance soft no-op) | `d51e3fa` | 3 |
+| 1.3 | BuyCreditsDialog cost previews (preset card, custom amount preview, CTA label, spent confirmation) | `d587422` | 4 |
+| 1.4 | Consumer-side surfaces (MarketplaceProductCard, ProductCard, CartItemRow x2 inc. bonus subtotal, CartDrawer per-seller subtotal, CheckoutFlow total, OpenInMiniPayModal cart resume + seller count pre-empt ; CartDrawer total soft no-op via AnimatedNumber) | `8264730` | 6 |
+| 1.5 | Integer counts (Order #N, pagination, stock, qty) + dates locale-pin sweep (2 sites) + `lib/format.ts` extraction (formatChartDate promotion + new formatRowDate) | `aeb3be5` | 5 + 2 |
+| 1.6 | Block 1 closure — sprint doc + this | `<this>` | docs only |
+
+**Métriques cumulées vs pre-Block-1 baseline (Phase 4 sign-off
+`34e1a2e`)** :
+
+- Frontend tests : **243 PASS conserved** (no logic change ;
+  1 spec assertion swap in 1.1, otherwise content + handler
+  assertions intact)
+- Backend tests : **120 PASS** (untouched, Block 1 is
+  frontend-only)
+- TypeScript `tsc --noEmit` : **clean**
+- ESLint warnings : **0** (unchanged)
+- `/seller/dashboard` route : 22.9 → **23.2 kB** (+0.3 kB, lib
+  /format.ts content absorbed)
+- `/seller/dashboard` First Load JS : **263 kB** unchanged
+- `/marketplace` route : 8.22 → **8.23 kB** (+0.01 kB single
+  class on MarketplaceProductCard)
+- All other routes : unchanged
+- 17 kB headroom under 280 kB strict trigger preserved
+
+**Pattern decisions locked Block 1** :
+
+- **Tailwind `className="tabular-nums"` is the standard** for
+  every numeric display where the framework permits ; inline
+  `style={{ fontVariantNumeric: "tabular-nums" }}` retained
+  ONLY where SVG inheritance requires it (ChartLineV5Inner
+  axis ticks via Recharts <text>). Both inline-style sites
+  carry rationale comments documenting the retention so future
+  contributors don't re-attempt the refactor.
+- **Pattern B (className on container) >> Pattern A (per-numeric
+  span wrap)** for text-mixed displays. CSS
+  `font-variant-numeric: tabular-nums` only affects digit
+  glyphs ; surrounding letters/punctuation stay unaffected.
+  Single-keystroke addition per site, cleaner diff than per-
+  numeric wraps.
+- **Helpers stay string-returning** (`formatRawUsdt`,
+  `displayUsdtNumber`, `Number(x).toFixed(2)`,
+  `formatRowDate`, `formatChartDate`) — tabular-nums applied
+  at the call-site via JSX className. Phase 1 audit Option 1,
+  validated through 25 sites without friction.
+- **Promote-on-2nd-consumer pattern triggered** for
+  `formatChartDate` → `lib/format.ts`. Joined by
+  `formatRowDate` (the 2nd date consumer that triggered the
+  extraction). Mirrors sub-block 5.6 IPFS gateway + 5.4
+  displayUsdtNumber deferred-extraction posture.
+
+**Phase 5 polish items identified en route** :
+
+- ESLint rule that catches missing `tabular-nums` on
+  USDT-suffixed display spans — defer V1.5+ once the
+  systematic sweep stabilises in production.
+- `displayUsdtNumber` (currently `OverviewTab`-local) →
+  `lib/format.ts` if a 3rd USDT-formatter consumer surfaces
+  beyond OverviewTab + the existing `formatRawUsdt` /
+  `displayUsdt` helpers in `lib/seller-api.ts` + `lib/usdt.ts`.
+
+**Hand-off Mike for live MiniPay validation** :
+
+1. Restart dev server from canonical inner repo (hotfix #9 +
+   #10 banners confirm placement) :
+   ```powershell
+   cd C:\Users\Oxfam\projects\etalo\Etalo\packages\backend
+   .\venv\Scripts\Activate.ps1
+   python scripts\run_dev.py
+   # In another terminal :
+   cd C:\Users\Oxfam\projects\etalo\Etalo\packages\web
+   npm run dev
+   ```
+2. Open MiniPay on phone via `chrome://inspect/#devices` to
+   the ngrok tunnel, navigate to `/seller/dashboard`.
+3. **Visual checks** (each takes ~5 seconds) :
+   - Overview tab : 4 KPI tiles digits aligned vertically
+     across the 2x2 grid (e.g. `70.50 USDT` and `245.00 USDT`
+     same column-position when columns reflow). ChartLineV5
+     axis ticks aligned. Top products revenue column aligned.
+     Recent orders : each row's `USDT · Apr 28, 2026` strings
+     have aligned digits (the date format change is the most
+     visible — should display "Apr 28, 2026" cleanly, NOT
+     "5/2/2026" or "28 avr.").
+   - Orders tab : list rows have aligned amount + date
+     column. "Order #N" + "Showing X of Y" pagination digits
+     aligned.
+   - Products tab : "X.XX USDT · stock N" alignment.
+   - Cart drawer : per-item subtotals + per-seller subtotals
+     + total all aligned.
+   - Checkout / OpenInMiniPayModal : `Total: X USDT` aligned.
+   - BuyCreditsDialog : preset card prices + custom amount
+     preview + CTA "Buy X credits for Y USDT" + spent
+     confirmation all aligned.
+   - Marketplace grid : product card prices aligned across
+     columns.
+   - Boutique pages (`/[handle]`) : product card prices
+     aligned.
+4. **Mobile responsive 360 px** : confirm no horizontal
+   overflow reintroduced on any surface (hotfix #8 protection
+   intact).
+5. **Locale check** : confirm Mike's `fr_FR` system locale
+   does NOT leak — all USDT amounts show "70.50 USDT" with
+   period decimal, all dates show "Apr 28, 2026" en-US format.
+   This was the latent bug 1.5 killed.
+
+**Sign-off Block 1** : DELIVERED 6/6 sub-blocks. 6 commits
+on `feat/design-system-v5`. Tabular-nums systematic + locale
+hygiene complete. Ready for Phase 5 Block 2 (mobile gestures
+critiques : swipe-to-close cart drawer + pull-to-refresh
+marketplace) per Mike's call.
+
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
 **Scope narrative locked par ADR-041 (2026-04-30)** :
