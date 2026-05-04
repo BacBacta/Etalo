@@ -58,8 +58,21 @@ interface Props {
 
 export function TemplateSelector({ selected, onSelect }: Props) {
   return (
-    <div className="space-y-2">
-      <label className="block text-base font-medium">Choose template</label>
+    // J10-V5 Phase 5 Angle E sub-block E.2 — WCAG 1.3.1 Info and
+    // Relationships (Level A). role="group" + aria-labelledby exposes
+    // "Choose template" as the group's accessible name without
+    // breaking the existing grid layout (fieldset/legend would).
+    <div
+      role="group"
+      aria-labelledby="template-select-label"
+      className="space-y-2"
+    >
+      <span
+        id="template-select-label"
+        className="block text-base font-medium"
+      >
+        Choose template
+      </span>
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         {TEMPLATES.map((t) => (
           <button

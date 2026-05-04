@@ -96,8 +96,26 @@ export function MarketingTab() {
         }}
       />
 
-      <div className="space-y-2">
-        <label className="block text-base font-medium">Caption language</label>
+      {/*
+        J10-V5 Phase 5 Angle E sub-block E.2 — WCAG 1.3.1 Info and
+        Relationships (Level A). The visible "Caption language" text is
+        the group's accessible name, exposed via role="group" +
+        aria-labelledby pointing at the <span> id. <fieldset>/<legend>
+        would also work but break the existing flex/space-y-2 layout
+        without a `display: contents` workaround ; role=group is the
+        lower-cost path that preserves the styling.
+      */}
+      <div
+        role="group"
+        aria-labelledby="caption-lang-label"
+        className="space-y-2"
+      >
+        <span
+          id="caption-lang-label"
+          className="block text-base font-medium"
+        >
+          Caption language
+        </span>
         <div className="flex gap-2">
           <button
             type="button"
