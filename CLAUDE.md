@@ -36,8 +36,8 @@ power is structurally bounded by code.
 ## Tech stack (locked, do not change without an ADR)
 
 - Smart contracts: Solidity 0.8.24 + Hardhat + OpenZeppelin
-- Frontend (single Next.js app at `etalo.app`, see ADR-035): React 19 +
-  TypeScript 6 + Next.js 14 (App Router, SSR + Client Components) +
+- Frontend (single Next.js app at `etalo.app`, see ADR-035): React 18.3 +
+  TypeScript 5 + Next.js 14 (App Router, SSR + Client Components) +
   Wagmi v2 + Viem v2 + shadcn/ui + Tailwind. Same app serves the public
   funnel surface (no wallet required, SEO-optimized for social media
   inbound) and the Mini App surface (MiniPay detection via
