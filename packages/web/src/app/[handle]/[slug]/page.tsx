@@ -125,7 +125,7 @@ export default async function ProductPage({ params }: PageProps) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
+      <main id="main" className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
         <header className="flex items-center gap-3">
           {product.seller.logo_url ? (
             <Image

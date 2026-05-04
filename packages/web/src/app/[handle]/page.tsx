@@ -93,7 +93,7 @@ export default async function BoutiquePage({ params }: Props) {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <main className="min-h-screen">
+      <main id="main" className="min-h-screen">
         <BoutiqueHeader seller={data.seller} />
         {data.products.length === 0 ? (
           <EmptyState />

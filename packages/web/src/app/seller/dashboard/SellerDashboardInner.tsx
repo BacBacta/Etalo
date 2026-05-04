@@ -153,7 +153,7 @@ export function SellerDashboardInner() {
   }
 
   return (
-    <main className="min-h-screen">
+    <main id="main" className="min-h-screen">
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
         <p className="mb-6 text-sm text-neutral-600">@{profile.shop_handle}</p>
@@ -216,7 +216,7 @@ export function SellerDashboardInner() {
 // own `overflow-x-auto` scope contain the tab scroll properly.
 function StatusShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen">
+    <main id="main" className="min-h-screen">
       <div className="flex min-h-screen flex-col items-center justify-center px-4">
         {children}
       </div>

@@ -101,7 +101,7 @@ export default function MarketplacePage() {
 
   if (query.isPending) {
     return (
-      <main className="min-h-screen" data-testid="marketplace-loading">
+      <main id="main" className="min-h-screen" data-testid="marketplace-loading">
         <div className="mx-auto max-w-3xl px-4 py-6">
           <h1 className="mb-1 text-xl font-semibold">Marketplace</h1>
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
@@ -168,6 +168,7 @@ export default function MarketplacePage() {
 
   return (
     <main
+      id="main"
       className="relative min-h-screen overscroll-contain"
       data-testid="marketplace-pull-area"
       onPointerDown={handlePointerDown}

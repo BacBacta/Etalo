@@ -16,7 +16,7 @@ const APP_STORE_URL = "https://apps.apple.com/app/minipay/id6463420669";
 
 export function HomeLanding({ featuredSellers }: Props) {
   return (
-    <main className="min-h-screen">
+    <main id="main" className="min-h-screen">
       <section className="mx-auto max-w-5xl px-4 py-12">
         {/*
           flex-col-reverse on mobile so the illustration sits above the

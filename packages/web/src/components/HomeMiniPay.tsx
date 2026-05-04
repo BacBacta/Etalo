@@ -58,7 +58,7 @@ export function HomeMiniPay() {
   const router = useRouter();
 
   return (
-    <main className="min-h-screen">
+    <main id="main" className="min-h-screen">
       <section className="mx-auto max-w-3xl px-4 py-12">
         <div className="flex flex-col items-center gap-8 text-center">
           {/*

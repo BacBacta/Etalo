@@ -5,6 +5,7 @@ import "./globals.css";
 import { PageTransition } from "@/components/PageTransition";
 import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
+import { SkipLink } from "@/components/SkipLink";
 import { ToasterV4 } from "@/components/ui/v4/Toast";
 
 const switzer = localFont({
@@ -46,6 +47,13 @@ export default function RootLayout({
   return (
     <html lang="en" className={switzer.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-celo-light text-celo-dark antialiased dark:bg-celo-dark-bg dark:text-celo-light">
+        {/*
+          J10-V5 Phase 5 Angle E sub-block E.1.a — WCAG 2.4.1 Bypass
+          Blocks (Level A). Keyboard users can Tab once, hit Enter,
+          and skip past the PublicHeader nav directly to the page's
+          <main id="main"> element.
+        */}
+        <SkipLink />
         <Providers>
           <PublicHeader />
           <PageTransition>{children}</PageTransition>

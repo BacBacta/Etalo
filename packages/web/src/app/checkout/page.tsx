@@ -15,9 +15,12 @@ import { detectMiniPay } from "@/lib/minipay-detect";
 
 function LoadingShell() {
   return (
-    <div className="flex min-h-screen items-center justify-center">
+    <main
+      id="main"
+      className="flex min-h-screen items-center justify-center"
+    >
       <div className="text-base text-neutral-600">Loading cart…</div>
-    </div>
+    </main>
   );
 }
 
@@ -62,12 +65,15 @@ function CheckoutPageInner() {
 
   if (error) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-8">
+      <main
+        id="main"
+        className="flex min-h-screen items-center justify-center p-8"
+      >
         <div className="max-w-md text-center">
           <h2 className="mb-3 text-xl font-semibold">Checkout error</h2>
           <p className="text-base text-neutral-700">{error}</p>
         </div>
-      </div>
+      </main>
     );
   }
 

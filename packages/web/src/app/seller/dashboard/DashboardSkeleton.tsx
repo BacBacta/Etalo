@@ -34,6 +34,7 @@ import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 export function DashboardSkeleton() {
   return (
     <main
+      id="main"
       className="min-h-screen"
       aria-busy="true"
       aria-label="Loading dashboard"
