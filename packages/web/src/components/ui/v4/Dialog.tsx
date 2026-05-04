@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence, m, useReducedMotion } from "motion/react";
 import { X } from "@phosphor-icons/react";
 
 import { cn } from "@/components/ui/v4/utils";
@@ -130,10 +130,23 @@ const overlayMotionTransition = {
   ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
 };
 
-const dialogContentMotionTransition = {
+const dialogContentSpringTransition = {
   type: "spring" as const,
   stiffness: 350,
   damping: 28,
+};
+
+// J10-V5 Phase 5 polish #5 — when the user has set
+// `prefers-reduced-motion: reduce` the dialog opts out of the spring +
+// scale animation and uses an opacity-only fade tween instead. The
+// centering transform (x:"-50%", y:"-50%") stays in every variant
+// because dropping it would break the dialog's positioning. WCAG 2.1
+// SC 2.3.3 (Animation from Interactions) — vestibular-disorder-friendly
+// motion is on by default, gated through motion's useReducedMotion
+// hook (reads window.matchMedia('(prefers-reduced-motion: reduce)')).
+const dialogContentReducedTransition = {
+  duration: 0.15,
+  ease: "easeOut" as const,
 };
 
 export const DialogV4Content = forwardRef<
@@ -142,6 +155,21 @@ export const DialogV4Content = forwardRef<
 >(({ className, children, ...props }, ref) => {
   const ctx = useContext(DialogV4Context);
   const open = ctx?.open ?? false;
+  const shouldReduceMotion = useReducedMotion() ?? false;
+
+  const contentInitial = shouldReduceMotion
+    ? { opacity: 0, x: "-50%", y: "-50%" }
+    : { opacity: 0, scale: 0.95, x: "-50%", y: "-50%" };
+  const contentAnimate = shouldReduceMotion
+    ? { opacity: 1, x: "-50%", y: "-50%" }
+    : { opacity: 1, scale: 1, x: "-50%", y: "-50%" };
+  const contentExit = shouldReduceMotion
+    ? { opacity: 0, x: "-50%", y: "-50%" }
+    : { opacity: 0, scale: 0.95, x: "-50%", y: "-50%" };
+  const contentTransition = shouldReduceMotion
+    ? dialogContentReducedTransition
+    : dialogContentSpringTransition;
+
   return (
     <AnimatePresence>
       {open ? (
@@ -159,11 +187,12 @@ export const DialogV4Content = forwardRef<
           <DialogPrimitive.Content ref={ref} asChild forceMount {...props}>
             <m.div
               data-motion-active
+              data-reduced-motion={shouldReduceMotion ? "true" : undefined}
               className={cn(dialogContentClasses, className)}
-              initial={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
-              animate={{ opacity: 1, scale: 1, x: "-50%", y: "-50%" }}
-              exit={{ opacity: 0, scale: 0.95, x: "-50%", y: "-50%" }}
-              transition={dialogContentMotionTransition}
+              initial={contentInitial}
+              animate={contentAnimate}
+              exit={contentExit}
+              transition={contentTransition}
             >
               {children}
               <DialogV4Close />
