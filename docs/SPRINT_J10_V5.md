@@ -1467,6 +1467,40 @@ premise invalidated).
 
 **Next** : Mike's call. Phase 5 Block 3 (Robinhood QA), Block 4 (polish details pass), grants pre-submission, OR autre angle.
 
+#### Phase 5 Angle C — Backend ADR-041 sweep CLOSURE 2026-05-04 ✅ 4/4 commits shipped
+
+Backend tightening (Literal + Settings) + frontend defensive shim cleanup, completing the ADR-041 sweep that had been deferred since sub-block 5.2a. Audit revealed `badge` was actually plain `str` (enum existed only in comment + frontend shim + test set) — Literal upgrade is a net gain rather than just a defensive cleanup.
+
+| Sub-block | Commit | Scope |
+|---|---|---|
+| C.1 | `fb21001` | Backend `ReputationBlock.badge` tightened from `str` to `Literal["new_seller", "active", "suspended"]` ; "top_seller" dropped (V1.1 deferred per ADR-041) ; backend `ALLOWED_BADGES` set + TODO comments updated |
+| C.2 | `4ae6f49` | Backend `auto_release_days` lifted from literal `3` to `Settings.auto_release_days` (default 3) ; 2 replace sites in routers/analytics.py + new `from app.config import settings` import + module docstring updated to mark sub-block C.1 + C.2 closure |
+| C.3 | `42f910e` | Frontend defensive shim `"top_seller" → "active"` removed in `useAnalyticsSummary.ts` ; replaced with simple cast `raw.reputation.badge as AnalyticsBadge` (cast remains until `pnpm gen:api` regen narrows api.gen.ts to backend Literal) ; test describe block renamed "ADR-041 badge filter" → "badge passthrough" with the `["top_seller", "active"]` shim case dropped |
+| C.4 | this commit | Sprint doc closure |
+
+**Pattern decisions locked Angle C** :
+
+1. **"Configuration over magic numbers"** — `auto_release_days` lifted to `Settings` for forward-compat with V2 market segmentation (intra/cross-border timer variants), env override possible without code change. Pydantic Settings already had infrastructure for the precedent (contract addresses, indexer config), so the lift was 5 lines + 2 replace sites.
+2. **"Tighten types at the source"** — Pydantic `Literal[...]` vs `str` + comment-only enum hint is a net gain : OpenAPI emits proper enum metadata, FastAPI validates the response at the boundary, downstream `pnpm gen:api` narrows `api.gen.ts` to a TypeScript Literal automatically. The pre-Angle-C state had `badge: str` with the enum existing only in a comment — Literal is the correct primitive.
+3. **"Drop defensive shims when source-of-truth fixes"** — the frontend shim `"top_seller" → "active"` (sub-block 5.3 commit `8f6dd90`) was protective scaffolding while the backend still emitted the legacy enum value. Once the backend dropped it (C.1), the shim became dead code ; removed cleanly without back-compat hedging per CLAUDE.md philosophy "don't add backwards-compatibility shims when you can just change the code".
+
+**Métriques cumulées Angle C** :
+
+- Backend tests : 5/5 e2e PASS conserved (no behavior change V1, default `auto_release_days=3` matches existing assertions)
+- Frontend tests : 295 → **294 PASS** (-1 spec : `["top_seller", "active"]` shim case dropped, irrelevant post-shim removal)
+- Files touched : 5 cumulé
+  - Backend (3) : `app/schemas/analytics.py`, `app/config.py`, `app/routers/analytics.py`
+  - Backend tests (1) : `tests/e2e/test_analytics_e2e.py` (`ALLOWED_BADGES` set + TODO comments)
+  - Frontend (2) : `src/hooks/useAnalyticsSummary.ts` (shim removed), `src/hooks/__tests__/useAnalyticsSummary.test.tsx` (describe renamed + shim case dropped)
+- Bundle delta : minimal frontend (légère réduction `useAnalyticsSummary` chunk via shim removal ~10 lines), 0 backend
+- LOC delta cumulé : +49 / −60 (net -11)
+- tsc --noEmit : clean
+- ADR-041 sweep complete : backend + frontend aligned, no defensive code remaining
+
+**Mike action post-merge** : run `pnpm gen:api` au next backend session (require backend up via `etalo-dev-all.ps1`) to regenerate `packages/web/src/types/api.gen.ts` with the new `badge: Literal["new_seller" | "active" | "suspended"]` type. Once regen, the `as AnalyticsBadge` cast in `useAnalyticsSummary.ts` becomes type-safe automatic (since `api.gen.ts` now narrows to the same Literal).
+
+**Sprint J10-V5 status** : ~98% wall-clock complete. Phase 5 Angle A residual + Angle D DX polish + Angle C ADR-041 sweep all closed. Phase 5 Block 3 (Robinhood QA) + Block 4 (polish details pass) + Proof of Ship + grants pre-submission are the remaining Phase 5 deliverables — Mike's call on next angle (E a11y deep audit / F performance / B UX feel / pause).
+
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
 **Scope narrative locked par ADR-041 (2026-04-30)** :
