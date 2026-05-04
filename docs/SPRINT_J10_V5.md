@@ -1404,6 +1404,69 @@ keyboard / SR path on every gesture surface). Tests
 /seller/dashboard. Ready for Phase 5 Block 3 (Robinhood
 QA pass side-by-side comparison) per Mike's call.
 
+#### Phase 5 polish residual items batch — CLOSURE 2026-05-04 ✅ 5/5 items handled (3 actionable shipped + 2 deferred)
+
+Mike skip Block 3 (Robinhood QA) + grants pre-submission temporarily
+to focus polish DX + accumulated residual items identified across
+Phase 4-5 sprints. Phase 1 audit narrowed batch from 5 candidates
+to 3 actionable items (Items 2 + 3 deferred after audit reveals
+premise invalidated).
+
+**etalo-dev-all.ps1 one-command launcher** (Phase 5 polish DX, pre-residual-batch) ✅
+
+- 2 commits : initial `07767d5` + wt argv parsing iteration 2 `cfca3c5`
+- 3 Windows Terminal tabs (backend + frontend + ngrok) with INNER canonical paths pinned
+- Lessons retenues catalogue :
+  1. `Start-Process -ArgumentList` ne quote pas reliably les éléments avec espaces — préférer titres no-space (hyphen `Etalo-Backend` not `Etalo Backend`)
+  2. wt scanne `;` à travers argv elements — escape `\;` inside command strings requis pour préserver les semicolons inner
+  3. Multi-tab single-call `wt new-tab ... \`; new-tab ...` casse en multi-line PS (newline termine statement) — préférer 3 `Start-Process wt -ArgumentList @(...)` séparés avec `-w 0`
+
+**Item 4 — useReducedMotion gates ButtonV4 + PageTransition** (residual batch) ✅
+
+- Commit `336fa67`
+- WCAG 2.3.3 Animation from Interactions complete sur ALL motion surfaces V5 (DialogV4 + SheetV4 + ButtonV4 + PageTransition + AnimatedNumber matchMedia)
+- `data-reduced-motion` attribute added pour test observability (mirrors DialogV4/SheetV4 pattern from polish #5)
+- forwardRef wrap (Phase 5 polish #3 commit `2707d75`) preserved through refactor
+- +4 specs (Button reduced + standard, PageTransition reduced + standard)
+
+**Item 1 — USDT formatters consolidation lib/usdt.ts** (residual batch) ✅
+
+- Commit `15fd56b`
+- Phase 1 audit identified 4 USDT formatters scattered across 3 files with 1 critical name collision (`displayUsdt` in both lib/usdt.ts (bigint) AND lib/api.ts (string)) ; audit also revealed lib/usdt.ts:displayUsdt(bigint) was dead code (zero external imports) — consolidation simultaneously removes the dead path AND eliminates the collision risk
+- 4 explicit named functions in lib/usdt.ts :
+  * `displayUsdtFromBigint(bigint)` — canonical home for raw 6-decimal SSR consumers
+  * `displayUsdtFromDecimalString(string)` — formerly lib/api.ts:displayUsdt
+  * `displayUsdtFromHumanNumber(number)` — formerly OverviewTab.tsx:displayUsdtNumber promoted from local helper
+  * `formatRawUsdt(number)` — formerly lib/seller-api.ts:formatRawUsdt centralized
+- 4 consumer call-sites updated (OverviewTab, OrdersTab, [handle]/[slug]/page.tsx, opengraph-image.tsx)
+- All locale-pinned "en-US" (consistent Phase 5 Block 1 sub-block 1.5 sweep)
+- +18 specs in new lib/__tests__/usdt.test.ts (all 4 display formatters + Web3 primitives + edge cases including locale-pin assertion)
+
+**Item 2 — PINATA_GATEWAY promotion** : SKIPPED (deferred, 2 source consumers seulement (ImageUploader + OverviewTab), promote-on-3rd-consumer trigger not fired ; defer until 3rd consumer surfaces)
+
+**Item 3 — ESLint custom rule tabular-nums** : SKIPPED (deferred V1.5+, review-based adoption sufficient — Phase 5 Block 1 sub-blocks 1.1-1.5 sweep covered existing surfaces, custom rule + plugin scaffolding overhead overkill V1)
+
+**Item 5 — Outer repo deletion** ✅
+
+- Outer repo `C:\Users\Oxfam\projects\etalo` (excluding `Etalo/` inner) deleted via Option B selective delete (5 min trivial vs Option A 60-90 min path migration coordination cost)
+- Powershell command :
+  ```powershell
+  Get-ChildItem C:\Users\Oxfam\projects\etalo -Force | Where-Object { $_.Name -ne 'Etalo' } | Remove-Item -Recurse -Force
+  ```
+- Disk reclaim ~1 GB (outer node_modules + .next caches + venv + abandoned packages)
+- Mental model simplified : `C:\Users\Oxfam\projects\etalo` is now just a parent shell containing the canonical `Etalo/` inner. No more dual-repo source confusion possible.
+- Hotfix #9 + #10 footgun definitively eliminated at root cause — frontend predev fail-fast hook + backend run_dev.py guard no longer reachable since the outer trees they protected are gone. The inner repo retains the banner messaging at startup (`✓ Running backend from CANONICAL inner repo (...) — Phase 4 hotfix #10 banner`) as historical anchor + V1.5+ reactivation reference if any rare future scenario requires re-deploying the outer for any reason.
+- `README_OUTER_REPO_DEPRECATED.md` was edited locally pre-deletion to fix a critical command footgun (the original `Remove-Item -Recurse -Force C:\Users\Oxfam\projects\etalo` command would have wiped the canonical `Etalo/` inner subdirectory nested within ; corrected to Option A `Move-Item` first then delete + Option B selective delete preserving Etalo/) ; not committed to outer's git since outer was already abandoned per existing convention (`These changes are local-only` per the README itself), and outer's git was wiped with the rest of the outer tree at deletion.
+
+**Cumulative batch metrics** :
+
+- Test count : 273 → 295 PASS (+22 specs cumulé : +4 Item 4, +18 Item 1)
+- Commits actionable : 4 on `feat/design-system-v5` (`336fa67` Item 4 + `15fd56b` Item 1 + 2 docs commits this batch closure + `07767d5`/`cfca3c5` etalo-dev-all.ps1 launcher pre-batch)
+- tsc --noEmit : clean (USDT name collision résolue confirmed)
+- Bundle delta : négligeable cumulé (motion infra reused, USDT consolidation legère réduction via dedup)
+
+**Next** : Mike's call. Phase 5 Block 3 (Robinhood QA), Block 4 (polish details pass), grants pre-submission, OR autre angle.
+
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
 **Scope narrative locked par ADR-041 (2026-04-30)** :
