@@ -74,6 +74,16 @@ class Settings(BaseSettings):
     community_fund_address: str = "0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6"
 
     # ============================================================
+    # Analytics (J10-V5 Phase 5 Angle C sub-block C.2)
+    # ============================================================
+    # ADR-041 V1 single-timer locked at 3 days (intra-Africa intra-only V1).
+    # V2 will likely vary by intra/cross-border (5 days) or Top Seller
+    # tier (2 days). Lifting from a literal in routers/analytics.py to
+    # this Settings field keeps the contract surface ready for V2 env-
+    # override without forcing a code change per market segment.
+    auto_release_days: int = 3
+
+    # ============================================================
     # Indexer (Sprint J5 Block 5)
     # ============================================================
     # Polling interval between scan cycles (seconds).

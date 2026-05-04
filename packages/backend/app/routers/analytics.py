@@ -9,13 +9,15 @@ migration but the analytics router was never updated, so the endpoint
 500'd on any seller with at least one order. Each refactored query
 carries an inline `# V2 schema:` comment for traceability.
 
-Out of scope sub-block 5.2a (deferred to backend ADR-041 sweep PR):
-- `auto_release_days = 3` is hard-coded server-side; ADR-041 locks the
-  V1 single timer at 3 days but the value should still surface from a
-  config setting rather than a literal.
-- `badge = "new_seller"` likewise hard-coded — Reputation contract
-  indexer wiring is V2.x. Frontend filters "top_seller" enum value
-  out per ADR-041 (sub-block 5.4).
+Phase 5 Angle C (sub-blocks C.1 + C.2) closed the deferred ADR-041 sweep
+PR :
+- `badge` field tightened from `str` to `Literal["new_seller", "active",
+  "suspended"]` in app/schemas/analytics.py (sub-block C.1) ; "top_seller"
+  dropped per ADR-041 V1.1 deferral. Runtime hard-code `badge="new_seller"`
+  preserved (Reputation contract indexer wiring is V2.x).
+- `auto_release_days` lifted from literal to `settings.auto_release_days`
+  (sub-block C.2) ; default stays 3 (ADR-041 V1 intra-Africa) but V2 can
+  override per market segment via env without code change.
 """
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -25,6 +27,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models.enums import OrderStatus
 from app.models.order import USDT_SCALE, Order
@@ -223,7 +226,9 @@ def get_summary(
             active_orders=0,
             escrow=EscrowBlock(in_escrow=Decimal("0"), released=Decimal("0")),
             reputation=ReputationBlock(
-                score=0, badge="new_seller", auto_release_days=3
+                score=0,
+                badge="new_seller",
+                auto_release_days=settings.auto_release_days,
             ),
             top_products=[],
         )
@@ -264,11 +269,13 @@ def get_summary(
     )
 
     # Reputation indexing lands when the on-chain Reputation contract
-    # is wired (V2.x). `auto_release_days` is locked at 3 by ADR-041
-    # for V1 — backend ADR-041 sweep will move both literals into a
-    # config setting (deferred PR, out of scope this sub-block).
+    # is wired (V2.x). `auto_release_days` reads from
+    # `settings.auto_release_days` (default 3 days, ADR-041 V1 intra-
+    # Africa) — env override per market segment ready for V2.
     reputation = ReputationBlock(
-        score=0, badge="new_seller", auto_release_days=3
+        score=0,
+        badge="new_seller",
+        auto_release_days=settings.auto_release_days,
     )
 
     return AnalyticsSummary(
