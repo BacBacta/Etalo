@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
+import { DashboardSkeleton } from "@/app/seller/dashboard/DashboardSkeleton";
 import { MarketingTab } from "@/components/seller/MarketingTab";
 import { OrdersTab } from "@/components/seller/OrdersTab";
 import { OverviewTab } from "@/components/seller/OverviewTab";
@@ -96,21 +97,20 @@ export function SellerDashboardInner() {
     router.replace(`/seller/dashboard?${params.toString()}`);
   };
 
+  // J10-V5 Phase 5 polish #7 — both pre-render gates (MiniPay
+  // detection + profile fetch) now share the DashboardSkeleton so the
+  // user sees the page structure on first paint instead of two
+  // successive "Loading…" text flashes. The MiniPay detection branch
+  // resolves in <50 ms typically, but the skeleton stays consistent
+  // with the longer profile-fetch branch — no jarring "text →
+  // skeleton → real" sequence.
   if (isMiniPay === null) {
-    return (
-      <StatusShell>
-        <p className="text-base text-neutral-600">Loading…</p>
-      </StatusShell>
-    );
+    return <DashboardSkeleton />;
   }
   if (isMiniPay === false) return null;
 
   if (loading) {
-    return (
-      <StatusShell>
-        <p className="text-base text-neutral-600">Loading dashboard…</p>
-      </StatusShell>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error === "not_found") {

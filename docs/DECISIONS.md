@@ -1496,6 +1496,25 @@ are coupled to wallet addresses already public on-chain via indexer).
   seller's wallet, indexer ingests). Aligns with ADR-034 endgame.
 - ADR to be filed when V1.5 architecture is finalized.
 
+**V1 implications — SSR prefetch is BLOCKED until SIWE lands**:
+
+Future contributors who consider true Next.js App Router SSR prefetch
+(e.g. `dehydrate(queryClient)` for `/seller/dashboard` analytics first
+paint, eliminating the loading flash) **must first land SIWE EIP-4361
+auth or an equivalent crypto-verified session cookie**.
+
+The V1 `X-Wallet-Address` header is client-set and unsigned. Storing
+the address in a cookie (so the server could read it during SSR) would
+be **forgeable** — any attacker could set the cookie to another
+seller's address and read their analytics. That's a hard security
+blocker, not just a polish concern.
+
+Phase 5 polish item #7 (Sprint J10-V5, 2026-05-04) explored this and
+chose **perceptual skeleton optimization** (`DashboardSkeleton.tsx`)
+as the V1 alternative — it delivers ~80-90% of the perception-of-
+fast win without touching auth. When SIWE lands V1.5+, revisit the
+SSR prefetch path as the natural progression.
+
 **Impact**:
 - Backend gets `app/dependencies/seller_auth.py` with the
   `require_seller_auth` dependency composed on top of the existing
