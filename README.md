@@ -13,41 +13,39 @@ escrow, and 3-level dispute resolution.
 | Layer           | Technology                                                                   |
 |-----------------|------------------------------------------------------------------------------|
 | Smart Contracts | Solidity 0.8.24, Hardhat v3, OpenZeppelin v5                                 |
-| Mini App        | Vite, React 19, Wagmi v2, Viem v2, shadcn/ui, Tailwind v3                    |
-| Public Pages    | Next.js 14 (App Router, SSR), React 18, Tailwind v3                          |
-| Backend         | FastAPI, SQLAlchemy 2.0, PostgreSQL (Supabase), Redis (Upstash), Alembic     |
+| Web (single app)| Next.js 14 (App Router, SSR + Client), React 18.3, Wagmi v2, Viem v2, shadcn/ui, Tailwind v3, motion 12, recharts 3 |
+| Backend         | FastAPI, SQLAlchemy 2.x async, PostgreSQL (psycopg 3), Alembic, web3.py 7.x AsyncWeb3 (V2 indexer) |
 | IPFS            | Pinata (dedicated gateway)                                                   |
-| Admin           | Next.js 14 + NextAuth.js (scaffolded, not built yet)                         |
+| Admin           | Next.js 14 + NextAuth.js (scaffolded V1.5)                                   |
 | Notifications   | Twilio WhatsApp Business API (row-level storage today, worker deferred)      |
-| Charts          | Recharts 2.15                                                                |
-| Forms           | react-hook-form + Zod                                                        |
 
-CLAUDE.md originally specified React 18 + Wagmi v3; the actual baseline
-is React 19 + Wagmi v2 (see `docs/DECISIONS.md`).
+Per ADR-035 the predecessor `packages/miniapp/` (Vite) is deprecated — a single Next.js app at `etalo.app` serves both the public funnel surface (no wallet required, SEO-optimized) and the MiniPay surface (detection via `window.ethereum?.isMiniPay`). See `docs/DECISIONS.md` ADR-035 for the unification rationale.
 
-## Architecture
+## Architecture (ADR-035 single-app)
 
 ```
-┌────────────────────────┐         ┌──────────────────────────┐
-│  Buyer (browser)       │         │  Buyer (MiniPay WebView) │
-│  → packages/web/       │  share  │  → packages/miniapp/     │
-│  Next.js 14 SSR :3000  │────────▶│  Vite + React + Wagmi    │
-│  /[handle]/[slug]      │ HTTPS   │  /checkout/:productId    │
-└───────────┬────────────┘         └────────────┬─────────────┘
-            │ GET public product               │ POST /orders/initiate
-            │                                  │ POST /orders/confirm
-            │                                  │
-            ▼                                  ▼
-      ┌───────────────────────────────────────────────────────┐
-      │  packages/backend/  FastAPI :8000                     │
-      │  /sellers  /uploads  /onboarding  /orders  /analytics │
-      │  /notifications  /products/public                     │
-      └──┬──────────┬─────────────────────────┬───────────────┘
-         │          │                         │
-         ▼          ▼                         ▼
-      Supabase   Pinata IPFS             Celo Sepolia L2
-      Postgres   (images + metadata)     EtaloEscrow + USDT
-      (+ Alembic)                        (on-chain source of truth)
+┌────────────────────────────────────────────────────────────┐
+│                  packages/web/  Next.js 14 :3000           │
+│  Public funnel surface          MiniPay app surface        │
+│  (no wallet, SSR, SEO)          (window.ethereum.isMiniPay)│
+│  /[handle]/[slug]               /seller/dashboard          │
+│  /                              /checkout                  │
+│  /marketplace                   /onboarding                │
+└───────────────────┬────────────────────────────────────────┘
+                    │ /api/v1/* (proxied via Next rewrites in dev,
+                    │            direct in prod)
+                    ▼
+        ┌───────────────────────────────────────────────────┐
+        │  packages/backend/  FastAPI :8000                 │
+        │  /sellers /products /orders /items /disputes      │
+        │  /analytics /notifications /uploads               │
+        └──┬──────────┬─────────────────────────┬───────────┘
+           │          │                         │
+           ▼          ▼                         ▼
+        Postgres   Pinata IPFS             Celo Sepolia L2
+        (Supabase)  (images + metadata)    EtaloEscrow + Reputation
+        + Alembic                          + Dispute + Credits
+                                           (on-chain source of truth)
 ```
 
 ## Monorepo
@@ -55,18 +53,20 @@ is React 19 + Wagmi v2 (see `docs/DECISIONS.md`).
 ```
 etalo/
 ├── packages/
-│   ├── contracts/       Solidity contracts + Hardhat + deploy/e2e scripts
-│   ├── miniapp/         MiniPay Mini App (Vite + React)
-│   ├── web/             Public product pages (Next.js 14 SSR)
-│   ├── backend/         FastAPI API server
-│   └── admin/           (empty — V1.5)
+│   ├── contracts/       Solidity contracts + Hardhat + Foundry tests
+│   ├── web/             Single Next.js 14 app (public + MiniPay surfaces, ADR-035)
+│   └── backend/         FastAPI + SQLAlchemy + Alembic + web3.py indexer
 ├── docs/
-│   ├── SPRINT_J1.md     Day 1: foundation + contracts + backend
-│   ├── SPRINT_J2.md     Day 2: miniapp + web + checkout flow
-│   ├── DECISIONS.md     Architecture decision log
+│   ├── SPRINT_J*.md     Per-sprint plan + closures (J1..J10-V5)
+│   ├── DECISIONS.md     ADR log (architectural decisions)
 │   ├── FRONTEND.md      Frontend technical reference
-│   ├── ARCHITECTURE.md
-│   └── SMART_CONTRACTS.md
+│   ├── BACKEND.md       Backend technical reference
+│   ├── SMART_CONTRACTS.md
+│   ├── PRICING_MODEL_CREDITS.md
+│   └── PHASE_4_LESSONS_LEARNED.md
+├── .github/workflows/   CI (typecheck + lint + test on every push/PR)
+├── CLAUDE.md            AI agent context + critical rules
+├── LICENSE              MIT
 ├── docker-compose.yml
 └── README.md
 ```
@@ -75,97 +75,93 @@ etalo/
 
 ### Prerequisites
 
-- Node.js 20+, npm
-- Python 3.11+
+- Node.js 20+, pnpm (or npm)
+- Python 3.13+
 - PostgreSQL 15+ (or Supabase account)
-- Redis (or Upstash account)
-- MiniPay app on Android / iOS with testnet enabled (for device QA)
-- ngrok (for exposing dev servers to the MiniPay WebView)
+- ngrok (for exposing dev servers to the MiniPay WebView, reserved free-tier subdomain recommended)
+- MiniPay app on Android with testnet enabled (for device QA)
 
-### Smart Contracts
+### One-command dev environment (recommended)
+
+```powershell
+.\packages\web\scripts\etalo-dev-all.ps1
+```
+
+Spawns 3 Windows Terminal tabs (Backend FastAPI :8000 + Frontend Next.js :3000 + ngrok tunnel). Pre-flights port cleanup, fallback to 3 separate windows if Windows Terminal not available. See [`packages/web/scripts/README.md`](./packages/web/scripts/README.md) for the full launcher matrix + alias setup.
+
+### Manual setup per package
+
+#### Smart Contracts (`packages/contracts/`)
 
 ```bash
 cd packages/contracts
-npm install
-cp .env.example .env              # fill in PRIVATE_KEY, CELOSCAN_API_KEY
-npx hardhat test                  # 49 tests
-npx tsx scripts/e2e-checkout.ts   # on-chain flow smoke
+pnpm install                                  # or npm ci
+cp .env.example .env                          # PRIVATE_KEY, CELOSCAN_API_KEY
+npx hardhat test                              # Hardhat unit tests
+forge test --match-path 'test/**/*.t.sol'     # Foundry invariants
+npx tsx scripts/e2e-checkout.ts               # on-chain flow smoke
 ```
 
-### Backend
+See [`packages/contracts/README.md`](./packages/contracts/README.md) for the full contracts reference (Sepolia + Mainnet addresses, ADRs).
 
-V2 backend deployed for Celo Sepolia indexing. FastAPI on port 8000,
-async indexer polling every 30 s, EIP-191-signed POST endpoints. See
-`docs/BACKEND.md` for the full reference.
+#### Backend (`packages/backend/`)
+
+V2 FastAPI :8000 with async indexer polling Celo Sepolia every 30 s. See [`docs/BACKEND.md`](./docs/BACKEND.md).
 
 ```bash
 cd packages/backend
 python -m venv venv
-venv\Scripts\activate         # Windows (or: source venv/bin/activate)
+.\venv\Scripts\Activate.ps1                   # Windows (or: source venv/bin/activate)
 pip install -r requirements.txt
-cp .env.example .env          # DATABASE_URL, CELO_SEPOLIA_RPC, etc.
-alembic upgrade head          # apply migrations
-python scripts/sync_abis.py   # vendor ABIs from packages/contracts
-python scripts/run_dev.py     # uvicorn wrapper, indexer auto-starts
+playwright install chromium                   # asset generator dependency, ADR-037
+cp .env.example .env                          # DATABASE_URL, CELO_SEPOLIA_RPC, ...
+alembic upgrade head
+python scripts/sync_abis.py                   # vendor ABIs from packages/contracts
+python scripts/run_dev.py                     # uvicorn wrapper + indexer auto-start
 ```
 
-- API docs: http://localhost:8000/docs
-- Health:   http://localhost:8000/api/v1/health
+- API docs : `http://localhost:8000/docs`
+- Health   : `http://localhost:8000/api/v1/health`
 
-V2 route groups (Sprint J5):
-`/orders /items /disputes /sellers` — 11 public GETs + 3 EIP-191
-authenticated POSTs.
+V2 route groups : `/orders /items /disputes /sellers /products /analytics /notifications /uploads`.
 
-Carry-over V1 routes still mounted: `/auth /uploads /onboarding
-/products /notifications /admin`.
+#### Web (`packages/web/`)
 
-### Mini App (`packages/miniapp/`)
-
-Vite + React 19 + Wagmi v2 + Viem v2 + shadcn/ui + Tailwind.
-
-```bash
-cd packages/miniapp
-npm install
-cp .env.example .env.local    # VITE_API_URL, contract addresses
-npm run dev                   # serves on http://localhost:5173
-```
-
-Routes:
-
-- `/` — landing (silent MiniPay auto-connect when loaded in-app)
-- `/onboarding?step=1|2|3` — 3-step seller onboarding (draft saved to
-  `localStorage` per wallet)
-- `/seller` — dashboard with 6 cards (revenue, active orders, escrow,
-  top products, reputation, notifications)
-- `/checkout/:productId` — buyer flow (3-tx USDT payment)
-- `/order/:orderId` — post-purchase recap with explorer link
-
-### Public pages (`packages/web/`)
-
-Next.js 14 App Router, SSR for SEO + social sharing.
+Single Next.js 14 app per ADR-035 (public funnel + MiniPay surfaces).
 
 ```bash
 cd packages/web
-npm install
-cp .env.example .env.local    # NEXT_PUBLIC_API_URL, NEXT_PUBLIC_MINIAPP_URL
-npm run dev                   # serves on http://localhost:3000
+pnpm install                                  # or npm ci
+cp .env.example .env.local                    # NEXT_PUBLIC_API_URL, NEXT_PUBLIC_BASE_URL
+pnpm dev                                      # http://localhost:3000
+pnpm test                                     # 295 PASS Vitest
+pnpm lint                                     # next lint
+pnpm build                                    # production bundle
 ```
 
-Routes:
+See [`packages/web/README.md`](./packages/web/README.md) for routes overview + design system pointers.
 
-- `/` — landing
-- `/[handle]/[slug]` — SSR product page with OpenGraph / Twitter Card
-  meta (1200x630 og:image from IPFS gateway)
-- `not-found.tsx` — custom 404
+## Deployed Contracts (Celo Sepolia Testnet — V2)
 
-## Deployed Contracts (Celo Sepolia Testnet)
+| Contract        | Address                                      |
+|-----------------|----------------------------------------------|
+| MockUSDT V2     | `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` |
+| EtaloReputation | `0x2a6639074d0897c6280f55b252B97dd1c39820b7` |
+| EtaloDispute    | `0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE` |
+| EtaloEscrow     | `0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb` |
+| EtaloCredits    | `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` |
+| EtaloStake      | `0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417` (V2 deferred per ADR-041) |
+| EtaloVoting     | `0x335Ac0998667F76FE265BC28e6989dc535A901E7` (V2 deferred per ADR-041) |
 
-| Contract        | Address                                      | Explorer                                                                                |
-|-----------------|----------------------------------------------|-----------------------------------------------------------------------------------------|
-| MockUSDT        | `0x4212d248fc28c7aa0ae0e5982051b5e9d2a12dc6` | https://celo-sepolia.blockscout.com/address/0x4212d248fc28c7aa0ae0e5982051b5e9d2a12dc6 |
-| EtaloReputation | `0xc9d3f823a4c985bd126899573864dba4a6601ef4` | https://celo-sepolia.blockscout.com/address/0xc9d3f823a4c985bd126899573864dba4a6601ef4 |
-| EtaloEscrow     | `0x652e0278f4a1b7915dc89f53ab3e5c35696cb455` | https://celo-sepolia.blockscout.com/address/0x652e0278f4a1b7915dc89f53ab3e5c35696cb455 |
-| EtaloDispute    | `0x438ed447c5467abb6395b56a88bfec7a80c489e9` | https://celo-sepolia.blockscout.com/address/0x438ed447c5467abb6395b56a88bfec7a80c489e9 |
+Treasury wallets (3 separated per ADR-024) :
+
+| Wallet | Address |
+|---|---|
+| creditsTreasury | `0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA` |
+| commissionTreasury | `0x9819c9E1b4F634784fd9A286240ecACd297823fa` |
+| communityFund | `0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6` |
+
+Mainnet : `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` (USDT) + `0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72` (adapter for gas fees). Etalo contracts mainnet TBD — Sprint J12 deploy.
 
 ## Testing the checkout flow
 
@@ -199,14 +195,18 @@ commission on a 5 USDT order (1.8 % — intra-Africa rate confirmed).
 
 ## Sprint status
 
-| Sprint | Date         | Focus                                                     | Status |
-|--------|--------------|-----------------------------------------------------------|--------|
-| J1     | 2026-04-21   | Foundation, smart contracts, backend skeleton             | Done   |
-| J2     | 2026-04-22   | Mini App, public pages, checkout flow                     | Done (Block 8 device QA deferred) |
-| J4     | 2026-04-23/24| V2 smart contract refactor, Sepolia deploy, audit prep    | Done — tag `v2.0.0-contracts-sepolia` |
-| J5     | 2026-04-24/25| V2 backend — indexer, REST API, EIP-191 auth, E2E tests   | Done — tag `v2.0.0-backend-sepolia` |
+| Sprint | Date | Focus | Status |
+|--------|------|-------|--------|
+| J1 | 2026-04-21 | Foundation, smart contracts, backend skeleton | Done |
+| J2 | 2026-04-22 | Mini App, public pages, checkout flow | Done (Block 8 device QA deferred) |
+| J4 | 2026-04-23/24 | V2 smart contract refactor, Sepolia deploy, audit prep | Done — tag `v2.0.0-contracts-sepolia` |
+| J5 | 2026-04-24/25 | V2 backend — indexer, REST API, EIP-191 auth, E2E tests | Done — tag `v2.0.0-backend-sepolia` |
+| J6 | 2026-04-26/28 | Boutique model V1 — handle URLs, grouped checkout, asset generator scaffold | Done |
+| J7 | 2026-04-28/30 | Asset generator monetization (EtaloCredits + Pinata + Playwright per ADR-014, ADR-037) | Done |
+| J8 | 2026-04-29 | Backend ADR-034 EIP-191 deprecation prep + on-chain events migration plan | Done |
+| J9 | 2026-04-29/30 | V4 design system foundations (CardV4, ButtonV4, DialogV4, SheetV4, TabsV4) | Done |
+| J10-V5 | 2026-04-30 → 2026-05-04 | V5 Robinhood-target design pivot (5 phases : Foundations → Motion → Visuals → Layout → Polish) | In progress (Phase 5 polish ~96% wall-clock, target tag `v2.0.0-design-system-v5-sepolia`) |
+| J11 | TBD | Audit pratique freelance + AI per ADR-039 | Planned |
+| J12 | TBD (Q2 2027) | Mainnet deploy + soft launch 10-20 sellers curated | Planned — tag `v2.0.0-mainnet-v1` |
 
-See `docs/SPRINT_J*.md`, `docs/SMART_CONTRACTS.md`, and
-`docs/BACKEND.md` for the reference docs. `docs/DECISIONS.md` logs
-every non-trivial architectural choice with rationale and
-replacement plan.
+See [`docs/SPRINT_J*.md`](./docs/) for per-sprint plans + closures, [`docs/DECISIONS.md`](./docs/DECISIONS.md) for the ADR log (ADR-001 → ADR-041 with rationale + replacement plan), [`docs/SMART_CONTRACTS.md`](./docs/SMART_CONTRACTS.md) and [`docs/BACKEND.md`](./docs/BACKEND.md) for technical references, and [`CLAUDE.md`](./CLAUDE.md) for AI agent context + critical rules.
