@@ -1,6 +1,28 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+/**
+ * useCreditsBalance — TanStack Query hook over GET
+ * /sellers/me/credits/balance (J10-V5 Phase 5 polish item B).
+ *
+ * 6th codebase consumer of TanStack Query (after useAnalyticsSummary,
+ * useOrderInitiate, useCheckout, useMilestoneOnce,
+ * useMarketplaceProducts). Replaces the previous useState + useEffect
+ * + manual `refetch()` plumbing so post-purchase indexer-lag polling
+ * can fire `queryClient.invalidateQueries(...)` instead of imperative
+ * setData/setLoading dances.
+ *
+ * The wallet address is read from wagmi's useAccount inside the hook
+ * so consumers don't have to thread it ; the queryKey carries it for
+ * cache scoping (different wallets get different caches when MiniPay
+ * lets the user switch accounts mid-session). `enabled: Boolean(address)`
+ * suppresses the fetch until wagmi resolves an address.
+ *
+ * staleTime 30 s + retry 1 mirrors useAnalyticsSummary so the seller
+ * dashboard tabs feel consistent : a fresh purchase invalidates
+ * (forces a refetch immediately), but tab-switches inside the cache
+ * window stay cheap.
+ */
+import { useQuery } from "@tanstack/react-query";
 import { useAccount } from "wagmi";
 
 import {
@@ -8,42 +30,15 @@ import {
   type CreditsBalanceResponse,
 } from "@/lib/marketing-api";
 
-/** Lightweight SWR-style hook for the /sellers/me/credits/balance
- * endpoint. Fetches on mount when the wallet address is available, and
- * exposes a `refetch` callback so callers can refresh after mutations
- * (e.g. after a successful generate-image consumes 1 credit, or after
- * an on-chain CreditsPurchased lands and the indexer mirrors it). */
+export const CREDITS_BALANCE_QUERY_KEY = "credits-balance" as const;
+
 export function useCreditsBalance() {
   const { address } = useAccount();
-  const [data, setData] = useState<CreditsBalanceResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const refetch = useCallback(async () => {
-    if (!address) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await fetchCreditsBalance(address);
-      setData(result);
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to fetch credits balance",
-      );
-    } finally {
-      setLoading(false);
-    }
-  }, [address]);
-
-  useEffect(() => {
-    void refetch();
-  }, [refetch]);
-
-  return {
-    balance: data?.balance ?? 0,
-    walletAddress: data?.wallet_address,
-    loading,
-    error,
-    refetch,
-  };
+  return useQuery<CreditsBalanceResponse, Error>({
+    queryKey: [CREDITS_BALANCE_QUERY_KEY, address],
+    queryFn: () => fetchCreditsBalance(address as string),
+    enabled: Boolean(address),
+    staleTime: 30_000,
+    retry: 1,
+  });
 }

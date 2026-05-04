@@ -25,7 +25,9 @@ import type { MyProductsListItem } from "@/lib/seller-api";
 
 export function MarketingTab() {
   const { address } = useAccount();
-  const { balance, refetch: refetchBalance } = useCreditsBalance();
+  const creditsQuery = useCreditsBalance();
+  const balance = creditsQuery.data?.balance ?? 0;
+  const refetchBalance = creditsQuery.refetch;
 
   const [selectedProduct, setSelectedProduct] =
     useState<MyProductsListItem | null>(null);
