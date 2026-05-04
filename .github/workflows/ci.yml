@@ -1,0 +1,99 @@
+name: CI
+
+# J10-V5 Phase 5 Angle D Item D1 — extended from the original typecheck-only
+# workflow (Phase 5 polish #4) to cover the broader CI surface : type check
+# (existing) + lint + tests run in parallel on every push to main / feat/**
+# and every PR. The original Phase 4 sub-block 5.7 lesson (latent TS errors
+# pile up because `next build` only compiles the build graph) holds for
+# tests + lint too — running them in CI catches regressions before merge
+# rather than discovering them during the next release prep.
+#
+# Build job intentionally omitted : longer runtime cost (~3-5 min on the
+# free tier) for catching deploy-time-only breakage that's already covered
+# by manual `pnpm build` validation pre-merge. Add back if a future
+# sub-tier-of-tests gap surfaces.
+#
+# Stack : npm + npm ci (matches the existing package-lock.json) ; Mike's
+# local dev shells out to pnpm dev which reads the same package.json
+# scripts, but the CI runner stays on npm for cache-action compatibility.
+
+on:
+  push:
+    branches: [main, "feat/**"]
+    paths:
+      - "packages/web/**"
+      - ".github/workflows/ci.yml"
+  pull_request:
+    paths:
+      - "packages/web/**"
+      - ".github/workflows/ci.yml"
+
+jobs:
+  typecheck:
+    name: tsc --noEmit (packages/web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc --noEmit
+
+  lint:
+    name: ESLint (packages/web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+  test:
+    name: Vitest (packages/web)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/web
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: packages/web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
