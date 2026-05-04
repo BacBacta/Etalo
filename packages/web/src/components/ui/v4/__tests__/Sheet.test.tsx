@@ -7,7 +7,8 @@
  * assertions, screen queries through portal).
  */
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { useReducedMotion } from "motion/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   SheetV4,
@@ -17,6 +18,31 @@ import {
   SheetV4Title,
   SheetV4Trigger,
 } from "@/components/ui/v4/Sheet";
+
+// J10-V5 Phase 5 polish follow-up #5 — useReducedMotion is mocked at
+// the module boundary so we can flip its return value per-spec without
+// touching jsdom's matchMedia (which the hook reads internally and
+// which jsdom doesn't ship by default). Default mock returns false so
+// the existing 12 specs continue exercising the slide spring path.
+// Same pattern as Dialog.test.tsx (Item #5 b1632df).
+vi.mock("motion/react", async () => {
+  const actual =
+    await vi.importActual<typeof import("motion/react")>("motion/react");
+  return {
+    ...actual,
+    useReducedMotion: vi.fn(),
+  };
+});
+
+const useReducedMotionMock = vi.mocked(useReducedMotion);
+
+beforeEach(() => {
+  useReducedMotionMock.mockReturnValue(false);
+});
+
+afterEach(() => {
+  useReducedMotionMock.mockReset();
+});
 
 function Harness({
   defaultOpen = false,
@@ -176,5 +202,28 @@ describe("SheetV4", () => {
       expect(overlay).toHaveAttribute("data-motion-active");
       unmount();
     }
+  });
+
+  // J10-V5 Phase 5 polish follow-up #5 — prefers-reduced-motion gating.
+  // Mirrors Dialog.test.tsx (b1632df) : the data-reduced-motion
+  // attribute encodes the runtime branching decision so jsdom-bound
+  // specs can regression-guard it without observing motion's variant
+  // resolution. Drag is exempt from the auto-animation rule (gestures
+  // are user-initiated) so its forwarding stays untouched in either
+  // path. WCAG 2.1 SC 2.3.3 — Animation from Interactions.
+  describe("prefers-reduced-motion (polish follow-up #5)", () => {
+    it("Content does NOT carry data-reduced-motion when the user has standard motion", () => {
+      useReducedMotionMock.mockReturnValue(false);
+      render(<Harness defaultOpen />);
+      const content = screen.getByTestId("sheet-content");
+      expect(content).not.toHaveAttribute("data-reduced-motion");
+    });
+
+    it("Content carries data-reduced-motion='true' when the user prefers reduced motion", () => {
+      useReducedMotionMock.mockReturnValue(true);
+      render(<Harness defaultOpen />);
+      const content = screen.getByTestId("sheet-content");
+      expect(content).toHaveAttribute("data-reduced-motion", "true");
+    });
   });
 });

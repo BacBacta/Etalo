@@ -9,7 +9,12 @@ import {
   type ReactNode,
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { AnimatePresence, m, type MotionProps } from "motion/react";
+import {
+  AnimatePresence,
+  m,
+  useReducedMotion,
+  type MotionProps,
+} from "motion/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "@phosphor-icons/react";
 
@@ -168,11 +173,31 @@ const overlayMotionTransition = {
   ease: [0.16, 1, 0.3, 1] as [number, number, number, number],
 };
 
-const sheetContentMotionTransition = {
+const sheetContentSpringTransition = {
   type: "spring" as const,
   stiffness: 350,
   damping: 30,
 };
+
+// J10-V5 Phase 5 polish follow-up #5 — when the user has set
+// `prefers-reduced-motion: reduce` SheetV4 swaps the slide spring for
+// an opacity-only fade tween (mirrors DialogV4's reduced-motion
+// branch from commit b1632df). Slide translation is the visceral
+// motion that triggers vestibular symptoms ; an opacity fade keeps
+// the mount / unmount visual cue without the heavy translation. WCAG
+// 2.1 SC 2.3.3 — Animation from Interactions. Drag forwarding stays
+// untouched because drag is a user-initiated gesture, exempt from
+// the auto-animation rule.
+const sheetContentReducedTransition = {
+  duration: 0.15,
+  ease: "easeOut" as const,
+};
+
+const sheetReducedMotionVariants = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+} as const;
 
 // J10-V5 Phase 5 Block 2 sub-block 2.2 — drag-related motion props are
 // forwarded to the inner m.div so consumers (CartDrawer swipe-to-close)
@@ -224,7 +249,13 @@ export const SheetV4Content = forwardRef<
     const ctx = useContext(SheetV4Context);
     const open = ctx?.open ?? false;
     const resolvedSide: SheetSide = side ?? "right";
-    const motionVariants = sheetMotionVariantsBySide[resolvedSide];
+    const shouldReduceMotion = useReducedMotion() ?? false;
+    const motionVariants = shouldReduceMotion
+      ? sheetReducedMotionVariants
+      : sheetMotionVariantsBySide[resolvedSide];
+    const contentTransition = shouldReduceMotion
+      ? sheetContentReducedTransition
+      : sheetContentSpringTransition;
     return (
       <AnimatePresence>
         {open ? (
@@ -243,11 +274,12 @@ export const SheetV4Content = forwardRef<
               <m.div
                 data-side={resolvedSide}
                 data-motion-active
+                data-reduced-motion={shouldReduceMotion ? "true" : undefined}
                 className={cn(sheetV4ContentVariants({ side }), className)}
                 initial={motionVariants.initial}
                 animate={motionVariants.animate}
                 exit={motionVariants.exit}
-                transition={sheetContentMotionTransition}
+                transition={contentTransition}
                 drag={drag}
                 dragConstraints={dragConstraints}
                 dragElastic={dragElastic}
