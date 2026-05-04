@@ -71,8 +71,10 @@ Write-Host "[4/4] Launching 3 services..." -ForegroundColor Cyan
 
 # Build commands as PowerShell -Command strings
 # Note : backtick avant $env protege contre expansion premature
-$backendCmd = "& '.\venv\Scripts\Activate.ps1'; python scripts\run_dev.py"
-$frontendCmd = "`$env:NEXT_PUBLIC_DEV_ROUTES='true'; pnpm dev"
+# Note : \; escape inner semicolons so wt does not interpret them as subcommand
+# separators (wt unescape \; -> ; before passing to inner powershell -Command)
+$backendCmd = "& '.\venv\Scripts\Activate.ps1'\; python scripts\run_dev.py"
+$frontendCmd = "`$env:NEXT_PUBLIC_DEV_ROUTES='true'\; pnpm dev"
 $ngrokCmd = "ngrok http --domain=$NGROK_DOMAIN $FRONTEND_PORT"
 
 # Detect Windows Terminal
@@ -81,10 +83,32 @@ $wt = Get-Command wt -ErrorAction SilentlyContinue
 if ($wt) {
     Write-Host "  -> Windows Terminal detected, spawning 3 tabs" -ForegroundColor Green
 
-    # wt multi-tab : `; escape passe le semicolon a wt comme tab separator
-    wt new-tab --title "Etalo Backend" -d "$BACKEND_DIR" powershell -NoExit -Command $backendCmd `;
-       new-tab --title "Etalo Frontend" -d "$WEB_DIR" powershell -NoExit -Command $frontendCmd `;
-       new-tab --title "Etalo ngrok" -d "$INNER_REPO" powershell -NoExit -Command $ngrokCmd
+    # 3 separate Start-Process wt calls with -w 0 for tabs 2/3 (J7 proven pattern,
+    # avoids `; escape-on-newline footgun of multi-line wt single-invocation)
+
+    # Note : titles use hyphen (no space) — Start-Process -ArgumentList does not
+    # reliably quote argv elements containing spaces, wt would split "Etalo Backend"
+    # into title="Etalo" + command="Backend" and fail.
+
+    # Tab 1 (Backend) — creates new wt window
+    Start-Process wt -ArgumentList @(
+        "new-tab", "--title", "Etalo-Backend", "-d", $BACKEND_DIR,
+        "powershell", "-NoExit", "-Command", $backendCmd
+    )
+    Start-Sleep -Seconds 2
+
+    # Tab 2 (Frontend) — -w 0 targets the wt window we just opened
+    Start-Process wt -ArgumentList @(
+        "-w", "0", "new-tab", "--title", "Etalo-Frontend", "-d", $WEB_DIR,
+        "powershell", "-NoExit", "-Command", $frontendCmd
+    )
+    Start-Sleep -Seconds 1
+
+    # Tab 3 (ngrok)
+    Start-Process wt -ArgumentList @(
+        "-w", "0", "new-tab", "--title", "Etalo-ngrok", "-d", $INNER_REPO,
+        "powershell", "-NoExit", "-Command", $ngrokCmd
+    )
 } else {
     Write-Host "  -> Windows Terminal not found, fallback to 3 separate windows" -ForegroundColor Yellow
 
