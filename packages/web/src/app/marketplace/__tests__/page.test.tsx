@@ -12,9 +12,13 @@
  * and the test always lands on the rendered surface.
  */
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import MarketplacePage from "@/app/marketplace/page";
+import {
+  PULL_TO_REFRESH_THRESHOLD_PX,
+  shouldTriggerRefreshOnRelease,
+} from "@/app/marketplace/pull-to-refresh";
 import type { MarketplaceListResponse } from "@/lib/api";
 
 const useMarketplaceProductsMock = vi.fn();
@@ -159,5 +163,88 @@ describe("MarketplacePage — sub-block 2.3a", () => {
     render(<MarketplacePage />);
     fireEvent.click(screen.getByRole("button", { name: /retry/i }));
     expect(refetch).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("shouldTriggerRefreshOnRelease — pull-to-refresh threshold helper", () => {
+  it("returns true when pull distance reaches the threshold", () => {
+    expect(
+      shouldTriggerRefreshOnRelease(PULL_TO_REFRESH_THRESHOLD_PX),
+    ).toBe(true);
+  });
+
+  it("returns false when pull distance is below the threshold", () => {
+    expect(
+      shouldTriggerRefreshOnRelease(PULL_TO_REFRESH_THRESHOLD_PX - 1),
+    ).toBe(false);
+  });
+
+  it("returns false at zero distance (no pull at all)", () => {
+    expect(shouldTriggerRefreshOnRelease(0)).toBe(false);
+  });
+});
+
+describe("MarketplacePage — sub-block 2.3b pull-to-refresh", () => {
+  // jsdom defaults window.scrollY to 0. The "scrolled past top" spec
+  // overrides it and restores after.
+  afterEach(() => {
+    Object.defineProperty(window, "scrollY", {
+      value: 0,
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  it("fires refetch when the user pulls past the threshold from the top", () => {
+    const refetch = vi.fn();
+    setQuery({ data: { pages: [makePage()] }, refetch });
+    render(<MarketplacePage />);
+    const pullArea = screen.getByTestId("marketplace-pull-area");
+
+    // 200 px raw delta * 0.5 resistance = 100 px visual pull > 80 threshold.
+    fireEvent.pointerDown(pullArea, { clientY: 0 });
+    fireEvent.pointerMove(pullArea, { clientY: 200 });
+    fireEvent.pointerUp(pullArea, { clientY: 200 });
+
+    expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("snaps back without refetch when the pull stays below the threshold", () => {
+    const refetch = vi.fn();
+    setQuery({ data: { pages: [makePage()] }, refetch });
+    render(<MarketplacePage />);
+    const pullArea = screen.getByTestId("marketplace-pull-area");
+
+    // 100 px raw delta * 0.5 resistance = 50 px visual pull < 80 threshold.
+    fireEvent.pointerDown(pullArea, { clientY: 0 });
+    fireEvent.pointerMove(pullArea, { clientY: 100 });
+    fireEvent.pointerUp(pullArea, { clientY: 100 });
+
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
+  it("does NOT initiate a pull when the page is scrolled past the top", () => {
+    Object.defineProperty(window, "scrollY", {
+      value: 200,
+      writable: true,
+      configurable: true,
+    });
+    const refetch = vi.fn();
+    setQuery({ data: { pages: [makePage()] }, refetch });
+    render(<MarketplacePage />);
+    const pullArea = screen.getByTestId("marketplace-pull-area");
+
+    fireEvent.pointerDown(pullArea, { clientY: 0 });
+    fireEvent.pointerMove(pullArea, { clientY: 300 });
+    fireEvent.pointerUp(pullArea, { clientY: 300 });
+
+    expect(refetch).not.toHaveBeenCalled();
+  });
+
+  it("renders the pull-to-refresh indicator with aria-hidden so screen readers ignore it", () => {
+    setQuery({ data: { pages: [makePage()] } });
+    render(<MarketplacePage />);
+    const indicator = screen.getByTestId("marketplace-pull-indicator");
+    expect(indicator).toHaveAttribute("aria-hidden", "true");
   });
 });

@@ -2,8 +2,14 @@
 
 import { ArrowsClockwise } from "@phosphor-icons/react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  PULL_RESISTANCE,
+  PULL_TO_REFRESH_THRESHOLD_PX,
+  PULL_VISUAL_CAP_PX,
+  shouldTriggerRefreshOnRelease,
+} from "@/app/marketplace/pull-to-refresh";
 import { MarketplaceGrid } from "@/components/MarketplaceGrid";
 import { Button } from "@/components/ui/button";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
@@ -37,6 +43,50 @@ export default function MarketplacePage() {
     () => query.data?.pages.flatMap((page) => page.products) ?? [],
     [query.data],
   );
+
+  // Sub-block 2.3b — pull-to-refresh state. `pullDistance` is the
+  // visible translateY in px ; `isReleased` toggles the CSS transition
+  // for the snap-back so the live drag stays jank-free. isPullingRef
+  // and pullStartYRef stay outside React state to avoid re-rendering
+  // on every pointermove tick.
+  const [pullDistance, setPullDistance] = useState(0);
+  const [isReleased, setIsReleased] = useState(false);
+  const isPullingRef = useRef(false);
+  const pullStartYRef = useRef(0);
+
+  const handlePointerDown = (e: React.PointerEvent<HTMLElement>) => {
+    // Only initiate a pull when the page is scrolled to the very top.
+    // Past zero, pointer events stay free for normal scroll / clicks.
+    if (typeof window !== "undefined" && window.scrollY > 0) return;
+    isPullingRef.current = true;
+    pullStartYRef.current = e.clientY;
+    setIsReleased(false);
+  };
+
+  const handlePointerMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (!isPullingRef.current) return;
+    const rawDelta = e.clientY - pullStartYRef.current;
+    if (rawDelta <= 0) {
+      // Upward drag aborts the gesture so the user can scroll without
+      // fighting the pull state machine.
+      isPullingRef.current = false;
+      setIsReleased(true);
+      setPullDistance(0);
+      return;
+    }
+    const next = Math.min(rawDelta * PULL_RESISTANCE, PULL_VISUAL_CAP_PX);
+    setPullDistance(next);
+  };
+
+  const handlePointerUp = () => {
+    if (!isPullingRef.current) return;
+    isPullingRef.current = false;
+    if (shouldTriggerRefreshOnRelease(pullDistance)) {
+      query.refetch();
+    }
+    setIsReleased(true);
+    setPullDistance(0);
+  };
 
   if (isMiniPay === null) {
     return (
@@ -104,44 +154,94 @@ export default function MarketplacePage() {
   // icon spins via `animate-spin` to mirror the gesture's feedback loop.
   const isRefreshing = query.isFetching && !query.isFetchingNextPage;
   const isLoadingMore = query.isFetchingNextPage;
+  const pullProgress = Math.min(pullDistance / PULL_TO_REFRESH_THRESHOLD_PX, 1);
+  const pullThresholdReached = pullDistance >= PULL_TO_REFRESH_THRESHOLD_PX;
+
+  // Snap-back uses a short CSS transition on transform / opacity ; live
+  // pull stays transition-free so the indicator tracks the finger
+  // 1:1 (minus the resistance constant). overscroll-contain on <main>
+  // blocks the Android Chrome / WebView native pull-to-refresh from
+  // firing in parallel and creating a double-refresh.
+  const transitionClass = isReleased
+    ? "transition-[transform,opacity] duration-300 ease-out"
+    : "";
 
   return (
-    <main className="min-h-screen">
-      <div className="mx-auto max-w-3xl px-4 py-6">
-        <div className="mb-1 flex items-center justify-between gap-3">
-          <h1 className="text-xl font-semibold">Marketplace</h1>
-          <button
-            type="button"
-            onClick={() => query.refetch()}
-            disabled={isRefreshing}
-            aria-label="Refresh marketplace products"
-            data-testid="marketplace-refresh"
-            className="inline-flex h-11 w-11 items-center justify-center rounded-full text-celo-dark transition-colors hover:bg-celo-forest-soft disabled:opacity-50 dark:text-celo-light dark:hover:bg-celo-forest-bright-soft"
-          >
-            <ArrowsClockwise
-              className={cn("h-5 w-5", isRefreshing && "animate-spin")}
-              aria-hidden="true"
-            />
-          </button>
+    <main
+      className="relative min-h-screen overscroll-contain"
+      data-testid="marketplace-pull-area"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      {/* Pull-to-refresh visual indicator. aria-hidden because the
+          accessible refresh path is the visible Refresh button below ;
+          this surface is touch-only enhancement. */}
+      <div
+        aria-hidden="true"
+        data-testid="marketplace-pull-indicator"
+        className={cn(
+          "pointer-events-none absolute inset-x-0 top-0 z-30 flex justify-center pt-3",
+          transitionClass,
+        )}
+        style={{
+          transform: `translateY(${Math.max(pullDistance - 40, 0)}px)`,
+          opacity: pullProgress,
+        }}
+      >
+        <div className="rounded-full bg-celo-light p-2 shadow-celo-md dark:bg-celo-dark-elevated dark:ring-1 dark:ring-celo-light/[8%]">
+          <ArrowsClockwise
+            aria-hidden="true"
+            className={cn(
+              "h-5 w-5 text-celo-dark transition-transform duration-200 dark:text-celo-light",
+              isRefreshing && "animate-spin",
+              !isRefreshing && pullThresholdReached && "rotate-180",
+            )}
+          />
         </div>
-        <p className="mb-6 text-sm text-neutral-600">
-          Discover products from sellers across Africa
-        </p>
+      </div>
 
-        <MarketplaceGrid products={products} />
-
-        {query.hasNextPage ? (
-          <div className="mt-8 flex justify-center">
-            <Button
-              onClick={() => query.fetchNextPage()}
-              disabled={isLoadingMore}
-              variant="outline"
-              className="min-h-[44px] min-w-[160px]"
+      <div
+        className={cn("min-h-screen", transitionClass)}
+        style={{ transform: `translateY(${pullDistance}px)` }}
+      >
+        <div className="mx-auto max-w-3xl px-4 py-6">
+          <div className="mb-1 flex items-center justify-between gap-3">
+            <h1 className="text-xl font-semibold">Marketplace</h1>
+            <button
+              type="button"
+              onClick={() => query.refetch()}
+              disabled={isRefreshing}
+              aria-label="Refresh marketplace products"
+              data-testid="marketplace-refresh"
+              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-celo-dark transition-colors hover:bg-celo-forest-soft disabled:opacity-50 dark:text-celo-light dark:hover:bg-celo-forest-bright-soft"
             >
-              {isLoadingMore ? "Loading…" : "Load more"}
-            </Button>
+              <ArrowsClockwise
+                className={cn("h-5 w-5", isRefreshing && "animate-spin")}
+                aria-hidden="true"
+              />
+            </button>
           </div>
-        ) : null}
+          <p className="mb-6 text-sm text-neutral-600">
+            Discover products from sellers across Africa
+          </p>
+
+          <MarketplaceGrid products={products} />
+
+          {query.hasNextPage ? (
+            <div className="mt-8 flex justify-center">
+              <Button
+                onClick={() => query.fetchNextPage()}
+                disabled={isLoadingMore}
+                variant="outline"
+                className="min-h-[44px] min-w-[160px]"
+              >
+                {isLoadingMore ? "Loading…" : "Load more"}
+              </Button>
+            </div>
+          ) : null}
+        </div>
       </div>
     </main>
   );
