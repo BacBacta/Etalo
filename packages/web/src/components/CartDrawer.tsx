@@ -1,6 +1,6 @@
 "use client";
 
-import { LazyMotion, domMax } from "motion/react";
+import { LazyMotion, domMax, type PanInfo } from "motion/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMemo, useState } from "react";
@@ -20,6 +20,24 @@ import { CartValidationError, postCartToken } from "@/lib/checkout";
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+}
+
+// J10-V5 Phase 5 Block 2 sub-block 2.2 — swipe-to-close thresholds.
+// Cart drawer slides out from the right; a rightward swipe closes it.
+// 100 px distance OR 500 px/s velocity matches iOS / Android / Robinhood
+// conventions for sheet dismissal. Either condition triggers close so
+// short flicks dismiss as reliably as long drags.
+export const DRAG_CLOSE_THRESHOLD_PX = 100;
+export const DRAG_CLOSE_VELOCITY_PX_PER_SEC = 500;
+
+export function shouldCloseOnSwipe(info: {
+  offset: { x: number };
+  velocity: { x: number };
+}): boolean {
+  return (
+    info.offset.x > DRAG_CLOSE_THRESHOLD_PX ||
+    info.velocity.x > DRAG_CLOSE_VELOCITY_PX_PER_SEC
+  );
 }
 
 export function CartDrawer({ open, onOpenChange }: Props) {
@@ -102,6 +120,16 @@ export function CartDrawer({ open, onOpenChange }: Props) {
 
   const closeDrawer = () => onOpenChange(false);
 
+  const handleDragEnd = (
+    _event: MouseEvent | TouchEvent | PointerEvent,
+    info: PanInfo,
+  ) => {
+    if (shouldCloseOnSwipe(info)) {
+      onOpenChange(false);
+    }
+    // Below threshold → dragSnapToOrigin animates the drawer back to x=0.
+  };
+
   // J10-V5 Phase 5 Block 2 sub-block 2.1 — nested LazyMotion features={domMax}
   // scopes drag/layout feature loading to the cart drawer subtree.
   // The outer MotionProvider (Providers.tsx) ships domAnimation (~17 KB) to
@@ -110,12 +138,24 @@ export function CartDrawer({ open, onOpenChange }: Props) {
   // Multiple LazyMotion strict are allowed in motion v12; the closest
   // ancestor wins for `m.*` descendants, so the rest of the app keeps the
   // smaller domAnimation bundle.
+  //
+  // Sub-block 2.2 — drag="x" + dragConstraints={{ left: 0 }} prevents the
+  // drawer from being pulled inward (further into the screen) past its
+  // resting position. dragSnapToOrigin returns it to x=0 if the user
+  // releases below the swipe-to-close threshold. Native ESC + backdrop
+  // click + close button stay wired via Radix DialogPrimitive — drag is
+  // a pure UX enhancement, not an a11y replacement.
   return (
     <LazyMotion features={domMax} strict>
       <SheetV4 open={open} onOpenChange={onOpenChange}>
         <SheetV4Content
           side="right"
           className="flex w-full max-w-none flex-col p-0 sm:max-w-md"
+          drag="x"
+          dragConstraints={{ left: 0 }}
+          dragElastic={0.2}
+          dragSnapToOrigin
+          onDragEnd={handleDragEnd}
         >
           <div className="border-b border-neutral-200 px-4 py-4">
             <SheetV4Title className="text-lg">

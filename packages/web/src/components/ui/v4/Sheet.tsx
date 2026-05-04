@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { AnimatePresence, m } from "motion/react";
+import { AnimatePresence, m, type MotionProps } from "motion/react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { X } from "@phosphor-icons/react";
 
@@ -174,51 +174,99 @@ const sheetContentMotionTransition = {
   damping: 30,
 };
 
+// J10-V5 Phase 5 Block 2 sub-block 2.2 — drag-related motion props are
+// forwarded to the inner m.div so consumers (CartDrawer swipe-to-close)
+// can wire gestures without extending the component. We must Omit the
+// HTML drag handler keys from DialogPrimitive.Content's props because
+// motion's signatures (event + PanInfo) differ from React's native
+// DragEvent handler signatures and would conflict in TypeScript.
+type SheetV4DragMotionProps = Pick<
+  MotionProps,
+  | "drag"
+  | "dragConstraints"
+  | "dragElastic"
+  | "dragMomentum"
+  | "dragSnapToOrigin"
+  | "onDragStart"
+  | "onDrag"
+  | "onDragEnd"
+>;
+
 export interface SheetV4ContentProps
-  extends ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
-    VariantProps<typeof sheetV4ContentVariants> {}
+  extends Omit<
+      ComponentPropsWithoutRef<typeof DialogPrimitive.Content>,
+      "onDragStart" | "onDrag" | "onDragEnd"
+    >,
+    VariantProps<typeof sheetV4ContentVariants>,
+    SheetV4DragMotionProps {}
 
 export const SheetV4Content = forwardRef<
   ElementRef<typeof DialogPrimitive.Content>,
   SheetV4ContentProps
->(({ className, side, children, ...props }, ref) => {
-  const ctx = useContext(SheetV4Context);
-  const open = ctx?.open ?? false;
-  const resolvedSide: SheetSide = side ?? "right";
-  const motionVariants = sheetMotionVariantsBySide[resolvedSide];
-  return (
-    <AnimatePresence>
-      {open ? (
-        <DialogPrimitive.Portal forceMount>
-          <DialogPrimitive.Overlay asChild forceMount>
-            <m.div
-              data-motion-active
-              className={overlayBaseClasses}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={overlayMotionTransition}
-            />
-          </DialogPrimitive.Overlay>
-          <DialogPrimitive.Content ref={ref} asChild forceMount {...props}>
-            <m.div
-              data-side={resolvedSide}
-              data-motion-active
-              className={cn(sheetV4ContentVariants({ side }), className)}
-              initial={motionVariants.initial}
-              animate={motionVariants.animate}
-              exit={motionVariants.exit}
-              transition={sheetContentMotionTransition}
-            >
-              {children}
-              <SheetV4Close />
-            </m.div>
-          </DialogPrimitive.Content>
-        </DialogPrimitive.Portal>
-      ) : null}
-    </AnimatePresence>
-  );
-});
+>(
+  (
+    {
+      className,
+      side,
+      children,
+      drag,
+      dragConstraints,
+      dragElastic,
+      dragMomentum,
+      dragSnapToOrigin,
+      onDragStart,
+      onDrag,
+      onDragEnd,
+      ...props
+    },
+    ref,
+  ) => {
+    const ctx = useContext(SheetV4Context);
+    const open = ctx?.open ?? false;
+    const resolvedSide: SheetSide = side ?? "right";
+    const motionVariants = sheetMotionVariantsBySide[resolvedSide];
+    return (
+      <AnimatePresence>
+        {open ? (
+          <DialogPrimitive.Portal forceMount>
+            <DialogPrimitive.Overlay asChild forceMount>
+              <m.div
+                data-motion-active
+                className={overlayBaseClasses}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={overlayMotionTransition}
+              />
+            </DialogPrimitive.Overlay>
+            <DialogPrimitive.Content ref={ref} asChild forceMount {...props}>
+              <m.div
+                data-side={resolvedSide}
+                data-motion-active
+                className={cn(sheetV4ContentVariants({ side }), className)}
+                initial={motionVariants.initial}
+                animate={motionVariants.animate}
+                exit={motionVariants.exit}
+                transition={sheetContentMotionTransition}
+                drag={drag}
+                dragConstraints={dragConstraints}
+                dragElastic={dragElastic}
+                dragMomentum={dragMomentum}
+                dragSnapToOrigin={dragSnapToOrigin}
+                onDragStart={onDragStart}
+                onDrag={onDrag}
+                onDragEnd={onDragEnd}
+              >
+                {children}
+                <SheetV4Close />
+              </m.div>
+            </DialogPrimitive.Content>
+          </DialogPrimitive.Portal>
+        ) : null}
+      </AnimatePresence>
+    );
+  },
+);
 SheetV4Content.displayName = "SheetV4Content";
 
 export interface SheetV4HeaderProps extends HTMLAttributes<HTMLDivElement> {
