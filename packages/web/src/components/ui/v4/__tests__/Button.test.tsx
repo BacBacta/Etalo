@@ -7,9 +7,34 @@
  */
 import { createRef } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { useReducedMotion } from "motion/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ButtonV4 } from "@/components/ui/v4/Button";
+
+// J10-V5 Phase 5 polish residual Item 4 — useReducedMotion mocked at
+// the module boundary so we can flip its return value per-spec without
+// touching jsdom's matchMedia (which the hook reads internally and
+// which jsdom doesn't ship by default). Default mock returns false so
+// the existing specs continue exercising the standard motion path.
+vi.mock("motion/react", async () => {
+  const actual =
+    await vi.importActual<typeof import("motion/react")>("motion/react");
+  return {
+    ...actual,
+    useReducedMotion: vi.fn(),
+  };
+});
+
+const useReducedMotionMock = vi.mocked(useReducedMotion);
+
+beforeEach(() => {
+  useReducedMotionMock.mockReturnValue(false);
+});
+
+afterEach(() => {
+  useReducedMotionMock.mockReset();
+});
 
 describe("ButtonV4", () => {
   it("renders with default props (primary / md / pill)", () => {
@@ -157,5 +182,28 @@ describe("ButtonV4", () => {
     );
     const link = screen.getByRole("link", { name: "Open shop" });
     expect(link).not.toHaveAttribute("data-motion-active");
+  });
+
+  // J10-V5 Phase 5 polish residual Item 4 — prefers-reduced-motion
+  // gating. The data-reduced-motion attribute encodes the runtime
+  // decision so the motion suppression branch can be regression-
+  // guarded under jsdom. WCAG 2.1 SC 2.3.3.
+  describe("prefers-reduced-motion (Phase 5 polish residual Item 4)", () => {
+    it("omits data-reduced-motion when the user has standard motion", () => {
+      useReducedMotionMock.mockReturnValue(false);
+      render(<ButtonV4>tap me</ButtonV4>);
+      expect(screen.getByRole("button")).not.toHaveAttribute(
+        "data-reduced-motion",
+      );
+    });
+
+    it("sets data-reduced-motion='true' when the user prefers reduced motion", () => {
+      useReducedMotionMock.mockReturnValue(true);
+      render(<ButtonV4>tap me</ButtonV4>);
+      expect(screen.getByRole("button")).toHaveAttribute(
+        "data-reduced-motion",
+        "true",
+      );
+    });
   });
 });

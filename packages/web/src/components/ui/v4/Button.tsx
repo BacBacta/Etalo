@@ -1,7 +1,7 @@
 import { forwardRef, type ButtonHTMLAttributes, type ElementType } from "react";
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { m } from "motion/react";
+import { m, useReducedMotion } from "motion/react";
 
 import { cn } from "@/components/ui/v4/utils";
 
@@ -107,6 +107,14 @@ export const ButtonV4 = forwardRef<HTMLButtonElement, ButtonV4Props>(
   ) => {
     const isDisabled = disabled || loading;
     const motionActive = !asChild && !isDisabled;
+    // J10-V5 Phase 5 polish residual Item 4 — useReducedMotion gates
+    // the whileTap scale 0.98 + whileHover scale 1.01 spring. When the
+    // user has set `prefers-reduced-motion: reduce`, the visual flourish
+    // is suppressed but click/focus/hover semantics still work — only
+    // the transform animation is dropped. Mirrors the DialogV4 / SheetV4
+    // pattern from Phase 5 polish #5 + follow-up. WCAG 2.1 SC 2.3.3.
+    const shouldReduceMotion = useReducedMotion() ?? false;
+    const motionInteractive = motionActive && !shouldReduceMotion;
     // ElementType widens the prop check across the Slot / m.button union
     // so the shared attrs below (disabled, aria-busy, data-*) and the
     // motion-only props (whileTap / whileHover / transition) both pass
@@ -124,7 +132,8 @@ export const ButtonV4 = forwardRef<HTMLButtonElement, ButtonV4Props>(
         aria-busy={loading || undefined}
         data-loading={loading || undefined}
         data-motion-active={motionActive || undefined}
-        {...(motionActive
+        data-reduced-motion={shouldReduceMotion ? "true" : undefined}
+        {...(motionInteractive
           ? {
               whileTap: { scale: 0.98 },
               whileHover: { scale: 1.01 },
