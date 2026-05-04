@@ -1626,6 +1626,49 @@ If Lighthouse surfaces specific findings (LCP candidate not preloaded, render-bl
 
 **Sprint J10-V5 status** : **~99.5% wall-clock complete**. Phase 4 ✓ + Block 1-2 ✓ + 7 polish items ✓ + Angles A + D + C + E + F all done. Reste Angle B (UX feel use app) optional + Block 3 (Robinhood QA) + Pre-submission (Proof of Ship + grants Celo) selon Mike's call.
 
+#### Phase 5 Angle B Track 1 — UX feel code-level CLOSURE 2026-05-05 ✅ 3 commits + Track 2 pending
+
+Code-level UX audit Track 1 (Claude CLI native — typography / spacing / empty / loading / error states / copy / micro-interactions / mobile / color / affordances). Phase 1 read-only audit confirmed strong baseline (Phase 4-5 work paid off massivement) — only 5 findings actionable across 10 audit categories ; 12+ strong points confirmés. Track 2 (Mike use-app perceptual audit) pending pour catcher subjective UX patterns que grep ne voit pas.
+
+| Sub-block | Commit | Scope |
+|---|---|---|
+| B.1 | `05ad82d` | Empty states migration : marketplace inline plain-text + boutique legacy `EmptyState` → both migrated to `EmptyStateV5` (illustration + title + description). Legacy `components/EmptyState.tsx` deleted (zero remaining consumers). EmptyStateV5 prod consumers count : 5 → **7** (was OrdersTab + ProductsTab + MarketingTab + HomeMiniPay + OnboardingScreen ; +marketplace +boutique). |
+| B.2 | `ba2e71d` | Loading skeletons replace 3 plain-text fallbacks : `/checkout` LoadingShell mirrors real CheckoutFlow structure (h1 + 3 row + total + CTA), `MarketingTab > ProductPicker` SkeletonV5 form-select-shaped (h-11), `/marketplace` MiniPay detection branch reuses the same SkeletonV5 grid as the `query.isPending` branch (eliminates plain-text-flash cascade). |
+| B.4 | this commit | Sprint doc closure |
+
+**Pattern decisions locked Track 1** :
+
+1. **EmptyStateV5 systematic adoption** — 7 prod consumers post-migration (was 5). Pattern : illustration + title + description (+ optional CTA) replaces ad-hoc plain text. Legacy V4 `EmptyState` (10-line text-only) eliminated as dead code per CLAUDE.md "don't add backwards-compatibility shims when you can just change the code".
+2. **Loading skeletons mirror real layout structure** — extension du pattern Phase 5 polish #7 `DashboardSkeleton` (anti-flash, zero-layout-shift). Critical hot paths (checkout, marketplace) bénéficient autant que `/seller/dashboard`.
+3. **Code-level UX audit complement perceptual audit** — Track 1 (objective patterns : missing components, generic copy, hardcoded colors, dead code) + Track 2 (subjective : visual hierarchy, breathing, "Robinhood-grade" feel). Track 2 separate batch later.
+
+**Findings strong points confirmed** (12+ items audit Phase 1 documenté) :
+
+- ✓ CLAUDE.md compliance ZERO violations rule #4 ("gas", "on-ramp", "off-ramp", "crypto", raw 0x addresses) across full codebase — Phase 4-5 work paid off
+- ✓ Color tokens ZERO hardcoded `text-[#xxxxx]` / `bg-[#xxxxx]` — full Tailwind tokens systematic
+- ✓ Production button labels ALWAYS contextual ("Browse marketplace", "Open my boutique", "Delete product", "Mark shipped", "Confirm purchase", "Buy credits") — never generic Submit/OK/Cancel en production. Tests + `dev/components` showcase appropriately use generic.
+- ✓ Inline styles only 2 INTENTIONAL occurrences en code (root error boundary `global-error.tsx` doit survive CSS failure + opengraph edge runtime no Tailwind)
+- ✓ `EmptyStateV5` 7 prod consumers post Track 1 (was 5)
+- ✓ Micro-interactions widespread : 69 `hover:` + 30 `focus-visible:` occurrences
+- ✓ Truncation/line-clamp 15 strategic occurrences across 10 files (cards + tables)
+- ✓ `active:` CSS dropped Phase 2 in favor of motion `whileTap` (coherent design system decision avec Phase 5 polish reduced-motion gates)
+- ✓ Mobile responsive touch targets ≥44×44 systematic (hotfix #8 closed) + `overscroll-contain` marketplace + font 16px+ everywhere
+- ✓ Affordances : zero "secret" interactive divs (Angle E confirmed `<div onClick>` count = 0)
+- ✓ Typography + spacing : Tailwind utilities consistent (text-xs/sm/base/lg/xl/2xl, font-medium/semibold/bold, gap-3/4, space-y-4/6, p-4/6, px-4/6)
+- ✓ DialogV4 + SheetV4 inherit Radix primitive a11y (focus trap, ESC handling, `aria-modal`)
+
+**Métriques cumulées Track 1** :
+
+- Frontend tests : **298 PASS** conserved across 41 test files (no logic changes — pattern refactors)
+- tsc --noEmit : ✓ clean
+- Files touched : 6 cumulé (delete `EmptyState.tsx` + modify marketplace page + boutique page + checkout page + ProductPicker + sprint doc closure)
+- LOC delta : −10 dead code (legacy EmptyState) + ~60 refactor + 15 lines closure doc
+- Bundle delta : 0 strict (refactor à pattern unifié, légère réduction via dead-code delete)
+
+**Track 2 status** (Mike use-app perceptual audit) : **pending**. Mike runs perceptual audit en parallèle ou séquentiel sur 6 surfaces (`/`, `/marketplace`, `/[handle]`, `/[handle]/[slug]`, `/checkout` + cart drawer, `/seller/dashboard` 5 tabs) avec 7 categories per surface (first impression / hierarchy / spacing / touch / copy / states / micro-frictions). Findings forward → separate Phase 2 batch.
+
+**Sprint J10-V5 status** : **~99.7% wall-clock complete**. Phase 4 ✓ + Block 1-2 ✓ + 7 polish items ✓ + Angles A + D + C + E + F + B Track 1 done. Reste Angle B Track 2 (Mike perceptual) + Block 3 (Robinhood QA side-by-side) + Pre-submission (Proof of Ship + grants Celo) selon Mike call.
+
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
 **Scope narrative locked par ADR-041 (2026-04-30)** :
