@@ -90,10 +90,26 @@ export default function MarketplacePage() {
   };
 
   if (isMiniPay === null) {
+    // J10-V5 Phase 5 Angle B sub-block B.2 — share the SkeletonV5 grid
+    // shape with the query.isPending branch below so the user doesn't
+    // see a plain-text flash → skeleton flash → content cascade. The
+    // detection itself is ~50-100 ms but the visual continuity is what
+    // makes the perceived speed feel premium.
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-base text-neutral-600">Loading…</p>
-      </div>
+      <main
+        id="main"
+        className="min-h-screen"
+        data-testid="marketplace-detecting"
+      >
+        <div className="mx-auto max-w-3xl px-4 py-6">
+          <h1 className="mb-1 text-xl font-semibold">Marketplace</h1>
+          <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <SkeletonV5 key={i} variant="card" />
+            ))}
+          </div>
+        </div>
+      </main>
     );
   }
 
