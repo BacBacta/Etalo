@@ -1194,6 +1194,216 @@ hygiene complete. Ready for Phase 5 Block 2 (mobile gestures
 critiques : swipe-to-close cart drawer + pull-to-refresh
 marketplace) per Mike's call.
 
+#### Block 2 — CLOSURE 2026-05-04 ✅ COMPLET 5/5 sub-blocks
+
+**Status** : Mobile gestures critiques DELIVERED. Cart drawer
+now closes on a rightward swipe (100 px distance OR 500 px/s
+flick) with motion-driven spring snap-back when the threshold
+is missed ; marketplace refreshes on a downward pull (80 px
+past 0.5 resistance) when scrolled to the top, with an
+indicator that ramps in opacity, follows the finger, and
+rotates 180° at the threshold. Both gestures complement
+keyboard / screen-reader paths (ESC + backdrop + close button
+on the cart drawer ; visible Refresh button on the marketplace)
+— gestures are pure UX enhancement, never an a11y substitute.
+
+Bonus : the marketplace's data path was rebuilt around
+`useInfiniteQuery` (5th TanStack Query consumer in the
+codebase) so the same `query.refetch()` handler powers both
+the visible button and the gesture. The Refresh action no
+longer page-flushes on retry — the error fallback now invokes
+`query.refetch()` instead of `window.location.reload()`.
+
+**Sub-blocks livrés (4 commits sur `feat/design-system-v5`,
+plus this closure)** :
+
+| # | Scope | Commit |
+|---|---|---|
+| 2.1 | Foundation gesture infra — CartDrawer migration de base-ui Sheet vers SheetV4 (Radix + motion-tuned spring), nested LazyMotion features={domMax} validated en motion v12 strict mode (closest ancestor wins for `m.*` descendants) | `9f8cb2b` |
+| 2.2 | Swipe-to-close cart drawer — SheetV4Content extended to forward motion drag props (drag / dragConstraints / dragElastic / dragMomentum / dragSnapToOrigin / onDragStart / onDrag / onDragEnd) ; CartDrawer wires drag="x" + dragConstraints={{ left: 0 }} + dragSnapToOrigin + handleDragEnd ; pure helper `shouldCloseOnSwipe(info)` exported for testability | `8b2e3f1` |
+| 2.3a | MarketplacePage data fetching → useInfiniteQuery — drops 6 useState slots + 2 useEffects, new hook `src/hooks/useMarketplaceProducts.ts` with `MARKETPLACE_PRODUCTS_QUERY_KEY` constant, visible Refresh button (Phosphor ArrowsClockwise, 44×44 touch target, aria-label, animate-spin during refetch) MANDATORY a11y | `bb46014` |
+| 2.3b | Pull-to-refresh marketplace gesture — custom pointer handlers (onPointerDown / Move / Up) gated on `window.scrollY === 0`, CSS transitions for snap-back (motion overkill avoided pour économiser +8 KB bundle), helpers extracted to `src/app/marketplace/pull-to-refresh.ts` (Next.js page.tsx export restriction) | `fdd313b` |
+| 2.4 | Block 2 closure — sprint doc + this | `<this>` |
+
+**Métriques cumulées vs pre-Block-2 baseline (post-Block-1
+closure `c0ba058`)** :
+
+- Frontend tests : **247 → 266 PASS (+19 net)**, 33 → 36 test
+  files (4 specs `shouldCloseOnSwipe` + 5 hook specs +
+  10 page specs marketplace incl. 4 PTR + 3 threshold helper)
+- Backend tests : **120 PASS** (untouched, Block 2 is
+  frontend-only)
+- TypeScript `tsc --noEmit` : **clean**
+- ESLint warnings : **0**
+- `/seller/dashboard` route : 23.2 → **23.3 kB** (+0.1 kB,
+  chunk rebalancing rounding)
+- `/seller/dashboard` First Load JS : 263 → **264 kB**
+  (+1 kB, chunk rebalancing — route size unchanged)
+- `/marketplace` route : 8.23 → **9.27 kB** (+1.04 kB,
+  pull-to-refresh handlers + helpers + indicator JSX)
+- `/marketplace` First Load JS : 132 → **142 kB** (+10 kB,
+  TanStack `useInfiniteQuery` pagination infrastructure
+  bundled into the marketplace chunk — acceptable trade-off
+  for codebase consistency with 4 prior TanStack consumers)
+- `/[handle]/[slug]` First Load JS : 120 → **119 kB**
+  (−1 kB, bonus chunk dedup post base-ui Sheet drop)
+- `/dev/components` route : 13.6 → **12.8 kB** (−0.8 kB,
+  bonus chunk dedup)
+- All other routes : unchanged
+- **16 kB headroom under 280 kB strict trigger preserved** on
+  `/seller/dashboard`
+
+**Pattern decisions locked Block 2** :
+
+- **Cart drawer migration base-ui Sheet → SheetV4 (Radix
+  DialogPrimitive)** : focus trap + ESC + backdrop click +
+  role="dialog" + ARIA all preserved via the underlying Radix
+  primitive ; SheetV4 was already the V5 standard. Drop-in
+  shape preserved (props `open` + `onOpenChange` unchanged ;
+  PublicHeader.tsx call-site untouched).
+- **Nested `<LazyMotion features={domMax} strict>` works in
+  motion v12** : multiple LazyMotion ancestors are allowed,
+  closest wins for `m.*` descendants. The outer
+  `MotionProvider` (Providers.tsx) keeps `domAnimation` for
+  every page ; CartDrawer scopes `domMax` (drag features)
+  only when the drawer mounts. The +8 kB worst-case scenario
+  from the Phase 1 outline did not materialize — bundle
+  delta on /seller/dashboard stayed at +0.1 kB (drop of
+  base-ui Sheet imports compensated the motion domMax
+  incremental cost ; Radix Dialog was already bundled via
+  DialogV4 / SheetV4 elsewhere).
+- **SheetV4Content extends with motion drag forwarding** :
+  reusable for future SheetV4 surfaces that want swipe-to-
+  close (e.g. seller mobile filters, cart sub-views).
+  TypeScript : `Omit<DialogPrimitive.Content props, "onDrag"
+  | "onDragStart" | "onDragEnd">` to avoid collision between
+  React's native DragEvent handlers and motion's
+  PanInfo-based signatures.
+- **Pure threshold helpers exported for unit testing**
+  (`shouldCloseOnSwipe(info)` in CartDrawer ;
+  `shouldTriggerRefreshOnRelease(distance)` in
+  `app/marketplace/pull-to-refresh.ts`). jsdom can't simulate
+  motion's drag-event detection nor the full pointer-capture
+  sequence faithfully ; isolating the gesture decision logic
+  in a pure function gave 7 specs that exercise the only
+  surface that would actually regress in production. The
+  gesture flow itself is the library / browser's
+  responsibility — live MiniPay validation is the source of
+  truth.
+- **Pull-to-refresh state machine via plain CSS transitions
+  (no motion drag)** : the marketplace's PTR is a 3-state
+  machine (idle / pulling / released) that doesn't need
+  motion's drag prop. CSS `transition-[transform,opacity]
+  duration-300 ease-out` on release gives a spring-like snap
+  without paying the +8 kB bundle cost of wrapping
+  `<main>` in `LazyMotion(domMax)`. Live drag stays
+  transition-free (instant 1:1 finger tracking) — the class
+  is added only after pointerUp via `isReleased` state.
+- **Visible affordance is the a11y path** : every gesture in
+  Block 2 has a non-touch fallback that's keyboard /
+  screen-reader reachable. Cart drawer : ESC + backdrop +
+  close button (Radix DialogPrimitive built-ins). Marketplace
+  PTR : visible Refresh button at the page header
+  (`data-testid="marketplace-refresh"`,
+  `aria-label="Refresh marketplace products"`). Gesture
+  surfaces carry `aria-hidden="true"` so screen readers
+  ignore them.
+
+**Phase 5 polish items identifiés en route Block 2** :
+
+- `dev-ngrok.ps1` + autres dev scripts à promote vers inner
+  repo (manquant côté inner — discovery pendant Block 2
+  workflow). Defer Phase 5 polish items pass.
+- MiniPay WebView Android `overscroll-behavior: contain`
+  validation live — différée au handoff Mike. If the browser
+  PTR fires in parallel with the custom PTR (double-refresh
+  symptom), the CSS rule needs to move higher in the tree
+  or be paired with `touch-action: pan-y` on the pull
+  surface.
+- Cart drawer mobile responsive : SheetV4's default
+  `max-w-[400px]` was overridden to `max-w-none sm:max-w-md`
+  to preserve the original full-screen-on-mobile width.
+  Live MiniPay test will confirm the V5 styling
+  (`rounded-l-3xl`, `shadow-celo-lg`, `bg-celo-light` +
+  dark-mode variants) feels native ; if `border-neutral-200`
+  on the inner header / footer borders looks weak in dark
+  mode, swap to `border-celo-dark/[8%]` (cosmetic, not a
+  blocker).
+- `useMarketplaceProducts` is the 5th TanStack consumer with
+  the canonical `staleTime: 30_000` + `retry: 1` pattern.
+  When a 6th consumer surfaces, consider extracting the
+  defaults into a tiny `lib/query-defaults.ts` shared object.
+
+**Hand-off Mike for live MiniPay validation Block 2 gestures** :
+
+1. Restart dev server from canonical inner repo (hotfix #9 +
+   #10 banners confirm placement) :
+   ```powershell
+   cd C:\Users\Oxfam\projects\etalo\Etalo\packages\backend
+   .\venv\Scripts\Activate.ps1
+   python scripts\run_dev.py
+   # In another terminal :
+   cd C:\Users\Oxfam\projects\etalo\Etalo\packages\web
+   npm run dev
+   ```
+2. Open MiniPay on phone via `chrome://inspect/#devices` to
+   the ngrok tunnel.
+
+3. **Cart drawer swipe-to-close** :
+   - Click the cart icon in PublicHeader → drawer slides in
+     from the right with the SheetV4 spring (stiffness 350,
+     damping 30) ; rounded-left corner, dark-mode-aware.
+   - Swipe the drawer rightward ~150 px → drawer animates
+     out and closes. Threshold is 100 px OR 500 px/s flick ;
+     either condition met fires close.
+   - Re-open the cart, perform a short swipe ~50 px → the
+     drawer should rubber-band slightly (dragElastic 0.2)
+     then snap back to its resting position via
+     `dragSnapToOrigin`. No close.
+   - Re-open the cart, press ESC on the keyboard (or click
+     the X close button) → drawer closes. Backdrop click
+     also closes (a11y paths intact, Radix DialogPrimitive).
+
+4. **Marketplace pull-to-refresh** :
+   - Navigate to `/marketplace`. Confirm the visible Refresh
+     button (ArrowsClockwise icon, top-right of "Marketplace"
+     heading) is present.
+   - Scroll to the top (scrollY === 0). Drag downward ~200 px
+     → indicator fades in (opacity ramps 0 → 1 across
+     [0, 80 px]) and translates with the finger. Past
+     threshold the icon rotates 180° as the "release to
+     refresh" cue.
+   - Release past threshold → indicator + content snap back
+     in 300 ms ease-out, refetch fires, icon spins via
+     `animate-spin` until the refetch resolves.
+   - Re-test below threshold : drag ~50 px → release →
+     snap back, no refetch fired.
+   - Scroll past the top (scrollY > 0). Drag downward → no
+     pull initiated, normal scroll only. The gesture state
+     machine never enters `isPulling`.
+   - Test the visible Refresh button click (a11y path) →
+     spinner + grid refresh, button disabled during refetch.
+
+5. **Mobile responsive 360-414 px** : confirm no horizontal
+   overflow reintroduced (Block 2 doesn't change layout but
+   the SheetV4 width override needs visual confirmation).
+
+6. **CSS `overscroll-behavior: contain` validation** : during
+   the marketplace pull, watch for the Android Chrome /
+   WebView native pull-to-refresh icon at the top of the
+   browser chrome. It should NOT fire ; the custom indicator
+   should be the only visual feedback. If you see both, we
+   need to escalate the `overscroll-contain` placement or
+   add `touch-action: pan-y`.
+
+**Sign-off Block 2** : DELIVERED 5/5 sub-blocks. 5 commits
+on `feat/design-system-v5`. Mobile gestures critiques
+shipped with full a11y complement (visible affordance =
+keyboard / SR path on every gesture surface). Tests
+247 → 266 PASS, 16 kB headroom preserved on
+/seller/dashboard. Ready for Phase 5 Block 3 (Robinhood
+QA pass side-by-side comparison) per Mike's call.
+
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
 **Scope narrative locked par ADR-041 (2026-04-30)** :

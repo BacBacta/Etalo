@@ -150,6 +150,7 @@ Phase closures :
   `docs/PHASE_4_LESSONS_LEARNED.md`.
 
 **Phase 5 (Polish + Submission) IN PROGRESS depuis 2026-05-03**.
+
 Block 1 (Tabular nums systematic application + bonus dates
 locale-pin sweep) ✓ done 2026-05-03 — 6 sub-blocks, 6 commits,
 ~25 sites touched across dashboard + cart + checkout + boutique +
@@ -159,12 +160,28 @@ both pinned en-US UTC), 243 PASS conserved, /seller/dashboard
 preserved. Closure section in `docs/SPRINT_J10_V5.md` Phase 5
 Block 1.
 
-Phase 5 Blocks restants : mobile gestures critiques (swipe-cart,
-pull-to-refresh marketplace), side-by-side Robinhood QA pass,
+**Block 2 (Mobile gestures critiques) ✓ done 2026-05-04** —
+5 sub-blocks, 5 commits. Cart drawer swipe-to-close
+(SheetV4 migration + nested LazyMotion features={domMax} +
+m.div drag="x" + threshold helper `shouldCloseOnSwipe` 100 px
+OR 500 px/s) + marketplace pull-to-refresh (custom pointer
+handlers + CSS transitions, motion drag overkill avoided ;
+gating sur `window.scrollY === 0` ; threshold 80 px ;
+overscroll-contain blocks native Android Chrome PTR conflict)
++ marketplace data path refactored to `useInfiniteQuery`
+(5e consumer TanStack Query) + visible Refresh button
+mandatory a11y. 247 → 266 PASS (+19), /seller/dashboard
+23.2 → 23.3 kB route / 263 → 264 kB First Load,
+/marketplace 8.23 → 9.27 kB route / 132 → 142 kB First Load
+(TanStack pagination infra acceptable trade-off), 16 kB
+headroom préservé. Closure section in
+`docs/SPRINT_J10_V5.md` Phase 5 Block 2.
+
+Phase 5 Blocks restants : side-by-side Robinhood QA pass,
 polish details, demo video 3 min, Karma GAP profile + Farcaster
 post + repo README polish, grants Celo Foundation submission, tag
 final `v2.0.0-design-system-v5-sepolia`. Liste complete + plan
-Block 2-9 dans `docs/SPRINT_J10_V5.md`.
+Block 3-9 dans `docs/SPRINT_J10_V5.md`.
 
 When user says "start Phase 5 Block N" or "continue Block X", read
 that block in `docs/SPRINT_J10_V5.md` and execute.
