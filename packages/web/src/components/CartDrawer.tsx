@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import {
   SheetV4,
   SheetV4Content,
+  SheetV4Description,
   SheetV4Title,
 } from "@/components/ui/v4/Sheet";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
@@ -161,6 +162,9 @@ export function CartDrawer({ open, onOpenChange }: Props) {
             <SheetV4Title className="text-lg">
               {itemCount > 0 ? `Your cart (${itemCount})` : "Your cart"}
             </SheetV4Title>
+            <SheetV4Description className="sr-only">
+              Review the items in your cart and proceed to checkout.
+            </SheetV4Description>
           </div>
 
           {sellerCount === 0 ? (

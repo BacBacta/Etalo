@@ -123,7 +123,7 @@ export default function ChartLineV5Inner({
         fontVariantNumeric: "tabular-nums",
       }}
     >
-      <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
+      <ResponsiveContainer width="100%" height={height} minWidth={0} minHeight={0}>
         <LineChart data={data} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
           {showGrid && (
             <CartesianGrid
