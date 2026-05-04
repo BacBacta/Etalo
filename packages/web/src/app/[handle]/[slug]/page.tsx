@@ -133,6 +133,7 @@ export default async function ProductPage({ params }: PageProps) {
               alt=""
               width={40}
               height={40}
+              sizes="40px"
               className="h-10 w-10 rounded-full object-cover"
             />
           ) : (
@@ -155,6 +156,7 @@ export default async function ProductPage({ params }: PageProps) {
               alt={product.title}
               width={800}
               height={800}
+              sizes="(max-width: 640px) 100vw, 800px"
               className="w-full object-cover"
             />
           </div>
