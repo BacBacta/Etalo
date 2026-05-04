@@ -1,5 +1,6 @@
 from datetime import date
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -22,8 +23,14 @@ class EscrowBlock(BaseModel):
 
 
 class ReputationBlock(BaseModel):
+    # J10-V5 Phase 5 Angle C sub-block C.1 — badge tightened from plain
+    # `str` (with enum hint in comment only) to a Pydantic Literal that
+    # emits OpenAPI enum metadata + validates at the response boundary.
+    # "top_seller" was dropped per ADR-041 (Top Seller program deferred
+    # V1.1 ; analytics router never set this value at runtime, so safe
+    # drop without a data migration).
     score: int
-    badge: str  # "new_seller" | "top_seller" | "active" | "suspended"
+    badge: Literal["new_seller", "active", "suspended"]
     auto_release_days: int
 
 

@@ -45,13 +45,12 @@ def _wallet() -> str:
     return ("0x" + uuid.uuid4().hex).ljust(42, "0").lower()
 
 
-# Allowed values per the current ReputationBlock schema. "top_seller" is
-# still in the enum until the backend ADR-041 sweep PR lands; this set
-# pins the current-state contract so the frontend (5.3) can branch on
-# it deterministically. TODO sub-block 5.4 (frontend filter): collapse
-# "top_seller" -> "active" with a one-line shim until the backend PR
-# drops the enum value.
-ALLOWED_BADGES = {"new_seller", "top_seller", "active", "suspended"}
+# Allowed values per the ReputationBlock schema. "top_seller" was dropped
+# in Phase 5 Angle C sub-block C.1 (Top Seller program deferred V1.1 per
+# ADR-041 ; analytics router never set the value at runtime, so the
+# enum tightening to Literal["new_seller", "active", "suspended"] is
+# safe without a data migration).
+ALLOWED_BADGES = {"new_seller", "active", "suspended"}
 
 
 # ============================================================
@@ -256,11 +255,11 @@ async def test_analytics_summary_decimal_serialization(
 
 @pytest.mark.asyncio
 async def test_analytics_summary_badge_enum(client: AsyncClient):
-    """Defensive contract pin on the ReputationBlock.badge enum. The
-    current schema still includes "top_seller" — the frontend filters
-    that value out per ADR-041 (V1.1 deferral). When the backend
-    ADR-041 sweep PR drops "top_seller" from the enum, drop it from
-    ALLOWED_BADGES here too.
+    """Contract pin on the ReputationBlock.badge enum. Post-Phase 5
+    Angle C sub-block C.1 the badge field is a Pydantic Literal of
+    {"new_seller", "active", "suspended"} (Top Seller deferred V1.1 per
+    ADR-041). Any drift from this set means the schema or the router's
+    badge computation needs investigation.
     """
     fresh_wallet = _wallet()
     resp = await client.get(
