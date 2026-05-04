@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { BoutiqueHeader } from "@/components/BoutiqueHeader";
-import { EmptyState } from "@/components/EmptyState";
 import { ProductGrid } from "@/components/ProductGrid";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { fetchPublicBoutique } from "@/lib/api";
 
 interface Props {
@@ -96,7 +96,11 @@ export default async function BoutiquePage({ params }: Props) {
       <main id="main" className="min-h-screen">
         <BoutiqueHeader seller={data.seller} />
         {data.products.length === 0 ? (
-          <EmptyState />
+          <EmptyStateV5
+            illustration="no-products"
+            title="No products yet"
+            description="This shop hasn't added any products yet. Check back soon."
+          />
         ) : (
           <ProductGrid
             products={data.products}

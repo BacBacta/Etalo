@@ -12,6 +12,7 @@ import {
 } from "@/app/marketplace/pull-to-refresh";
 import { MarketplaceGrid } from "@/components/MarketplaceGrid";
 import { Button } from "@/components/ui/button";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useMarketplaceProducts } from "@/hooks/useMarketplaceProducts";
 import { detectMiniPay } from "@/lib/minipay-detect";
@@ -134,14 +135,16 @@ export default function MarketplacePage() {
 
   if (products.length === 0) {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="max-w-md text-center">
-          <h2 className="mb-3 text-xl font-semibold">No products yet</h2>
-          <p className="text-base text-neutral-700">
-            Etalo&apos;s marketplace is just getting started. Check back soon!
-          </p>
-        </div>
-      </div>
+      <main
+        id="main"
+        className="flex min-h-screen items-center justify-center p-4"
+      >
+        <EmptyStateV5
+          illustration="no-products"
+          title="No products yet"
+          description="Etalo's marketplace is just getting started. Check back soon!"
+        />
+      </main>
     );
   }
 
