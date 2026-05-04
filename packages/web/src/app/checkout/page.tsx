@@ -1,10 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
 import { CheckoutFlow } from "@/components/CheckoutFlow";
-import { OpenInMiniPayModal } from "@/components/OpenInMiniPayModal";
 import {
   CartTokenExpiredError,
   CartTokenInvalidError,
@@ -12,6 +12,22 @@ import {
   type ResolvedCart,
 } from "@/lib/checkout";
 import { detectMiniPay } from "@/lib/minipay-detect";
+
+// J10-V5 Phase 5 Angle F sub-block F.2 — OpenInMiniPayModal imports
+// qrcode.react (~10-15 KB) used ONLY for non-MiniPay browsers (cold
+// path — most users come from MiniPay WebView and skip directly to
+// CheckoutFlow). Dynamic-load the modal so the qrcode.react chunk
+// stays out of the /checkout main bundle for the dominant MiniPay
+// path. Mirror sub-block 6.3 MilestoneDialogV5 lazy pattern (commit
+// 3872411). loading: () => null because the modal is conditionally
+// rendered, no fallback shape needed during the chunk fetch window.
+const OpenInMiniPayModal = dynamic(
+  () =>
+    import("@/components/OpenInMiniPayModal").then(
+      (mod) => mod.OpenInMiniPayModal,
+    ),
+  { ssr: false, loading: () => null },
+);
 
 function LoadingShell() {
   return (
