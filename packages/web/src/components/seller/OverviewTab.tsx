@@ -13,10 +13,10 @@ import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { formatChartDate, formatRowDate } from "@/lib/format";
 import {
   fetchSellerOrders,
-  formatRawUsdt,
   type SellerOrdersPage,
   type SellerProfilePublic,
 } from "@/lib/seller-api";
+import { displayUsdtFromHumanNumber, formatRawUsdt } from "@/lib/usdt";
 
 // Block 5 sub-block 5.6 — IPFS gateway constant. Mirrors the local
 // constant in ImageUploader.tsx (the only other current consumer) ;
@@ -38,25 +38,14 @@ interface Props {
   address: string;
 }
 
-// Block 5 sub-block 5.4 — local formatter rather than a new export
-// to lib/usdt.ts. `displayUsdt` there takes bigint (raw 6-decimal
-// units); the analytics hook (5.3) already parseFloat'd the backend
-// Decimal strings into plain numbers, so the input here is human-
-// scale. Sub-blocks 5.5 (chart tooltip) / 5.6 (top products) will
-// decide whether to promote this to a shared helper.
+// J10-V5 Phase 5 polish residual Item 1 — local `displayUsdtNumber`
+// promoted to lib/usdt.ts as `displayUsdtFromHumanNumber` (3rd consumer
+// trigger fired with Top products section + KPI tiles + Recent orders
+// + sub-block 5.4 forecast). The lib/usdt.ts module is now the
+// canonical home for all 4 USDT formatters with explicit names that
+// disambiguate the 3 different input types (bigint / Decimal-string /
+// human-scale number) plus the layout-aligned raw formatter.
 //
-// Locale pinned to "en-US" so the decimal separator stays "." and
-// thousands stays "," regardless of the user's system locale. The 4
-// V1 markets (NG / GH / KE / ZA) all default English on MiniPay
-// devices and CLAUDE.md mandates English in code/UI ; pinning here
-// also keeps Vitest snapshots locale-independent across CI runners.
-function displayUsdtNumber(amount: number): string {
-  return `${amount.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} USDT`;
-}
-
 // Block 5 sub-block 5.5 introduced `formatChartDate` locally here ;
 // Phase 5 Block 1 sub-block 1.5 promoted it to lib/format.ts when
 // `formatRowDate` joined as a 2nd locale-pinned date consumer
@@ -93,7 +82,7 @@ export function OverviewTab({ address }: Props) {
           label="Revenue 24h"
           value={
             analytics.data
-              ? displayUsdtNumber(analytics.data.revenue.h24)
+              ? displayUsdtFromHumanNumber(analytics.data.revenue.h24)
               : null
           }
           loading={analytics.isPending}
@@ -103,7 +92,7 @@ export function OverviewTab({ address }: Props) {
           label="Revenue 7d"
           value={
             analytics.data
-              ? displayUsdtNumber(analytics.data.revenue.d7)
+              ? displayUsdtFromHumanNumber(analytics.data.revenue.d7)
               : null
           }
           loading={analytics.isPending}
@@ -121,12 +110,12 @@ export function OverviewTab({ address }: Props) {
           label="In escrow"
           value={
             analytics.data
-              ? displayUsdtNumber(analytics.data.escrow.in_escrow)
+              ? displayUsdtFromHumanNumber(analytics.data.escrow.in_escrow)
               : null
           }
           subText={
             analytics.data
-              ? `Released: ${displayUsdtNumber(analytics.data.escrow.released)}`
+              ? `Released: ${displayUsdtFromHumanNumber(analytics.data.escrow.released)}`
               : undefined
           }
           loading={analytics.isPending}
@@ -355,7 +344,7 @@ function TopProductRow({ product }: TopProductRowProps) {
         {product.title}
       </p>
       <p className="shrink-0 text-sm font-semibold tabular-nums">
-        {displayUsdtNumber(product.revenue_usdt)}
+        {displayUsdtFromHumanNumber(product.revenue_usdt)}
       </p>
     </li>
   );

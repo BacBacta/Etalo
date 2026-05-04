@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 
-import { displayUsdt, fetchPublicProduct } from "@/lib/api";
+import { fetchPublicProduct } from "@/lib/api";
+import { displayUsdtFromDecimalString } from "@/lib/usdt";
 
 export const runtime = "edge";
 export const alt = "Etalo Product";
@@ -27,7 +28,7 @@ export default async function ProductOgImage({ params }: Params) {
   const product = await fetchPublicProduct(handle, slug).catch(() => null);
 
   const title = product?.title ?? "Etalo Product";
-  const price = product ? displayUsdt(product.price_usdt) : "";
+  const price = product ? displayUsdtFromDecimalString(product.price_usdt) : "";
   const shopName = product?.seller.shop_name ?? "Etalo";
   const displayHandle = product?.seller.shop_handle ?? handle;
   const productImage = product?.image_urls[0];

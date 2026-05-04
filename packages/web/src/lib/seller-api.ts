@@ -120,13 +120,9 @@ export async function updateSellerProfile(
   return (await res.json()) as SellerProfilePublic;
 }
 
-// Convert raw 6-decimal USDT amount (BigInteger storage, e.g. 12_990_000)
-// into a "12.99" display string. The backend's SellerOrderItem returns
-// total_amount_usdt as a number — safe up to 9_007 USD because of JS
-// Number.MAX_SAFE_INTEGER, fine for V1 caps (MAX_ORDER = 500 USDT).
-export function formatRawUsdt(rawAmount: number): string {
-  return (rawAmount / 1_000_000).toFixed(2);
-}
+// J10-V5 Phase 5 polish residual Item 1 — `formatRawUsdt` moved to
+// lib/usdt.ts as part of the consolidated USDT formatter API. Direct
+// consumers (OrdersTab, OverviewTab) updated to import from lib/usdt.ts.
 
 // === Product CRUD (ADR-036, X-Wallet-Address) ===
 export async function createProduct(

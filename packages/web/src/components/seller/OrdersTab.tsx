@@ -13,9 +13,9 @@ import { fireMilestone } from "@/lib/confetti/milestones";
 import { formatRowDate } from "@/lib/format";
 import {
   fetchSellerOrders,
-  formatRawUsdt,
   type SellerOrdersPage,
 } from "@/lib/seller-api";
+import { formatRawUsdt } from "@/lib/usdt";
 
 // Block 6 sub-block 6.3 — MilestoneDialogV5 imported dynamically with
 // ssr:false. The dialog is shown at most once per seller-wallet

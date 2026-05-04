@@ -4,7 +4,8 @@ import { notFound, permanentRedirect } from "next/navigation";
 
 import { ProductAddToCartButton } from "@/components/ProductAddToCartButton";
 import { ShareButtons } from "@/components/ShareButtons";
-import { displayUsdt, fetchPublicProduct } from "@/lib/api";
+import { fetchPublicProduct } from "@/lib/api";
+import { displayUsdtFromDecimalString } from "@/lib/usdt";
 
 interface PageProps {
   params: { handle: string; slug: string };
@@ -52,7 +53,7 @@ export async function generateMetadata({
   const primaryImage = product.image_urls[0];
   const description =
     product.description?.slice(0, 160) ??
-    `${displayUsdt(product.price_usdt)} — ships from ${
+    `${displayUsdtFromDecimalString(product.price_usdt)} — ships from ${
       product.seller.country ?? "Africa"
     }`;
 
@@ -164,7 +165,7 @@ export default async function ProductPage({ params }: PageProps) {
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold">{product.title}</h1>
           <p className="text-2xl font-semibold">
-            {displayUsdt(product.price_usdt)}
+            {displayUsdtFromDecimalString(product.price_usdt)}
           </p>
           {outOfStock ? (
             <p className="text-sm text-red-600">Out of stock.</p>
