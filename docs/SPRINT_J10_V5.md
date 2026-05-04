@@ -1499,7 +1499,62 @@ Backend tightening (Literal + Settings) + frontend defensive shim cleanup, compl
 
 **Mike action post-merge** : run `pnpm gen:api` au next backend session (require backend up via `etalo-dev-all.ps1`) to regenerate `packages/web/src/types/api.gen.ts` with the new `badge: Literal["new_seller" | "active" | "suspended"]` type. Once regen, the `as AnalyticsBadge` cast in `useAnalyticsSummary.ts` becomes type-safe automatic (since `api.gen.ts` now narrows to the same Literal).
 
-**Sprint J10-V5 status** : ~98% wall-clock complete. Phase 5 Angle A residual + Angle D DX polish + Angle C ADR-041 sweep all closed. Phase 5 Block 3 (Robinhood QA) + Block 4 (polish details pass) + Proof of Ship + grants pre-submission are the remaining Phase 5 deliverables — Mike's call on next angle (E a11y deep audit / F performance / B UX feel / pause).
+#### Phase 5 Angle E — A11y deep audit CLOSURE 2026-05-04 ✅ 4/4 sub-blocks shipped
+
+Code-level a11y audit covering semantic HTML, ARIA, alt text, form labels, focus management, keyboard navigation, color contrast tokens, touch targets. Phase 1 read-only audit confirmed a strong baseline (Phase 4-5 a11y work paid off — only 3 actionable findings) ; Phase 2 batch closed all 3 with code fixes + tests.
+
+| Sub-block | Commit | Scope |
+|---|---|---|
+| E.1.a | `d5fa071` | Skip link `<SkipLink>` component + `id="main"` on 9 page-level `<main>` elements (HomeLanding, HomeMiniPay, marketplace loading + active branches, [handle] boutique, [handle]/[slug] product, seller/dashboard SellerDashboardInner + StatusShell + DashboardSkeleton, checkout LoadingShell + error + CheckoutFlow). WCAG 2.4.1 Bypass Blocks (Level A). |
+| E.1.b | `9ca6557` | `FormField` helper refactored to use `useId` + `cloneElement` for label↔input association. WCAG 1.3.1 + 3.3.2 (Level A). 5 ProductFormDialog inputs benefit (Title / Slug / Description / Price / Stock). |
+| E.2 | `642097b` | Button groups use `role="group"` + `aria-labelledby` pattern. WCAG 1.3.1 (Level A). 2 surfaces : MarketingTab caption language toggle + TemplateSelector 6-button grid. |
+| E.3 | this commit | Sprint doc closure |
+
+**Pattern decisions locked Angle E** :
+
+1. **Skip link sr-only focus:not-sr-only** — invisible default keeps the Robinhood-target visual minimalism, the `focus:not-sr-only` + visual focus styling reveals the affordance only for the user who needs it (Tab activation). z-50 lifts above sticky `<PublicHeader>`. Extracted as a `SkipLink` component for testability — `RootLayout`'s `<html>`/`<body>` are awkward to mount in jsdom, so a dedicated component keeps the Vitest contract pin local without heavy renderToStaticMarkup workarounds.
+2. **FormField useId + cloneElement** — React 18+ `useId` idiomatic, generates a unique id at render time, `cloneElement` injects it onto the single child element so call-sites stay flexible (input / textarea / custom components — anything accepting `id` prop). Caller-supplied `id` on the child takes precedence (`childIdProp ?? generatedId`), preserving consumer flexibility. FormField exported from ProductFormDialog for unit-test reach.
+3. **Button group role="group" + aria-labelledby** — lower-cost than `<fieldset><legend>` which would have broken the existing `space-y-2` + `flex` / `grid` layouts without a `display: contents` workaround. The visible label survives styling-wise as a `<span>` with the same Tailwind classes ; the semantic gain comes from the wrapper `role="group"` + `aria-labelledby` linking it to the buttons.
+
+**Métriques cumulées Angle E** :
+
+- Frontend tests : 294 → **298 PASS** (+4 specs : SkipLink presence + sr-only default + FormField label↔input association + TemplateSelector group accessible name)
+- Frontend test files : 38 → **41** (+3 new : SkipLink.test.tsx, ProductFormDialog.test.tsx, TemplateSelector.test.tsx)
+- Bundle delta : 0 strict (a11y attribute additions only — no logic, no new dependencies)
+- Files touched : 14 cumulé (new : SkipLink component + 3 test files ; modified : layout, 9 page-level components for `id="main"`, ProductFormDialog FormField, MarketingTab + TemplateSelector group wrappers)
+- WCAG Level A compliance gaps closed : 2.4.1 Bypass Blocks + 1.3.1 Info Relationships + 3.3.2 Labels or Instructions
+- LOC delta cumulé : +205 / −22 (net +183, mostly tests + new SkipLink component + JSDoc-style comments)
+
+**Strong points confirmed by audit** (no findings on these — Phase 4-5 work paid off) :
+
+- All `<img>` + `<Image>` have alt props (decorative `alt=""`, informative descriptive)
+- Zero `<div onClick>` anti-pattern — every interactive element is `<button>` or proper anchor
+- Touch targets ≥ 44×44 pervasive (`min-h-[44px]`, `h-11 w-11`) including icon-only buttons
+- `aria-label` on icon-only buttons systematic (10+ instances)
+- `<html lang="en">` declared, body text 16px+ minimum
+- `focus-visible:` applied across interactive elements (43 occurrences in 21 files)
+- `aria-hidden="true"` on decorative icons (21 instances)
+- `aria-pressed` on toggle buttons
+- Semantic HTML : `<main>`, `<section>`, `<header>`, `<nav>`, `<footer>` (28 occurrences across 13 files)
+- DialogV4 + SheetV4 inherit Radix primitive a11y (focus trap, ESC handling, `aria-modal`)
+- `useReducedMotion` gates on ALL V5 motion surfaces (Phase 5 polish #5 + Item 4 closed)
+- DialogV4Description / SheetV4Description handled (Phase 5 Item D fix, commit `f1c5c88`)
+
+**Mike parallèle action** : run Lighthouse + axe DevTools browser audit on 6 surfaces (Option A from Phase 1 audit) to surface findings code-level audit can't catch :
+
+- Color contrast violations (4.5:1 body / 3:1 large) on celo-forest theme
+- Mobile WebView (MiniPay) specific issues that desktop Chrome doesn't reproduce
+- Tab order natural / unexpected reflows during route transitions
+
+If findings surface, separate Phase 2 commit batch can address them.
+
+**V1.5+ a11y backlog** :
+
+- Screen reader manual testing (NVDA / VoiceOver) — JSDom can't simulate
+- Lighthouse CI integration via `@axe-core/cli` + 4th job in `ci.yml`
+- Translated content review (i18n placeholder in current labels)
+
+**Sprint J10-V5 status** : **~99% wall-clock complete**. Phase 4 ✓ + Block 1-2 ✓ + 7 polish items ✓ + Angle A residual ✓ + Angle D DX polish ✓ + Angle C ADR-041 sweep ✓ + Angle E a11y deep audit ✓. Reste : Phase 5 Block 3 (Robinhood QA side-by-side comparison) + Block 4 (polish details pass) + Angle F (performance) + Angle B (UX feel) + Proof of Ship + grants pre-submission — Mike's call on next angle or pause.
 
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
