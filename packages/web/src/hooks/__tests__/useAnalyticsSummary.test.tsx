@@ -2,16 +2,17 @@
  * Vitest specs for useAnalyticsSummary (J10-V5 Phase 4 Block 5
  * sub-block 5.3).
  *
- * Two responsibilities under test :
+ * Single responsibility under test post Phase 5 Angle C sub-block C.3
+ * (ADR-041 defensive shim removed, backend Literal enum is now the
+ * source of truth) :
  *   - Decimal-as-JSON-string → number conversion across every monetary
  *     field on AnalyticsSummary (revenue h24/d7/d30, timeline_7d
  *     entries, escrow in_escrow/released, top_products revenue_usdt).
- *   - ADR-041 defensive shim collapsing badge "top_seller" → "active"
- *     while letting the other 3 enum values pass through verbatim.
  *
  * Plus the standard TanStack Query gating + error propagation contract
  * (queryFn is suppressed until walletAddress is defined; thrown
- * fetchAnalyticsSummary errors land on `error` / `isError`).
+ * fetchAnalyticsSummary errors land on `error` / `isError`) and a
+ * passthrough sanity check for the 3 backend Literal badge values.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -210,33 +211,32 @@ describe("useAnalyticsSummary — Decimal selector", () => {
   });
 });
 
-describe("useAnalyticsSummary — ADR-041 badge filter", () => {
+describe("useAnalyticsSummary — badge passthrough (Phase 5 Angle C)", () => {
+  // Post-shim removal : the 3 backend Literal values pass through
+  // verbatim. If a future drift adds a new value or reintroduces
+  // "top_seller", this it.each block will catch it because the cast in
+  // parseAnalyticsSummary is the only remaining transform.
   it.each([
-    ["new_seller", "new_seller"],
-    ["active", "active"],
-    ["suspended", "suspended"],
-    // The shim — only "top_seller" is rewritten.
-    ["top_seller", "active"],
-  ])(
-    "badge '%s' from backend → '%s' after the ADR-041 shim",
-    async (input, expected) => {
-      fetchAnalyticsSummaryMock.mockResolvedValue(
-        makeRawSummary({
-          reputation: {
-            score: 0,
-            badge: input,
-            auto_release_days: 3,
-          },
-        }),
-      );
-      const { result } = renderHook(
-        () => useAnalyticsSummary(SAMPLE_WALLET),
-        { wrapper: makeWrapper() },
-      );
-      await waitFor(() => expect(result.current.isSuccess).toBe(true));
-      expect(result.current.data!.reputation.badge).toBe(expected);
-    },
-  );
+    ["new_seller"],
+    ["active"],
+    ["suspended"],
+  ])("badge '%s' from backend passes through unchanged", async (input) => {
+    fetchAnalyticsSummaryMock.mockResolvedValue(
+      makeRawSummary({
+        reputation: {
+          score: 0,
+          badge: input,
+          auto_release_days: 3,
+        },
+      }),
+    );
+    const { result } = renderHook(
+      () => useAnalyticsSummary(SAMPLE_WALLET),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data!.reputation.badge).toBe(input);
+  });
 });
 
 describe("useAnalyticsSummary — error propagation", () => {

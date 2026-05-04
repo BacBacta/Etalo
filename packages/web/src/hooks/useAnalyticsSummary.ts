@@ -2,22 +2,13 @@
  * useAnalyticsSummary — TanStack Query hook over GET /analytics/summary
  * (J10-V5 Phase 4 Block 5 sub-block 5.3).
  *
- * Two responsibilities, both centralised here so every consumer (KPI
- * tiles in 5.4, ChartLineV5 in 5.5, top-products in 5.6) gets the same
- * shape:
- *   1. Decimal-as-JSON-string → number conversion. The backend ships
- *      every monetary field as a JSON string (FastAPI's default
- *      Decimal serialisation, contract-pinned by the e2e tests in
- *      sub-block 5.2a) so amounts > 2^53 / 10^6 USDT can't lose
- *      precision in transit. The selector parseFloat's them once at
- *      the boundary so chart libs and tabular-num formatters never
- *      see strings.
- *   2. Defensive ADR-041 badge filter. The schema's badge enum still
- *      includes "top_seller", which V1 doesn't surface (Top Seller
- *      program deferred V1.1 per ADR-041). Until the backend ADR-041
- *      sweep PR drops the literal, this hook collapses "top_seller"
- *      to "active" so consumers can branch on a 3-value union.
- *      TODO drop the filter when the backend enum drops the value.
+ * Single responsibility post Phase 5 Angle C sub-block C.3 (defensive
+ * shim removed) : Decimal-as-JSON-string → number conversion. The
+ * backend ships every monetary field as a JSON string (FastAPI's
+ * default Decimal serialisation, contract-pinned by the e2e tests in
+ * sub-block 5.2a) so amounts > 2^53 / 10^6 USDT can't lose precision
+ * in transit. The selector parseFloat's them once at the boundary so
+ * chart libs and tabular-num formatters never see strings.
  *
  * Pattern matches useOrderInitiate : queryKey scoped on the wallet
  * address, `enabled: Boolean(walletAddress)` gate so the query never
@@ -33,11 +24,12 @@ import {
   type AnalyticsSummary,
 } from "@/lib/analytics-api";
 
-// V1-allowed badge values after the ADR-041 shim collapses
-// "top_seller" → "active". Consumers can branch exhaustively on this
-// union; if the backend later adds new values to the schema, the
-// `select` callback below falls through them as-is and TypeScript will
-// flag the consumer that needs to handle the new case.
+// V1 badge values per the backend Literal enum (ADR-041 V1.1 deferred
+// "top_seller" — backend Phase 5 Angle C sub-block C.1 dropped the
+// value from the schema). Consumers can branch exhaustively on this
+// union ; api.gen.ts will narrow `badge` to the same Literal post the
+// next `pnpm gen:api` regen, making the cast at the boundary
+// type-safe automatic.
 export type AnalyticsBadge = "new_seller" | "active" | "suspended";
 
 export interface AnalyticsSummaryParsed {
@@ -65,14 +57,11 @@ export interface AnalyticsSummaryParsed {
 export function parseAnalyticsSummary(
   raw: AnalyticsSummary,
 ): AnalyticsSummaryParsed {
-  // ADR-041 defensive shim — drop when backend ADR-041 sweep PR
-  // removes "top_seller" from the badge enum (sub-block 5.2a's
-  // contract test ALLOWED_BADGES set carries the same TODO).
-  const badge: AnalyticsBadge =
-    raw.reputation.badge === "top_seller"
-      ? "active"
-      : (raw.reputation.badge as AnalyticsBadge);
-
+  // J10-V5 Phase 5 Angle C sub-block C.3 — ADR-041 defensive shim
+  // ("top_seller" → "active") removed. Backend ReputationBlock.badge is
+  // now `Literal["new_seller", "active", "suspended"]` (sub-block C.1)
+  // ; the cast remains until `pnpm gen:api` refreshes api.gen.ts to
+  // narrow `badge: string` to the same Literal.
   return {
     revenue: {
       h24: parseFloat(raw.revenue.h24),
@@ -90,7 +79,7 @@ export function parseAnalyticsSummary(
     },
     reputation: {
       score: raw.reputation.score,
-      badge,
+      badge: raw.reputation.badge as AnalyticsBadge,
       auto_release_days: raw.reputation.auto_release_days,
     },
     top_products: raw.top_products.map((p) => ({
