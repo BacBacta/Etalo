@@ -168,11 +168,21 @@ export function SellerDashboardInner() {
             overflow-x-auto so 6 tabs remain reachable on 360px viewports
             without breaking the indicator measurement.
           */}
+          {/*
+            J10-V5 Phase 5 Angle B Track 2 fix #2 — Profile moved to 2nd
+            position (was 4th, between Orders and Marketing). Mike's
+            use-app perceptual audit caught Profile being hidden in the
+            tabs row : new sellers needed easy access to fill out their
+            shop identity (name, description, logo, socials) before
+            anything else makes sense to do. Putting Profile right next
+            to Overview in the tab order makes it the natural second
+            stop for any seller landing on the dashboard.
+          */}
           <TabsV4List className="mb-6 w-full overflow-x-auto">
             <TabsV4Trigger value="overview">Overview</TabsV4Trigger>
+            <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
             <TabsV4Trigger value="products">Products</TabsV4Trigger>
             <TabsV4Trigger value="orders">Orders</TabsV4Trigger>
-            <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
             <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
           </TabsV4List>
 
