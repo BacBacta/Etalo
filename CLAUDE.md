@@ -221,7 +221,7 @@ Most-load-bearing recent ADRs for V1 scope:
 
 ## Design standards (from MiniPay official docs)
 
-- Mobile-first: minimum viewport 360x720 pixels
+- Mobile-first: minimum viewport 360x720 pixels (satisfait MiniPay submission §2 qui exige 360×640 minimum)
 - Touch targets: minimum 44x44 pixels
 - Body text: minimum 16 pixels (never smaller than 14)
 - Single column layout, no horizontal scroll
