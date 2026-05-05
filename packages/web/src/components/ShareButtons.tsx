@@ -8,8 +8,14 @@ interface ShareButtonsProps {
   title: string;
 }
 
+// J10-V5 Phase 5 Angle B Track 2 fix #3 — pre-fix : `bg-white` +
+// `border-neutral-300` rendered the buttons as bright pills on the
+// dark celo-dark-bg page → low contrast, button labels disappeared
+// against the white surface in dark mode. Add explicit dark: variants
+// to keep the buttons visible in both themes (mirror the V4 outline
+// pattern from ButtonV4).
 const OUTLINE =
-  "inline-flex h-11 items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-base font-medium hover:bg-neutral-50";
+  "inline-flex h-11 items-center justify-center gap-2 rounded-md border border-neutral-300 bg-white px-4 text-base font-medium text-celo-dark hover:bg-neutral-50 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:hover:bg-celo-light/10";
 
 export function ShareButtons({ url, title }: ShareButtonsProps) {
   const [copied, setCopied] = useState(false);
