@@ -84,8 +84,11 @@ Start-Process -FilePath "cmd.exe" `
   -WindowStyle Minimized
 
 # 4. Wait for both to be reachable
-Write-Host "[4/6] Waiting for services to boot (poll up to 60s)..." -ForegroundColor Yellow
-$deadline = (Get-Date).AddSeconds(60)
+# Next.js cold start in this workspace can take >60s (compile + monorepo
+# import graph). 120s gives enough margin without making a quick reboot
+# feel slow.
+Write-Host "[4/6] Waiting for services to boot (poll up to 120s)..." -ForegroundColor Yellow
+$deadline = (Get-Date).AddSeconds(120)
 $backendReady = $false
 $frontendReady = $false
 
@@ -129,14 +132,17 @@ Start-Process -FilePath "ngrok" `
   -ArgumentList "http", "127.0.0.1:3000" `
   -WindowStyle Minimized
 
-Start-Sleep -Seconds 5
+# ngrok cold start with reserved-domain registration sometimes exceeds
+# the original 5+10s budget. 10s initial + 20 attempts gives ~30s
+# margin, still aborts cleanly if ngrok crashed silently.
+Start-Sleep -Seconds 10
 
 # 6. Capture ngrok URL via local API and update .env.local
 Write-Host "[6/6] Capturing ngrok URL + updating .env.local..." -ForegroundColor Yellow
 
 $tunnels = $null
 $attempts = 0
-while ($attempts -lt 10 -and -not $tunnels) {
+while ($attempts -lt 20 -and -not $tunnels) {
   try {
     $tunnels = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -TimeoutSec 2 -ErrorAction Stop
   } catch {
