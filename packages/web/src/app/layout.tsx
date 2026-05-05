@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 
 import "./globals.css";
+import { Footer } from "@/components/Footer";
 import { PageTransition } from "@/components/PageTransition";
 import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
@@ -57,6 +58,7 @@ export default function RootLayout({
         <Providers>
           <PublicHeader />
           <PageTransition>{children}</PageTransition>
+          <Footer />
           <ToasterV4 position="bottom-center" />
         </Providers>
       </body>
