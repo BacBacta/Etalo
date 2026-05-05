@@ -11,9 +11,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useBuyCredits } from "@/hooks/useBuyCredits";
 
 const BUYER = "0xabc0000000000000000000000000000000000001" as const;
-const USDT = "0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3" as const;
+const USDT = "0xea07db5d3D7576864ac434133abFE0E815735300" as const;
 const CREDITS_ADDR =
-  "0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d" as const;
+  "0x778a6bda524F4D396F9566c0dF131F76b0E15CA3" as const;
 
 // Bypass the inFlightRef double-submit guard inside a single
 // renderHook instance so consecutive `start()` calls in this file's

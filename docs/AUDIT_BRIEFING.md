@@ -191,20 +191,20 @@ ADRs grouped by sprint phase. Each line: `ADR-XXX — title — audit relevance 
 ## 6. Deployment artifacts (Celo Sepolia)
 
 **Network**: Celo Sepolia (chain ID `11142220`).
-**Deploy date**: 2026-04-24 (V2 contracts) + 2026-04-26 (`EtaloCredits`).
+**Deploy date**: 2026-05-05 (post-H-1 redeploy per ADR-042 — see `docs/DEPLOYMENTS_HISTORY.md` for the original 2026-04-24 deploy).
 **Mainnet**: TBD pre-J12 per ADR-038. Multisig and ownership rotation precede the first real-USDT transaction.
 
 ### Core contracts
 
 | Contract | Address | CeloScan | Blockscout | Sourcify |
 |---|---|---|---|---|
-| `MockUSDT` (V2 test-only) | `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` | [src](https://sepolia.celoscan.io/address/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3#code) | [src](https://celo-sepolia.blockscout.com/address/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3) |
-| `EtaloReputation` | `0x2a6639074d0897c6280f55b252B97dd1c39820b7` | [src](https://sepolia.celoscan.io/address/0x2a6639074d0897c6280f55b252B97dd1c39820b7#code) | [src](https://celo-sepolia.blockscout.com/address/0x2a6639074d0897c6280f55b252B97dd1c39820b7#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x2a6639074d0897c6280f55b252B97dd1c39820b7) |
-| `EtaloStake` | `0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417` | [src](https://sepolia.celoscan.io/address/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417#code) | [src](https://celo-sepolia.blockscout.com/address/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417) |
-| `EtaloVoting` | `0x335Ac0998667F76FE265BC28e6989dc535A901E7` | [src](https://sepolia.celoscan.io/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [src](https://celo-sepolia.blockscout.com/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x335Ac0998667F76FE265BC28e6989dc535A901E7) |
-| `EtaloDispute` | `0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE` | [src](https://sepolia.celoscan.io/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [src](https://celo-sepolia.blockscout.com/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE) |
-| `EtaloEscrow` | `0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb` | [src](https://sepolia.celoscan.io/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [src](https://celo-sepolia.blockscout.com/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb) |
-| `EtaloCredits` | `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` | [src](https://sepolia.celoscan.io/address/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d#code) | [src](https://celo-sepolia.blockscout.com/address/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d) |
+| `MockUSDT` (V2 test-only) | `0xea07db5d3D7576864ac434133abFE0E815735300` | [src](https://sepolia.celoscan.io/address/0xea07db5d3D7576864ac434133abFE0E815735300#code) | [src](https://celo-sepolia.blockscout.com/address/0xea07db5d3D7576864ac434133abFE0E815735300#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0xea07db5d3D7576864ac434133abFE0E815735300) |
+| `EtaloReputation` | `0x539e0d44c0773504075E1B00f25A99ED70258178` | [src](https://sepolia.celoscan.io/address/0x539e0d44c0773504075E1B00f25A99ED70258178#code) | [src](https://celo-sepolia.blockscout.com/address/0x539e0d44c0773504075E1B00f25A99ED70258178#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x539e0d44c0773504075E1B00f25A99ED70258178) |
+| `EtaloStake` | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` | [src](https://sepolia.celoscan.io/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB#code) | [src](https://celo-sepolia.blockscout.com/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB) |
+| `EtaloVoting` | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` | [src](https://sepolia.celoscan.io/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A#code) | [src](https://celo-sepolia.blockscout.com/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A) |
+| `EtaloDispute` | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` | [src](https://sepolia.celoscan.io/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b#code) | [src](https://celo-sepolia.blockscout.com/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0xEe8339b29F54bd29d68E061c4212c8b202760F5b) |
+| `EtaloEscrow` | `0xAeC58270973A973e3FF4913602Db1b5c98894640` | [src](https://sepolia.celoscan.io/address/0xAeC58270973A973e3FF4913602Db1b5c98894640#code) | [src](https://celo-sepolia.blockscout.com/address/0xAeC58270973A973e3FF4913602Db1b5c98894640#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0xAeC58270973A973e3FF4913602Db1b5c98894640) |
+| `EtaloCredits` | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` | [src](https://sepolia.celoscan.io/address/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3#code) | [src](https://celo-sepolia.blockscout.com/address/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3#code) | [src](https://sourcify.dev/server/repo-ui/11142220/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3) |
 
 ### Treasuries (ADR-024 — three-wallet separation)
 
