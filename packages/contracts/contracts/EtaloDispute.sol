@@ -166,6 +166,7 @@ contract EtaloDispute is IEtaloDispute, Ownable, ReentrancyGuard {
 
         EtaloTypes.Order memory order = escrow.getOrder(orderId);
         require(msg.sender == order.buyer, "Only buyer can open dispute");
+        require(order.fundedAt > 0, "Order not funded");
 
         uint256 disputeId = ++_disputeIdCounter;
         uint256 n1Deadline = block.timestamp + N1_DURATION;

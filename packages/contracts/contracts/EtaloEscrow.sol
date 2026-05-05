@@ -794,6 +794,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     {
         EtaloTypes.Item storage item = _items[itemId];
         require(item.orderId == orderId, "Item not in order");
+        require(_orders[orderId].fundedAt > 0, "Order not funded");
         require(
             item.status != EtaloTypes.ItemStatus.Released &&
                 item.status != EtaloTypes.ItemStatus.Refunded &&
@@ -844,6 +845,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         EtaloTypes.Item storage item = _items[itemId];
         // ── Checks ────────────────────────────────────────
         require(item.orderId == orderId, "Item not in order");
+        require(order.fundedAt > 0, "Order not funded");
         require(
             item.status == EtaloTypes.ItemStatus.Disputed,
             "Item not disputed"
