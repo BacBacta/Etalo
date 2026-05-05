@@ -1,31 +1,37 @@
 /**
- * H-1 reproduction test — Unfunded Dispute Drain
+ * H-1 regression guard — Unfunded Dispute Drain (FIXED)
  *
- * Hypothesis (from pashov solidity-auditor subagent on EtaloDispute.sol) :
+ * Original finding (pashov solidity-auditor on EtaloDispute.sol, audit
+ * commit f8a12f1 on docs/j11-pre-audit) : `EtaloDispute.openDispute`,
+ * `EtaloEscrow.markItemDisputed` and `EtaloEscrow.resolveItemDispute`
+ * did not require `order.fundedAt > 0`. A buyer could open a dispute on
+ * an unfunded order and (via N1 collusion today, N3 vote post-V1) drain
+ * USDT from the escrow custody — funded by other buyers' legitimate
+ * deposits.
  *
- *   `EtaloDispute.openDispute` (line 159-200) does not require
- *   `order.fundedAt > 0`. `EtaloEscrow.markItemDisputed` (line 789-805) /
- *   `resolveItemDispute` (line 832-918) do not either. Item state machine
- *   starts at `Pending` (not in the forbidden set at lines 797-801), so a
- *   buyer can open a dispute on an unfunded order. `resolveItemDispute`
- *   then debits the global `totalEscrowedAmount` pool and transfers USDT
- *   from the contract's actual balance — funded by other buyers' deposits.
+ * Empirical reproduction (commit dcae418, this branch fix/h1-…) showed
+ * the exploit was reachable on local Hardhat fork : 100 USDT drained in
+ * one transaction (raw 100_000_000 from escrow custody to attacker).
  *
- * Exploit path tested here (N1 collusion, today, Sepolia + mainnet at deploy):
- *   1. Victim buyer creates + funds a legitimate order (USDT enters escrow custody).
- *   2. Attacker buyer creates an UNFUNDED order with a colluding seller.
- *   3. Attacker opens dispute on the unfunded item (no fundedAt check fails).
- *   4. Attacker proposes refund = item price ; colluding seller agrees.
- *   5. resolveItemDispute fires, transferring USDT from escrow custody to attacker.
+ * Fix : 3-layer `require(... > 0, "Order not funded")`
+ *   Layer 1 (primary)            : EtaloDispute.openDispute  — blocks entry
+ *   Layer 2 (defense-in-depth)   : EtaloEscrow.markItemDisputed
+ *   Layer 3 (defense-in-depth)   : EtaloEscrow.resolveItemDispute
  *
- * Expected outcomes :
- *   - PASS (exploit reachable) : attacker's USDT balance increases by item price ;
- *     escrow's USDT balance decreases by same amount ; victim's deposit lost.
- *   - REVERT : some guard mechanism (fundedAt check, status check, modifier)
- *     blocks one of the steps. Document which guard fires + at which line.
+ * This test is now a REGRESSION GUARD : it asserts that openDispute on
+ * an unfunded order reverts with "Order not funded" AND no state
+ * mutation occurs. Pre-fix this test would have failed (drain
+ * succeeded) ; post-fix it passes (Layer 1 reverts). If a future
+ * refactor removes the guard, this test fails and surfaces the
+ * regression.
  *
- * Per Mike's directive : write the reproduction test only — no fix yet.
- * Result determines whether to switch into incident-response mode.
+ * Direct unit-tests of Layers 2 & 3 are not feasible from regular test
+ * accounts because both functions are gated by `onlyDispute` modifier.
+ * They serve as belt-and-suspenders for any future code path that
+ * bypasses Layer 1. The pashov re-audit pass (Step G) verifies no
+ * other unfunded fund movement paths exist.
+ *
+ * See ADR-042 for full incident write-up + fix rationale.
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
@@ -35,10 +41,10 @@ import {
   toUSDT,
 } from "../helpers/fixtures.js";
 
-describe("H-1 — Unfunded Dispute Drain (reproduction)", async function () {
+describe("H-1 — Unfunded Dispute Drain (regression guard)", async function () {
   const { viem } = await network.create();
 
-  it("REPRO : attacker drains victim USDT via dispute on unfunded order (N1 collusion path)", async function () {
+  it("REGRESSION : openDispute on unfunded order MUST revert with 'Order not funded'", async function () {
     const {
       mockUSDT,
       escrow,
@@ -46,38 +52,29 @@ describe("H-1 — Unfunded Dispute Drain (reproduction)", async function () {
       buyer,           // victim — funds a legitimate order
       seller,          // legitimate seller for victim's order
       seller2,         // colluding seller for attacker
-      nonParty,        // attacker buyer (no USDT, no funded order)
-      publicClient: _publicClient,
+      nonParty,        // attacker buyer (no funded order)
     } = await deployIntegration(viem);
 
-    const ITEM_PRICE = toUSDT(100); // 100 USDT (6 decimals = 100_000_000 raw)
+    const ITEM_PRICE = toUSDT(100); // 100 USDT (6 decimals)
 
     // ─────────────────────────────────────────────────────────
     // Step 1 — victim creates + funds a legitimate order
     // ─────────────────────────────────────────────────────────
-    // After this, escrow holds 100 USDT in custody, totalEscrowedAmount == 100
+    // After this, escrow holds 100 USDT in custody. This is the pool
+    // an attacker would aim to drain via the H-1 exploit.
     await escrow.write.createOrderWithItems(
-      [seller.account.address, [ITEM_PRICE], false], // intra-Africa, 1 item
+      [seller.account.address, [ITEM_PRICE], false],
       { account: buyer.account },
     );
-    // Victim's order ID == 1, item ID == 1
-
     await escrow.write.fundOrder([1n], { account: buyer.account });
 
-    const escrowBalanceAfterVictimFund = (await mockUSDT.read.balanceOf([
+    const escrowBalanceBefore = (await mockUSDT.read.balanceOf([
       escrow.address,
     ])) as bigint;
     assert.equal(
-      escrowBalanceAfterVictimFund,
+      escrowBalanceBefore,
       ITEM_PRICE,
-      "Victim funding should bring 100 USDT to escrow custody",
-    );
-
-    const victimDepositAccountedAsTotalEscrowed = (await escrow.read.totalEscrowed()) as bigint;
-    assert.equal(
-      victimDepositAccountedAsTotalEscrowed,
-      ITEM_PRICE,
-      "totalEscrowedAmount should match victim's deposit",
+      "Setup : escrow custody should equal victim's deposit",
     );
 
     const attackerBalanceBefore = (await mockUSDT.read.balanceOf([
@@ -87,133 +84,74 @@ describe("H-1 — Unfunded Dispute Drain (reproduction)", async function () {
     // ─────────────────────────────────────────────────────────
     // Step 2 — attacker creates an UNFUNDED order with colluding seller
     // ─────────────────────────────────────────────────────────
-    // Attacker = nonParty. Colluding seller = seller2 (who has Tier 1 stake from fixture).
-    // Attacker does NOT call fundOrder — order.fundedAt stays 0.
+    // No fundOrder call → order.fundedAt stays 0. This is the precondition
+    // for the H-1 attack.
     await escrow.write.createOrderWithItems(
       [seller2.account.address, [ITEM_PRICE], false],
       { account: nonParty.account },
     );
-    // Attacker's order ID == 2, item ID == 2
-
     const attackerOrder = (await escrow.read.getOrder([2n])) as {
-      buyer: string;
-      seller: string;
-      totalAmount: bigint;
       fundedAt: bigint;
-      globalStatus: number;
     };
     assert.equal(
       attackerOrder.fundedAt,
       0n,
-      "Attacker order MUST be unfunded (fundedAt == 0) for the H-1 scenario",
+      "Setup : attacker's order MUST be unfunded (fundedAt == 0)",
     );
 
     // ─────────────────────────────────────────────────────────
-    // Step 3 — attacker opens dispute on the unfunded item
+    // Step 3 — attacker attempts to open dispute on unfunded order
     // ─────────────────────────────────────────────────────────
-    // Per H-1 hypothesis : openDispute does not check order.fundedAt > 0
-    // If this step reverts, the exploit is blocked → REVERT outcome.
-    let openDisputeReverted: string | null = null;
+    // POST-FIX EXPECTATION : Layer 1 of the H-1 fix
+    // (require(order.fundedAt > 0, "Order not funded") in openDispute)
+    // MUST reject this call.
+    let openDisputeError: string | null = null;
     try {
       await dispute.write.openDispute([2n, 2n, "drain attempt"], {
         account: nonParty.account,
       });
     } catch (err) {
-      openDisputeReverted = err instanceof Error ? err.message : String(err);
+      openDisputeError = err instanceof Error ? err.message : String(err);
     }
 
-    if (openDisputeReverted !== null) {
-      // REVERT outcome — guard mechanism blocked openDispute on unfunded order
-      console.log("\n=== H-1 RESULT : openDispute REVERTED ===");
-      console.log(`Revert reason : ${openDisputeReverted}`);
-      console.log("→ Guard mechanism blocks the exploit at openDispute (Step 3).");
-      console.log("→ Demote H-1 from High to LEAD/Info in audit synthesis.");
-      console.log("=== END H-1 RESULT ===\n");
-      assert.fail(
-        `H-1 REPRO test : openDispute reverted with [${openDisputeReverted}]. The exploit hypothesis is BLOCKED at Step 3. Demote H-1 in audit synthesis.`,
-      );
-      return;
-    }
+    assert.notEqual(
+      openDisputeError,
+      null,
+      "REGRESSION : openDispute on unfunded order should revert. Layer 1 of H-1 fix is missing.",
+    );
+    assert.match(
+      openDisputeError ?? "",
+      /Order not funded/,
+      `REGRESSION : openDispute revert reason must be 'Order not funded' (Layer 1 of H-1 fix). Got : ${openDisputeError}`,
+    );
 
     // ─────────────────────────────────────────────────────────
-    // Step 4 — attacker + colluding seller match resolveN1Amicable amounts
+    // Step 4 — verify NO state mutation occurred
     // ─────────────────────────────────────────────────────────
-    // dispute ID 1 (first dispute opened on this deployment)
-    let resolveAttackerReverted: string | null = null;
-    try {
-      await dispute.write.resolveN1Amicable([1n, ITEM_PRICE], {
-        account: nonParty.account,
-      });
-    } catch (err) {
-      resolveAttackerReverted = err instanceof Error ? err.message : String(err);
-    }
-
-    let resolveSellerReverted: string | null = null;
-    try {
-      await dispute.write.resolveN1Amicable([1n, ITEM_PRICE], {
-        account: seller2.account,
-      });
-    } catch (err) {
-      resolveSellerReverted = err instanceof Error ? err.message : String(err);
-    }
-
-    if (resolveAttackerReverted !== null || resolveSellerReverted !== null) {
-      console.log("\n=== H-1 RESULT : resolveN1Amicable REVERTED ===");
-      if (resolveAttackerReverted) {
-        console.log(`Attacker side reverted : ${resolveAttackerReverted}`);
-      }
-      if (resolveSellerReverted) {
-        console.log(`Seller side reverted : ${resolveSellerReverted}`);
-      }
-      console.log("→ Guard mechanism blocks at resolution step.");
-      console.log("=== END H-1 RESULT ===\n");
-      assert.fail(
-        "H-1 REPRO test : resolveN1Amicable reverted. The exploit hypothesis is BLOCKED at Step 4 (resolution). Document the guard.",
-      );
-      return;
-    }
-
-    // ─────────────────────────────────────────────────────────
-    // Step 5 — verify exploit succeeded : USDT moved from escrow to attacker
-    // ─────────────────────────────────────────────────────────
-    const escrowBalanceAfterDrain = (await mockUSDT.read.balanceOf([
+    // The blocked openDispute call must not move USDT, must not create
+    // a dispute record, must not flip item status.
+    const escrowBalanceAfter = (await mockUSDT.read.balanceOf([
       escrow.address,
     ])) as bigint;
-    const attackerBalanceAfterDrain = (await mockUSDT.read.balanceOf([
+    const attackerBalanceAfter = (await mockUSDT.read.balanceOf([
       nonParty.account.address,
     ])) as bigint;
-    const attackerGain = attackerBalanceAfterDrain - attackerBalanceBefore;
-    const escrowLoss = escrowBalanceAfterVictimFund - escrowBalanceAfterDrain;
+    const totalEscrowedAfter = (await escrow.read.totalEscrowed()) as bigint;
 
-    console.log("\n=== H-1 RESULT : EXPLOIT REACHED CONCLUSION ===");
-    console.log(`Victim's deposit (Step 1)              : ${ITEM_PRICE} raw`);
-    console.log(`Escrow balance after victim fund       : ${escrowBalanceAfterVictimFund} raw`);
-    console.log(`Escrow balance after drain attempt     : ${escrowBalanceAfterDrain} raw`);
-    console.log(`Escrow loss (drained from custody)     : ${escrowLoss} raw`);
-    console.log(`Attacker balance before attack         : ${attackerBalanceBefore} raw`);
-    console.log(`Attacker balance after attack          : ${attackerBalanceAfterDrain} raw`);
-    console.log(`Attacker gain (USDT extracted)         : ${attackerGain} raw`);
-
-    if (attackerGain > 0n && escrowLoss > 0n && attackerGain === escrowLoss) {
-      console.log("→ H-1 CONFIRMED REACHABLE : attacker drained escrow custody.");
-      console.log("→ Switch to incident-response mode.");
-    } else {
-      console.log("→ Unexpected state — neither full revert nor full drain.");
-      console.log("→ Document precisely in test output and stop.");
-    }
-    console.log("=== END H-1 RESULT ===\n");
-
-    // The test asserts the exploit IS reachable.
-    // PASS == confirmed reachable (attacker gained equal to escrow loss equal to victim deposit).
     assert.equal(
-      attackerGain,
-      ITEM_PRICE,
-      "H-1 REPRO : attacker should gain exactly the item price (drained from escrow)",
+      escrowBalanceAfter,
+      escrowBalanceBefore,
+      "REGRESSION : escrow USDT custody must be unchanged after blocked openDispute",
     );
     assert.equal(
-      escrowLoss,
+      attackerBalanceAfter,
+      attackerBalanceBefore,
+      "REGRESSION : attacker USDT balance must be unchanged after blocked openDispute",
+    );
+    assert.equal(
+      totalEscrowedAfter,
       ITEM_PRICE,
-      "H-1 REPRO : escrow custody should decrease by exactly the item price",
+      "REGRESSION : totalEscrowedAmount must still match victim's deposit (no accounting drift)",
     );
   });
 });

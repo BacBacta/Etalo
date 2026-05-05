@@ -104,10 +104,16 @@ export async function deployDispute(viem: any) {
   await stake.write.depositStake([1], { account: seller.account });
 
   // Configure mock order: orderId irrelevant, buyer/seller, itemPrice 50 USDT.
+  // fundedAt set to the latest block.timestamp so EtaloDispute's
+  // post-ADR-042 `require(order.fundedAt > 0)` guard accepts the order
+  // for dispute opening / resolution. Tests exercising the unfunded
+  // revert path use deployIntegration with a real escrow instead.
+  const latestBlock = await publicClient.getBlock();
   await mockEscrow.write.setOrder([
     buyer.account.address,
     seller.account.address,
     toUSDT(50),
+    latestBlock.timestamp,
   ]);
 
   return {
