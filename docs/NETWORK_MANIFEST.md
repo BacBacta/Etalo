@@ -73,15 +73,20 @@ Frontend uses `NEXT_PUBLIC_CELO_RPC_URL` env var (set in `.env.local` per enviro
 
 ### Celo Sepolia testnet (current dev target)
 
+Active deploy (post-H-1 redeploy, 2026-05-05, ADR-042). Predecessor
+addresses retained in `docs/DEPLOYMENTS_HISTORY.md` and
+`packages/contracts/deployments/celo-sepolia-v2.json`
+`previous_deployments[]`.
+
 | Contract | Address |
 |---|---|
-| MockUSDT V2 | `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` |
-| EtaloReputation | `0x2a6639074d0897c6280f55b252B97dd1c39820b7` |
-| EtaloDispute | `0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE` |
-| EtaloEscrow | `0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb` |
-| EtaloCredits | `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` |
-| EtaloStake (V2 deferred per ADR-041) | `0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417` |
-| EtaloVoting (V2 deferred per ADR-041) | `0x335Ac0998667F76FE265BC28e6989dc535A901E7` |
+| MockUSDT V2 | `0xea07db5d3D7576864ac434133abFE0E815735300` |
+| EtaloReputation | `0x539e0d44c0773504075E1B00f25A99ED70258178` |
+| EtaloDispute | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` |
+| EtaloEscrow | `0xAeC58270973A973e3FF4913602Db1b5c98894640` |
+| EtaloCredits | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` |
+| EtaloStake (V2 deferred per ADR-041) | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` |
+| EtaloVoting (V2 deferred per ADR-041) | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` |
 
 Treasury wallets (3 separated per ADR-024) :
 
@@ -107,6 +112,12 @@ Treasury wallets (3 separated per ADR-024) :
 
 ## Audit checklist (pre-submission)
 
+> **Verification reset (2026-05-05)** : the V2 contract suite was
+> redeployed on Celo Sepolia post-H-1 fix per ADR-042 (see
+> `docs/DEPLOYMENTS_HISTORY.md`). The 6 hot-path surface checks below
+> must be re-run against the new addresses before MiniPay submission ;
+> any verification done before 2026-05-05 referenced the now-deprecated
+> deploy and is invalidated.
 - [ ] Toutes les origines listées vérifiées via DevTools Network panel sur les 6 surfaces hot-path : `/`, `/marketplace`, `/[handle]`, `/[handle]/[slug]`, `/checkout`, `/seller/dashboard`
 - [ ] FastAPI endpoints enumerated exhaustively from `/api/openapi.json` (replace placeholder list above with full set)
 - [ ] Aucun tracker tiers non documenté (verify zero analytics, zero pixel trackers, zero CDN font fetches)

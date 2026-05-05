@@ -2194,3 +2194,39 @@ re-enter the roadmap in the following order:
 
 ADR-041 will be partially superseded at each of those points by the
 V1.1 / V2 ADRs that re-enable the deferred surfaces.
+
+---
+
+## ADR-042 — Funded-state guard on dispute lifecycle (H-1 fix)
+
+**Date** : 2026-05-05
+**Status** : Accepted, applied
+
+### Context
+Pre-J11 audit (Pashov-equivalent workflow via cloned skills + delegated subagents) surfaced a HIGH severity drainable bug (H-1) in EtaloDispute. Empirical reproduction in commit dcae418 confirmed exploit reachable end-to-end on local fork in 254ms : N1 collusion path drains victim deposits via dispute on unfunded orders.
+
+### Decision
+Apply 3-layer require(order.fundedAt > 0, "Order not funded") guard :
+- Primary : EtaloDispute.openDispute (fail-fast)
+- Defense-in-depth : EtaloEscrow.markItemDisputed
+- Defense-in-depth : EtaloEscrow.resolveItemDispute
+
+Test infrastructure : MockEtaloEscrow now models fundedAt; deployDispute fixture sets fundedAt = block.timestamp.
+
+Regression guards :
+- test/V2/H1_unfunded_dispute_drain.test.ts (revert path)
+- test/V2/H1_funded_dispute_happy_path.test.ts (happy path)
+
+### Rationale
+Triple-layer defense-in-depth handles in-flight disputes that might exist pre-upgrade and protects against future code paths bypassing EtaloDispute.openDispute.
+
+### Consequences
+- Sepolia EtaloEscrow @ 0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE vulnerable, must be redeployed (custody = 0 USDT, no defensive drain needed).
+- Spec patched : SPEC_SMART_CONTRACT_V2.md dispute lifecycle now explicitly requires funded order.
+- Follow-up ticket Sprint J11+ : "consolidate test infra around real escrow" (Path B from incident response — eliminate MockEtaloEscrow drift risk).
+
+### References
+- Repro test : commit dcae418
+- Fix commit : f8cf195
+- Post-fix audit : docs/audit/H1_POST_FIX_VERIFICATION.md
+- PASHOV_AUDIT_EtaloDispute.md (H-1 finding)

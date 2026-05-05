@@ -62,11 +62,11 @@ def _make_celo_mock(current_block: int = 100, logs_by_call: list[list] | None = 
 
     # Stub each contract attribute with an address + an empty events tuple.
     for attr, addr in [
-        ("_escrow", "0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb"),
-        ("_dispute", "0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE"),
-        ("_stake", "0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417"),
-        ("_reputation", "0x2a6639074d0897c6280f55b252B97dd1c39820b7"),
-        ("_voting", "0x335Ac0998667F76FE265BC28e6989dc535A901E7"),
+        ("_escrow", "0xAeC58270973A973e3FF4913602Db1b5c98894640"),
+        ("_dispute", "0xEe8339b29F54bd29d68E061c4212c8b202760F5b"),
+        ("_stake", "0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB"),
+        ("_reputation", "0x539e0d44c0773504075E1B00f25A99ED70258178"),
+        ("_voting", "0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A"),
     ]:
         c = MagicMock()
         c.address = addr

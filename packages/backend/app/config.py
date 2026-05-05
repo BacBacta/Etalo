@@ -57,16 +57,19 @@ class Settings(BaseSettings):
     # Block 4 of Sprint J5 fully replaces it.
     celo_rpc_url: str = "https://celo-sepolia.drpc.org"
 
-    # V2 contract addresses (Celo Sepolia, deployed Sprint J4 Block 11).
+    # V2 contract addresses (Celo Sepolia, redeployed 2026-05-05 post-H-1 fix
+    # per ADR-042). Previous addresses retained in
+    # packages/contracts/deployments/celo-sepolia-v2.json previous_deployments[]
+    # and docs/DEPLOYMENTS_HISTORY.md.
     # Source of truth: packages/contracts/deployments/celo-sepolia-v2.json.
-    mock_usdt_address: str = "0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3"
-    etalo_reputation_address: str = "0x2a6639074d0897c6280f55b252B97dd1c39820b7"
-    etalo_stake_address: str = "0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417"
-    etalo_voting_address: str = "0x335Ac0998667F76FE265BC28e6989dc535A901E7"
-    etalo_dispute_address: str = "0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE"
-    etalo_escrow_address: str = "0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb"
-    # Sprint J7 Block 5b deploy
-    etalo_credits_address: str = "0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d"
+    mock_usdt_address: str = "0xea07db5d3D7576864ac434133abFE0E815735300"
+    etalo_reputation_address: str = "0x539e0d44c0773504075E1B00f25A99ED70258178"
+    etalo_stake_address: str = "0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB"
+    etalo_voting_address: str = "0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A"
+    etalo_dispute_address: str = "0xEe8339b29F54bd29d68E061c4212c8b202760F5b"
+    etalo_escrow_address: str = "0xAeC58270973A973e3FF4913602Db1b5c98894640"
+    # EtaloCredits (Sprint J7 Block 5b, redeployed post-H-1)
+    etalo_credits_address: str = "0x778a6bda524F4D396F9566c0dF131F76b0E15CA3"
 
     # Treasuries (three-wallet separation per ADR-024)
     commission_treasury_address: str = "0x9819c9E1b4F634784fd9A286240ecACd297823fa"
@@ -94,10 +97,12 @@ class Settings(BaseSettings):
     # via UNIQUE(tx_hash, log_index) prevents double-write).
     indexer_reorg_depth: int = 3
     # Default starting block when indexer_state is empty (per-contract).
-    # Should be set to the deployment block for each V2 contract — using
-    # a single low-bound here; the indexer takes max(this, deploy_block)
-    # in practice. V2 contracts deployed around block 23761654.
-    indexer_start_block: int = 23761654
+    # Bumped from 23761654 (pre-H-1 deploy block) to 24720376 (post-H-1
+    # MockUSDT deploy block, lowest of the redeploy batch) on 2026-05-05.
+    # Companion ops: the indexer_state rows that survive the redeploy
+    # were UPDATEd to last_processed_block = 24720376 — see
+    # packages/backend/scripts/h1-redeploy-indexer-reset.sql.
+    indexer_start_block: int = 24720376
     # Set to false to disable the background indexer in tests / one-off
     # CLI invocations of the FastAPI app.
     indexer_enabled: bool = True

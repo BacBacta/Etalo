@@ -802,6 +802,8 @@ uint256 public constant FORCE_REFUND_INACTIVITY_THRESHOLD = 90 days;
 - `resumeStakeWithdrawal(seller)` — via EtaloStake
 - `slashStake(seller, amount, recipient)` — via EtaloStake
 
+**Précondition fundedAt** : Disputes can only be opened on funded orders (order.fundedAt > 0). Enforced by 3-layer guard in EtaloDispute.openDispute, EtaloEscrow.markItemDisputed, EtaloEscrow.resolveItemDispute. See ADR-042.
+
 ---
 
 ## 13. Events complets

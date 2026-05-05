@@ -84,8 +84,11 @@ Start-Process -FilePath "cmd.exe" `
   -WindowStyle Minimized
 
 # 4. Wait for both to be reachable
-Write-Host "[4/6] Waiting for services to boot (poll up to 60s)..." -ForegroundColor Yellow
-$deadline = (Get-Date).AddSeconds(60)
+# Next.js cold start in this workspace can take >60s (compile + monorepo
+# import graph). 120s gives enough margin without making a quick reboot
+# feel slow.
+Write-Host "[4/6] Waiting for services to boot (poll up to 120s)..." -ForegroundColor Yellow
+$deadline = (Get-Date).AddSeconds(120)
 $backendReady = $false
 $frontendReady = $false
 
@@ -129,14 +132,17 @@ Start-Process -FilePath "ngrok" `
   -ArgumentList "http", "127.0.0.1:3000" `
   -WindowStyle Minimized
 
-Start-Sleep -Seconds 5
+# ngrok cold start with reserved-domain registration sometimes exceeds
+# the original 5+10s budget. 10s initial + 20 attempts gives ~30s
+# margin, still aborts cleanly if ngrok crashed silently.
+Start-Sleep -Seconds 10
 
 # 6. Capture ngrok URL via local API and update .env.local
 Write-Host "[6/6] Capturing ngrok URL + updating .env.local..." -ForegroundColor Yellow
 
 $tunnels = $null
 $attempts = 0
-while ($attempts -lt 10 -and -not $tunnels) {
+while ($attempts -lt 20 -and -not $tunnels) {
   try {
     $tunnels = Invoke-RestMethod -Uri "http://localhost:4040/api/tunnels" -TimeoutSec 2 -ErrorAction Stop
   } catch {
@@ -155,15 +161,57 @@ if (-not $ngrokUrl) {
   exit 1
 }
 
-# Update .env.local
+# Update .env.local — merge mode: preserve all keys NOT in the managed
+# set (including NEXT_PUBLIC_*_ADDRESS for V2 contracts), only update
+# the 4 ngrok-related keys. Falls back to .env.example template if
+# .env.local is missing.
 $envPath = Join-Path $webDir ".env.local"
-$envLines = @(
-  "NEXT_PUBLIC_API_URL=/api/v1",
-  "NEXT_PUBLIC_BASE_URL=$ngrokUrl",
-  "NEXT_PUBLIC_MINIAPP_URL=$ngrokUrl",
-  "LOCAL_API_REWRITE_TARGET=http://localhost:8000"
-)
-Set-Content -Path $envPath -Value $envLines -Encoding UTF8
+$envExamplePath = Join-Path $webDir ".env.example"
+
+# Keys this script manages — all others are preserved as-is.
+$managedKeys = [ordered]@{
+  "NEXT_PUBLIC_API_URL"      = "/api/v1"
+  "NEXT_PUBLIC_BASE_URL"     = $ngrokUrl
+  "NEXT_PUBLIC_MINIAPP_URL"  = $ngrokUrl
+  "LOCAL_API_REWRITE_TARGET" = "http://localhost:8000"
+}
+
+if (Test-Path $envPath) {
+  $sourceLines = Get-Content $envPath
+  Write-Host "  Merging into existing .env.local (preserving non-managed keys)"
+} elseif (Test-Path $envExamplePath) {
+  $sourceLines = Get-Content $envExamplePath
+  Write-Host "  Bootstrapping .env.local from .env.example"
+} else {
+  $sourceLines = @()
+  Write-Host "  Creating .env.local from scratch (no .env.example found)"
+}
+
+# Walk lines: replace managed keys in-place, otherwise keep as-is.
+$seenKeys = @{}
+$outputLines = foreach ($line in $sourceLines) {
+  if ($line -match '^([A-Z_][A-Z0-9_]*)=') {
+    $key = $matches[1]
+    if ($managedKeys.Contains($key)) {
+      $seenKeys[$key] = $true
+      "$key=$($managedKeys[$key])"
+    } else {
+      $line
+    }
+  } else {
+    # Comment or blank line — preserve.
+    $line
+  }
+}
+
+# Append any managed keys that weren't present in the source.
+foreach ($key in $managedKeys.Keys) {
+  if (-not $seenKeys.ContainsKey($key)) {
+    $outputLines += "$key=$($managedKeys[$key])"
+  }
+}
+
+Set-Content -Path $envPath -Value $outputLines -Encoding UTF8
 
 Write-Host ""
 Write-Host "=== READY ===" -ForegroundColor Green
