@@ -86,6 +86,55 @@ MiniPay which typically sponsors or funds CELO for its users.
 `asLegacyTx()` helper that emits type `0x7b` when set. Requires raw
 signing via viem serializers.
 
+**Balance-delta accounting pattern (CIP-64 mandatory V1.5)**:
+
+When CIP-64 with `feeCurrency=USDT_ADAPTER` is wired, the EVM debits
+the buyer's USDT balance for gas at the same time as their
+`transferFrom` to the escrow. The `transferFrom` amount the contract
+observes can be smaller than the `totalAmount` parameter because the
+fee-currency path also deducts from the same wallet. Per
+celopedia-skills `security-patterns.md` §2 (CIP-64 fee-currency
+accounting), the escrow MUST credit the actual delta observed, not
+the requested `totalAmount`.
+
+Required code change in `EtaloEscrow.fundOrder` :
+
+```solidity
+// BEFORE (current V1) :
+require(
+    usdt.transferFrom(msg.sender, address(this), order.totalAmount),
+    "USDT transfer failed"
+);
+// totalEscrowedAmount += order.totalAmount; // assumes amount == observed delta
+
+// AFTER (V1.5 with CIP-64) :
+uint256 bal0 = usdt.balanceOf(address(this));
+require(
+    usdt.transferFrom(msg.sender, address(this), order.totalAmount),
+    "USDT transfer failed"
+);
+uint256 bal1 = usdt.balanceOf(address(this));
+uint256 actualDeposited = bal1 - bal0;
+require(actualDeposited > 0, "no transfer");
+// Treat actualDeposited as the source of truth for escrow accounting.
+order.totalAmount = actualDeposited; // or split commission proportionally
+totalEscrowedAmount += actualDeposited;
+```
+
+Required test invariant V1.5 :
+
+```solidity
+// Invariant : the contract's bookkeeping must match its custody.
+assertEq(escrow.totalEscrowed(), USDT.balanceOf(address(escrow)));
+```
+
+This invariant guards against fee-currency drift and any other
+discrepancy between credited amount and on-chain custody. Add to the
+existing escrow invariant suite at V1.5.
+
+**Cross-link** : celopedia-skills `security-patterns.md` §2,
+captured in `docs/AUDIT_CELOPEDIA_ALIGN.md` §D.2 (commit 9e2a15e).
+
 ---
 
 ## ADR-004 · 2026-04-22 — On-chain event indexing deferred V1.5
