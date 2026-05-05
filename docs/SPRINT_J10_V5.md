@@ -1665,9 +1665,47 @@ Code-level UX audit Track 1 (Claude CLI native — typography / spacing / empty 
 - LOC delta : −10 dead code (legacy EmptyState) + ~60 refactor + 15 lines closure doc
 - Bundle delta : 0 strict (refactor à pattern unifié, légère réduction via dead-code delete)
 
-**Track 2 status** (Mike use-app perceptual audit) : **pending**. Mike runs perceptual audit en parallèle ou séquentiel sur 6 surfaces (`/`, `/marketplace`, `/[handle]`, `/[handle]/[slug]`, `/checkout` + cart drawer, `/seller/dashboard` 5 tabs) avec 7 categories per surface (first impression / hierarchy / spacing / touch / copy / states / micro-frictions). Findings forward → separate Phase 2 batch.
+**Track 2 status** (Mike use-app perceptual audit) : closed below.
 
 **Sprint J10-V5 status** : **~99.7% wall-clock complete**. Phase 4 ✓ + Block 1-2 ✓ + 7 polish items ✓ + Angles A + D + C + E + F + B Track 1 done. Reste Angle B Track 2 (Mike perceptual) + Block 3 (Robinhood QA side-by-side) + Pre-submission (Proof of Ship + grants Celo) selon Mike call.
+
+#### Phase 5 Angle B Track 2 — Mike use-app perceptual audit CLOSURE 2026-05-05 ✅ 4/4 commits shipped
+
+Track 2 = Mike use-app perceptual audit complement à Track 1 code-level (Claude CLI grep) — caught 4 findings que objective-pattern-grep ne voyait pas (visual mode-specific contrast, UX hierarchy, feature gap).
+
+| Sub-block | Commit | Scope |
+|---|---|---|
+| B.T2.1 | `9f10fbf` | Dark mode contrast fixes — Marketing TemplateSelector (5 social network templates) + ShareButtons (WhatsApp + Copy link). Mike found light-mode tints (bg-amber-50 / orange-50 / green-50 / neutral-50) collapsed into dark page bg making cards effectively invisible. Each TEMPLATES entry now declares `dark:` variants (bg-{color}-950/30 + dark:border-{color}-700/40 + dark:text-celo-light). ShareButtons OUTLINE className gains explicit `text-celo-dark` light + `dark:bg-celo-dark-elevated dark:border-celo-light/20 dark:text-celo-light`. WCAG AA contrast preserved both modes. |
+| B.T2.2 | `1f65a94` | Profile tab discoverability — Mike's perceptual audit found Profile hidden in 4th position of seller dashboard tabs (Overview / Products / Orders / Profile / Marketing). Fix : reorder to **Overview / Profile / Products / Orders / Marketing** — Profile en 2nd position. Rationale : new sellers landing on /seller/dashboard need to fill out shop identity (name / description / logo / socials) BEFORE they add products or check orders. |
+| B.T2.3 | `267d87e` | Size info MVP **Option C scope retained** — Mike originally validated Option B (proper backend Product.size_info field + migration + frontend wiring, ~2h) but Claude CLI investigation revealed scope creep risk. Pivot to Option C : description field hint nudge "Tip: include size info (e.g. 'Available in S, M, L' or 'Sizes EU 36-44')" + product detail already has `whitespace-pre-line` (no code change needed there) → buyers see formatted size info inside description. Spirit feature preserved with 15 min effort. V1.5+ proper feature : structured `Product.variants` array when fashion seller volume justifies architecture cost. |
+| B.T2.4 | this commit | Sprint doc closure |
+
+**Pattern decisions locked Track 2** :
+
+1. **Dark mode contrast audit needed beyond code-level Angle E** — Angle E focused on a11y semantics (skip link, label-input, role-group) but didn't catch visual mode-specific contrast issues. `text-[#xxx]` / `bg-[#xxx]` hardcoded grep returned 0 hits ; the issue was Tailwind tokens like `bg-amber-50` working only in light mode without paired `dark:bg-amber-950/30` variants. **Mike's perceptual audit was the only path to surface these — code-level grep can't tell light-only Tailwind tokens from dark-aware ones.**
+2. **Tab discoverability via order/icon/badge** — UX hierarchy considerations are inherently subjective. Track 1 confirmed all tab labels are contextual ; Track 2 caught the more subtle "this is buried where new sellers won't find it" friction.
+3. **Quick MVP free-text fields ship feature gaps without architecture overhead** — Option C (description hint nudge) > Option B (proper backend size_info column + migration + frontend wiring) when : (a) feature is uncertain volume V1, (b) MVP scope preserves the buyer-facing outcome, (c) V1.5+ proper feature can land when usage data justifies. Pattern : "spirit-of-feature first, structure-of-feature later".
+4. **Mike use-app perceptual audit catches what code-level audit misses (Track 1 + Track 2 complementary)** — Track 1 grep-able patterns ≠ Track 2 perceptual patterns. Both required for confident Robinhood-grade closure.
+
+**Métriques cumulées Track 2** :
+
+- Frontend tests : 298 → **299 PASS** (+1 spec : FormField hint text surfaces below input)
+- Test files : 41 → 41 (no new test files, +1 spec in existing ProductFormDialog.test.tsx)
+- Bundle delta : 0 strict (Tailwind class additions for dark variants + tab reorder + text hint update + 1 spec — no JS / CSS / dep changes)
+- Files touched : 4 cumulé (TemplateSelector + ShareButtons + SellerDashboardInner + ProductFormDialog + 1 test extended)
+- WCAG : dark mode contrast restored (Marketing tab + Share buttons), Track 1 Angle E light-mode coverage extended
+- LOC delta : ~+50 / −15 (mostly Tailwind dark: variants + closure doc lines)
+
+**V1.5+ feature backlog** :
+
+- Structured `Product.variants` array (size + color + stock per variant) + variant selector UI on product detail + cart/checkout variant info passthrough — proper fashion-segment feature when usage data justifies architecture cost
+- Profile setup-incomplete badge (red dot or "Setup" text on tab when shop_name + description + logo + socials not all filled) — onboarding-flow signal helper
+- Tab icons system-wide (User icon for Profile, etc.) — visual differentiation if pure label rows feel generic at scale
+- Dark mode comprehensive design system audit — Track 2 caught 2 surfaces but more might exist (Mike Lighthouse + axe DevTools at grants pre-submission Block will surface contrast violations systematically)
+
+**Phase 5 Angle B closed** : Track 1 (3 commits) + Track 2 (4 commits) = 7 commits cumulé Angle B. Track 1 ship 3 actionable findings code-level + 12+ strong points confirmed ; Track 2 ship 4 findings perceptual + complementarity pattern locked.
+
+**Sprint J10-V5 status** : **~99.9% wall-clock complete**. Phase 4 ✓ + Block 1-2 ✓ + 7 polish items ✓ + Angles A + D + C + E + F + B Track 1 + B Track 2 done. Reste : Block 3 (Robinhood QA side-by-side) + Pre-submission (Proof of Ship + grants Celo Foundation packaging) selon Mike call.
 
 Goal : tabular nums + mobile gestures + side-by-side QA pass + Proof of Ship + grants.
 
