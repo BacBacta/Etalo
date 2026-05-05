@@ -92,22 +92,22 @@ section of each caller.
 
 ## Deployed addresses (Celo Sepolia)
 
-**Deployment date**: 2026-04-24
+**Deployment date**: 2026-05-05 (post-H-1 redeploy per ADR-042 — see `docs/DEPLOYMENTS_HISTORY.md` for the predecessor 2026-04-24 deploy)
 **Chain ID**: 11142220
-**Deploy commit**: TBD (see `git log` for `deploy(contracts): V2 on Celo Sepolia with triple-explorer verification`)
+**Deploy commit**: f8cf195 (H-1 fix), redeploy executed on `ops/sepolia-redeploy-h1-fix` branch
 **Full artifact**: `packages/contracts/deployments/celo-sepolia-v2.json` (tx hashes, block numbers, constructor args, setter events, mint receipt)
 
 ### Core contracts
 
 | Contract | Address |
 |---|---|
-| `MockUSDT` (test-only) | `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` |
-| `EtaloReputation` | `0x2a6639074d0897c6280f55b252B97dd1c39820b7` |
-| `EtaloStake` | `0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417` |
-| `EtaloVoting` | `0x335Ac0998667F76FE265BC28e6989dc535A901E7` |
-| `EtaloDispute` | `0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE` |
-| `EtaloEscrow` | `0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb` |
-| `EtaloCredits` (J7 Block 5b, 2026-04-26) | `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` |
+| `MockUSDT` (test-only) | `0xea07db5d3D7576864ac434133abFE0E815735300` |
+| `EtaloReputation` | `0x539e0d44c0773504075E1B00f25A99ED70258178` |
+| `EtaloStake` | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` |
+| `EtaloVoting` | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` |
+| `EtaloDispute` | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` |
+| `EtaloEscrow` | `0xAeC58270973A973e3FF4913602Db1b5c98894640` |
+| `EtaloCredits` (J7 Block 5b, redeployed 2026-05-05) | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` |
 
 ### Treasury wallets (three-wallet separation per ADR-024)
 
@@ -127,23 +127,24 @@ single-explorer outage or delisting.
 
 | Contract | CeloScan | Blockscout | Sourcify |
 |---|---|---|---|
-| `MockUSDT` | [source](https://sepolia.celoscan.io/address/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3#code) | [source](https://celo-sepolia.blockscout.com/address/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3) |
-| `EtaloReputation` | [source](https://sepolia.celoscan.io/address/0x2a6639074d0897c6280f55b252B97dd1c39820b7#code) | [source](https://celo-sepolia.blockscout.com/address/0x2a6639074d0897c6280f55b252B97dd1c39820b7#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x2a6639074d0897c6280f55b252B97dd1c39820b7) |
-| `EtaloStake` | [source](https://sepolia.celoscan.io/address/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417#code) | [source](https://celo-sepolia.blockscout.com/address/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xBB21BAA78f5b0C268eA66912cE8B3E76eB79c417) |
-| `EtaloVoting` | [source](https://sepolia.celoscan.io/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [source](https://celo-sepolia.blockscout.com/address/0x335Ac0998667F76FE265BC28e6989dc535A901E7#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x335Ac0998667F76FE265BC28e6989dc535A901E7) |
-| `EtaloDispute` | [source](https://sepolia.celoscan.io/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [source](https://celo-sepolia.blockscout.com/address/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x863F0bBc8d5873fE49F6429A8455236fE51A9aBE) |
-| `EtaloEscrow` | [source](https://sepolia.celoscan.io/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [source](https://celo-sepolia.blockscout.com/address/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x6caEBc6aDc5082f6B63282e86CaF51AEbd630bfb) |
-| `EtaloCredits` | [source](https://sepolia.celoscan.io/address/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d#code) | [source](https://celo-sepolia.blockscout.com/address/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d) |
+| `MockUSDT` | [source](https://sepolia.celoscan.io/address/0xea07db5d3D7576864ac434133abFE0E815735300#code) | [source](https://celo-sepolia.blockscout.com/address/0xea07db5d3D7576864ac434133abFE0E815735300#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xea07db5d3D7576864ac434133abFE0E815735300) |
+| `EtaloReputation` | [source](https://sepolia.celoscan.io/address/0x539e0d44c0773504075E1B00f25A99ED70258178#code) | [source](https://celo-sepolia.blockscout.com/address/0x539e0d44c0773504075E1B00f25A99ED70258178#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x539e0d44c0773504075E1B00f25A99ED70258178) |
+| `EtaloStake` | [source](https://sepolia.celoscan.io/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB#code) | [source](https://celo-sepolia.blockscout.com/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB) |
+| `EtaloVoting` | [source](https://sepolia.celoscan.io/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A#code) | [source](https://celo-sepolia.blockscout.com/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A) |
+| `EtaloDispute` | [source](https://sepolia.celoscan.io/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b#code) | [source](https://celo-sepolia.blockscout.com/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xEe8339b29F54bd29d68E061c4212c8b202760F5b) |
+| `EtaloEscrow` | [source](https://sepolia.celoscan.io/address/0xAeC58270973A973e3FF4913602Db1b5c98894640#code) | [source](https://celo-sepolia.blockscout.com/address/0xAeC58270973A973e3FF4913602Db1b5c98894640#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xAeC58270973A973e3FF4913602Db1b5c98894640) |
+| `EtaloCredits` | [source](https://sepolia.celoscan.io/address/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3#code) | [source](https://celo-sepolia.blockscout.com/address/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3) |
 
-### EtaloCredits deployment (Sprint J7 Block 5b, 2026-04-26)
+### EtaloCredits deployment (Sprint J7 Block 5b, redeployed post-H-1 on 2026-05-05)
 
-- **Address**: `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d`
-- **Deploy tx**: `0xad954959fc4e36d1142244d00eb73c71ec32a1f7b2d7ef487869f7855266507c` (block 23948381)
-- **Deployer**: `0x66bD37325cf41dAd0035398854f209785C9bC4C2` (admin owner)
+- **Address**: `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3`
+- **Deploy tx**: `0xf5ae6be3dbfaa52c90531d58502d81ee1fe052056f034944f9fd0d083ea68077` (block 24720520)
+- **Deployer**: `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8` (admin owner)
 - **Constructor args**:
-  - `_usdt`: `0x5ce5EBA46a72EA49655367c57334E038Ea1Aa1f3` (MockUSDT V2)
-  - `_creditsTreasury`: `0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA` (per ADR-024)
-  - `_admin`: `0x66bD37325cf41dAd0035398854f209785C9bC4C2`
+  - `_usdt`: `0xea07db5d3D7576864ac434133abFE0E815735300` (MockUSDT V2 post-H-1)
+  - `_creditsTreasury`: `0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA` (per ADR-024 — wallet unchanged)
+  - `_admin`: `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8`
+- **Predecessor (deprecated 2026-05-05 per ADR-042)**: address `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` deployed 2026-04-26 on the now-deprecated MockUSDT/Escrow suite — see `docs/DEPLOYMENTS_HISTORY.md` for the full pre-H-1 deploy detail. The 2026-04-26 smoke-test result (next bullet) was performed on the predecessor and is retained as historical evidence of testing rigor at that point.
 - **Verified**: Etherscan + Blockscout + Sourcify (triple-explorer, Block 5b second-pass on Blockscout after a brief indexer delay)
 - **Tests**: 24 Hardhat unit (Block 5a) + 1 Foundry invariant @ 12,800 calls / 0 reverts (Block 5b)
 - **Slither**: 0 High, 0 Medium, 0 Low, 0 Informational (101 detectors run, 0 results)
@@ -267,6 +268,14 @@ assertion outcomes for every scenario are in
 **Sprint closure date**: 2026-04-26
 **Branch**: `feat/asset-generator-v2` → tagged `v2.0.0-asset-generator-sepolia`
 **Closure pillar**: V1 Boutique pillar 3 (asset generator, ADR-014).
+
+> **Historical note (added 2026-05-05)** : the addresses in this section
+> are the pre-H-1 deploy (deprecated 2026-05-05 per ADR-042). All
+> static-analysis, invariant, and smoke results were performed on the
+> predecessor and are retained as historical evidence of testing rigor
+> at sprint J7 closure. For the current active addresses see §6
+> "Deployment artifacts" above. For the full predecessor → successor
+> mapping see `docs/DEPLOYMENTS_HISTORY.md`.
 
 ### Contract — `EtaloCredits` invariants
 

@@ -18,6 +18,15 @@
  * First use: Sprint J4 Block 11 (2026-04-24) — drpc.org 500 on setter #7
  * Voting.setDisputeContract. Ghost-tx confirmed via on-chain read.
  *
+ * Historical note (2026-05-05): the VOTING / EXPECTED_DISPUTE constants
+ * below are the addresses from the original 2026-04-24 V2 deploy, which
+ * was deprecated in the H-1 redeploy per ADR-042 (see
+ * docs/DEPLOYMENTS_HISTORY.md). They are kept as a working example;
+ * future operators invoking this template must replace them with the
+ * addresses involved in the specific incident under diagnosis (read
+ * from packages/contracts/deployments/celo-sepolia-v2.json contracts.*
+ * for the current active deploy).
+ *
  * Usage:
  *   npx hardhat run scripts/check-resume-state.ts --network celoSepolia
  *
@@ -38,6 +47,9 @@ const celoSepolia = defineChain({
   testnet: true,
 });
 
+// Historical example values from the J4 Block 11 incident on the
+// pre-H-1 deploy (deprecated 2026-05-05 per ADR-042). Replace before
+// running for any current incident.
 const VOTING = "0x335ac0998667f76fe265bc28e6989dc535a901e7" as const;
 const EXPECTED_DISPUTE = "0x863f0bbc8d5873fe49f6429a8455236fe51a9abe" as const;
 const ZERO = "0x0000000000000000000000000000000000000000" as const;
