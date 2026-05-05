@@ -155,15 +155,57 @@ if (-not $ngrokUrl) {
   exit 1
 }
 
-# Update .env.local
+# Update .env.local — merge mode: preserve all keys NOT in the managed
+# set (including NEXT_PUBLIC_*_ADDRESS for V2 contracts), only update
+# the 4 ngrok-related keys. Falls back to .env.example template if
+# .env.local is missing.
 $envPath = Join-Path $webDir ".env.local"
-$envLines = @(
-  "NEXT_PUBLIC_API_URL=/api/v1",
-  "NEXT_PUBLIC_BASE_URL=$ngrokUrl",
-  "NEXT_PUBLIC_MINIAPP_URL=$ngrokUrl",
-  "LOCAL_API_REWRITE_TARGET=http://localhost:8000"
-)
-Set-Content -Path $envPath -Value $envLines -Encoding UTF8
+$envExamplePath = Join-Path $webDir ".env.example"
+
+# Keys this script manages — all others are preserved as-is.
+$managedKeys = [ordered]@{
+  "NEXT_PUBLIC_API_URL"      = "/api/v1"
+  "NEXT_PUBLIC_BASE_URL"     = $ngrokUrl
+  "NEXT_PUBLIC_MINIAPP_URL"  = $ngrokUrl
+  "LOCAL_API_REWRITE_TARGET" = "http://localhost:8000"
+}
+
+if (Test-Path $envPath) {
+  $sourceLines = Get-Content $envPath
+  Write-Host "  Merging into existing .env.local (preserving non-managed keys)"
+} elseif (Test-Path $envExamplePath) {
+  $sourceLines = Get-Content $envExamplePath
+  Write-Host "  Bootstrapping .env.local from .env.example"
+} else {
+  $sourceLines = @()
+  Write-Host "  Creating .env.local from scratch (no .env.example found)"
+}
+
+# Walk lines: replace managed keys in-place, otherwise keep as-is.
+$seenKeys = @{}
+$outputLines = foreach ($line in $sourceLines) {
+  if ($line -match '^([A-Z_][A-Z0-9_]*)=') {
+    $key = $matches[1]
+    if ($managedKeys.Contains($key)) {
+      $seenKeys[$key] = $true
+      "$key=$($managedKeys[$key])"
+    } else {
+      $line
+    }
+  } else {
+    # Comment or blank line — preserve.
+    $line
+  }
+}
+
+# Append any managed keys that weren't present in the source.
+foreach ($key in $managedKeys.Keys) {
+  if (-not $seenKeys.ContainsKey($key)) {
+    $outputLines += "$key=$($managedKeys[$key])"
+  }
+}
+
+Set-Content -Path $envPath -Value $outputLines -Encoding UTF8
 
 Write-Host ""
 Write-Host "=== READY ===" -ForegroundColor Green
