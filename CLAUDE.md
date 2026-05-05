@@ -52,7 +52,7 @@ power is structurally bounded by code.
 
 1. NEVER commit .env files or private keys to git
 2. USDT has 6 decimals — all amount math must handle this correctly
-3. NEVER use EIP-1559 transactions — MiniPay only accepts legacy and CIP-64 (type 0x7b)
+3. NEVER use EIP-1559 transactions — MiniPay only accepts legacy and CIP-64 (type 0x7b). Note : legacy uniquement V1 ; câblage CIP-64 USDT feeCurrency = V1.5 (voir ADR-003). Plan de remplacement = `asLegacyTx()` peut émettre type 0x7b avec `feeCurrency=USDT_ADAPTER` quand activé.
 4. User-facing terminology required:
    - "network fee" (not "gas")
    - "deposit" / "withdraw" (not "on-ramp" / "off-ramp")
