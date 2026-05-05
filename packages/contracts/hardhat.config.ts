@@ -56,5 +56,15 @@ export default defineConfig({
       apiKey: configVariable("CELOSCAN_API_KEY"),
       enabled: true,
     },
+    customChains: [
+      {
+        network: "celoSepolia",
+        chainId: 11142220,
+        urls: {
+          apiURL: "https://api-sepolia.celoscan.io/api",
+          browserURL: "https://sepolia.celoscan.io",
+        },
+      },
+    ],
   },
 });
