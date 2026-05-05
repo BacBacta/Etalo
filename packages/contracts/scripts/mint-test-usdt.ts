@@ -47,7 +47,10 @@ function loadAbi(contractName: string, inTest = false) {
 }
 
 function loadDeployment() {
-  const file = path.join("deployments", "celo-sepolia.json");
+  // Load V2 deployment manifest (post-Sprint J4 V2 contracts) by default.
+  // Override via env var DEPLOYMENT_FILE=celo-sepolia.json for V1 era.
+  const filename = process.env.DEPLOYMENT_FILE ?? "celo-sepolia-v2.json";
+  const file = path.join("deployments", filename);
   return JSON.parse(fs.readFileSync(file, "utf8"));
 }
 
@@ -65,7 +68,10 @@ async function main() {
   });
 
   const deployment = loadDeployment();
-  const usdt = deployment.contracts.MockUSDT as `0x${string}`;
+  // V1 manifest : contracts.MockUSDT is a string. V2 manifest : object
+  // with `.address` field. Support both shapes.
+  const mock = deployment.contracts.MockUSDT;
+  const usdt = (typeof mock === "string" ? mock : mock.address) as `0x${string}`;
   const usdtAbi = loadAbi("MockUSDT", true);
 
   const recipient = (process.env.MINT_RECIPIENT ?? account.address) as `0x${string}`;
