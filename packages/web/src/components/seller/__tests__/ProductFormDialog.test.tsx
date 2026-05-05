@@ -26,4 +26,19 @@ describe("ProductFormDialog — FormField label↔input association (Phase 5 Ang
     expect(input).toBeInTheDocument();
     expect(input.tagName).toBe("INPUT");
   });
+
+  // J10-V5 Phase 5 Angle B Track 2 fix #4 (Option C MVP) — hint text
+  // surfaces as the FormField caption when no error is set. Pin the
+  // size-info nudge so a future hint-rewrite doesn't silently drop the
+  // seller-facing guidance.
+  it("renders the hint text below the input when no error is set", () => {
+    render(
+      <FormField label="Description" hint="Tip: include size info">
+        <textarea defaultValue="" />
+      </FormField>,
+    );
+    expect(
+      screen.getByText("Tip: include size info"),
+    ).toBeInTheDocument();
+  });
 });

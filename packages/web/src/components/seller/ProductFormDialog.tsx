@@ -212,7 +212,7 @@ export function ProductFormDialog({
           <FormField
             label="Description"
             error={errors.description}
-            hint="Optional, up to 2000 chars"
+            hint='Tip: include size info in your description (e.g. "Available in S, M, L" or "Sizes EU 36-44"). Up to 2000 chars.'
           >
             <textarea
               value={description}
