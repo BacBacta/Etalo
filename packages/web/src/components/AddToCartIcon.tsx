@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus } from "lucide-react";
+import { Plus } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
 import { useCartStore } from "@/lib/cart-store";

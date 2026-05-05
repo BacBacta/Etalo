@@ -1,4 +1,4 @@
-import { injected } from "wagmi/connectors";
+import { injected } from "@wagmi/core";
 import type { EIP1193Provider } from "viem";
 
 /**
@@ -11,8 +11,14 @@ import type { EIP1193Provider } from "viem";
 export function minipayConnector() {
   return injected({
     target() {
+      // J10-V5 Phase 5 Angle F sub-block F.3 follow-up — `wagmi/connectors`
+      // barrel previously augmented `Window` ambiently with `ethereum` ;
+      // switching to `@wagmi/core` (to drop the @metamask/sdk + pino-pretty
+      // build warnings) loses that augmentation, so we cast locally.
       const eth =
-        typeof window !== "undefined" ? window.ethereum : undefined;
+        typeof window !== "undefined"
+          ? (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum
+          : undefined;
       if (eth?.isMiniPay !== true) return undefined;
       return {
         id: "minipay",

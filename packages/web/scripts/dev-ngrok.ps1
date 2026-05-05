@@ -102,7 +102,7 @@ Set-Content -Path $envPath -Value $newContent -Encoding UTF8
 Write-Host ""
 Write-Host "Updated .env.local:" -ForegroundColor Green
 Write-Host "  NEXT_PUBLIC_BASE_URL=$ngrokUrl"
-Write-Host "  NEXT_PUBLIC_API_URL=/api/v1   (relative — Next.js rewrites proxy /api/* to localhost:8000)"
+Write-Host "  NEXT_PUBLIC_API_URL=/api/v1   (relative - Next.js rewrites proxy /api/* to localhost:8000)"
 Write-Host "  LOCAL_API_REWRITE_TARGET=http://localhost:8000"
 Write-Host ""
 Write-Host "Next.js dev server picks up env changes on the next request." -ForegroundColor Cyan

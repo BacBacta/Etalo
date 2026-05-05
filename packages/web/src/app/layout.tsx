@@ -1,23 +1,20 @@
 import type { Metadata } from "next";
-import { Instrument_Serif, Inter } from "next/font/google";
+import localFont from "next/font/local";
 
 import "./globals.css";
+import { Footer } from "@/components/Footer";
+import { PageTransition } from "@/components/PageTransition";
 import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
+import { SkipLink } from "@/components/SkipLink";
 import { ToasterV4 } from "@/components/ui/v4/Toast";
 
-const instrumentSerif = Instrument_Serif({
-  subsets: ["latin"],
-  weight: ["400"],
-  style: ["normal", "italic"],
-  variable: "--font-instrument-serif",
-  display: "swap",
-});
-
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-inter",
+const switzer = localFont({
+  src: [
+    { path: "../../public/fonts/switzer/Switzer-Variable.woff2", style: "normal" },
+    { path: "../../public/fonts/switzer/Switzer-VariableItalic.woff2", style: "italic" },
+  ],
+  variable: "--font-switzer",
   display: "swap",
 });
 
@@ -49,14 +46,19 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html
-      lang="en"
-      className={`${instrumentSerif.variable} ${inter.variable}`}
-    >
-      <body className="min-h-screen bg-white text-neutral-900 antialiased">
+    <html lang="en" className={switzer.variable} suppressHydrationWarning>
+      <body className="min-h-screen bg-celo-light text-celo-dark antialiased dark:bg-celo-dark-bg dark:text-celo-light">
+        {/*
+          J10-V5 Phase 5 Angle E sub-block E.1.a — WCAG 2.4.1 Bypass
+          Blocks (Level A). Keyboard users can Tab once, hit Enter,
+          and skip past the PublicHeader nav directly to the page's
+          <main id="main"> element.
+        */}
+        <SkipLink />
         <Providers>
           <PublicHeader />
-          {children}
+          <PageTransition>{children}</PageTransition>
+          <Footer />
           <ToasterV4 position="bottom-center" />
         </Providers>
       </body>

@@ -86,6 +86,55 @@ MiniPay which typically sponsors or funds CELO for its users.
 `asLegacyTx()` helper that emits type `0x7b` when set. Requires raw
 signing via viem serializers.
 
+**Balance-delta accounting pattern (CIP-64 mandatory V1.5)**:
+
+When CIP-64 with `feeCurrency=USDT_ADAPTER` is wired, the EVM debits
+the buyer's USDT balance for gas at the same time as their
+`transferFrom` to the escrow. The `transferFrom` amount the contract
+observes can be smaller than the `totalAmount` parameter because the
+fee-currency path also deducts from the same wallet. Per
+celopedia-skills `security-patterns.md` §2 (CIP-64 fee-currency
+accounting), the escrow MUST credit the actual delta observed, not
+the requested `totalAmount`.
+
+Required code change in `EtaloEscrow.fundOrder` :
+
+```solidity
+// BEFORE (current V1) :
+require(
+    usdt.transferFrom(msg.sender, address(this), order.totalAmount),
+    "USDT transfer failed"
+);
+// totalEscrowedAmount += order.totalAmount; // assumes amount == observed delta
+
+// AFTER (V1.5 with CIP-64) :
+uint256 bal0 = usdt.balanceOf(address(this));
+require(
+    usdt.transferFrom(msg.sender, address(this), order.totalAmount),
+    "USDT transfer failed"
+);
+uint256 bal1 = usdt.balanceOf(address(this));
+uint256 actualDeposited = bal1 - bal0;
+require(actualDeposited > 0, "no transfer");
+// Treat actualDeposited as the source of truth for escrow accounting.
+order.totalAmount = actualDeposited; // or split commission proportionally
+totalEscrowedAmount += actualDeposited;
+```
+
+Required test invariant V1.5 :
+
+```solidity
+// Invariant : the contract's bookkeeping must match its custody.
+assertEq(escrow.totalEscrowed(), USDT.balanceOf(address(escrow)));
+```
+
+This invariant guards against fee-currency drift and any other
+discrepancy between credited amount and on-chain custody. Add to the
+existing escrow invariant suite at V1.5.
+
+**Cross-link** : celopedia-skills `security-patterns.md` §2,
+captured in `docs/AUDIT_CELOPEDIA_ALIGN.md` §D.2 (commit 9e2a15e).
+
 ---
 
 ## ADR-004 · 2026-04-22 — On-chain event indexing deferred V1.5
@@ -452,7 +501,7 @@ releases when triggered.
 
 ## ADR-018 · 2026-04-23 — Cross-border progressive release: 20% / 70% / 10%
 
-**Status**: Accepted
+**Status**: Deferred V2 by ADR-041 (2026-04-30) — V1 is intra-Africa only; this release schedule remains the canonical design for cross-border when it ships post-V1.
 
 **Context**: With the Items/ShipmentGroups hierarchy (ADR-015) and the
 removal of fixed milestones (ADR-017), cross-border orders need a
@@ -489,7 +538,7 @@ between parties.
 
 ## ADR-019 · 2026-04-23 — Strict seller inactivity deadlines (7d intra / 14d cross-border)
 
-**Status**: Accepted
+**Status**: Partially deferred V2 by ADR-041 (2026-04-30) — the 7-day intra deadline ships in V1; the 14-day cross-border deadline is deferred until cross-border itself ships post-V1.
 
 **Context**: Funds sitting in escrow while a seller fails to ship block
 the buyer's capital indefinitely. V1 had no code-enforced deadline —
@@ -527,7 +576,7 @@ third-party helper.
 
 ## ADR-020 · 2026-04-23 — Cross-border seller stake — 3-tier structure
 
-**Status**: Accepted
+**Status**: Deferred V2 by ADR-041 (2026-04-30) — V1 retires the seller stake mechanism entirely (intra-only scope makes auto-release 3d a sufficient guarantee); the 3-tier design is preserved here as the canonical reference for the V2 cross-border re-introduction.
 
 **Context**: ADR-018 releases 20% of cross-border funds to the seller
 before buyer-side arrival confirmation. A malicious seller could submit
@@ -1496,6 +1545,25 @@ are coupled to wallet addresses already public on-chain via indexer).
   seller's wallet, indexer ingests). Aligns with ADR-034 endgame.
 - ADR to be filed when V1.5 architecture is finalized.
 
+**V1 implications — SSR prefetch is BLOCKED until SIWE lands**:
+
+Future contributors who consider true Next.js App Router SSR prefetch
+(e.g. `dehydrate(queryClient)` for `/seller/dashboard` analytics first
+paint, eliminating the loading flash) **must first land SIWE EIP-4361
+auth or an equivalent crypto-verified session cookie**.
+
+The V1 `X-Wallet-Address` header is client-set and unsigned. Storing
+the address in a cookie (so the server could read it during SSR) would
+be **forgeable** — any attacker could set the cookie to another
+seller's address and read their analytics. That's a hard security
+blocker, not just a polish concern.
+
+Phase 5 polish item #7 (Sprint J10-V5, 2026-05-04) explored this and
+chose **perceptual skeleton optimization** (`DashboardSkeleton.tsx`)
+as the V1 alternative — it delivers ~80-90% of the perception-of-
+fast win without touching auth. When SIWE lands V1.5+, revisit the
+SSR prefetch path as the natural progression.
+
 **Impact**:
 - Backend gets `app/dependencies/seller_auth.py` with the
   `require_seller_auth` dependency composed on top of the existing
@@ -1825,6 +1893,309 @@ firm engagement. Compensating mitigations:
 **Supersedes**: none. ADR-039 complements ADR-025 (phased audit
 strategy) and refines its V1 phase without invalidating prior
 decisions.
+
+---
+
+## ADR-040 · 2026-04-27 — Pivot design V4 → V5 Robinhood-target
+
+**Status** : Accepted (J10 mid-pivot, 2026-04-27)
+
+### Context
+
+Le sprint J9 a livre une component library V4 (8 composants atomiques + sub-parts) et un design system base sur DESIGN_V4_PREVIEW.md (palette Celo earth-inspired + Instrument Serif + Inter + premium minimalism reference Stripe Atlas / Mercury / Linear).
+
+Sprint J10 a demarre Block 2 (PublicHeader migration vers V4) puis Mike a fait le visual check et identifie : "design trop basique et mal calibre, experience client deplorable, je veux quelque chose de moderne et ultra premium comparable aux meilleures applications en 2026".
+
+Apres analyse honest avec audit Cowork des angles morts du plan initial pivot, decisions verrouillees ci-dessous.
+
+### Decision
+
+**Pivoter le design system de V4 vers V5 avec target Robinhood (post-2024 redesign)**.
+
+Raisons :
+1. V4 actuel est conforme spec mais la spec elle-meme etait trop modeste vs 2026 standards
+2. Robinhood = bold, dark-first, fintech-appropriate, recognizable, ideal target pour Etalo (non-custodial USDT escrow)
+3. Solo dev + budget minimal ($50-80) peut atteindre **75-85% Robinhood-quality** (pas 90% comme initialement souhaite — Cowork audit a corrige l'estimation)
+4. Effort estimated **6-10 semaines wall-clock** (avec buffer 30% solo dev)
+
+### Toolkit verrouille
+
+| Item | Cout | Usage |
+|---|---|---|
+| Switzer typeface (Indian Type Foundry, gratuit) | $0 | Distinctive Capsule Sans-like, plus original que Geist (overplayed 2026) |
+| Phosphor Icons (5 weights) | $0 | Iconographie premium consistent |
+| Framer Motion ou Motion vanilla (selon bundle size) | $0 | Page transitions + micro-animations |
+| canvas-confetti | $0 | Celebrate milestones |
+| recharts (deja installe J7) | $0 | Sparklines + line charts dashboard |
+| Lottie + LottieFiles | $0 | Loading animations |
+| **Recraft.ai 1 mois** (PAS Midjourney) | **~$12** | Illustrations vectorielles SVG (pas raster) |
+| Aeonik typeface optionnel | ~$50 | Si Switzer pas assez premium feel |
+
+**Total : ~$50-80** (Recraft 1 mois + Aeonik optional fallback)
+
+### Consequences
+
+#### Positives
+
+1. **Quality elevation** : Etalo passe de "MVP avec design correct" a "produit premium 2026 audit-ready"
+2. **Grants Celo competitivite** : design premium = chances grants application meilleures
+3. **Retention buyer/seller** : UX premium = engagement plus haut
+4. **MiniPay submission cleanliness** : reviewers favorisent apps polished
+5. **V5 framework reutilisable** : composants V5 base solide pour extensions futures (multi-currency, mobile native apps V2+)
+
+#### Negatives
+
+1. **Mainnet decale Q4 2026 → Q2 2027** (avril-juin 2027 realistic)
+2. **Effort 6-10 semaines** focused sur design plutot que features
+3. **75-85% Robinhood-quality realistic, pas 90%** sans designer humain
+4. **Refactor V4 → V5** des 8 composants library livres J9 (extension dark + Motion)
+5. **Block 2 J10 PublicHeader migration partiellement a refaire** (Switzer typeface, dark variants)
+6. **Risk grants Celo Sept 2026 window** si pivot derape >8 semaines
+
+### Plan B grants Celo Sept 2026
+
+Check-point a 6 semaines :
+- Si pivot a >50% complete : continuer V5 puis submission grants avec V5 ready
+- Si pivot a <50% complete : soumettre grants avec V4 actuel + V5 demo preview (mockups Recraft.ai)
+- Pas de risk de manquer le window grants
+
+### Plan B audit pratique ADR-039
+
+Pas de conflict avec design pivot :
+- Audit V1 freelance + AI per ADR-039 = SMART CONTRACTS only
+- Design pivot V5 = FRONTEND only
+- Pas de chevauchement code → audit et pivot peuvent runner en parallele
+
+### Implementation timeline
+
+5 phases sur 6-10 semaines wall-clock :
+
+1. **Phase 1 — Foundations elevation** (8-10j) — Switzer + Dark mode V1 + next-themes + Phosphor + Performance budget
+2. **Phase 2 — Motion + interactions** (5-7j) — Framer Motion / Motion vanilla + 10-15 micro-anims + confetti
+3. **Phase 3 — Visuals premium** (7-10j) — Recraft.ai illustrations + Skeleton screens + Charts intégration
+4. **Phase 4 — Layout refactor** (5-7j) — Cards depth + Top tabs Robinhood-styled (PAS bottom nav, conflict MiniPay) + Onboarding V1
+5. **Phase 5 — Polish + Submission** (5-7j) — Tabular nums + Mobile gestures + QA pass + Proof of Ship + Grants
+
+**Total : 30-41 jours wall-clock + buffer 30% = 6-10 semaines realistic.**
+
+### Branche strategy
+
+- **Branche actuelle** `feat/design-vitrine-v4` reste ouverte avec Block 2 PublicHeader work preserve
+- **Nouvelle branche** `feat/design-system-v5` cree depuis `feat/design-vitrine-v4` HEAD (preserve Block 2 work qui restera relevant moyennant Switzer swap + dark variants)
+- Tag `v2.0.0-design-system-sepolia` reste reference audit trail "V4 baseline" pour rollback eventuel
+
+### Documents impactes
+
+- DESIGN_V4_PREVIEW.md → **deprecated**, remplace par DESIGN_V5_PREVIEW.md
+- SPRINT_J10.md → **deprecated**, remplace par SPRINT_J10_V5.md
+- CLAUDE.md "Current sprint" → flip vers J10-V5
+- V4 component library packages/web/src/components/ui/v4/ → extension V5 (dark variants + Motion props)
+
+### Supersedes
+
+- Decision implicite "V4 design system suffit V1" du sprint J9 (jamais formalisee en ADR mais sous-entendue par DESIGN_V4_PREVIEW.md validation 22/04/2026)
+
+### Ne supersede pas
+
+- ADR-022 non-custodial criteria : inchangee
+- ADR-026 architectural limits : inchangee
+- ADR-038 multisig strategy : inchangee
+- ADR-039 audit strategy V1 : inchangee, run en parallele
+
+### Risk acknowledged
+
+- 75-85% realistic, pas 90% — promesse honest
+- 6-10 semaines, pas 4-6 — buffer solo dev
+- Mainnet Q2 2027 — buffer realistic
+- Dependance forte sur Mike's design judgment (pas designer externe pour QA)
+- "Design blindness" risk — mitige par side-by-side comparison Robinhood screenshots a chaque sprint
+
+### Acceptance criteria
+
+- DESIGN_V5_PREVIEW.md livre et valide Mike
+- 5 phases plan executees end-to-end
+- Side-by-side comparison Robinhood QA pass each sprint
+- 75-85% Robinhood-quality atteint (Mike valide qualitativement)
+- Mainnet pre-deploy ready Q2 2027
+
+---
+
+## ADR-041 · 2026-04-30 — V1 Scope Restriction — Intra-Only + South Africa + Single Commission Rate
+
+**Status**: Accepted
+
+### Context
+
+V1 launch is approaching mainnet (target Q2 2027 per ADR-040 timeline)
+and three coupled scope questions need to be locked before Phase 4
+Block 5 V5 application work proceeds further:
+
+1. **Cross-border vs intra-only** — ADR-018 / ADR-019 / ADR-020 / ADR-021
+   collectively define a substantial cross-border surface (progressive
+   3-stage release, asymmetric deadlines, 3-tier seller stake with
+   slashing and 14-day cooldown). That surface is auditable, but it is
+   also the highest dispute-risk surface of the protocol and the
+   biggest contributor to V1 smart-contract complexity.
+2. **Market footprint at launch** — CLAUDE.md targets Nigeria / Ghana /
+   Kenya as primary markets. South Africa was being evaluated as a
+   fourth market based on Celo Camp Africa presence + MiniPay
+   availability + ZAR/USDT corridor liquidity.
+3. **Commission structure** — economics tracked three rates
+   (intra 1.8%, cross-border 2.7%, Top Seller intra 1.2%). The Top
+   Seller program requires reputation-tier gating logic and
+   volume/ratings/dispute criteria that have not yet been authored.
+
+The narrative for grants Celo Foundation submission (ADR-013) and
+MiniPay Proof of Ship is materially cleaner if V1 scope is bounded to
+"the simplest credible thing that works": one corridor type, one
+commission rate, one stake-free flow.
+
+### Decision
+
+V1 scope is locked to the following constraints. Decisions reached
+with Mike on 2026-04-30:
+
+1. **D1 (stake) = A** — Seller stake mechanism is **RETIRED V1**.
+   Auto-release 3 days intra-Africa (per ADR-019 intra clause) is
+   sufficient guarantee for V1; the stake layer was sized for
+   cross-border risk that is no longer in V1 scope.
+2. **D2 (markets) = A** — V1 launches **big bang on 4 markets
+   simultaneously** at mainnet: Nigeria + Ghana + Kenya + South Africa.
+   No staged rollout per market.
+3. **D3 (timing) = A** — ADR-041 is **documented now**, before Phase 4
+   Block 5 V5 application work, so subsequent UI / contract / backend
+   decisions inherit the locked scope.
+4. **Commission = A** — V1 ships a **single commission rate of 1.8%**.
+   The Top Seller 1.2% program is **deferred V1.1** with criteria
+   (volume, ratings, dispute history) authored separately at that time.
+
+Concrete consequences of those four choices:
+
+- **Cross-border transactions are DEFERRED V2** (post-trust-establishment,
+  6-12 months after V1 mainnet, contingent on V1 dispute-rate data and
+  protocol maturity).
+- **ADR-018 (cross-border progressive release), ADR-019 cross-border
+  clause, ADR-020 (cross-border seller stake)** transition to status
+  *Deferred V2 by ADR-041*.
+- ADR-021 (stake withdrawal cooldown) is also implicitly deferred since
+  the stake itself is retired V1; the document remains as the
+  canonical V2 reference.
+- **Single commission constant**: `COMMISSION_RATE = 180 bps (1.8%)` —
+  no `isCrossBorder` flag, no Top Seller discount branch, no per-tier
+  reputation gating in the commission path V1.
+- **Auto-release timer**: a single `AUTO_RELEASE_INTRA = 3 days`
+  constant. The 2-day Top Seller short-circuit is deferred to V1.1
+  alongside the Top Seller program.
+
+### Consequences
+
+#### Smart contract V2
+
+- The cross-border release flow (`uploadShipmentProof`,
+  `markArrived`, majority/final triggers) is removed from V1 binaries
+  but the logic remains documented in `docs/SPEC_SMART_CONTRACT_V2.md`
+  as a "Deferred V2" section so the V2 re-introduction has a head start.
+- The 3-tier stake structure, `EtaloStake` deployment, slashing path,
+  and 14-day cooldown are removed from V1 binaries.
+- `EtaloEscrow` simplifies materially: no `isCrossBorder` field on
+  `Order`, no commission tier branch, no stake-balance check at
+  `createOrder`, no 14-day auto-refund branch.
+- The 7-day intra auto-refund inactivity deadline (ADR-019 intra
+  clause) is retained.
+- `forceRefund` 3-condition gate (ADR-023) is unchanged.
+- Architectural limits (ADR-026) `MAX_ORDER` / `MAX_TVL` /
+  `MAX_SELLER_WEEKLY` / `EMERGENCY_PAUSE_MAX` may be revisited at V1
+  time-of-deploy if 4-market big-bang load patterns warrant it; for
+  now they remain authoritative.
+
+#### Frontend (V5 in progress)
+
+- Remove `isCrossBorder` flag from order creation flows and checkout
+  surfaces.
+- Remove destination-country selection from listing/cart/checkout.
+- Remove Top Seller badge surface V1 (badge can ship in V1.1 alongside
+  the program); reputation visualization elsewhere unchanged.
+- Remove stake deposit / withdrawal flow from seller dashboard
+  (currently scaffolded in V5 Phase 4 work — to be cleaned up in
+  Phase 4 Block 5).
+- Country-list selector keeps Nigeria + Ghana + Kenya + **South Africa
+  added** as 4th supported market for both buyer and seller flows.
+
+#### Backend / indexer
+
+- Indexer drops cross-border progressive-release event handlers
+  (events still defined in Solidity in `Deferred V2` section but not
+  emitted in V1 binary).
+- No stake-balance tracking table; remove or never create
+  `stakes` mirror table for V1 (re-introduce in V2).
+- Single `commission_rate` column or constant in any analytic view.
+
+#### Marketing / grants narrative
+
+The simplified scope yields a single, clean grants Celo Foundation
+pitch: **"African intra-trade USDT escrow, 1 transparent rate, 4
+markets at launch (NG + GH + KE + ZA), big-bang mainnet, MiniPay
+distribution."** The narrative is materially stronger than a
+"complex multi-tier multi-corridor" V1 because:
+
+- Reviewers can audit one corridor and one rate.
+- Volume signal at launch is concentrated across 4 of the largest
+  African MiniPay markets simultaneously instead of staged.
+- Dispute-rate reporting is one number, not a 2-corridor split.
+
+### Trade-offs accepted
+
+- **Top Seller incentive layer absent V1** — partial mitigation: the
+  3-day auto-release is already a short fast-payout incentive vs the
+  industry norm of 7-14 days, so motivated sellers still see a
+  liquidity advantage on this protocol vs alternatives. Full Top
+  Seller economics ship V1.1.
+- **Cross-border revenue opportunity deferred** — diaspora corridor
+  was a secondary target per CLAUDE.md anyway; V2 introduction with
+  hardened V1 dispute infrastructure is safer than a V1 launch with
+  cross-border risk present from day one.
+- **South Africa regulatory risk** — ZAR is a regulated currency and
+  SARB has made statements on stablecoins. Mitigations: Celo Camp
+  Africa presence (legal + community network), MiniPay already
+  operational on ZA market, Etalo is non-custodial (per ADR-022) so
+  the regulatory surface is lighter than a custodial alternative. If
+  a SARB action surfaces post-launch, the 4th-market dependency can
+  be hot-disabled at the country-allow-list level without contract
+  redeploy.
+
+### Supersedes
+
+- Implicit assumption "ADR-018 / ADR-019 / ADR-020 ship at V1 mainnet"
+  carried by CLAUDE.md and the J4 V2 spec. Those ADRs remain in the
+  decision log as the authoritative V2 design but their *V1 launch*
+  status is now Deferred.
+
+### Does not supersede
+
+- ADR-014 (V1 Boutique multi-product model) — unchanged.
+- ADR-022 (non-custodial criteria) — unchanged.
+- ADR-023 (forceRefund 3-condition gate) — unchanged.
+- ADR-024 (treasury 3-wallet separation) — unchanged.
+- ADR-026 (architectural limits hardcoded) — unchanged in spirit;
+  numerical values may be revisited at V1 mainnet deploy time.
+- ADR-034 (no new EIP-191 backend auth) — unchanged.
+- ADR-040 (V5 design pivot) — unchanged.
+
+### Re-introduction plan
+
+Cross-border + stake + Top Seller program are not abandoned. They
+re-enter the roadmap in the following order:
+
+1. **V1.1** (3-6 months post mainnet, contingent on dispute-rate
+   data) — Top Seller program + 1.2% rate + reputation criteria.
+2. **V2 (cross-border)** (6-12 months post mainnet) — re-enable
+   ADR-018 / ADR-019 cross-border / ADR-020 / ADR-021 with
+   parameters tuned to V1 dispute-rate evidence.
+
+ADR-041 will be partially superseded at each of those points by the
+V1.1 / V2 ADRs that re-enable the deferred surfaces.
+
+---
 
 ## ADR-042 — Funded-state guard on dispute lifecycle (H-1 fix)
 

@@ -1,33 +1,33 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
+import { DashboardSkeleton } from "@/app/seller/dashboard/DashboardSkeleton";
 import { MarketingTab } from "@/components/seller/MarketingTab";
 import { OrdersTab } from "@/components/seller/OrdersTab";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProductsTab } from "@/components/seller/ProductsTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
-import { StakeTab } from "@/components/seller/StakeTab";
 import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  TabsV4Content,
+  TabsV4List,
+  TabsV4Root,
+  TabsV4Trigger,
+} from "@/components/ui/v4/Tabs";
+import { detectMiniPay } from "@/lib/minipay-detect";
 import {
   fetchMyProfile,
-  fetchSellerOnchainProfile,
   type SellerProfilePublic,
-  type SellerProfileResponse,
 } from "@/lib/seller-api";
 
+// Block 5 sub-block 5.1 — "stake" tab dropped per ADR-041 V1 scope
+// (stake retired, cross-border deferred V2). Five tabs remain.
 const VALID_TABS = [
   "overview",
   "products",
   "orders",
-  "stake",
   "profile",
   "marketing",
 ] as const;
@@ -40,42 +40,39 @@ export function SellerDashboardInner() {
 
   const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
   const [profile, setProfile] = useState<SellerProfilePublic | null>(null);
-  const [onchain, setOnchain] = useState<SellerProfileResponse | null>(null);
   const [error, setError] = useState<"not_found" | "fetch_failed" | null>(
     null,
   );
   const [loading, setLoading] = useState(true);
 
-  // 1) MiniPay gating — same pattern as /marketplace.
+  // 1) MiniPay gating — same pattern as /marketplace, via the shared
+  // detectMiniPay() helper (Pattern D : env override + canonical flag
+  // + UA fallback for Mini App Test mode).
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const provider = (window as unknown as { ethereum?: { isMiniPay?: boolean } })
-      .ethereum;
-    const detected = provider?.isMiniPay === true;
+    const detected = detectMiniPay();
     setIsMiniPay(detected);
     if (!detected) router.replace("/");
   }, [router]);
 
-  // 2) Combined fetch: identity (/sellers/me) + on-chain (/sellers/{addr}/profile)
-  // Bumped on each `refreshKey` increment so children can request a re-pull
-  // after on-chain mutations (Stake actions, Mark shipped) without a full
-  // page reload.
-  const [refreshKey, setRefreshKey] = useState(0);
-  const refreshOnchain = useCallback(() => setRefreshKey((k) => k + 1), []);
-
+  // 2) Identity fetch (/sellers/me). Block 5 sub-block 5.4 dropped the
+  // parallel `fetchSellerOnchainProfile` call — its only consumers were
+  // StakeTab (retired in 5.1) and OverviewTab's stake StatCards (also
+  // retired in 5.1). The dashboard's KPI surface now sources its
+  // numbers from useAnalyticsSummary (sub-block 5.3) directly inside
+  // OverviewTab, so the parent only needs the off-chain identity row.
   useEffect(() => {
     if (isMiniPay !== true || !address) return;
     let cancelled = false;
     setLoading(true);
-    Promise.all([fetchMyProfile(address), fetchSellerOnchainProfile(address)])
-      .then(([me, on]) => {
+    fetchMyProfile(address)
+      .then((me) => {
         if (cancelled) return;
         if (!me) {
           setError("not_found");
           return;
         }
         setProfile(me);
-        setOnchain(on);
         setError(null);
       })
       .catch(() => {
@@ -88,7 +85,7 @@ export function SellerDashboardInner() {
     return () => {
       cancelled = true;
     };
-  }, [isMiniPay, address, refreshKey]);
+  }, [isMiniPay, address]);
 
   const requestedTab = searchParams.get("tab") as TabKey | null;
   const safeTab: TabKey =
@@ -100,26 +97,25 @@ export function SellerDashboardInner() {
     router.replace(`/seller/dashboard?${params.toString()}`);
   };
 
+  // J10-V5 Phase 5 polish #7 — both pre-render gates (MiniPay
+  // detection + profile fetch) now share the DashboardSkeleton so the
+  // user sees the page structure on first paint instead of two
+  // successive "Loading…" text flashes. The MiniPay detection branch
+  // resolves in <50 ms typically, but the skeleton stays consistent
+  // with the longer profile-fetch branch — no jarring "text →
+  // skeleton → real" sequence.
   if (isMiniPay === null) {
-    return (
-      <Shell>
-        <p className="text-base text-neutral-600">Loading…</p>
-      </Shell>
-    );
+    return <DashboardSkeleton />;
   }
   if (isMiniPay === false) return null;
 
   if (loading) {
-    return (
-      <Shell>
-        <p className="text-base text-neutral-600">Loading dashboard…</p>
-      </Shell>
-    );
+    return <DashboardSkeleton />;
   }
 
   if (error === "not_found") {
     return (
-      <Shell>
+      <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
           <h2 className="mb-3 text-xl font-semibold">No seller profile yet</h2>
           <p className="mb-4 text-base text-neutral-700">
@@ -130,13 +126,13 @@ export function SellerDashboardInner() {
             Self-service onboarding coming in V1.5.
           </p>
         </div>
-      </Shell>
+      </StatusShell>
     );
   }
 
-  if (error === "fetch_failed" || !profile || !onchain || !address) {
+  if (error === "fetch_failed" || !profile || !address) {
     return (
-      <Shell>
+      <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
           <h2 className="mb-3 text-xl font-semibold">
             Couldn&apos;t load dashboard
@@ -152,62 +148,86 @@ export function SellerDashboardInner() {
             Retry
           </button>
         </div>
-      </Shell>
+      </StatusShell>
     );
   }
 
   return (
-    <Shell>
-      <div className="mx-auto max-w-3xl px-4 py-6">
+    <main id="main" className="min-h-screen">
+      <div className="mx-auto w-full max-w-3xl px-4 py-6">
         <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
         <p className="mb-6 text-sm text-neutral-600">@{profile.shop_handle}</p>
 
-        <Tabs value={safeTab} onValueChange={setTab}>
-          <TabsList className="mb-6 grid w-full grid-cols-3 sm:grid-cols-6">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="products">Products</TabsTrigger>
-            <TabsTrigger value="orders">Orders</TabsTrigger>
-            <TabsTrigger value="stake">Stake</TabsTrigger>
-            <TabsTrigger value="profile">Profile</TabsTrigger>
-            <TabsTrigger value="marketing">Marketing</TabsTrigger>
-          </TabsList>
+        <TabsV4Root value={safeTab} onValueChange={setTab}>
+          {/*
+            TabsV4List is a horizontal flex with a sliding indicator that
+            measures `data-state="active"` descendants. The legacy grid
+            `grid-cols-3 sm:grid-cols-6` is dropped — the V4 list is
+            already responsive and the sliding indicator is the visual
+            anchor instead of equal-width columns. Wrap with
+            overflow-x-auto so 6 tabs remain reachable on 360px viewports
+            without breaking the indicator measurement.
+          */}
+          {/*
+            J10-V5 Phase 5 Angle B Track 2 fix #2 — Profile moved to 2nd
+            position (was 4th, between Orders and Marketing). Mike's
+            use-app perceptual audit caught Profile being hidden in the
+            tabs row : new sellers needed easy access to fill out their
+            shop identity (name, description, logo, socials) before
+            anything else makes sense to do. Putting Profile right next
+            to Overview in the tab order makes it the natural second
+            stop for any seller landing on the dashboard.
+          */}
+          <TabsV4List className="mb-6 w-full overflow-x-auto">
+            <TabsV4Trigger value="overview">Overview</TabsV4Trigger>
+            <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
+            <TabsV4Trigger value="products">Products</TabsV4Trigger>
+            <TabsV4Trigger value="orders">Orders</TabsV4Trigger>
+            <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
+          </TabsV4List>
 
-          <TabsContent value="overview">
-            <OverviewTab
-              profile={profile}
-              onchain={onchain}
-              address={address}
-            />
-          </TabsContent>
-          <TabsContent value="products">
+          <TabsV4Content value="overview">
+            <OverviewTab profile={profile} address={address} />
+          </TabsV4Content>
+          <TabsV4Content value="products">
             <ProductsTab profile={profile} walletAddress={address} />
-          </TabsContent>
-          <TabsContent value="orders">
+          </TabsV4Content>
+          <TabsV4Content value="orders">
             <OrdersTab address={address} />
-          </TabsContent>
-          <TabsContent value="stake">
-            <StakeTab onchain={onchain} onProfileRefresh={refreshOnchain} />
-          </TabsContent>
-          <TabsContent value="profile">
+          </TabsV4Content>
+          <TabsV4Content value="profile">
             <ProfileTab
               profile={profile}
               address={address}
               onUpdated={setProfile}
             />
-          </TabsContent>
-          <TabsContent value="marketing">
+          </TabsV4Content>
+          <TabsV4Content value="marketing">
             <MarketingTab />
-          </TabsContent>
-        </Tabs>
+          </TabsV4Content>
+        </TabsV4Root>
       </div>
-    </Shell>
+    </main>
   );
 }
 
-function Shell({ children }: { children: React.ReactNode }) {
+// Phase 4 hotfix #8 — Shell renamed to StatusShell + scope narrowed to
+// short loading/error messages only. The previous Shell wrapped EVERY
+// render path including the main dashboard; its `flex flex-col
+// items-center justify-center` makes flex children content-sized on
+// the cross axis. With no `w-full` on the inner container, the parent
+// grew to fit `TabsV4List`'s natural ~536 px width (6 triggers x ~86
+// px + gaps), which defeated the tabs' `overflow-x-auto` (no overflow
+// when container == content) and pushed the whole `<main>` past a
+// 360-414 px viewport — page-level horizontal scroll, header shifted
+// right, KPI grid extending off-screen. The main render now bypasses
+// StatusShell entirely with `<main><div className="w-full max-w-3xl
+// ...">`, which constrains TabsV4List to viewport width and lets its
+// own `overflow-x-auto` scope contain the tab scroll properly.
+function StatusShell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen">
-      <div className="flex min-h-screen flex-col items-center justify-center">
+    <main id="main" className="min-h-screen">
+      <div className="flex min-h-screen flex-col items-center justify-center px-4">
         {children}
       </div>
     </main>

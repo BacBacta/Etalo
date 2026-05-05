@@ -5,10 +5,26 @@
  * seller-api fetch helpers. We don't render the parent `<Tabs>` shell —
  * MarketingTab is a self-contained subtree.
  */
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MarketingTab } from "@/components/seller/MarketingTab";
+
+// Polish item B (J10-V5 Phase 5) — CreditsBalance now reads from
+// useQueryClient (post-purchase invalidation path), so the spec
+// renders MarketingTab inside a per-test QueryClientProvider. The
+// useCreditsBalance hook itself stays mocked at the module boundary
+// below — the QueryClient here only feeds useQueryClient's read.
+function renderWithQueryClient(ui: ReactElement) {
+  const client = new QueryClient({
+    defaultOptions: { queries: { gcTime: 0, retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={client}>{ui}</QueryClientProvider>,
+  );
+}
 
 // ── Mocks ──────────────────────────────────────────────────────────
 vi.mock("wagmi", () => ({
@@ -31,17 +47,34 @@ vi.mock("@/hooks/useBuyCredits", () => ({
   }),
 }));
 
+// Polish item B (J10-V5 Phase 5) — useCreditsBalance now returns a
+// TanStack UseQueryResult shape ({ data, isPending, isError, refetch }
+// + the rest of the query result). The mock mirrors that surface for
+// the spec's assertions ; only the fields the component actually
+// reads (data.balance, refetch) are populated, the rest stay
+// permissive (cast through `as unknown as ...`) since the consumer
+// doesn't read them.
 const refetchBalanceMock = vi.fn();
-const useCreditsBalanceMock = vi.fn(() => ({
-  balance: 15,
-  walletAddress: "0xabc0000000000000000000000000000000000001",
-  loading: false,
-  error: null,
+type CreditsBalanceMockShape = {
+  data: { balance: number; wallet_address: string } | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: typeof refetchBalanceMock;
+};
+
+const useCreditsBalanceMock = vi.fn<() => CreditsBalanceMockShape>(() => ({
+  data: {
+    balance: 15,
+    wallet_address: "0xabc0000000000000000000000000000000000001",
+  },
+  isPending: false,
+  isError: false,
   refetch: refetchBalanceMock,
 }));
 
 vi.mock("@/hooks/useCreditsBalance", () => ({
   useCreditsBalance: () => useCreditsBalanceMock(),
+  CREDITS_BALANCE_QUERY_KEY: "credits-balance",
 }));
 
 const fetchMyProductsMock = vi.fn();
@@ -108,10 +141,12 @@ beforeEach(() => {
   refetchBalanceMock.mockReset();
   useCreditsBalanceMock.mockReset();
   useCreditsBalanceMock.mockReturnValue({
-    balance: 15,
-    walletAddress: "0xabc0000000000000000000000000000000000001",
-    loading: false,
-    error: null,
+    data: {
+      balance: 15,
+      wallet_address: "0xabc0000000000000000000000000000000000001",
+    },
+    isPending: false,
+    isError: false,
     refetch: refetchBalanceMock,
   });
 });
@@ -122,7 +157,7 @@ afterEach(() => {
 
 describe("MarketingTab — credits balance display", () => {
   it("renders the credits balance from the hook", async () => {
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     expect(await screen.findByTestId("credits-amount")).toHaveTextContent(
       "15 credits",
     );
@@ -131,20 +166,19 @@ describe("MarketingTab — credits balance display", () => {
 
   it("renders a low-balance warning when balance < 5", async () => {
     useCreditsBalanceMock.mockReturnValue({
-      balance: 2,
-      walletAddress: "0xabc",
-      loading: false,
-      error: null,
+      data: { balance: 2, wallet_address: "0xabc" },
+      isPending: false,
+      isError: false,
       refetch: refetchBalanceMock,
     });
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     expect(await screen.findByTestId("low-balance-warning")).toBeInTheDocument();
   });
 });
 
 describe("MarketingTab — generate button gating", () => {
   it("disables the generate button when no product is selected", async () => {
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     // Wait for product picker to load (otherwise the picker itself can be
     // gating the button via `selectedProduct === null`).
     await screen.findByTestId("product-picker-select");
@@ -153,7 +187,7 @@ describe("MarketingTab — generate button gating", () => {
   });
 
   it("disables the generate button when no template is selected", async () => {
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     const select = await screen.findByTestId("product-picker-select");
     fireEvent.change(select, { target: { value: SAMPLE_PRODUCT.id } });
     // Product is now selected, but no template → still disabled.
@@ -162,13 +196,12 @@ describe("MarketingTab — generate button gating", () => {
 
   it("disables the generate button when balance < 1 even with full selection", async () => {
     useCreditsBalanceMock.mockReturnValue({
-      balance: 0,
-      walletAddress: "0xabc",
-      loading: false,
-      error: null,
+      data: { balance: 0, wallet_address: "0xabc" },
+      isPending: false,
+      isError: false,
       refetch: refetchBalanceMock,
     });
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     const select = await screen.findByTestId("product-picker-select");
     fireEvent.change(select, { target: { value: SAMPLE_PRODUCT.id } });
     fireEvent.click(screen.getByTestId("template-card-ig_square"));
@@ -178,7 +211,7 @@ describe("MarketingTab — generate button gating", () => {
   });
 
   it("enables the generate button when product, template, and balance are all set", async () => {
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     const select = await screen.findByTestId("product-picker-select");
     fireEvent.change(select, { target: { value: SAMPLE_PRODUCT.id } });
     fireEvent.click(screen.getByTestId("template-card-ig_square"));
@@ -188,7 +221,7 @@ describe("MarketingTab — generate button gating", () => {
 
 describe("MarketingTab — caption language toggle", () => {
   it("switches between English and Swahili and reflects aria-pressed", async () => {
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     const enBtn = await screen.findByTestId("lang-toggle-en");
     const swBtn = screen.getByTestId("lang-toggle-sw");
     expect(enBtn).toHaveAttribute("aria-pressed", "true");
@@ -207,7 +240,7 @@ describe("MarketingTab — generate flow", () => {
       caption: "Test caption",
       template: "ig_square",
     });
-    render(<MarketingTab />);
+    renderWithQueryClient(<MarketingTab />);
     const select = await screen.findByTestId("product-picker-select");
     fireEvent.change(select, { target: { value: SAMPLE_PRODUCT.id } });
     fireEvent.click(screen.getByTestId("template-card-ig_square"));

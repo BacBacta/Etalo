@@ -77,4 +77,36 @@ describe("BadgeV4", () => {
     render(<BadgeV4 ref={ref}>x</BadgeV4>);
     expect(ref.current).toBeInstanceOf(HTMLSpanElement);
   });
+
+  // J10-V5 Block 4e — dark variants asserted via class string presence
+  // (JSDom doesn't activate the `.dark` ancestor selector).
+  it("default variant applies dark bg + text", () => {
+    render(<BadgeV4>Network fee</BadgeV4>);
+    const badge = screen.getByText("Network fee");
+    expect(badge).toHaveClass("dark:bg-celo-light/[8%]");
+    expect(badge).toHaveClass("dark:text-celo-light");
+  });
+
+  it("forest variant applies dark forest-bright bg + text", () => {
+    render(<BadgeV4 variant="forest">Live</BadgeV4>);
+    const badge = screen.getByText("Live");
+    expect(badge).toHaveClass("dark:bg-celo-forest-bright-soft");
+    expect(badge).toHaveClass("dark:text-celo-forest-bright");
+  });
+
+  it("yellow variant has NO dark: classes — INCHANGÉ regression-guard", () => {
+    render(<BadgeV4 variant="yellow">Pending</BadgeV4>);
+    const badge = screen.getByText("Pending");
+    expect(badge).toHaveClass("bg-celo-yellow-soft");
+    expect(badge).toHaveClass("text-celo-dark");
+    expect(badge.className).not.toMatch(/dark:bg-/);
+    expect(badge.className).not.toMatch(/dark:text-/);
+  });
+
+  it("red variant applies dark red-bright bg + text", () => {
+    render(<BadgeV4 variant="red">Error</BadgeV4>);
+    const badge = screen.getByText("Error");
+    expect(badge).toHaveClass("dark:bg-celo-red-bright-soft");
+    expect(badge).toHaveClass("dark:text-celo-red-bright");
+  });
 });

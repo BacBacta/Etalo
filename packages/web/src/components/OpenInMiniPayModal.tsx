@@ -85,7 +85,7 @@ export function OpenInMiniPayModal({ token, cart }: Props) {
         </div>
 
         <div className="mt-6 border-t border-neutral-200 pt-4 text-center text-sm text-neutral-600">
-          <p>
+          <p className="tabular-nums">
             Total: {cart.total_usdt} USDT · {cart.groups.length} {sellerLabel}
           </p>
           <p className="mt-1 text-sm">

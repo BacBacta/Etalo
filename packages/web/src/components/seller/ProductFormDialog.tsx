@@ -1,6 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import {
+  Children,
+  cloneElement,
+  isValidElement,
+  useEffect,
+  useId,
+  useState,
+  type ReactElement,
+} from "react";
 import { toast } from "sonner";
 
 import { ImageUploader } from "@/components/seller/ImageUploader";
@@ -204,7 +212,7 @@ export function ProductFormDialog({
           <FormField
             label="Description"
             error={errors.description}
-            hint="Optional, up to 2000 chars"
+            hint='Tip: include size info in your description (e.g. "Available in S, M, L" or "Sizes EU 36-44"). Up to 2000 chars.'
           >
             <textarea
               value={description}
@@ -287,7 +295,14 @@ export function ProductFormDialog({
   );
 }
 
-function FormField({
+// J10-V5 Phase 5 Angle E sub-block E.1.b — WCAG 1.3.1 Info and
+// Relationships + 3.3.2 Labels or Instructions. Generates a unique id
+// via React 18+ `useId` and injects it onto the single child input,
+// then matches the `<label htmlFor={id}>` to it. Screen readers
+// announce the label when the field is focused, getByLabelText resolves
+// in tests. The cast preserves any explicit `id` prop the caller passed
+// (`childIdProp ?? generatedId`) so callers stay flexible.
+export function FormField({
   label,
   error,
   hint,
@@ -296,12 +311,25 @@ function FormField({
   label: string;
   error?: string;
   hint?: string;
-  children: React.ReactNode;
+  children: ReactElement<{ id?: string }>;
 }) {
+  const generatedId = useId();
+  const onlyChild = Children.only(children);
+  const childId = isValidElement(onlyChild)
+    ? (onlyChild.props.id ?? generatedId)
+    : generatedId;
+  const childWithId = isValidElement(onlyChild)
+    ? cloneElement(onlyChild, { id: childId })
+    : onlyChild;
   return (
     <div>
-      <label className="mb-1 block text-base font-medium">{label}</label>
-      {children}
+      <label
+        htmlFor={childId}
+        className="mb-1 block text-base font-medium"
+      >
+        {label}
+      </label>
+      {childWithId}
       {error ? (
         <p className="mt-1 text-sm text-red-600">{error}</p>
       ) : hint ? (

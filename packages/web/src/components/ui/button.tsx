@@ -1,5 +1,6 @@
 import { Button as ButtonPrimitive } from "@base-ui/react/button"
 import { cva, type VariantProps } from "class-variance-authority"
+import { forwardRef } from "react"
 
 import { cn } from "@/lib/utils"
 
@@ -40,19 +41,30 @@ const buttonVariants = cva(
   }
 )
 
-function Button({
-  className,
-  variant = "default",
-  size = "default",
-  ...props
-}: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
+// J10-V5 Phase 5 polish #3 — wrap Button in forwardRef so consumers
+// using cloneElement-style ref forwarding (Radix DialogPrimitive
+// asChild, base-ui Sheet/Dialog `render` prop, react-hook-form
+// Controller, etc.) can hand a ref through. Without forwardRef React
+// 18 logs "Function components cannot be given refs" in dev, and the
+// ref is silently dropped in production — breaking focus management
+// inside dialogs that close to a Button trigger. ButtonPrimitive
+// (@base-ui/react/button) is itself a forwardRef component, so the
+// ref lands on the underlying <button> element.
+const Button = forwardRef<
+  HTMLButtonElement,
+  ButtonPrimitive.Props & VariantProps<typeof buttonVariants>
+>(function Button(
+  { className, variant = "default", size = "default", ...props },
+  ref,
+) {
   return (
     <ButtonPrimitive
+      ref={ref}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
   )
-}
+})
 
 export { Button, buttonVariants }

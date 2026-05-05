@@ -1,6 +1,6 @@
 "use client";
 
-import { ShoppingBag } from "lucide-react";
+import { ShoppingBag } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -28,7 +28,7 @@ export function CartTrigger({ onClick }: Props) {
     <button
       type="button"
       onClick={onClick}
-      className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 hover:bg-neutral-100 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2"
+      className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-full p-2 hover:bg-celo-dark/5 focus:outline-none focus:ring-2 focus:ring-celo-dark focus:ring-offset-2 dark:hover:bg-celo-light/5 dark:focus:ring-celo-light dark:focus:ring-offset-celo-dark-bg"
       aria-label={`Open cart (${displayCount} items)`}
     >
       <ShoppingBag className="h-6 w-6" />

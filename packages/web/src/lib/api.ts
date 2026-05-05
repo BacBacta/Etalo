@@ -185,11 +185,8 @@ export async function fetchFeaturedSellers(
   return Array.from(sellers.values());
 }
 
-export function displayUsdt(decimalString: string): string {
-  const n = Number(decimalString);
-  if (Number.isNaN(n)) return `${decimalString} USDT`;
-  return `${n.toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} USDT`;
-}
+// J10-V5 Phase 5 polish residual Item 1 — `displayUsdt` (Decimal-string
+// signature) moved to lib/usdt.ts as `displayUsdtFromDecimalString`.
+// The lib/usdt.ts module is now the canonical home for all 4 USDT
+// formatters (eliminates the previous name collision with
+// lib/usdt.ts:displayUsdt which had a bigint signature).

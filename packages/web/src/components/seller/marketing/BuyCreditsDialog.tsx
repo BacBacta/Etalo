@@ -1,6 +1,11 @@
 "use client";
 
-import { CheckCircle2, ExternalLink, Loader2, XCircle } from "lucide-react";
+import {
+  ArrowSquareOut,
+  CheckCircle,
+  CircleNotch,
+  XCircle,
+} from "@phosphor-icons/react";
 import { useEffect, useMemo, useState } from "react";
 import { useChainId } from "wagmi";
 
@@ -17,6 +22,7 @@ import {
   buildExplorerUrl,
   shortHash,
 } from "@/lib/checkout-orchestration";
+import { fireMilestone } from "@/lib/confetti/milestones";
 import { USDT_PER_CREDIT } from "@/lib/contracts";
 
 interface Props {
@@ -89,6 +95,15 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
       setCustomAmount("");
     }
   }, [open, reset]);
+
+  // J10-V5 Block 7 — celebrate the moment the success view appears
+  // (not on Done click), so the burst is in-context with the cheering
+  // copy. Fires once per success transition (re-entry needs a reset).
+  useEffect(() => {
+    if (state.phase === "success") {
+      fireMilestone("credit-purchase");
+    }
+  }, [state.phase]);
 
   const creditAmount = useMemo<number | null>(() => {
     if (customAmount.trim() !== "") {
@@ -194,8 +209,10 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
                             : "border-neutral-200 hover:border-neutral-300"
                         }`}
                       >
-                        <div className="text-lg font-semibold">{p} credits</div>
-                        <div className="text-sm text-neutral-600">
+                        <div className="text-lg font-semibold tabular-nums">
+                          {p} credits
+                        </div>
+                        <div className="text-sm text-neutral-600 tabular-nums">
                           {usdtCostHuman(BigInt(p))} USDT
                         </div>
                       </button>
@@ -224,7 +241,7 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
                   />
                   {customAmount.trim() !== "" && !customAmountInvalid && (
                     <p
-                      className="mt-1 text-sm text-neutral-600"
+                      className="mt-1 text-sm text-neutral-600 tabular-nums"
                       data-testid="custom-amount-cost"
                     >
                       {customAmount} credits = {usdtCost} USDT
@@ -265,11 +282,11 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
                 type="button"
                 onClick={() => void handleBuy()}
                 disabled={!creditAmount || inFlight}
-                className="min-h-[48px] flex-1"
+                className="min-h-[48px] flex-1 tabular-nums"
                 data-testid="buy-cta"
               >
                 {inFlight && (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden />
+                  <CircleNotch className="mr-2 h-4 w-4 animate-spin" aria-hidden />
                 )}
                 {inFlight
                   ? "Processing…"
@@ -312,7 +329,7 @@ function PhaseStatus({
       data-testid="phase-status"
     >
       <div className="flex items-center gap-2 text-sm">
-        <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+        <CircleNotch className="h-4 w-4 animate-spin" aria-hidden />
         <span>{phaseLabel(phase)}</span>
       </div>
       {approveTx && (
@@ -323,7 +340,7 @@ function PhaseStatus({
           className="mt-1 inline-flex items-center gap-1 text-xs text-neutral-600 underline"
         >
           Approve tx: {shortHash(approveTx)}{" "}
-          <ExternalLink className="h-3 w-3" aria-hidden />
+          <ArrowSquareOut className="h-3 w-3" aria-hidden />
         </a>
       )}
       {purchaseTx && (
@@ -360,12 +377,12 @@ function SuccessView({
   return (
     <div className="space-y-4" data-testid="success-view">
       <div className="flex items-start gap-3 rounded-md border border-green-200 bg-green-50 p-4">
-        <CheckCircle2 className="mt-0.5 h-6 w-6 text-green-700" aria-hidden />
+        <CheckCircle className="mt-0.5 h-6 w-6 text-green-700" aria-hidden />
         <div>
           <h3 className="text-base font-semibold text-green-900">
             Purchase confirmed
           </h3>
-          <p className="text-sm text-green-800">
+          <p className="text-sm text-green-800 tabular-nums">
             {credits !== undefined ? `+${credits.toString()} credits` : "Credits"}{" "}
             ({usdtHuman} USDT spent)
           </p>
@@ -385,7 +402,7 @@ function SuccessView({
             className="inline-flex items-center gap-1 text-neutral-700 underline"
           >
             Approve tx: {shortHash(approveTx)}{" "}
-            <ExternalLink className="h-3 w-3" aria-hidden />
+            <ArrowSquareOut className="h-3 w-3" aria-hidden />
           </a>
         )}
         {purchaseTx && (

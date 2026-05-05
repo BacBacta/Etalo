@@ -20,6 +20,19 @@ import os
 import sys
 from pathlib import Path
 
+# === HOTFIX #10 — Backend canonical inner repo banner ===
+# Mirror of hotfix #9's frontend predev banner. Path-normalised
+# detection so the check survives Windows backslash <-> POSIX slash
+# interpretation in both shells.
+_SCRIPT_DIR = os.path.abspath(os.path.dirname(__file__)).replace("\\", "/")
+if "/etalo/Etalo/packages/backend" in _SCRIPT_DIR:
+    print(
+        "✓ Running backend from CANONICAL inner repo "
+        "(C:/Users/Oxfam/projects/etalo/Etalo) — Phase 4 hotfix #10 banner",
+        file=sys.stderr,
+    )
+# === END HOTFIX #10 ===
+
 if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 

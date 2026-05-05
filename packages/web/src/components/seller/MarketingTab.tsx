@@ -12,7 +12,10 @@ import {
   type TemplateKey,
 } from "@/components/seller/marketing/TemplateSelector";
 import { Button } from "@/components/ui/button";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useCreditsBalance } from "@/hooks/useCreditsBalance";
+import { fireMilestone } from "@/lib/confetti/milestones";
 import {
   generateImage,
   InsufficientCreditsError,
@@ -22,7 +25,9 @@ import type { MyProductsListItem } from "@/lib/seller-api";
 
 export function MarketingTab() {
   const { address } = useAccount();
-  const { balance, refetch: refetchBalance } = useCreditsBalance();
+  const creditsQuery = useCreditsBalance();
+  const balance = creditsQuery.data?.balance ?? 0;
+  const refetchBalance = creditsQuery.refetch;
 
   const [selectedProduct, setSelectedProduct] =
     useState<MyProductsListItem | null>(null);
@@ -51,6 +56,9 @@ export function MarketingTab() {
       });
       setResult(r);
       await refetchBalance();
+      // J10-V5 Block 7 — subtle 30-particle burst (scalar 0.8) for the
+      // routine creative win; not as loud as a sale or withdrawal.
+      fireMilestone("image-generated");
       toast.success("Marketing image generated!");
     } catch (err) {
       if (err instanceof InsufficientCreditsError) {
@@ -88,8 +96,26 @@ export function MarketingTab() {
         }}
       />
 
-      <div className="space-y-2">
-        <label className="block text-base font-medium">Caption language</label>
+      {/*
+        J10-V5 Phase 5 Angle E sub-block E.2 — WCAG 1.3.1 Info and
+        Relationships (Level A). The visible "Caption language" text is
+        the group's accessible name, exposed via role="group" +
+        aria-labelledby pointing at the <span> id. <fieldset>/<legend>
+        would also work but break the existing flex/space-y-2 layout
+        without a `display: contents` workaround ; role=group is the
+        lower-cost path that preserves the styling.
+      */}
+      <div
+        role="group"
+        aria-labelledby="caption-lang-label"
+        className="space-y-2"
+      >
+        <span
+          id="caption-lang-label"
+          className="block text-base font-medium"
+        >
+          Caption language
+        </span>
         <div className="flex gap-2">
           <button
             type="button"
@@ -142,12 +168,33 @@ export function MarketingTab() {
         </p>
       )}
 
+      {generating && !result && (
+        <div
+          className="space-y-4 rounded-lg border border-neutral-200 bg-white p-4"
+          data-testid="marketing-skeleton"
+        >
+          <SkeletonV5
+            variant="rectangle"
+            className="aspect-square max-w-md mx-auto"
+          />
+          <SkeletonV5 variant="text-multi" className="max-w-md mx-auto" />
+        </div>
+      )}
+
       {result && selectedProduct && (
         <GeneratedAssets
           result={result}
           productId={selectedProduct.id}
           productTitle={selectedProduct.title}
           initialLang={captionLang}
+        />
+      )}
+
+      {!generating && !result && (
+        <EmptyStateV5
+          illustration="no-marketing"
+          title="No assets generated yet"
+          description="Pick a product, choose a template, and generate marketing visuals using the form above."
         />
       )}
     </div>

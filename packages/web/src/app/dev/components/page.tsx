@@ -15,7 +15,7 @@
  */
 
 import { notFound } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { BadgeV4 } from "@/components/ui/v4/Badge";
 import { ButtonV4 } from "@/components/ui/v4/Button";
@@ -57,6 +57,14 @@ import {
   TabsV4Trigger,
 } from "@/components/ui/v4/Tabs";
 import { toastV4 } from "@/components/ui/v4/Toast";
+import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
+import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
+import { MilestoneDialogV5 } from "@/components/ui/v5/MilestoneDialog";
+import { OnboardingScreenV5 } from "@/components/ui/v5/OnboardingScreen";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
+import { SparklineV5 } from "@/components/ui/v5/SparklineV5";
+import { fireMilestone } from "@/lib/confetti/milestones";
 
 const sections = [
   { id: "button", label: "Button" },
@@ -67,6 +75,13 @@ const sections = [
   { id: "tabs", label: "Tabs" },
   { id: "badge", label: "Badge" },
   { id: "toast", label: "Toast" },
+  { id: "confetti", label: "Confetti" },
+  { id: "animated-number", label: "AnimatedNumber" },
+  { id: "skeleton-v5", label: "Skeleton (V5)" },
+  { id: "chart-v5", label: "Chart (V5)" },
+  { id: "empty-state-v5", label: "EmptyState (V5)" },
+  { id: "onboarding-v5", label: "OnboardingScreen (V5)" },
+  { id: "milestone-dialog-v5", label: "MilestoneDialog (V5)" },
 ];
 
 export default function DevComponentsPage() {
@@ -119,13 +134,27 @@ export default function DevComponentsPage() {
             <BadgeSection />
             <Separator />
             <ToastSection />
+            <Separator />
+            <ConfettiSection />
+            <Separator />
+            <AnimatedNumberSection />
+            <Separator />
+            <SkeletonV5Section />
+            <Separator />
+            <ChartV5Section />
+            <Separator />
+            <EmptyStateV5Section />
+            <Separator />
+            <OnboardingScreenV5Section />
+            <Separator />
+            <MilestoneDialogV5Section />
           </main>
         </div>
 
         <footer className="mt-24 pt-8 border-t border-celo-dark/[8%]">
           <p className="font-sans text-caption opacity-60">
-            Generated J9 Block 4 — see{" "}
-            <code className="font-mono">docs/DESIGN_V4_PREVIEW.md</code>
+            Generated J10-V5 Phase 4 Block 4a — see{" "}
+            <code className="font-mono">docs/SPRINT_J10_V5.md</code>
           </p>
         </footer>
       </div>
@@ -517,6 +546,354 @@ function ToastSection() {
           Loading
         </ButtonV4>
       </ShowcaseRow>
+    </Section>
+  );
+}
+
+function ConfettiSection() {
+  return (
+    <Section
+      id="confetti"
+      title="Confetti"
+      importPath="@/lib/confetti/milestones"
+    >
+      <p className="font-sans text-body-sm opacity-60">
+        Click to fire a milestone burst. Palette colors mirror V5 tokens
+        (forest, forest-bright, yellow, light, green) exactly. Bursts
+        respect <code>prefers-reduced-motion</code> — toggle in OS
+        settings to verify the noop path.
+      </p>
+      <ShowcaseRow label="Milestones">
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("first-sale")}
+        >
+          First sale
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("withdrawal-complete")}
+        >
+          Withdrawal complete
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("credit-purchase")}
+        >
+          Credit purchase
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("image-generated")}
+        >
+          Image generated
+        </ButtonV4>
+        <ButtonV4
+          variant="ghost"
+          onClick={() => fireMilestone("onboarding-complete")}
+        >
+          Onboarding complete
+        </ButtonV4>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function AnimatedNumberSection() {
+  const [credits, setCredits] = useState(10);
+  const [usdt, setUsdt] = useState(0);
+  return (
+    <Section
+      id="animated-number"
+      title="AnimatedNumber"
+      importPath="@/components/ui/v4/AnimatedNumber"
+    >
+      <p className="font-sans text-body-sm opacity-60">
+        Counter that tweens between values on prop change. Tabular nums
+        inline keep digit width fixed during the tween (no layout
+        shift). Respects <code>prefers-reduced-motion</code>.
+      </p>
+      <ShowcaseRow label="Credits (integer)">
+        <span
+          className="font-display text-display-3"
+          data-testid="dev-credits"
+        >
+          <AnimatedNumber value={credits} decimals={0} suffix=" credits" />
+        </span>
+        <ButtonV4 variant="ghost" onClick={() => setCredits((c) => c + 1)}>
+          +1
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setCredits((c) => c + 10)}>
+          +10
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setCredits(10)}>
+          Reset
+        </ButtonV4>
+      </ShowcaseRow>
+      <ShowcaseRow label="USDT (2 decimals)">
+        <span
+          className="font-display text-display-3"
+          data-testid="dev-usdt"
+        >
+          <AnimatedNumber value={usdt} decimals={2} suffix=" USDT" />
+        </span>
+        <ButtonV4 variant="ghost" onClick={() => setUsdt((v) => v + 1.5)}>
+          +1.50
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setUsdt((v) => v + 12.34)}>
+          +12.34
+        </ButtonV4>
+        <ButtonV4 variant="ghost" onClick={() => setUsdt(0)}>
+          Reset
+        </ButtonV4>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function SkeletonV5Section() {
+  return (
+    <Section
+      id="skeleton-v5"
+      title="Skeleton (V5)"
+      importPath="@/components/ui/v5/Skeleton"
+    >
+      <ShowcaseRow label="text — single line">
+        <div className="w-full max-w-sm">
+          <SkeletonV5 variant="text" />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="text-multi — 3 stacked rows">
+        <div className="w-full max-w-sm">
+          <SkeletonV5 variant="text-multi" />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="circle — sizes 32 / 48 / 64">
+        <SkeletonV5 variant="circle" size={32} />
+        <SkeletonV5 variant="circle" size={48} />
+        <SkeletonV5 variant="circle" size={64} />
+      </ShowcaseRow>
+      <ShowcaseRow label="rectangle — image / banner placeholder">
+        <SkeletonV5
+          variant="rectangle"
+          className="aspect-square w-full max-w-xs"
+        />
+      </ShowcaseRow>
+      <ShowcaseRow label="card — full block">
+        <div className="w-full max-w-xs">
+          <SkeletonV5 variant="card" />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="row — list-item placeholder ×3">
+        <div className="w-full max-w-sm flex flex-col gap-3">
+          <SkeletonV5 variant="row" />
+          <SkeletonV5 variant="row" />
+          <SkeletonV5 variant="row" />
+        </div>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+const REVENUE_7D = [
+  { label: "Mon", value: 120 },
+  { label: "Tue", value: 145 },
+  { label: "Wed", value: 132 },
+  { label: "Thu", value: 178 },
+  { label: "Fri", value: 210 },
+  { label: "Sat", value: 195 },
+  { label: "Sun", value: 240 },
+];
+
+const SPARK_UP = [10, 14, 12, 18, 22, 25, 32];
+const SPARK_DOWN = [32, 28, 25, 20, 15, 11, 9];
+const SPARK_FLAT = [15, 15, 15, 15, 15, 15, 15];
+
+function ChartV5Section() {
+  return (
+    <Section
+      id="chart-v5"
+      title="Chart (V5)"
+      importPath="@/components/ui/v5/ChartLineV5 + SparklineV5"
+    >
+      <ShowcaseRow label="ChartLineV5 — revenue 7 days (forest, default)">
+        <div className="w-full max-w-2xl">
+          <ChartLineV5 data={REVENUE_7D} height={240} />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="ChartLineV5 — empty data fallback">
+        <div className="w-full max-w-md">
+          <ChartLineV5 data={[]} height={160} />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — default forest (ascending)">
+        <SparklineV5 data={SPARK_UP} />
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — trend variant: ascending → forest">
+        <SparklineV5 data={SPARK_UP} variant="trend" />
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — trend variant: descending → red">
+        <SparklineV5 data={SPARK_DOWN} variant="trend" />
+      </ShowcaseRow>
+      <ShowcaseRow label="SparklineV5 — trend variant: flat → grey">
+        <SparklineV5 data={SPARK_FLAT} variant="trend" />
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function EmptyStateV5Section() {
+  return (
+    <Section
+      id="empty-state-v5"
+      title="EmptyState (V5)"
+      importPath="@/components/ui/v5/EmptyState"
+    >
+      <ShowcaseRow label="no-orders — share boutique CTA">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-orders"
+            title="No orders yet"
+            description="Share your boutique link to get your first sale."
+            action={{
+              label: "Share boutique link",
+              onClick: () => toastV4.info("Demo — share flow lands in Phase 4"),
+            }}
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="no-products — href CTA to product creation">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-products"
+            title="No products yet"
+            description="Add your first product to start selling 24/7."
+            action={{
+              label: "Add your first product",
+              href: "/seller/dashboard?tab=products&new=1",
+            }}
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="no-marketing — descriptive only (form is above)">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-marketing"
+            title="No assets generated yet"
+            description="Generate marketing visuals from your products with the form above."
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="no-stake — top-up CTA">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-stake"
+            title="Top up your stake"
+            description="Cross-border orders require a seller stake (Tier 1 from 10 USDT)."
+            action={{
+              label: "Deposit stake",
+              onClick: () => toastV4.info("Demo — stake deposit flow"),
+            }}
+          />
+        </div>
+      </ShowcaseRow>
+      <ShowcaseRow label="compact variant — no-orders, no action">
+        <div className="w-full">
+          <EmptyStateV5
+            illustration="no-orders"
+            title="No orders"
+            variant="compact"
+          />
+        </div>
+      </ShowcaseRow>
+    </Section>
+  );
+}
+
+function OnboardingScreenV5Section() {
+  // Mounting OnboardingScreenV5 inline would cover the entire dev page
+  // (fixed inset-0 z-50). Trigger via a button so the rest of the dev
+  // page stays usable; dismiss via the skip button on the overlay.
+  const [open, setOpen] = useState(false);
+  return (
+    <Section
+      id="onboarding-v5"
+      title="OnboardingScreen (V5)"
+      importPath="@/components/ui/v5/OnboardingScreen"
+    >
+      <ShowcaseRow label="full-screen overlay — click to mount">
+        <ButtonV4 onClick={() => setOpen(true)}>Show onboarding</ButtonV4>
+        <p className="text-overline text-celo-dark/60">
+          Skip in the top-right of the overlay to dismiss.
+        </p>
+      </ShowcaseRow>
+      {open ? (
+        <OnboardingScreenV5
+          title="Welcome to Etalo"
+          description="Your digital stall, open 24/7. Buy and sell with African sellers using USDT escrow on Celo."
+          ctaLabel="Get Started"
+          onCtaClick={() => {
+            toastV4.success("Demo — onboarding accepted");
+            setOpen(false);
+          }}
+          skipLabel="Skip"
+          onSkip={() => setOpen(false)}
+        />
+      ) : null}
+    </Section>
+  );
+}
+
+// J10-V5 Phase 4 Block 6 sub-block 6.4 — preview surface for both
+// MilestoneDialogV5 variants. Showcase intentionally bypasses
+// `useMilestoneOnce` so Mike can re-open the dialogs as many times as
+// needed for visual review (the prod consumer in OrdersTab respects
+// the one-shot guard).
+function MilestoneDialogV5Section() {
+  const [firstSaleOpen, setFirstSaleOpen] = useState(false);
+  const [withdrawalOpen, setWithdrawalOpen] = useState(false);
+  return (
+    <Section
+      id="milestone-dialog-v5"
+      title="MilestoneDialog (V5)"
+      importPath="@/components/ui/v5/MilestoneDialog"
+    >
+      <p className="font-sans text-body-sm opacity-60">
+        Two variants : <code>first-sale</code> (V1 trigger LIVE in
+        OrdersTab) and <code>withdrawal-complete</code> (V2 trigger
+        deferred per ADR-041 — variant kept on the component for
+        forward-compat). Each preview button bypasses the
+        <code> useMilestoneOnce</code> guard so the dialog can be
+        re-opened freely ; the prod consumer respects the one-shot
+        flag.
+      </p>
+      <ShowcaseRow label="Variants">
+        <ButtonV4 onClick={() => setFirstSaleOpen(true)}>
+          Show first-sale dialog
+        </ButtonV4>
+        <ButtonV4
+          variant="outline"
+          onClick={() => setWithdrawalOpen(true)}
+        >
+          Show withdrawal-complete dialog
+        </ButtonV4>
+      </ShowcaseRow>
+      <MilestoneDialogV5
+        open={firstSaleOpen}
+        onOpenChange={setFirstSaleOpen}
+        variant="first-sale"
+        title="First sale!"
+        description="Congratulations on your first completed order. Keep growing your boutique — momentum builds from here."
+        ctaLabel="Continue"
+      />
+      <MilestoneDialogV5
+        open={withdrawalOpen}
+        onOpenChange={setWithdrawalOpen}
+        variant="withdrawal-complete"
+        title="Withdrawal complete"
+        description="Your funds have been transferred. Check your wallet for the deposit confirmation."
+        ctaLabel="Done"
+      />
     </Section>
   );
 }

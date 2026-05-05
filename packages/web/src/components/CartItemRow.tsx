@@ -1,6 +1,6 @@
 "use client";
 
-import { Minus, Plus, X } from "lucide-react";
+import { Minus, Plus, X } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -47,7 +47,7 @@ export function CartItemRow({ item, onNavigate }: Props) {
         >
           {item.title}
         </Link>
-        <div className="mt-1 text-sm text-neutral-600">
+        <div className="mt-1 text-sm text-neutral-600 tabular-nums">
           {Number(item.priceUsdt).toFixed(2)} USDT each
         </div>
 
@@ -60,7 +60,7 @@ export function CartItemRow({ item, onNavigate }: Props) {
           >
             <Minus className="h-4 w-4" />
           </button>
-          <span className="min-w-[24px] text-center text-base">
+          <span className="min-w-[24px] text-center text-base tabular-nums">
             {item.qty}
           </span>
           <button
@@ -86,7 +86,7 @@ export function CartItemRow({ item, onNavigate }: Props) {
         </div>
       </div>
 
-      <div className="self-start text-sm font-medium text-neutral-900">
+      <div className="self-start text-sm font-medium text-neutral-900 tabular-nums">
         {subtotal}
       </div>
     </div>

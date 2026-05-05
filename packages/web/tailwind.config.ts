@@ -45,12 +45,17 @@ const config: Config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
-        // V4 design system — Celo earth-inspired palette (J9 Block 2).
+        // V5 design system — Celo earth-inspired palette extended with
+        // first-class dark mode tokens (J10-V5 Block 2, voir ADR-040).
         // Namespaced under `celo-*` so it never collides with shadcn
-        // legacy keys above. Consumed exclusively by V4 components in
-        // packages/web/src/components/ui/v4/* (J9 Block 3+).
+        // legacy keys above. Light tokens consumed by V4 components in
+        // packages/web/src/components/ui/v4/*; dark tokens reserved for
+        // `dark:` Tailwind variants enabled Block 3+ via next-themes.
+        // Convention `-bright` suffix = dark mode counterpart.
         celo: {
+          // Light mode
           light: "#FCFBF7",
+          "light-subtle": "#F7F5EC",
           forest: "#476520",
           "forest-dark": "#3A521A",
           "forest-soft": "rgba(71,101,32,0.08)",
@@ -61,14 +66,27 @@ const config: Config = {
           sand: "#EFE7D6",
           red: "#A8362F",
           "red-soft": "rgba(168,54,47,0.08)",
+          green: "#00C853",
+          "green-hover": "#00B348",
+          blue: "#1E88E5",
+          // Dark mode
+          "dark-bg": "#0F1115",
+          "dark-elevated": "#1A1D23",
+          "dark-surface": "#22262E",
+          "forest-bright": "#5C8B2D",
+          "forest-bright-soft": "rgba(92,139,45,0.15)",
+          "red-bright": "#FF5247",
+          "red-bright-soft": "rgba(255,82,71,0.15)",
+          "blue-bright": "#42A5F5",
         },
       },
-      // V4 design system fonts — Google Fonts loaded via next/font in
-      // src/app/layout.tsx and exposed as CSS variables.
+      // V5 design system font — Switzer Variable (Indian Type Foundry,
+      // Fontshare). Self-hosted woff2 in public/fonts/switzer/, loaded
+      // via next/font/local in src/app/layout.tsx, exposed as CSS var.
       fontFamily: {
-        display: ["var(--font-instrument-serif)", "serif"],
-        sans: ["var(--font-inter)", "system-ui", "sans-serif"],
-        mono: ["var(--font-inter)", "ui-monospace", "monospace"],
+        display: ["var(--font-switzer)", "sans-serif"],
+        sans: ["var(--font-switzer)", "system-ui", "sans-serif"],
+        mono: ["var(--font-switzer)", "ui-monospace", "monospace"],
       },
       // V4 typography scale (DESIGN_V4_PREVIEW.md §Typography +
       // §Principes pages non-landing). `body-sm` 15px is reserved for
@@ -121,6 +139,13 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
         },
+        // V5 skeleton-screen shimmer — gradient sweep left→right for the
+        // SkeletonV5 component (J10-V5 Phase 3 Block 3a, voir
+        // docs/DESIGN_V5_PREVIEW.md §Skeleton screens systematic V5).
+        shimmer: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(100%)" },
+        },
       },
       animation: {
         // shadcn legacy Radix accordion — DO NOT MODIFY.
@@ -128,6 +153,8 @@ const config: Config = {
         "accordion-up": "accordion-up 0.2s ease-out",
         // V4 skeleton screens.
         "celo-pulse": "celo-pulse 1.5s ease-in-out infinite",
+        // V5 skeleton screens.
+        shimmer: "shimmer 1.5s linear infinite",
       },
     },
   },

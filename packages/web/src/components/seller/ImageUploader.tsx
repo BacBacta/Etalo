@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertCircle, Loader2, X } from "lucide-react";
+import { CircleNotch, WarningCircle, X } from "@phosphor-icons/react";
 import { useRef, useState } from "react";
 
 import { uploadImage } from "@/lib/seller-api";
@@ -139,13 +139,13 @@ export function ImageUploader({
 
             {img.status === "uploading" ? (
               <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-                <Loader2 className="h-6 w-6 animate-spin text-white" />
+                <CircleNotch className="h-6 w-6 animate-spin text-white" />
               </div>
             ) : null}
 
             {img.status === "error" ? (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-red-500/70 p-2 text-sm text-white">
-                <AlertCircle className="mb-1 h-4 w-4" />
+                <WarningCircle className="mb-1 h-4 w-4" />
                 <span className="text-center">
                   {img.errorMessage ?? "Upload failed"}
                 </span>

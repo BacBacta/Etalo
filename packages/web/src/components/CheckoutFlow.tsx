@@ -58,7 +58,7 @@ export function CheckoutFlow({ cart, token }: Props) {
             <p className="text-base">
               {sellerCount} {sellerLabel} · {itemCount} items
             </p>
-            <p className="text-base font-semibold">
+            <p className="text-base font-semibold tabular-nums">
               Total: {cart.total_usdt} USDT
             </p>
             <p className="text-sm text-neutral-600">
@@ -98,7 +98,7 @@ export function CheckoutFlow({ cart, token }: Props) {
 
   // Phases: 'allowance' | 'executing' — show progress.
   return (
-    <div className="min-h-screen p-4">
+    <main id="main" className="min-h-screen p-4">
       <div className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow">
         <h1 className="mb-4 text-xl font-semibold">Processing checkout</h1>
 
@@ -132,6 +132,6 @@ export function CheckoutFlow({ cart, token }: Props) {
           stay paid; auto-refund kicks in if items don&apos;t ship.
         </p>
       </div>
-    </div>
+    </main>
   );
 }

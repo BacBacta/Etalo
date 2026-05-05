@@ -1,11 +1,13 @@
 "use client";
 
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { useCallback, useEffect, useState } from "react";
 
 import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
 import { ProductFormDialog } from "@/components/seller/ProductFormDialog";
 import { Button } from "@/components/ui/button";
+import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchMyProducts,
   type MyProductsListItem,
@@ -92,7 +94,13 @@ export function ProductsTab({ profile, walletAddress }: Props) {
   };
 
   if (products === null) {
-    return <p className="text-base text-neutral-600">Loading…</p>;
+    return (
+      <div className="space-y-3" data-testid="products-skeleton">
+        <SkeletonV5 variant="row" />
+        <SkeletonV5 variant="row" />
+        <SkeletonV5 variant="row" />
+      </div>
+    );
   }
 
   return (
@@ -108,9 +116,12 @@ export function ProductsTab({ profile, walletAddress }: Props) {
       </div>
 
       {products.length === 0 ? (
-        <p className="py-8 text-center text-base text-neutral-600">
-          No products yet. Click &ldquo;Add product&rdquo; to get started.
-        </p>
+        <EmptyStateV5
+          illustration="no-products"
+          title="No products yet"
+          description="Add your first product to start selling 24/7."
+          action={{ label: "Add your first product", onClick: openCreate }}
+        />
       ) : (
         <ul className="space-y-2">
           {products.map((p) => (
@@ -127,7 +138,7 @@ export function ProductsTab({ profile, walletAddress }: Props) {
                     {STATUS_LABEL[p.status] ?? p.status}
                   </span>
                 </div>
-                <div className="text-sm text-neutral-600">
+                <div className="text-sm text-neutral-600 tabular-nums">
                   {Number(p.price_usdt).toFixed(2)} USDT · stock {p.stock}
                 </div>
               </div>
@@ -138,7 +149,7 @@ export function ProductsTab({ profile, walletAddress }: Props) {
                   className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
                   aria-label={`Edit ${p.title}`}
                 >
-                  <Pencil className="h-4 w-4" />
+                  <PencilSimple className="h-4 w-4" />
                 </button>
                 <button
                   type="button"
@@ -146,7 +157,7 @@ export function ProductsTab({ profile, walletAddress }: Props) {
                   className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700"
                   aria-label={`Delete ${p.title}`}
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash className="h-4 w-4" />
                 </button>
               </div>
             </li>

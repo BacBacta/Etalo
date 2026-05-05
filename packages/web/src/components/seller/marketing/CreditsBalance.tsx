@@ -1,21 +1,32 @@
 "use client";
 
-import { Coins } from "lucide-react";
+import { Coins } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 
 import { BuyCreditsDialog } from "@/components/seller/marketing/BuyCreditsDialog";
-import { useCreditsBalance } from "@/hooks/useCreditsBalance";
+import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
+import {
+  CREDITS_BALANCE_QUERY_KEY,
+  useCreditsBalance,
+} from "@/hooks/useCreditsBalance";
 
 const LOW_BALANCE_THRESHOLD = 5;
 
-// Indexer mirrors CreditsPurchased on its 30s polling cycle. We poll
-// /credits/balance up to 4 times (10s, 20s, 30s, 40s) after a
-// successful purchase so the balance updates quickly without forcing
-// the seller to refresh manually.
+// Indexer mirrors CreditsPurchased on its 30s polling cycle. We
+// invalidate /credits/balance up to 4 times (10s, 20s, 30s, 40s) after
+// a successful purchase so the balance updates quickly without forcing
+// the seller to refresh manually. Polling here covers indexer lag —
+// each invalidate triggers a refetch on every active useCreditsBalance
+// consumer in the tree (MarketingTab + this one).
 const POST_BUY_POLL_DELAYS_MS = [10_000, 20_000, 30_000, 40_000] as const;
 
 export function CreditsBalance() {
-  const { balance, loading, error, refetch } = useCreditsBalance();
+  const query = useCreditsBalance();
+  const queryClient = useQueryClient();
+  const balance = query.data?.balance ?? 0;
+  const isLoading = query.isPending;
+  const isError = query.isError;
   const [dialogOpen, setDialogOpen] = useState(false);
 
   // Cancel any pending polls when the component unmounts or a new
@@ -29,11 +40,15 @@ export function CreditsBalance() {
 
   const onPurchaseSuccess = () => {
     clearPolls();
-    void refetch();
+    void queryClient.invalidateQueries({
+      queryKey: [CREDITS_BALANCE_QUERY_KEY],
+    });
     for (const delay of POST_BUY_POLL_DELAYS_MS) {
       pollTimersRef.current.push(
         setTimeout(() => {
-          void refetch();
+          void queryClient.invalidateQueries({
+            queryKey: [CREDITS_BALANCE_QUERY_KEY],
+          });
         }, delay),
       );
     }
@@ -50,9 +65,15 @@ export function CreditsBalance() {
           <div>
             <div className="text-sm text-neutral-600">Marketing credits</div>
             <div className="text-xl font-semibold" data-testid="credits-amount">
-              {loading ? "…" : error ? "?" : `${balance} credits`}
+              {isLoading ? (
+                "…"
+              ) : isError ? (
+                "?"
+              ) : (
+                <AnimatedNumber value={balance} decimals={0} suffix=" credits" />
+              )}
             </div>
-            {!loading && !error && balance < LOW_BALANCE_THRESHOLD && (
+            {!isLoading && !isError && balance < LOW_BALANCE_THRESHOLD && (
               <div
                 className="mt-1 text-sm text-amber-700"
                 data-testid="low-balance-warning"

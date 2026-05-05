@@ -5,9 +5,14 @@
 Etalo is a non-custodial social commerce Mini App for African sellers,
 built on Celo and distributed via MiniPay.
 
-Target markets: Nigeria, Ghana, Kenya primary, diaspora secondary.
+Target markets: Nigeria, Ghana, Kenya, South Africa primary (4 markets V1
+big bang launch, see ADR-041), diaspora secondary.
 Target user: informal sellers on Instagram/WhatsApp/TikTok who want a real
 24/7 shop with secure USDT payments and buyer protection.
+
+V1 scope is **intra-Africa only** — cross-border transactions are deferred
+V2 (see ADR-041). The 4 launch markets transact among themselves; diaspora
+buying is a public-funnel-only signal in V1.
 
 **V1 Boutique model** (see ADR-014): three integrated pillars:
 1. Per-seller Boutique at `etalo.app/[handle]` — full catalog, cart,
@@ -31,8 +36,8 @@ power is structurally bounded by code.
 ## Tech stack (locked, do not change without an ADR)
 
 - Smart contracts: Solidity 0.8.24 + Hardhat + OpenZeppelin
-- Frontend (single Next.js app at `etalo.app`, see ADR-035): React 19 +
-  TypeScript 6 + Next.js 14 (App Router, SSR + Client Components) +
+- Frontend (single Next.js app at `etalo.app`, see ADR-035): React 18.3 +
+  TypeScript 5 + Next.js 14 (App Router, SSR + Client Components) +
   Wagmi v2 + Viem v2 + shadcn/ui + Tailwind. Same app serves the public
   funnel surface (no wallet required, SEO-optimized for social media
   inbound) and the Mini App surface (MiniPay detection via
@@ -47,7 +52,7 @@ power is structurally bounded by code.
 
 1. NEVER commit .env files or private keys to git
 2. USDT has 6 decimals — all amount math must handle this correctly
-3. NEVER use EIP-1559 transactions — MiniPay only accepts legacy and CIP-64 (type 0x7b)
+3. NEVER use EIP-1559 transactions — MiniPay only accepts legacy and CIP-64 (type 0x7b). Note : legacy uniquement V1 ; câblage CIP-64 USDT feeCurrency = V1.5 (voir ADR-003). Plan de remplacement = `asLegacyTx()` peut émettre type 0x7b avec `feeCurrency=USDT_ADAPTER` quand activé.
 4. User-facing terminology required:
    - "network fee" (not "gas")
    - "deposit" / "withdraw" (not "on-ramp" / "off-ramp")
@@ -61,11 +66,15 @@ power is structurally bounded by code.
     Practices > Wallet connection.
 8. Transaction states: 4 precise states (Preparing / Confirming / Success / Error)
 9. Commit frequently with clear Conventional Commit messages
-10. Cross-border orders require seller stake (ADR-020) — `createOrder`
-    must revert if the seller has not met the applicable tier's stake
+10. V1 is intra-Africa only (ADR-041) — no `isCrossBorder` flag, no
+    seller stake, no destination-country selection. Cross-border
+    surfaces (ADR-018 / ADR-019 cross clause / ADR-020 / ADR-021)
+    are deferred V2.
 11. Architectural limits are hardcoded (ADR-026) — never propose code
     that bypasses: `MAX_ORDER = 500 USDT`, `MAX_TVL = 50_000 USDT`,
-    `MAX_SELLER_WEEKLY = 5_000 USDT`, `EMERGENCY_PAUSE_MAX = 7 days`
+    `MAX_SELLER_WEEKLY = 5_000 USDT`, `EMERGENCY_PAUSE_MAX = 7 days`.
+    Numerical values may be revisited at V1 mainnet deploy time given
+    4-market big-bang load patterns (per ADR-041).
 12. `forceRefund` is gated by THREE codified conditions (ADR-023) —
     dispute contract inactive + 90+ days order inactivity + registered
     legal hold. Never remove or relax these.
@@ -107,19 +116,16 @@ addresses retained in `docs/DEPLOYMENTS_HISTORY.md` and
 
 ## Economics (locked, see ADRs for rationale)
 
-- Commission intra-Africa: 1.8%
-- Commission cross-border: 2.7%
-- Commission Top Seller (intra): 1.2%
-- Auto-release intra: 3 days (2 days for Top Seller)
-- Cross-border release (ADR-018): 20% on shipping proof / 70% at
-  destination-country arrival + 72h without dispute / 10% at buyer
-  confirmation or auto-release 5 days after majority release
-- Seller inactivity deadlines (ADR-019): 7 days intra / 14 days
-  cross-border → permissionless auto-refund
-- Seller stake cross-border (ADR-020): Tier 1 Starter 10 USDT /
-  Tier 2 Established 25 USDT / Tier 3 Top Seller 50 USDT
+- Commission V1: **1.8% single rate** (ADR-041) — Top Seller 1.2%
+  program deferred V1.1 with volume / ratings / dispute criteria.
+- Auto-release intra: **3 days standard** (ADR-041) — single timer V1.
+- Seller inactivity deadline (ADR-019 intra clause): 7 days intra →
+  permissionless auto-refund.
+- Cross-border release flow, 14-day cross-border deadline, and seller
+  stake (ADR-018 / ADR-019 cross clause / ADR-020 / ADR-021) →
+  **DEFERRED V2** by ADR-041.
 - Credits (ADR-014): 0.15 USDT/credit, 5 free/month, 10 welcome bonus,
-  no subscription (see `docs/PRICING_MODEL_CREDITS.md`)
+  no subscription (see `docs/PRICING_MODEL_CREDITS.md`).
 
 ## Developer
 
@@ -128,14 +134,65 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J9 — Design system V4 foundations CLOTURE le 2026-04-27. Tag
-`v2.0.0-design-system-sepolia` posé sur le merge commit. 8 composants
-V4 livrés dans `packages/web/src/components/ui/v4/`.
+Sprint J10-V5 — Design System V5 Robinhood-target. Plan détaillé
+dans `docs/SPRINT_J10_V5.md`. Branche `feat/design-system-v5`.
 
-Sprint J10 — Phase Vitrine (landing + public boutique + cart drawer
-migration vers V4). À démarrer post-strategic step-back.
+Phase closures :
 
-When user says "start Sprint JX", read `docs/SPRINT_JX.md` and propose plan.
+- Phase 1 (Foundations) ✓ 16 commits
+- Phase 2 (Motion) ✓ 11 commits
+- Phase 3 (Visuals) ✓ 9 commits — bundle 262 KB strict, 4
+  composants V5 livrés, 8 lessons #73-#80
+- **Phase 4 (Layout refactor + V5 applications migration) ✓ done
+  2026-05-02** — 6 Blocks (1-4 + 5 + 6) + 10 hotfixes (incl. #9
+  dual-repo frontend + #10 dual-repo backend footgun
+  neutralization). 243 PASS frontend (+65 net Phase 4) / 120
+  PASS backend (+5). `/seller/dashboard` 22.9 kB route /
+  **263 kB First Load** (17 kB headroom préservé sous trigger
+  280 kB strict, −17 kB net Phase 4). Live MiniPay validation
+  confirmed end-to-end sur INNER frontend + INNER backend.
+  Cumulative pattern catalogue dans
+  `docs/PHASE_4_LESSONS_LEARNED.md`.
+
+**Phase 5 (Polish + Submission) IN PROGRESS depuis 2026-05-03**.
+
+Block 1 (Tabular nums systematic application + bonus dates
+locale-pin sweep) ✓ done 2026-05-03 — 6 sub-blocks, 6 commits,
+~25 sites touched across dashboard + cart + checkout + boutique +
+marketplace, new `lib/format.ts` (formatChartDate + formatRowDate
+both pinned en-US UTC), 243 PASS conserved, /seller/dashboard
+22.9 → 23.2 kB route / 263 kB First Load (0 net), 17 kB headroom
+preserved. Closure section in `docs/SPRINT_J10_V5.md` Phase 5
+Block 1.
+
+**Block 2 (Mobile gestures critiques) ✓ done 2026-05-04** —
+5 sub-blocks, 5 commits. Cart drawer swipe-to-close
+(SheetV4 migration + nested LazyMotion features={domMax} +
+m.div drag="x" + threshold helper `shouldCloseOnSwipe` 100 px
+OR 500 px/s) + marketplace pull-to-refresh (custom pointer
+handlers + CSS transitions, motion drag overkill avoided ;
+gating sur `window.scrollY === 0` ; threshold 80 px ;
+overscroll-contain blocks native Android Chrome PTR conflict)
++ marketplace data path refactored to `useInfiniteQuery`
+(5e consumer TanStack Query) + visible Refresh button
+mandatory a11y. 247 → 266 PASS (+19), /seller/dashboard
+23.2 → 23.3 kB route / 263 → 264 kB First Load,
+/marketplace 8.23 → 9.27 kB route / 132 → 142 kB First Load
+(TanStack pagination infra acceptable trade-off), 16 kB
+headroom préservé. Closure section in
+`docs/SPRINT_J10_V5.md` Phase 5 Block 2.
+
+Phase 5 Blocks restants : side-by-side Robinhood QA pass,
+polish details, demo video 3 min, Karma GAP profile + Farcaster
+post + repo README polish, grants Celo Foundation submission, tag
+final `v2.0.0-design-system-v5-sepolia`. Liste complete + plan
+Block 3-9 dans `docs/SPRINT_J10_V5.md`.
+
+When user says "start Phase 5 Block N" or "continue Block X", read
+that block in `docs/SPRINT_J10_V5.md` and execute.
+
+Always propose a plan before executing, and wait for validation.
+Report what was done at the end of each block.
 
 ## V2 invariants (locked alongside contract layout)
 
@@ -158,9 +215,18 @@ architectural decision, add an entry there before implementing. When
 CLAUDE.md and DECISIONS.md disagree, DECISIONS.md wins until
 CLAUDE.md is updated.
 
+Most-load-bearing recent ADRs for V1 scope:
+
+- ADR-041 (V1 scope restriction — intra-only, 4-market big bang,
+  single 1.8% rate, stake retired) — drives this file's Economics +
+  Critical rules + Target markets sections.
+- ADR-040 (V5 design pivot) — drives Current sprint section.
+- ADR-035 (single Next.js app at etalo.app) — drives Architecture.
+- ADR-034 (no new EIP-191 backend auth) — Critical rules #14.
+
 ## Design standards (from MiniPay official docs)
 
-- Mobile-first: minimum viewport 360x720 pixels
+- Mobile-first: minimum viewport 360x720 pixels (satisfait MiniPay submission §2 qui exige 360×640 minimum)
 - Touch targets: minimum 44x44 pixels
 - Body text: minimum 16 pixels (never smaller than 14)
 - Single column layout, no horizontal scroll

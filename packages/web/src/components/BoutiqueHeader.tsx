@@ -18,6 +18,7 @@ export function BoutiqueHeader({ seller }: Props) {
             alt={`${seller.shop_name} logo`}
             width={64}
             height={64}
+            sizes="64px"
             className="h-16 w-16 rounded-full object-cover"
           />
         ) : (

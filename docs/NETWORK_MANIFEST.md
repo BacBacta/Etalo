@@ -118,7 +118,6 @@ Treasury wallets (3 separated per ADR-024) :
 > must be re-run against the new addresses before MiniPay submission ;
 > any verification done before 2026-05-05 referenced the now-deprecated
 > deploy and is invalidated.
-
 - [ ] Toutes les origines listées vérifiées via DevTools Network panel sur les 6 surfaces hot-path : `/`, `/marketplace`, `/[handle]`, `/[handle]/[slug]`, `/checkout`, `/seller/dashboard`
 - [ ] FastAPI endpoints enumerated exhaustively from `/api/openapi.json` (replace placeholder list above with full set)
 - [ ] Aucun tracker tiers non documenté (verify zero analytics, zero pixel trackers, zero CDN font fetches)

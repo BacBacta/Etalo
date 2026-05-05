@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useAccount } from "wagmi";
 
+import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   fetchMyProducts,
   type MyProductsListItem,
@@ -42,7 +43,16 @@ export function ProductPicker({ selected, onSelect }: Props) {
   }, [address]);
 
   if (loading) {
-    return <p className="text-base text-neutral-600">Loading products…</p>;
+    // J10-V5 Phase 5 Angle B sub-block B.2 — SkeletonV5 form-select-
+    // shaped placeholder mirrors the real <select> dimensions
+    // (min-h-[44px] = h-11) so the picker doesn't shift when products
+    // resolve.
+    return (
+      <SkeletonV5
+        variant="rectangle"
+        className="h-11 w-full max-w-md rounded-md"
+      />
+    );
   }
   if (products.length === 0) {
     return (
