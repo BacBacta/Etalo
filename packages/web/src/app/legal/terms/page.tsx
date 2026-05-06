@@ -42,7 +42,7 @@ export default function TermsPage() {
         <h2 className="mt-8 text-xl font-semibold">3. Paiement</h2>
         <p className="text-base text-neutral-700 dark:text-celo-light/80">
           Payments use USDT digital dollar on Celo. Network fees are
-          paid by buyers via MiniPay's fee abstraction. The
+          paid by buyers via MiniPay&apos;s fee abstraction. The
           commission rate is 1.8% (V1, intra-Africa). The
           commission, the seller payout, and the auto-release
           schedule are enforced on-chain by audited smart contracts
@@ -61,7 +61,7 @@ export default function TermsPage() {
         <h2 className="mt-8 text-xl font-semibold">5. Loi applicable</h2>
         <p className="text-base text-neutral-700 dark:text-celo-light/80">
           [Jurisdiction to be defined by counsel. Likely options :
-          seller's country of residence for B2C disputes, or a
+          seller&apos;s country of residence for B2C disputes, or a
           neutral arbitration framework for cross-seller cases.]
         </p>
 

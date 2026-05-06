@@ -1,12 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
+import { parseUnits } from "viem";
 import { useChainId } from "wagmi";
 
 import { CheckoutErrorView } from "@/components/CheckoutErrorView";
 import { CheckoutSellerStatus } from "@/components/CheckoutSellerStatus";
 import { CheckoutSuccessView } from "@/components/CheckoutSuccessView";
+import { InsufficientBalanceCTA } from "@/components/checkout/InsufficientBalanceCTA";
 import { Button } from "@/components/ui/button";
+import { useCheckoutBalanceGate } from "@/hooks/useCheckoutBalanceGate";
 import { useSequentialCheckout } from "@/hooks/useSequentialCheckout";
 import { useCartStore } from "@/lib/cart-store";
 import type { ResolvedCart } from "@/lib/checkout";
@@ -48,6 +51,12 @@ export function CheckoutFlow({ cart, token }: Props) {
   const sellerCount = cart.groups.length;
   const sellerLabel = sellerCount === 1 ? "seller" : "sellers";
 
+  // Pre-flight balance gate (J11 #1). Backend serializes total_usdt as
+  // a Decimal-string ("25.98"); convert to raw 6-decimal bigint for
+  // the on-chain balanceOf comparison.
+  const requiredRaw = parseUnits(cart.total_usdt, 6);
+  const balanceGate = useCheckoutBalanceGate(requiredRaw);
+
   if (state.phase === "idle") {
     const txCount = sellerCount === 1 ? "up to 3" : `up to ${1 + sellerCount * 2}`;
     return (
@@ -66,12 +75,17 @@ export function CheckoutFlow({ cart, token }: Props) {
               needed, then create + fund per seller).
             </p>
           </div>
-          <Button
-            className="min-h-[44px] w-full text-base"
-            onClick={start}
-          >
-            Start checkout
-          </Button>
+          {balanceGate.hasInsufficient ? (
+            <InsufficientBalanceCTA deficitRaw={balanceGate.deficitRaw} />
+          ) : (
+            <Button
+              className="min-h-[44px] w-full text-base"
+              onClick={start}
+              disabled={balanceGate.isLoading}
+            >
+              Start checkout
+            </Button>
+          )}
         </div>
       </div>
     );

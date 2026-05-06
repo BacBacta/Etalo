@@ -25,6 +25,10 @@ export function OpenInMiniPayModal({ token, cart }: Props) {
   }, []);
 
   const checkoutUrl = `${BASE_URL}/checkout?token=${encodeURIComponent(token)}`;
+  // Note : this deeplink opens the Mini App in MiniPay (`?app=etalo&url=...`).
+  // For low-balance redirect, see InsufficientBalanceCTA which uses
+  // /add_cash via the centralized MINIPAY_DEEPLINKS constant in
+  // src/lib/minipay-deeplinks.ts (J11 #1, listing prereq §4).
   // TODO J11 pre-submission: verify the canonical MiniPay deeplink format
   // against docs.minipay.xyz/deeplinks. The form below is a reasonable
   // universal-link stub (Opera MiniPay app + url= param) — to be confirmed.
