@@ -21,27 +21,29 @@
 | Symbol | Meaning |
 |---|---|
 | ✓ | Sample tx captured + linked |
-| ⏳ TBD | Awaiting smoke E2E execution (FU-J11-004) |
+| ⏳ TBD | Awaiting smoke E2E execution (J11.5 Block 8) |
+| ⏳ Time-bound | Cannot exercise in same-day smoke session ; surfaces post-mainnet via natural usage (3-day / 7-day timers, Sepolia has no `evm_increaseTime` like Hardhat) |
+| 🔒 Operational | Exercisable but operationally costly to set up live (e.g. `emergencyPause` would lock Sepolia escrow for `EMERGENCY_PAUSE_MAX = 7 days` per ADR-026 ; `forceRefund` 3-condition combo per ADR-023 not reproducible in a single session). Documented as operational procedure, reserved for first incident response |
 | 🔒 V2-deferred | Intentional architecture per ADR-041, exemplification post-V2 reactivation sprint |
 
 ---
 
 ## §1 — V1 user-facing methods (priority for listing reviewer)
 
-For Sprint J11 listing submission, all entries below are TBD pending the smoke E2E execution tracked in FU-J11-004 (`docs/FOLLOWUPS_J11.md`). The smoke script orchestrates a full happy path + cancellation + dispute + permissionless triggers + admin + credits flow on Sepolia, captures the resulting tx hashes, and populates this section. Pre-J12 mainnet listing acceptance criterion : 0 TBD entries in this section.
+For Sprint J11 listing submission, all entries below are TBD pending the smoke E2E execution combined into Sprint J11.5 Block 8 (`docs/SPRINT_J11_5.md`, formerly tracked as FU-J11-004 — combined). The orchestrator script (`packages/contracts/scripts/smoke-e2e-j11-5.ts`) runs a full happy path + cancellation + dispute + admin + credits flow on Sepolia, captures the resulting tx hashes in `docs/audit/smoke-e2e-tx-output.json`, and the operator fills this section from that output. Pre-J12 mainnet listing acceptance criterion : 0 TBD entries in this section.
 
 | Method | Contract | Status | Sample tx | Block | Smoke step | Notes |
 |--------|----------|--------|-----------|-------|------------|-------|
-| `createOrderWithItems` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §A.1 | Buyer creates 1-item order with single seller (intra-Africa, 5 USDT) |
-| `fundOrder` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §A.2 | Buyer USDT.approve(escrow, amount) preceded ; escrow custody += amount |
-| `shipItemsGrouped` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §A.3 | Seller marks items shipped (intra-Africa, no 20% release) |
-| `confirmItemDelivery` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §A.4 | Buyer confirms ; triggers commission split + seller payout + Reputation.recordCompletedOrder |
-| `cancelOrder` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §B.1 | Buyer cancels pre-fund (status == Created) |
-| `openDispute` | EtaloDispute | ⏳ TBD | — | — | FU-J11-004 §C.2 | Buyer opens dispute on funded order ; H-1 fix gate `require(order.fundedAt > 0)` enforced |
-| `resolveN1Amicable` | EtaloDispute | ⏳ TBD | — | — | FU-J11-004 §C.3 | Buyer + seller bilateral match ; internal `_applyResolution` → escrow.resolveItemDispute |
-| `escalateToMediation` | EtaloDispute | ⏳ TBD | — | — | FU-J11-004 §C.4 | N1 → N2 escalation ; assigns approved mediator |
-| `resolveN2Mediation` | EtaloDispute | ⏳ TBD | — | — | FU-J11-004 §C.5 | Assigned mediator decides refund + slash amount |
-| `purchaseCredits` | EtaloCredits | ⏳ TBD | — | — | FU-J11-004 §F.1 | Buyer buys N credits, USDT debited at 0.15/credit, transferred to creditsTreasury |
+| `createOrderWithItems` | EtaloEscrow | ⏳ TBD | — | — | J11.5 §A.1 | Buyer creates 1-item order with single seller (intra-Africa, 5 USDT) |
+| `fundOrder` | EtaloEscrow | ⏳ TBD | — | — | J11.5 §A.2 | Buyer USDT.approve(escrow, amount) preceded ; escrow custody += amount |
+| `shipItemsGrouped` | EtaloEscrow | ⏳ TBD | — | — | J11.5 §A.3 | Seller marks items shipped (intra-Africa, no 20% release) |
+| `confirmItemDelivery` | EtaloEscrow | ⏳ TBD | — | — | J11.5 §A.4 | Buyer confirms ; triggers commission split + seller payout + Reputation.recordCompletedOrder |
+| `cancelOrder` | EtaloEscrow | ⏳ TBD | — | — | J11.5 §B.1 | Buyer cancels pre-fund (status == Created) |
+| `openDispute` | EtaloDispute | ⏳ TBD | — | — | J11.5 §C.2 | Buyer opens dispute on funded order ; H-1 fix gate `require(order.fundedAt > 0)` enforced |
+| `resolveN1Amicable` | EtaloDispute | ⏳ TBD | — | — | J11.5 §C.3 | Buyer + seller bilateral match ; internal `_applyResolution` → escrow.resolveItemDispute |
+| `escalateToMediation` | EtaloDispute | ⏳ TBD | — | — | J11.5 §C.4 | N1 → N2 escalation ; assigns approved mediator |
+| `resolveN2Mediation` | EtaloDispute | ⏳ TBD | — | — | J11.5 §C.5 | Assigned mediator decides refund + slash amount |
+| `purchaseCredits` | EtaloCredits | ⏳ TBD | — | — | J11.5 §F.1 | Buyer buys N credits, USDT debited at 0.15/credit, transferred to creditsTreasury |
 
 ---
 
@@ -119,11 +121,11 @@ These are exercisable by privileged or anyone-callable EOAs but are typically do
 
 | Method | Contract | Status | Sample tx | Block | Smoke step | Notes |
 |--------|----------|--------|-----------|-------|------------|-------|
-| `triggerAutoReleaseForItem` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §D.1 | Permissionless trigger after 3-day intra-Africa auto-release timer ; may be impossible to exercise in a single Sepolia session without block-time manipulation, candidate for "natural usage post-mainnet" instead |
-| `triggerAutoRefundIfInactive` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §D.2 | Permissionless trigger after 7-day intra-Africa seller-inactivity deadline ; same time-bound caveat as D.1 |
-| `emergencyPause` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §E.1 | Owner-only ; pause + verify a tx reverts with "Contract paused" + 7-day auto-expiry |
-| `registerLegalHold` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §E.2 | Owner-only ; sets `legalHoldRegistry[orderId] = bytes32(legalRef)` for an order |
-| `forceRefund` | EtaloEscrow | ⏳ TBD | — | — | FU-J11-004 §E.3 | Owner-only ; requires the 3 ADR-023 conditions (dispute contract inactive + 90+ days inactivity + legal hold registered). Setting up these conditions in a smoke session is non-trivial — likely deferred to "operational procedure documented" rather than exemplified |
+| `triggerAutoReleaseForItem` | EtaloEscrow | ⏳ Time-bound | — | — | J11.5 §D.1 (deferred) | Permissionless trigger after 3-day intra-Africa auto-release timer (ADR-041). Sepolia has no `evm_increaseTime`, so the 3-day wait can't be compressed in a same-day smoke session. Surfaces post-mainnet via natural usage ; an async ops session (fund + ship today, run trigger in 3 days) can capture the tx if needed for V1.5+ audit. |
+| `triggerAutoRefundIfInactive` | EtaloEscrow | ⏳ Time-bound | — | — | J11.5 §D.2 (deferred) | Permissionless trigger after 7-day intra-Africa seller-inactivity deadline (ADR-019). Same Sepolia time-advance constraint as D.1. |
+| `emergencyPause` | EtaloEscrow | 🔒 Operational | — | — | J11.5 §E.1 (deferred) | Owner-only. Calling it locks Sepolia escrow for `EMERGENCY_PAUSE_MAX = 7 days` (ADR-026, hardcoded ; no manual unpause method). Running this in a smoke session would block all other Sepolia testing for a week. Reserved for first incident response with a tabletop exercise. |
+| `registerLegalHold` | EtaloEscrow | ⏳ TBD | — | — | J11.5 §E.2 | Owner-only ; sets `legalHoldRegistry[orderId] = bytes32(documentHash)` for an order. Filled by smoke E2E orchestrator. |
+| `forceRefund` | EtaloEscrow | 🔒 Operational | — | — | J11.5 §E.3 (deferred) | Owner-only. Requires the 3 ADR-023 conditions simultaneously : (1) dispute contract `address(0)`, (2) 90+ days order inactivity, (3) legal hold registered. The 90-day wait alone makes it non-reproducible live. Documented as operational procedure ; ADR-023 conditions are unit-tested in `Integration.v2.test.ts` scenario 11 on Hardhat fork. |
 
 ---
 
@@ -178,7 +180,7 @@ V1 mainnet keeps the dispute lifecycle at N1 (amicable) + N2 (mediator) per ADR-
 ## Audit checklist mapping
 
 This document satisfies :
-- **MiniPay listing prereq §3** : sample transaction per user-facing method (TBD entries flagged for FU-J11-004 fill pre-J12 mainnet listing submission)
+- **MiniPay listing prereq §3** : sample transaction per user-facing method (TBD entries flagged for J11.5 Block 8 smoke E2E fill, pre-J12 mainnet listing submission)
 - **`docs/AUDIT_BRIEFING.md` §6** : empirical deployment evidence (§2 deploy + wiring trace, 25 txs)
 - **`docs/SECURITY.md` Contract verification** : cross-link to source-verified contracts on Blockscout (per `docs/CELOSCAN_VERIFICATION.md`)
 - **`docs/NETWORK_MANIFEST.md` audit checklist** : "Sample tx Celoscan per method" partially satisfied (V2-deferred completed, V1 active TBD)
