@@ -29,6 +29,7 @@ export type ItemStatus = components["schemas"]["ItemStatus"];
 export type ShipmentStatus = components["schemas"]["ShipmentStatus"];
 
 export type OrderResponse = components["schemas"]["OrderResponse"];
+export type OrderListResponse = components["schemas"]["OrderListResponse"];
 export type OrderItemResponse = components["schemas"]["OrderItemResponse"];
 export type ShipmentGroupResponse =
   components["schemas"]["ShipmentGroupResponse"];
