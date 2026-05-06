@@ -103,7 +103,6 @@ function OrderItemRow({ item, group }: OrderItemRowProps) {
         )}
       </div>
       <span
-        role="status"
         aria-label={`Item status: ${ITEM_STATUS_LABEL[item.status]}`}
         data-status={item.status}
         className={cn(

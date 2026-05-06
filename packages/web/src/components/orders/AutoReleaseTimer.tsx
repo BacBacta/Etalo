@@ -46,9 +46,13 @@ export function AutoReleaseTimer({
   const diffMs = autoReleaseAt.getTime() - now;
   const isElapsed = diffMs <= 0;
 
+  // a11y note (J11.5 Block 6 audit) : `role="status"` only on the
+  // ELAPSED branch. The countdown re-renders every 60s — putting role
+  // on the wrapper would re-announce "Auto-release in 47h 22m" each
+  // tick (screen-reader noise). The flip-to-elapsed event IS
+  // meaningful and worth announcing once.
   return (
     <div
-      role="status"
       data-testid="auto-release-timer"
       data-elapsed={isElapsed}
       className={cn(
@@ -60,7 +64,9 @@ export function AutoReleaseTimer({
       )}
     >
       {isElapsed ? (
-        <span>Auto-release window passed — funds can now be claimed</span>
+        <span role="status" aria-live="polite">
+          Auto-release window passed — funds can now be claimed
+        </span>
       ) : (
         <>
           <span className="text-slate-500 dark:text-slate-400">

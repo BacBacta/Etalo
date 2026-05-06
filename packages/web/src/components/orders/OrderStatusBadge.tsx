@@ -56,9 +56,13 @@ export interface OrderStatusBadgeProps {
 }
 
 export function OrderStatusBadge({ status, className }: OrderStatusBadgeProps) {
+  // a11y note (J11.5 Block 6 audit) : badge is a static label, NOT a
+  // transient update — `role="status"` here would auto-announce on
+  // mount for every card in the /orders list (N announcements). The
+  // visible text + `aria-label` carry the meaning ; screen readers
+  // read them when the user navigates to the badge.
   return (
     <span
-      role="status"
       aria-label={`Order status: ${STATUS_LABEL[status]}`}
       data-status={status}
       className={cn(
