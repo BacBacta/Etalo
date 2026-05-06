@@ -124,7 +124,9 @@ exists, or create new router)
   `/api/v1/orders?buyer=<address>`
 - On disconnect : show "Connect wallet to see your orders" CTA
 - Mobile-first 360×640, touch targets ≥ 44px, body 16px+
-- i18n FR (default) + EN via existing project pattern
+- English-only V1 (i18n deferred V1.5+ per FU-J11-006 ; markets
+  NG / GH / KE / ZA primary are English-first per CLAUDE.md /
+  ADR-041)
 - Comply with CLAUDE.md rule 4 (no "crypto" / "gas" — use "stablecoin"
   / "network fee")
 - Comply with CLAUDE.md rule 5 (no raw `0x...` in UI — use seller
@@ -190,7 +192,7 @@ machine
 (or wherever the main nav lives)
 
 **Spec**
-- New menu entry "Mes commandes" / "My orders" between existing items
+- New menu entry "My orders" between existing items
 - Visible only when `useAccount().isConnected === true`
 - Active state highlight when on `/orders` or `/orders/[id]`
 - Touch target ≥ 44×44 mobile, accessible label
@@ -199,18 +201,26 @@ machine
 
 ---
 
-## Block 6 — i18n + visual polish (~3h)
+## Block 6 — Visual polish + accessibility audit (~1h)
 
 **Owner** : Mike
 
-- French strings : "Mes commandes", "Statut", "Montant", "Confirmer la
-  livraison", "Ouvrir une dispute", "Voir sur Blockscout", "Délai de
-  libération automatique", etc.
-- English strings : same but EN
-- Apply existing project i18n pattern (likely `next-intl` or similar)
-- Visual polish : status badge colors per state, smooth timer countdown,
-  consistent spacing
-- WCAG AA contrast check on all status colors
+> **Scope update 2026-05-06** — i18n FR/EN was previously planned here
+> but is deferred to V1.5+ (FU-J11-006). Rationale : V1 launch markets
+> per CLAUDE.md (NG/GH/KE primary, ZA per ADR-041) are English-first ;
+> francophone diaspora is secondary. Adding i18n piecemeal to /orders
+> while the rest of the app is English-only creates inconsistency
+> worse than the absence of i18n. A clean i18n graduation pass over
+> the full app (next-intl + extraction) is the right approach when a
+> francophone market is targeted (Senegal / Cameroun / CIV).
+
+- Visual polish : status badge colors per state, smooth timer
+  countdown, consistent spacing
+- WCAG AA contrast check on all status colors (manual + axe-core
+  scan if available)
+- Keyboard navigation pass : all action buttons reachable via Tab,
+  Enter activates, Esc dismisses transient states
+- Mobile viewport sanity : 360 × 640, 44 px touch targets, body 16 px
 
 ---
 
@@ -330,7 +340,7 @@ interface
 | Mobile WhatsApp doesn't honor `/orders/[id]` deep-link out of MiniPay context | Medium | Test on real device early in Block 7, add fallback to web view |
 | Bundle size on `/orders` blows past 240 kB | Low | Lazy-load heavy components, use Server Components where possible |
 | Privacy leak on detail endpoint (order id enumeration) | Critical if happens | Block 2 acceptance criterion makes this non-negotiable |
-| Sprint slip beyond 1 week delays J12 mainnet | Medium | Block 8 dogfooding doubles as smoke E2E, Block 10 review minimal scope. If slip, Block 6 (i18n EN) can defer to J12.5 |
+| Sprint slip beyond 1 week delays J12 mainnet | Medium | Block 8 dogfooding doubles as smoke E2E, Block 10 review minimal scope. If slip, Block 6 (visual polish only post-i18n retire) absorbs further trim |
 
 ---
 
@@ -346,7 +356,7 @@ interface
       per ADR-043 Threat model — full auth deferred V1.5+ via FU-J11-005)
 - [ ] Lighthouse mobile ≥ 80 perf on new routes
 - [ ] All tests pass + 0 régression
-- [ ] i18n FR/EN complete
+- [ ] English-only V1 confirmed (i18n FR/EN graduation tracked as FU-J11-006 V1.5+)
 - [ ] PR merged + ADR-043 referenced in commit messages
 - [ ] FU-J11-004 closed via Block 8
 - [ ] SAMPLE_TXS.md V1 user-facing section 0 TBD

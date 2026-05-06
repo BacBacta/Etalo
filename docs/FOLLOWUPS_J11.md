@@ -307,6 +307,57 @@ drive the cost-benefit before any of A/B/C lands.
 
 ---
 
+## FU-J11-006 — i18n FR/EN graduation (V1.5+)
+
+**Origine** : Sprint J11.5 Block 6 scope retire (2026-05-06). Block 6
+originally bundled i18n + visual polish ; i18n was lifted out because
+the rest of the V1 app is English-only and adding next-intl
+piecemeal to `/orders` would create inconsistency worse than the
+absence. Tracked here so the graduation is not lost.
+**Owner** : Mike (or whoever owns the FE surface at the time).
+**Estim** : 12-20h (full-app extraction + library setup + translation
+pass FR + smoke test all routes).
+**Prio** : Low for V1 launch. Medium when a francophone market is
+targeted (Sénégal / Cameroun / Côte d'Ivoire).
+**Pré-requis** : V1 mainnet stable. A go/no-go decision on which
+francophone market to target ; the answer drives whether to add EN +
+FR only or include WO/SW depending on local language preferences.
+
+### Scope
+
+- Pick i18n library (likely `next-intl` — Next 14 App Router
+  compatible, supported by the existing component patterns)
+- Extract all hard-coded strings from `packages/web/src/` into
+  message dictionaries (English source of truth, French translation)
+- Wire ICU MessageFormat for plurals + dates (countdowns like
+  "Auto-release in 47h" need locale-aware formatting)
+- Set up build-time check for missing translations
+- Translate the V1 surfaces in priority order : marketplace,
+  /[handle], cart, checkout, /orders, /seller/dashboard
+- Update `docs/CLAUDE.md` if relevant (target markets section may
+  shift if a francophone market is added)
+- Verify locale switcher behavior in MiniPay (autoconnect should not
+  reset locale)
+
+### Acceptance
+
+- All hard-coded English strings in `packages/web/src/` extracted
+  to message dictionaries
+- French translation complete + reviewed by a francophone speaker
+  (ideally a buyer in the target market, not just a code reviewer)
+- All routes pass i18n smoke test (locale switch end-to-end)
+- Bundle delta documented per route ; if any route blows past its
+  budget (`docs/PERFORMANCE_BUDGET.md`), trim or defer locale
+- ADR-039 (auditor checklist) updated if relevant
+
+### Risque résiduel après FU-J11-006
+
+Translation drift over time — each new feature adds English strings
+that must be back-translated. Mitigation : build-time missing-key
+check + a checklist item in PR template.
+
+---
+
 ## Notes générales
 
 - Reprise Track B (audit Reputation scan-only + synthesis
