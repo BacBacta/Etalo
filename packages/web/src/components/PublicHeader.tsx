@@ -1,13 +1,16 @@
 "use client";
 
-import { MoonStars, SunDim } from "@phosphor-icons/react";
+import { MoonStars, Receipt, SunDim } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAccount } from "wagmi";
 
 import { CartDrawer } from "@/components/CartDrawer";
 import { CartTrigger } from "@/components/CartTrigger";
 import { ButtonV4 } from "@/components/ui/v4/Button";
+import { cn } from "@/lib/utils";
 
 // V4 logo (J10 Block 2) — exact SVG from docs/DESIGN_V4_PREVIEW.md
 // §63-80. Rounded rectangle dark background + yellow circle + arc +
@@ -38,12 +41,20 @@ const EtaloLogo = () => (
 export function PublicHeader() {
   const { theme, setTheme } = useTheme();
   const [cartOpen, setCartOpen] = useState(false);
+  const { isConnected } = useAccount();
+  const pathname = usePathname();
   // next-themes resolves `theme` only on the client; rendering an icon
   // server-side based on it would mismatch hydration. Render a sized
   // placeholder until mounted to keep the header width stable.
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
+
+  // J11.5 Block 5 — "My orders" entry. Visible only when wallet is
+  // connected (no point on a public-funnel surface without orders).
+  // Active state highlights for `/orders` and `/orders/<id>`.
+  const isOrdersActive =
+    pathname === "/orders" || pathname?.startsWith("/orders/") === true;
 
   // J10-V5 Phase 4 Block 4c — "Switch mode" button removed (vestigial
   // post Block 4b's drop of `etalo-mode-preference` auto-redirect).
@@ -88,6 +99,28 @@ export function PublicHeader() {
                 <span className="block h-5 w-5" aria-hidden="true" />
               )}
             </ButtonV4>
+            {isConnected && (
+              <Link
+                href="/orders"
+                aria-label="My orders"
+                aria-current={isOrdersActive ? "page" : undefined}
+                data-testid="nav-my-orders"
+                data-active={isOrdersActive}
+                className={cn(
+                  // 44×44 touch target via min-h/min-w + center icon
+                  "inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-pill",
+                  "text-celo-dark dark:text-celo-light",
+                  "hover:bg-celo-forest-soft dark:hover:bg-celo-forest-bright-soft",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 dark:focus-visible:ring-celo-forest-bright",
+                  "transition-colors duration-150",
+                  isOrdersActive &&
+                    "bg-celo-forest-soft dark:bg-celo-forest-bright-soft",
+                )}
+              >
+                <Receipt size={20} weight="regular" aria-hidden="true" />
+                <span className="sr-only">My orders</span>
+              </Link>
+            )}
             <CartTrigger onClick={() => setCartOpen(true)} />
           </div>
         </div>
