@@ -15,9 +15,10 @@
  * single-item case (which is the realistic V1 cart-checkout flow
  * anyway).
  */
+import dynamic from "next/dynamic";
+
 import { BlockscoutLinkButton } from "@/components/orders/BlockscoutLinkButton";
 import { ConfirmDeliveryButton } from "@/components/orders/ConfirmDeliveryButton";
-import { OpenDisputeButton } from "@/components/orders/OpenDisputeButton";
 import { WhatsAppShareButton } from "@/components/orders/WhatsAppShareButton";
 import {
   getEligibleActions,
@@ -25,6 +26,24 @@ import {
   type OrderResponse,
 } from "@/lib/orders/state";
 import { cn } from "@/lib/utils";
+
+// OpenDisputeButton drags in DialogV4 + Radix dialog primitive
+// (~12 kB First Load JS). The buyer rarely interacts with this
+// surface — most orders flow happy-path. Dynamic-import keeps the
+// dialog primitive out of the /orders/[id] route's eager bundle ;
+// it lands when the orchestrator decides to render the trigger.
+// `ssr: false` because the button needs `window` (Radix portal,
+// motion). `loading: () => null` because the button only appears
+// when actionable, so a fallback would be visual noise during the
+// chunk fetch window. Pattern mirrors MilestoneDialogV5 dynamic
+// import in OrdersTab.tsx (J10-V5 Phase 4 Block 6 sub-block 6.3).
+const OpenDisputeButton = dynamic(
+  () =>
+    import("@/components/orders/OpenDisputeButton").then((m) => ({
+      default: m.OpenDisputeButton,
+    })),
+  { ssr: false, loading: () => null },
+);
 
 export interface BuyerOrderActionsProps {
   order: OrderResponse;

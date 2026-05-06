@@ -84,7 +84,9 @@ describe("BuyerOrderActions", () => {
     expect(screen.getByTestId("whatsapp-share-button")).toBeInTheDocument();
   });
 
-  it("Funded + item Pending : renders Open dispute, NOT Confirm", () => {
+  // OpenDisputeButton is lazy-loaded via next/dynamic, so the dispute
+  // trigger lands one microtask later. Use findByTestId for those.
+  it("Funded + item Pending : renders Open dispute, NOT Confirm", async () => {
     useConfirmDeliveryMock.mockReturnValue(idle);
     useOpenDisputeMock.mockReturnValue(idle);
 
@@ -98,10 +100,10 @@ describe("BuyerOrderActions", () => {
     );
 
     expect(screen.queryByTestId("confirm-delivery-button")).not.toBeInTheDocument();
-    expect(screen.getByTestId("open-dispute-trigger")).toBeInTheDocument();
+    expect(await screen.findByTestId("open-dispute-trigger")).toBeInTheDocument();
   });
 
-  it("Item Shipped : renders both Confirm and Dispute", () => {
+  it("Item Shipped : renders both Confirm and Dispute", async () => {
     useConfirmDeliveryMock.mockReturnValue(idle);
     useOpenDisputeMock.mockReturnValue(idle);
 
@@ -115,7 +117,7 @@ describe("BuyerOrderActions", () => {
     );
 
     expect(screen.getByTestId("confirm-delivery-button")).toBeInTheDocument();
-    expect(screen.getByTestId("open-dispute-trigger")).toBeInTheDocument();
+    expect(await screen.findByTestId("open-dispute-trigger")).toBeInTheDocument();
   });
 
   it("Completed : renders neither Confirm nor Dispute (terminal)", () => {
