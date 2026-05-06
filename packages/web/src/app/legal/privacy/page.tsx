@@ -55,7 +55,7 @@ export default function PrivacyPage() {
         <p className="text-base text-neutral-700 dark:text-celo-light/80">
           Wallet addresses are public on-chain. Etalo associates
           wallet addresses with seller shop handles for routing and
-          reputation tracking. Buyers' wallet addresses are passed
+          reputation tracking. Buyers&apos; wallet addresses are passed
           through the smart contract as part of the order record but
           are never rendered as the primary user identifier in the UI
           (per MiniPay submission requirements).
