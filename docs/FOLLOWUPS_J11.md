@@ -178,6 +178,13 @@ If MiniPay listing requires strict ≥90 cutoff, this is gating for J12 mainnet 
 
 ## FU-J11-004 — Smoke test E2E + SAMPLE_TXS.md fill
 
+> **Status update 2026-05-06 (ADR-043)** : combined into Sprint J11.5
+> Block 8 (`docs/SPRINT_J11_5.md`). Will be marked done at sprint
+> closure after Block 8 deliverables land. The §A-F flow structure
+> below remains the canonical reference ; the J11.5 sprint dogfoods
+> the new buyer interface (`/orders`, `/orders/[id]`) along the same
+> flow to fill `SAMPLE_TXS.md` naturally.
+
 **Origine** : Sprint J11 listing prereq §3 (sample tx per user-facing method) requires actual on-chain executions. Structure shipped in `docs/audit/SAMPLE_TXS.md` (PR `ops/sample-tx-j11`) with TBD entries — this ticket fills them via a smoke E2E session.
 **Owner** : Mike.
 **Estim** : 1-2 sessions ops (~3-4h cumulé).
@@ -226,6 +233,77 @@ If MiniPay listing requires strict ≥90 cutoff, this is gating for J12 mainnet 
 - NETWORK_MANIFEST.md audit checklist : passer "25/40 V1-active entries populated" → "40/40 V1-active entries populated"
 - Mark FU-J11-004 done dans `FOLLOWUPS_J11.md`
 - (Optional) capture analytical insights : commission split observed, auto-release timing, etc., to feed AUDIT_BRIEFING.md or seller-facing docs
+
+---
+
+## FU-J11-005 — Buyer endpoint privacy graduation (post-V1)
+
+**Origine** : ADR-043 Threat model section (2026-05-06). Sprint J11.5
+ships the buyer interface MVP (`/orders`, `/orders/[id]`) with a
+casual privacy filter via `?caller=<addr>` query param. This ticket
+investigates options to graduate that posture, in the MiniPay context
+which forbids `personal_sign` and `eth_signTypedData` per
+`minipay-guide.md` Important Constraints #4 — making **SIWE
+non-viable**.
+**Owner** : Mike (or whoever owns auth surface at the time).
+**Estim** : 8-12h investigation + decision ADR + implementation.
+**Prio** : Low for V1 launch ; Medium for V1.5+ (pre-mainnet hardening
+sweep). Not blocking J12.
+**Pré-requis** : V1 mainnet stable, real-world buyer volume justifies
+the investment, ADR-034 EIP-191 deprecation cleanup landed.
+
+### Scope
+
+Investigate stronger privacy for the buyer detail endpoint beyond the
+V1 `?caller=<addr>` soft-filter, in the MiniPay context which forbids
+`personal_sign` and `eth_signTypedData` per `minipay-guide.md`
+Important Constraints #4 — making SIWE non-viable.
+
+### Options to evaluate
+
+- **A. Backend session cookies after weak attestation** — e.g. CSRF
+  token bound to MiniPay address derived from `window.ethereum`
+  auto-connect, validated against on-chain order ownership before
+  issuing session.
+- **B. On-chain attestation via FederatedAttestations / ODIS issuer**
+  — buyer address proven via MiniPay's trusted issuer
+  (`0x7888...7FBc`), but this is identity proof not auth proof.
+- **C. Server-side rate limiting + behavior detection** — no auth,
+  but brute-force enumeration becomes economically unfeasible.
+- **D. Accept the casual-privacy limit indefinitely** — document the
+  trade-off explicitly, rely on on-chain transparency as the buyer
+  protection rather than API privacy.
+
+### Out of scope
+
+- **SIWE (EIP-4361)** : explicitly excluded. Incompatible with MiniPay
+  signing constraints (`personal_sign` / `eth_signTypedData` forbidden).
+  Future devs investigating "let's just add SIWE" should stop and read
+  this ticket first.
+
+### Acceptance
+
+- Decision ADR (or extension of ADR-043) selecting between Option A /
+  B / C / D, with rationale and threat model updated
+- If A/B/C : implementation landed, `?caller=<addr>` query param
+  removed or augmented
+- If D : ADR-043 Threat model section explicitly marked as the final
+  V1+ posture, no further work expected
+- 100% test coverage on whichever auth/attestation/rate-limit machine
+  ships
+- ADR-043 Threat model section updated with "Graduation resolved by
+  FU-J11-005 → Option X"
+
+### Risque résiduel après FU-J11-005
+
+Each option carries different residual risk :
+- A. Cookie hijacking surface ; MiniPay env limits XSS but not zero
+- B. Identity proof ≠ auth proof ; doesn't fully replace session auth
+- C. Determined adversary still wins ; mitigation only against casual
+- D. Status quo ; honest documentation is the only mitigation
+
+Decision gate : real-world buyer behavior data post-V1 mainnet should
+drive the cost-benefit before any of A/B/C lands.
 
 ---
 

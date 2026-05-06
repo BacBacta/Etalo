@@ -2230,3 +2230,120 @@ Triple-layer defense-in-depth handles in-flight disputes that might exist pre-up
 - Fix commit : f8cf195
 - Post-fix audit : docs/audit/H1_POST_FIX_VERIFICATION.md
 - PASHOV_AUDIT_EtaloDispute.md (H-1 finding)
+
+---
+
+## ADR-043 — Buyer Interface MVP (J11.5 sprint)
+
+**Date** : 2026-05-06
+**Status** : Accepted, planned (Sprint J11.5)
+
+### Context
+
+Pre-J12 mainnet review of the V1 surfaces surfaced a UX gap : a buyer
+who funds an order on Sepolia (or post-mainnet on Celo) has no
+first-party interface to see their order list, track auto-release
+countdown, confirm delivery, or open a dispute. The only paths today
+are :
+
+1. WhatsApp notifications (push, fragile to user habits, asymmetric per
+   notification template)
+2. Direct Blockscout reading (raw `0x...` data, violates CLAUDE.md
+   rule 5 "never display raw addresses in UI" if surfaced as a primary
+   buyer path)
+3. Per-seller boutique pages (seller-centric, do not aggregate
+   buyer-side state across sellers)
+
+Mainnet listing (J12) requires a buyer can reasonably operate the full
+order lifecycle without leaving the Mini App. The current V1 frontend
+satisfies this for the seller side (dashboard, /seller routes from J10)
+but not for the buyer side beyond cart + checkout.
+
+A lightweight buyer interface MVP closes this gap with no contract
+changes, no new ADRs beyond this one, and no impact on the locked V1
+economics (ADR-041) or architectural limits (ADR-026).
+
+### Decision
+
+Ship a buyer-facing interface MVP at sprint J11.5 with two new routes :
+
+- `/orders` — buyer order list filtered by `useAccount()` wallet
+  address, status badges, click-through to detail
+- `/orders/[id]` — full order detail with auto-release countdown,
+  eligible-action buttons (confirm delivery, open dispute,
+  view-on-Blockscout), WhatsApp share
+
+Backend additions : `GET /api/v1/orders` (extend existing) +
+`GET /api/v1/orders/{order_id}` privacy-guarded.
+
+Header navigation : new "Mes commandes / My orders" entry visible when
+wallet connected.
+
+WhatsApp notification templates : update deep-link from
+`/[seller_handle]` to `/orders/[id]` for order-state notifications.
+
+Smoke E2E coverage (FU-J11-004) is combined into the development cycle
+as Block 8 of the sprint, dogfooding the new interface while filling
+`docs/audit/SAMPLE_TXS.md` TBD entries naturally.
+
+Detailed block plan : `docs/SPRINT_J11_5.md`.
+
+### Threat model
+
+Buyer detail endpoint privacy is implemented as a soft-filter via
+`?caller=<addr>` query param. Returns 404 if caller ∉ {buyer, seller}.
+
+This protects against API-level casual enumeration but NOT against
+on-chain attackers who can reconstruct orders from EtaloEscrow events.
+The buyer interface privacy guarantee is **"casual privacy"**, not
+"cryptographic privacy".
+
+Real session authentication is deferred V1.5+. **SIWE (EIP-4361), the
+canonical Web3 auth pattern, is NOT viable in this context** — MiniPay
+forbids `personal_sign` and `eth_signTypedData` (see
+`minipay-guide.md` Important Constraints #4 and the rationale behind
+ADR-034's EIP-191 deprecation). The privacy graduation will instead
+explore session cookies, on-chain attestation, or an explicit accept of
+the casual-privacy limit. See FU-J11-005 for option investigation.
+
+Rationale for accepting "casual privacy" at V1 (one-liners) :
+
+1. Buyer addresses are public on-chain — Blockscout reconstruction is already trivial for a determined adversary, the API filter changes nothing for them.
+2. ADR-034 deprecation of EIP-191 + MiniPay signing constraints rule out the canonical Web3 auth patterns at the source.
+3. Real V1 fishing surface is "curious user enumerates order IDs" — `?caller=<addr>` 404 defeats this without auth complexity.
+4. Pre-J12 bandwidth is the binding constraint — auth investigation belongs in V1.5+ post-mainnet hardening, not in the launch sprint.
+
+Tracking ticket for the privacy graduation investigation : FU-J11-005.
+
+### Consequences
+
+- No contract changes, no ABI changes, no migration.
+- `packages/backend/app/routers/orders.py` extended (existing endpoint
+  already partially covers the list path).
+- `packages/web/src/app/orders/` new directory tree.
+- Bundle delta budget : `/orders` < 240 kB First Load JS, monitored
+  per Phase 4 budget conventions (`docs/PERFORMANCE_BUDGET.md`).
+- Lighthouse mobile ≥ 80 perf on new routes (≥ 90 push owned by
+  FU-J11-003).
+- Privacy posture is "casual filter only" until FU-J11-005 ships.
+
+### Does not supersede
+
+- ADR-014 (V1 Boutique multi-product model) — unchanged.
+- ADR-022 (non-custodial criteria) — unchanged.
+- ADR-026 (architectural limits) — unchanged.
+- ADR-034 (no new EIP-191 backend auth) — unchanged ; this ADR honors
+  the ADR-034 spirit by NOT introducing EIP-191 on the new read
+  endpoints, accepting "casual privacy" instead.
+- ADR-035 (single Next.js app at etalo.app) — unchanged ; new routes
+  live in the same app.
+- ADR-041 (V1 scope restriction — intra-only) — unchanged ; buyer
+  interface displays the single `is_cross_border = false` path only.
+
+### References
+
+- Sprint plan : `docs/SPRINT_J11_5.md`
+- Existing orders router : `packages/backend/app/routers/orders.py`
+- Indexer mirror tables : `docs/BACKEND.md` (V2 indexer section)
+- Threat model parent : ADR-034 (EIP-191 deprecation rationale)
+- Follow-up : FU-J11-005 (real session auth graduation)
