@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import settings
+from app.services.ipfs import build_ipfs_url
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.services.caption_generator import (
@@ -162,10 +163,10 @@ async def generate_marketing_image(
     if product is None:
         raise ValueError(f"Product {product_id} not found")
 
-    primary_image_url = (
-        f"{settings.pinata_gateway_url.rstrip('/')}/{product.image_ipfs_hashes[0]}"
+    primary_image_url = build_ipfs_url(
+        product.image_ipfs_hashes[0]
         if product.image_ipfs_hashes
-        else f"{settings.pinata_gateway_url.rstrip('/')}/QmPlaceholder"
+        else "QmPlaceholder"
     )
     seller_handle = product.seller.shop_handle.lower()
     product_url = f"https://etalo.app/{seller_handle}/{product.slug}"
