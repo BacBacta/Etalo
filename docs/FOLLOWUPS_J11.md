@@ -358,6 +358,87 @@ check + a checklist item in PR template.
 
 ---
 
+## FU-J11-007 — WhatsApp notifications end-to-end wire-up (V1.5+)
+
+**Origine** : J11.5 Block 7 minimal-scope decision (2026-05-06).
+Block 7 shipped deeplink composition only because the existing
+WhatsApp service is a stub (28 LoC, no Twilio SDK call, no call
+sites). The full wire-up surfaces security + compliance concerns
+that deserve their own design pass — not a fold-in to the buyer
+interface MVP sprint.
+**Owner** : Mike (or whoever owns notification surface).
+**Estim** : 6-8h base implementation + ~3-4h ADR + ~2-3h
+observability + opt-out compliance pass = 12-15h total.
+**Prio** : Medium for V1 launch (notifications are nice-to-have for
+J12 mainnet ; the buyer interface MVP already lets buyers reach
+their orders without push). High once V1 has buyer volume worth
+notifying.
+**Pré-requis** : V1 mainnet stable, Twilio account provisioned,
+WhatsApp Business sender approved (regulatory in NG / GH / KE / ZA),
+opt-out compliance reviewed for the 4 launch markets.
+
+### Scope
+
+1. **Twilio SDK wire-up** : implement `send_message` with the
+   actual Twilio Python SDK. Replace the
+   `{"status": "stub"}` return with the real message SID + status.
+2. **Call sites mapping** : wire the indexer V2 mirror writer
+   (`packages/backend/app/indexer/`) to trigger notifications on
+   the relevant on-chain events :
+   - `OrderFunded` → `send_order_notification(status="Funded")`
+   - `ItemShipped` → status="Shipped"
+   - `ItemDelivered` → status="Delivered"
+   - `OrderAutoReleaseTriggered` → reminder template (new)
+   - `DisputeOpened` → `send_dispute_notification(level="N1")`
+   - `DisputeEscalated` → level="N2" / "N3"
+   - `OrderRefunded` → status="Refunded"
+3. **6-method refactor** if call sites benefit from specialization
+   (funded / shipped / delivered / auto_release / dispute / refund) ;
+   evaluate during implementation, don't pre-commit.
+4. **Opt-out compliance** : per WhatsApp Business + local market
+   regulations (Nigeria NDPR, Kenya DPA, etc.), buyers must be able
+   to opt out. Database flag on User + opt-out keyword detection
+   ("STOP", "UNSUBSCRIBE") on inbound webhook.
+5. **Webhook signature verification** : Twilio inbound webhook
+   (delivery receipts + opt-out) must be signature-verified per
+   Twilio's Validator pattern.
+6. **Rate limiting** : avoid spamming a buyer if multiple events
+   fire close together (e.g. shipment retry → ItemShipped twice).
+   Idempotency key based on (event_type, order_id, item_id) with
+   TTL.
+7. **Retry / dead-letter queue** : if Twilio API returns 5xx, retry
+   with backoff ; if >N retries, move to dead-letter table for
+   manual replay. Likely needs Redis or similar (already in
+   settings.redis_url).
+8. **Observability** : Sentry breadcrumbs + a per-template counter
+   so we can see delivery rate trends, opt-out rate, and which
+   templates are most engaging.
+
+### Acceptance
+
+- New ADR documents the notification policy (rate limits, opt-out,
+  retry strategy, observability).
+- Twilio SDK actually sends — verified end-to-end on a test number.
+- All 6 event-driven call sites land notifications correctly.
+- Opt-out flow tested (buyer texts STOP → no further messages,
+  flag persisted in DB).
+- Webhook signature verification rejects unsigned / mis-signed
+  inbound webhooks.
+- 100% test coverage on the call site mapping + opt-out logic.
+- Dead-letter table populated by an injected 503 ; manual replay
+  works.
+- ADR-043 buyer interface MVP gets a follow-up note that
+  notifications are now live.
+
+### Risque résiduel après FU-J11-007
+
+Twilio outage → notifications drop. Mitigation : retry queue +
+Sentry alert on >N% delivery failure rate. Catastrophic case (Twilio
+account suspended / WhatsApp Business sender revoked) needs an ops
+runbook — separate doc.
+
+---
+
 ## Notes générales
 
 - Reprise Track B (audit Reputation scan-only + synthesis

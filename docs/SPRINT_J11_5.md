@@ -224,23 +224,48 @@ machine
 
 ---
 
-## Block 7 — Backend WhatsApp deep-link template update (~2h)
+## Block 7 — Backend WhatsApp deeplink composition (~45 min, minimal scope)
 
 **Owner** : Mike
 **File location** : `packages/backend/app/services/whatsapp.py`
 
-**Spec**
-- Update notification templates to include `/orders/[id]` deep-link
-  instead of `/[seller_handle]`
-- Templates concerned : "Your order has been funded", "Seller has
-  shipped", "Order delivered, please confirm", "Auto-release in 24h",
-  etc.
-- Maintain backwards compat for existing in-flight notifications if
-  any (probably none at this stage, but check)
+> **Scope update 2026-05-06** — Recon revealed the WhatsApp service
+> is a stub (28 LoC, no Twilio SDK wire-up, no call sites, zero
+> existing tests). The brief originally assumed mature templates with
+> `/[seller_handle]` URLs to update — that surface doesn't exist yet.
+> Block 7 ships **deeplink composition** so the buyer interface MVP
+> is reachable as soon as the rest of the wire-up lands. Twilio SDK
+> + call sites + opt-out compliance + observability tracked as
+> **FU-J11-007** (V1.5+). Rationale : compressing the full wire-up
+> into J11.5's tail would surface security concerns (rate limits,
+> Africa opt-out compliance, webhook signature verification, queue
+> management) that deserve their own ADR + tests + observability —
+> not a fold-in to a sprint focused on the buyer interface MVP.
 
-**Test cases**
-- Each template generates correct deeplink format
-- URL encoding correct for special characters in handles
+**Spec (minimal scope shipped here)**
+- Augment `send_order_notification` + `send_dispute_notification`
+  with an `order_uuid` param.
+- Compose deeplink `{frontend_base_url}/orders/{order_uuid}` and
+  embed in the message body.
+- Add `FRONTEND_BASE_URL` settings field, default `https://etalo.app`
+  with `.env` override pattern documented.
+
+**Out of scope (deferred FU-J11-007)**
+- Twilio SDK actual `send_message` implementation.
+- Call sites — wiring the indexer / dispute resolver to trigger
+  notifications on on-chain events.
+- 6-method refactor (funded / shipped / delivered / auto-release /
+  dispute / refund) — held until call sites give each method a
+  reason to exist.
+- Opt-out compliance, rate limiting, retry/dead-letter queue,
+  webhook signature verification.
+
+**Test cases (5 specs)**
+- `send_order_notification` composes `/orders/{uuid}` URL.
+- `send_dispute_notification` composes `/orders/{uuid}` URL.
+- `_compose_order_url` honors configured base (e.g. ngrok override).
+- `_compose_order_url` strips trailing slash on base.
+- Default config points at production (sanity).
 
 ---
 
