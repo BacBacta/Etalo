@@ -18,6 +18,7 @@ from app.auth import verify_signature
 from app.database import get_async_db
 from app.models.enums import OrderStatus
 from app.models.order import Order
+from app.models.user import User
 from app.schemas.order import (
     OrderItemResponse,
     OrderListResponse,
@@ -34,6 +35,17 @@ def _normalize(addr: str | None) -> str | None:
     return addr.lower() if addr else None
 
 
+# Eager-load chain mandatory for serializing OrderResponse — the
+# `seller_handle` property on Order accesses Order.seller (lazy="raise")
+# and User.seller_profile (default lazy="select", raises MissingGreenlet
+# in async if not loaded). ADR-043 / J11.5 Block 1.
+_ORDER_LOAD_OPTIONS = (
+    selectinload(Order.items),
+    selectinload(Order.shipment_groups),
+    selectinload(Order.seller).selectinload(User.seller_profile),
+)
+
+
 @router.get("", response_model=OrderListResponse)
 async def list_orders(
     buyer: str | None = Query(None, description="Filter by buyer address (any case)"),
@@ -43,9 +55,7 @@ async def list_orders(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_async_db),
 ) -> OrderListResponse:
-    stmt = select(Order).options(
-        selectinload(Order.items), selectinload(Order.shipment_groups)
-    )
+    stmt = select(Order).options(*_ORDER_LOAD_OPTIONS)
     if buyer:
         stmt = stmt.where(Order.buyer_address == _normalize(buyer))
     if seller:
@@ -72,7 +82,7 @@ async def get_order(
     result = await db.execute(
         select(Order)
         .where(Order.id == order_id)
-        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+        .options(*_ORDER_LOAD_OPTIONS)
     )
     order = result.scalar_one_or_none()
     if order is None:
@@ -88,7 +98,7 @@ async def get_order_by_onchain_id(
     result = await db.execute(
         select(Order)
         .where(Order.onchain_order_id == onchain_order_id)
-        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+        .options(*_ORDER_LOAD_OPTIONS)
     )
     order = result.scalar_one_or_none()
     if order is None:
@@ -137,7 +147,7 @@ async def update_order_metadata(
     result = await db.execute(
         select(Order)
         .where(Order.id == order_id)
-        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+        .options(*_ORDER_LOAD_OPTIONS)
     )
     order = result.scalar_one_or_none()
     if order is None:

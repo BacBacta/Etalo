@@ -35,6 +35,7 @@ from app.models.enums import OrderStatus, ORDER_STATUS_ENUM_NAME
 if TYPE_CHECKING:
     from app.models.order_item import OrderItem
     from app.models.shipment_group import ShipmentGroup
+    from app.models.user import User
 
 
 # 1 USDT = 1_000_000 raw (6 decimals)
@@ -96,6 +97,20 @@ class Order(Base):
         order_by="ShipmentGroup.onchain_group_id",
     )
 
+    # Viewonly join Order.seller_address → User.wallet_address (no FK on
+    # purpose: orders are written by the indexer from on-chain events and
+    # may exist before the seller has onboarded an off-chain User row).
+    # ADR-043 / J11.5 Block 1 — exposes seller_handle without raw 0x in UI
+    # (CLAUDE.md rule 5). Routes returning OrderResponse must eager-load
+    # this chain : selectinload(Order.seller).selectinload(User.seller_profile).
+    seller: Mapped["User | None"] = relationship(
+        "User",
+        primaryjoin="foreign(Order.seller_address) == User.wallet_address",
+        viewonly=True,
+        uselist=False,
+        lazy="raise",
+    )
+
     __table_args__ = (
         CheckConstraint(
             "buyer_address ~ '^0x[0-9a-f]{40}$'", name="orders_buyer_address_lowercase_hex"
@@ -119,3 +134,15 @@ class Order(Base):
     @property
     def total_commission_human(self) -> Decimal:
         return Decimal(self.total_commission_usdt) / USDT_SCALE
+
+    @property
+    def seller_handle(self) -> str | None:
+        """Shop handle of the seller, derived via Order.seller_address →
+        User.wallet_address → SellerProfile.shop_handle. Returns None if
+        the seller has not onboarded a SellerProfile yet. Requires the
+        `seller` + `seller_profile` chain to be eager-loaded ; lazy="raise"
+        on the seller relationship enforces this at query time.
+        """
+        if self.seller is None or self.seller.seller_profile is None:
+            return None
+        return self.seller.seller_profile.shop_handle

@@ -56,8 +56,10 @@ from app.models.enums import (
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.reputation_cache import ReputationCache
+from app.models.seller_profile import SellerProfile
 from app.models.shipment_group import ShipmentGroup
 from app.models.stake import Stake
+from app.models.user import User
 from tests.e2e.fixtures_data import (
     AISSA,
     CHIOMA,
@@ -66,6 +68,8 @@ from tests.e2e.fixtures_data import (
     SEED_GROUP_ONCHAIN_ID,
     SEED_ITEM_ONCHAIN_ID,
     SEED_ORDER_ONCHAIN_ID,
+    SEED_SELLER_HANDLE,
+    SEED_SELLER_SHOP_NAME,
     TEST_ADDRESS,
     TEST_PRIVATE_KEY,
 )
@@ -149,11 +153,38 @@ async def seed_j4_data():
         await session.execute(
             delete(ReputationCache).where(ReputationCache.seller_address == CHIOMA)
         )
+        # CHIOMA seller profile + user — J11.5 Block 1, idempotent across reruns.
+        # SellerProfile FK → User, so delete profile first then user.
+        await session.execute(
+            delete(SellerProfile).where(SellerProfile.shop_handle == SEED_SELLER_HANDLE)
+        )
+        await session.execute(delete(User).where(User.wallet_address == CHIOMA))
 
         await session.commit()
 
     # --- Insert seed ---
     async with factory() as session:
+        # CHIOMA's onboarded User + SellerProfile — J11.5 Block 1.
+        # Lets /orders endpoints expose seller_handle without leaking
+        # raw 0x in UI (CLAUDE.md rule 5). Mirrors what the onboarding
+        # flow would produce.
+        chioma_user = User(
+            id=uuid.uuid4(),
+            wallet_address=CHIOMA,
+            country="NGA",
+        )
+        session.add(chioma_user)
+        await session.flush()
+
+        chioma_seller = SellerProfile(
+            id=uuid.uuid4(),
+            user_id=chioma_user.id,
+            shop_handle=SEED_SELLER_HANDLE,
+            shop_name=SEED_SELLER_SHOP_NAME,
+        )
+        session.add(chioma_seller)
+        await session.flush()
+
         order = Order(
             onchain_order_id=SEED_ORDER_ONCHAIN_ID,
             buyer_address=AISSA,
@@ -277,6 +308,11 @@ async def seed_j4_data():
         await session.execute(
             delete(ReputationCache).where(ReputationCache.seller_address == CHIOMA)
         )
+        # SellerProfile FK → User : delete profile first, then user.
+        await session.execute(
+            delete(SellerProfile).where(SellerProfile.shop_handle == SEED_SELLER_HANDLE)
+        )
+        await session.execute(delete(User).where(User.wallet_address == CHIOMA))
         await session.commit()
 
 
