@@ -32,3 +32,10 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Smoke E2E generated artifacts (J11.5 Block 8 ; SAMPLE_TXS.md is the
+# durable audit doc, the JSON output + backup files are regenerated
+# per smoke run).
+docs/audit/smoke-e2e-tx-output.json
+docs/audit/smoke-e2e-tx-output-partial.json
+docs/audit/SAMPLE_TXS.md.bak
