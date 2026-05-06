@@ -19,5 +19,11 @@ SEED_ITEM_ONCHAIN_ID = 9101
 SEED_GROUP_ONCHAIN_ID = 9201
 SEED_DISPUTE_ONCHAIN_ID = 9301
 
+# Off-chain seller profile for CHIOMA (J11.5 Block 1 — exposes
+# seller_handle on /orders without leaking raw 0x in UI per CLAUDE.md
+# rule 5). Mirrors what onboarding would produce for the seed seller.
+SEED_SELLER_HANDLE = "chioma_test_shop"
+SEED_SELLER_SHOP_NAME = "Chioma Test Shop"
+
 # Reserved for auth tests (mutating test that creates its own order)
 AUTH_TEST_ORDER_ONCHAIN_ID = 9501

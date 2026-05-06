@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     twilio_auth_token: str = ""
     twilio_whatsapp_from: str = ""
 
+    # Frontend base URL — used to compose deeplinks in
+    # notifications (J11.5 Block 7, ADR-043). Default points at
+    # production ; override via .env in dev (typically an ngrok
+    # reserved domain since WhatsApp messages can't reach
+    # localhost). Trailing slash is stripped at compose time.
+    frontend_base_url: str = "https://etalo.app"
+
     # Celo Sepolia RPC — env var CELO_SEPOLIA_RPC overrides; drpc fallback.
     # Aligned with packages/contracts/hardhat.config.ts and smoke scripts.
     celo_sepolia_rpc: str = "https://celo-sepolia.drpc.org"

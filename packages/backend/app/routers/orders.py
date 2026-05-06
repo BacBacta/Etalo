@@ -18,6 +18,7 @@ from app.auth import verify_signature
 from app.database import get_async_db
 from app.models.enums import OrderStatus
 from app.models.order import Order
+from app.models.user import User
 from app.schemas.order import (
     OrderItemResponse,
     OrderListResponse,
@@ -34,6 +35,42 @@ def _normalize(addr: str | None) -> str | None:
     return addr.lower() if addr else None
 
 
+# Eager-load chain mandatory for serializing OrderResponse — the
+# `seller_handle` property on Order accesses Order.seller (lazy="raise")
+# and User.seller_profile (default lazy="select", raises MissingGreenlet
+# in async if not loaded). ADR-043 / J11.5 Block 1.
+_ORDER_LOAD_OPTIONS = (
+    selectinload(Order.items),
+    selectinload(Order.shipment_groups),
+    selectinload(Order.seller).selectinload(User.seller_profile),
+)
+
+
+def _enforce_caller_privacy(order: Order, caller: str | None) -> None:
+    """ADR-043 casual-privacy filter — J11.5 Block 2.
+
+    If `caller` is provided, returns 404 (NOT 403) when it does not
+    match the order buyer or seller. 404 is intentional : the
+    response shape must not leak whether `order_id` exists for orders
+    the caller doesn't own (otherwise an attacker can enumerate
+    order ids by 403/404 split).
+
+    `caller` is optional — V1 keeps the endpoint readable without the
+    filter for backwards compat with existing consumers (e.g. seller
+    dashboard). Buyer interface (J11.5 Block 4) will pass caller
+    systematically.
+
+    This is "casual privacy" : it does not protect against on-chain
+    enumeration via EtaloEscrow events, only against API-level
+    fishing. Real session auth is V1.5+ scope (FU-J11-005).
+    """
+    if caller is None:
+        return
+    caller_norm = caller.lower()
+    if caller_norm != order.buyer_address and caller_norm != order.seller_address:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+
 @router.get("", response_model=OrderListResponse)
 async def list_orders(
     buyer: str | None = Query(None, description="Filter by buyer address (any case)"),
@@ -43,9 +80,7 @@ async def list_orders(
     offset: int = Query(0, ge=0),
     db: AsyncSession = Depends(get_async_db),
 ) -> OrderListResponse:
-    stmt = select(Order).options(
-        selectinload(Order.items), selectinload(Order.shipment_groups)
-    )
+    stmt = select(Order).options(*_ORDER_LOAD_OPTIONS)
     if buyer:
         stmt = stmt.where(Order.buyer_address == _normalize(buyer))
     if seller:
@@ -67,32 +102,48 @@ async def list_orders(
 @router.get("/{order_id}", response_model=OrderResponse)
 async def get_order(
     order_id: uuid.UUID,
+    caller: str | None = Query(
+        None,
+        description=(
+            "Optional caller address for ADR-043 casual-privacy filter. "
+            "If provided and not buyer/seller, returns 404 (no enumeration leak)."
+        ),
+    ),
     db: AsyncSession = Depends(get_async_db),
 ) -> OrderResponse:
     result = await db.execute(
         select(Order)
         .where(Order.id == order_id)
-        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+        .options(*_ORDER_LOAD_OPTIONS)
     )
     order = result.scalar_one_or_none()
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
+    _enforce_caller_privacy(order, caller)
     return OrderResponse.model_validate(order)
 
 
 @router.get("/by-onchain-id/{onchain_order_id}", response_model=OrderResponse)
 async def get_order_by_onchain_id(
     onchain_order_id: int,
+    caller: str | None = Query(
+        None,
+        description=(
+            "Optional caller address for ADR-043 casual-privacy filter. "
+            "If provided and not buyer/seller, returns 404 (no enumeration leak)."
+        ),
+    ),
     db: AsyncSession = Depends(get_async_db),
 ) -> OrderResponse:
     result = await db.execute(
         select(Order)
         .where(Order.onchain_order_id == onchain_order_id)
-        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+        .options(*_ORDER_LOAD_OPTIONS)
     )
     order = result.scalar_one_or_none()
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
+    _enforce_caller_privacy(order, caller)
     return OrderResponse.model_validate(order)
 
 
@@ -137,7 +188,7 @@ async def update_order_metadata(
     result = await db.execute(
         select(Order)
         .where(Order.id == order_id)
-        .options(selectinload(Order.items), selectinload(Order.shipment_groups))
+        .options(*_ORDER_LOAD_OPTIONS)
     )
     order = result.scalar_one_or_none()
     if order is None:

@@ -59,6 +59,7 @@ class OrderResponse(BaseModel):
     onchain_order_id: int
     buyer_address: str
     seller_address: str
+    seller_handle: str | None = None
     total_amount_usdt: int
     total_commission_usdt: int
     is_cross_border: bool
