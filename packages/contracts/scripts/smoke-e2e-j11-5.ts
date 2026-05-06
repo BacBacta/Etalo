@@ -71,7 +71,11 @@ const escrowAbi = parseAbi([
 const disputeAbi = parseAbi([
   "function openDispute(uint256 orderId, uint256 itemId, string reason) returns (uint256)",
   "function resolveN1Amicable(uint256 disputeId, uint256 refundAmount)",
-  "event DisputeOpened(uint256 indexed disputeId, uint256 indexed orderId, uint256 indexed itemId, address opener)",
+  // Match the on-chain event signature in IEtaloDispute.sol exactly —
+  // 5 args (disputeId / orderId / itemId / buyer / reason). The earlier
+  // 4-arg shape produced a different topic hash and decode missed the
+  // log on Sepolia run 2026-05-06.
+  "event DisputeOpened(uint256 indexed disputeId, uint256 indexed orderId, uint256 indexed itemId, address buyer, string reason)",
 ]);
 
 const creditsAbi = parseAbi([
@@ -133,10 +137,14 @@ async function preflightChecks(w: TestWallets): Promise<void> {
     args: [w.aissa.address],
   })) as bigint;
   console.log(`Buyer USDT balance : ${fromUsdt(buyerUsdt).toFixed(2)} USDT`);
+  // Actual buyer outflow over the smoke run is ≈ 16 USDT (5 §A + 10 §C
+  // funded concurrently + 1.5 §F purchase, refunds via cancel/dispute
+  // resolve). Threshold 30 USDT gives ~14 USDT buffer for unexpected
+  // gas-side surprises and tolerates re-runs after a partial flow.
   assertOrThrow(
-    buyerUsdt >= usdt(50),
-    "Buyer needs ≥ 50 USDT on Sepolia (mint via MockUSDT.mint or top up)",
-    { actual: fromUsdt(buyerUsdt).toFixed(2), expected: "50.00" },
+    buyerUsdt >= usdt(30),
+    "Buyer needs ≥ 30 USDT on Sepolia (mint via MockUSDT.mint or top up)",
+    { actual: fromUsdt(buyerUsdt).toFixed(2), expected: "30.00" },
   );
 
   for (const [name, acc] of [
