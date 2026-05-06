@@ -3,6 +3,31 @@ import httpx
 from app.config import settings
 
 
+def build_ipfs_url(ipfs_hash: str) -> str:
+    """Build a public gateway URL for an IPFS hash, tolerating both
+    canonical (`https://gateway.pinata.cloud/ipfs`) and Pinata custom
+    gateway (`https://<name>.mypinata.cloud`) forms in
+    `settings.pinata_gateway_url`.
+
+    Pinata custom gateways REQUIRE the `/ipfs/` path prefix or they
+    return HTTP 400 Bad Request — silently breaking
+    `next/image` optimization. This helper strips an optional trailing
+    `/ipfs` segment then re-appends `/ipfs/<hash>` so the output is
+    always `<gateway-without-ipfs>/ipfs/<hash>`.
+    """
+    base = settings.pinata_gateway_url.rstrip("/")
+    if base.endswith("/ipfs"):
+        base = base[: -len("/ipfs")]
+    return f"{base}/ipfs/{ipfs_hash}"
+
+
+def build_ipfs_url_or_none(ipfs_hash: str | None) -> str | None:
+    """None-tolerant wrapper for use in router serializers."""
+    if not ipfs_hash:
+        return None
+    return build_ipfs_url(ipfs_hash)
+
+
 class IPFSService:
     """Pinata IPFS wrapper for product metadata and images."""
 
@@ -39,8 +64,10 @@ class IPFSService:
             return response.json()["IpfsHash"]
 
     def get_url(self, ipfs_hash: str) -> str:
-        """Get gateway URL for an IPFS hash."""
-        return f"{settings.pinata_gateway_url}/{ipfs_hash}"
+        """Get gateway URL for an IPFS hash. Delegates to the
+        module-level `build_ipfs_url` so the gateway-form normalization
+        is applied consistently across services + routers."""
+        return build_ipfs_url(ipfs_hash)
 
     async def pin_by_hash(self, ipfs_hash: str) -> bool:
         """Pin an existing IPFS hash."""

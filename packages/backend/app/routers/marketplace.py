@@ -5,7 +5,6 @@ from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
 from app.database import get_async_db
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
@@ -19,10 +18,7 @@ from app.schemas.marketplace import (
 router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 
 
-def _ipfs_url(ipfs_hash: str | None) -> str | None:
-    if not ipfs_hash:
-        return None
-    return f"{settings.pinata_gateway_url.rstrip('/')}/{ipfs_hash}"
+from app.services.ipfs import build_ipfs_url_or_none as _ipfs_url
 
 
 @router.get("/products", response_model=MarketplaceListResponse)

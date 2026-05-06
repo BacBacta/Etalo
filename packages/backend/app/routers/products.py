@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from uuid import UUID
 
-from app.config import settings
 from app.database import get_async_db, get_db
 from app.dependencies.seller_auth import require_seller_auth
 from app.models.product import Product
@@ -26,10 +25,7 @@ from app.schemas.product import (
 router = APIRouter(prefix="/products", tags=["products"])
 
 
-def _ipfs_url(ipfs_hash: str | None) -> str | None:
-    if not ipfs_hash:
-        return None
-    return f"{settings.pinata_gateway_url.rstrip('/')}/{ipfs_hash}"
+from app.services.ipfs import build_ipfs_url_or_none as _ipfs_url
 
 
 @router.get(
