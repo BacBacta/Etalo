@@ -217,9 +217,9 @@ describe("useAnalyticsSummary — badge passthrough (Phase 5 Angle C)", () => {
   // "top_seller", this it.each block will catch it because the cast in
   // parseAnalyticsSummary is the only remaining transform.
   it.each([
-    ["new_seller"],
-    ["active"],
-    ["suspended"],
+    ["new_seller"] as const,
+    ["active"] as const,
+    ["suspended"] as const,
   ])("badge '%s' from backend passes through unchanged", async (input) => {
     fetchAnalyticsSummaryMock.mockResolvedValue(
       makeRawSummary({
