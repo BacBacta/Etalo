@@ -42,9 +42,13 @@ async def create_cart_token(
       - product.stock must be ≥ requested qty
     Failures aggregate into a single 422 with a `validation_errors` list.
 
-    is_cross_border defaults to True (ADR-005, no buyer country in V1).
-    TODO V1.5: ask buyer country at MiniPay onboarding for accurate
-    commission tier.
+    is_cross_border defaults to False per ADR-041 (V1 scope restriction —
+    intra-Africa only, single 1.8% commission rate, no cross-border).
+    Supersedes ADR-005 cross-border default. The V2 binary on Sepolia
+    still carries the flag in `createOrderWithItems` for V1.5 cross-
+    border re-enable, but V1 mainnet hardcodes to intra (`isCrossBorder
+    = false`) to avoid the cross-border seller-stake gate that would
+    revert with "Seller stake ineligible" without an EtaloStake deposit.
     """
     qty_by_id = {item.product_id: item.qty for item in request.items}
 
@@ -117,7 +121,7 @@ async def create_cart_token(
                 seller_address=wallet,
                 items=[item],
                 subtotal_usdt=line_total,
-                is_cross_border=True,
+                is_cross_border=False,
             )
         else:
             existing.items.append(item)
