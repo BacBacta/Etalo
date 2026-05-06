@@ -132,6 +132,59 @@ post-bundle fix/h1-dispute-funded-guard".
 
 ---
 
+## FU-J11-004 — Smoke test E2E + SAMPLE_TXS.md fill
+
+**Origine** : Sprint J11 listing prereq §3 (sample tx per user-facing method) requires actual on-chain executions. Structure shipped in `docs/audit/SAMPLE_TXS.md` (PR `ops/sample-tx-j11`) with TBD entries — this ticket fills them via a smoke E2E session.
+**Owner** : Mike.
+**Estim** : 1-2 sessions ops (~3-4h cumulé).
+**Prio** : High (blocking pre-J12 mainnet listing submission ; non-blocking for J11 internal review).
+**Pré-requis** : Sepolia stable (✓ post-PR #8), test wallets setup (1 buyer + 1 seller, pre-funded with USDT via MockUSDT.mint).
+**Acceptance** : 0 TBD entries dans `docs/audit/SAMPLE_TXS.md` §1 (V1 user-facing) and §3 (V1 admin + permissionless raisonnablement exerçables). Time-bound triggers and forceRefund 3-condition combo carry explicit "operational procedure" notes per the caveats below.
+
+### Smoke flow (orchestré Hardhat ou UI MiniPay)
+
+#### A. Happy path intra (~6 méthodes)
+- A.1 Buyer `createOrderWithItems` (1 item, 5 USDT, seller test, intra-Africa)
+- A.2 Buyer USDT `approve` + Buyer `fundOrder`
+- A.3 Seller `shipItemsGrouped` (intra, no 20% release)
+- A.4 Buyer `confirmItemDelivery` → captures `Reputation.recordCompletedOrder` event + commission/seller distribution
+
+#### B. Cancellation (~1 méthode)
+- B.1 Buyer `cancelOrder` pre-fund (status == Created)
+
+#### C. Dispute resolution (~3 méthodes user-facing + 2 internal events)
+- C.1 Setup : buyer fund order, seller ship, buyer ready to dispute
+- C.2 Buyer `openDispute` → captures `markItemDisputed` (internal `onlyDispute` call)
+- C.3 Buyer + seller `resolveN1Amicable` (matched bilateral) → captures `resolveItemDispute` (internal)
+- C.4 Buyer `escalateToMediation` (separate scenario, set up dispute that doesn't match N1)
+- C.5 Mediator `resolveN2Mediation` (separate scenario, requires assigned mediator)
+
+#### D. Permissionless triggers (~2 méthodes, time-dependent)
+- D.1 `triggerAutoReleaseForItem` (3-day intra-Africa)
+- D.2 `triggerAutoRefundIfInactive` (7-day intra-Africa)
+
+> **Caveat D** : Time-bound triggers (3d / 7d). Hardhat Sepolia avec block-time advance possible mais coûteux à orchestrer dans une session courte (Sepolia block time ~5s, 3 days = ~52000 blocks). Si pas exerçable proprement, marquer "time-bound — exemplification post-mainnet natural surfacing" dans le tableau §3 du SAMPLE_TXS.md. Pas un trou : `Integration.v2.test.ts` couvre déjà ces flows en local Hardhat avec time advance, le sample tx Sepolia est bonus pour reviewer.
+
+#### E. Admin (~3 méthodes, à exercer une fois par sécurité)
+- E.1 `emergencyPause` + tester revert "Contract paused" sur un createOrder + 7-day auto-expiry
+- E.2 `registerLegalHold` sur un order
+- E.3 `forceRefund` (3 conditions ADR-023 : dispute inactif + 90+ days + legal hold)
+
+> **Caveat E.3** : Le combo `forceRefund` 3-conditions (dispute contract `address(0)` + 90+ days inactivity + legal hold registered) est impossible à set up en smoke session sans manipulation extensive de l'environnement (notamment unset disputeContract puis le re-set, plus block-time advance 90+ jours). Marquer "operational procedure documented in `docs/DEPLOYMENTS_HISTORY.md`, sample reserved for first-incident response" dans le tableau §3 du SAMPLE_TXS.md. Pas un trou : ADR-023 conditions sont testées dans Integration.v2 scenario 11 (`forceRefund after 90 days with legal hold`) sur Hardhat fork.
+
+#### F. Credits (~1 méthode)
+- F.1 Buyer `purchaseCredits` (e.g. 10 credits = 1.5 USDT to creditsTreasury)
+
+### Deliverables
+
+- Tx hashes captured + collés dans `docs/audit/SAMPLE_TXS.md` §1 + §3
+- Notes d'exécution (timings, edge cases, gas costs observed) en bas du doc
+- NETWORK_MANIFEST.md audit checklist : passer "25/40 V1-active entries populated" → "40/40 V1-active entries populated"
+- Mark FU-J11-004 done dans `FOLLOWUPS_J11.md`
+- (Optional) capture analytical insights : commission split observed, auto-release timing, etc., to feed AUDIT_BRIEFING.md or seller-facing docs
+
+---
+
 ## Notes générales
 
 - Reprise Track B (audit Reputation scan-only + synthesis

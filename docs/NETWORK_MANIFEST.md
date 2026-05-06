@@ -127,6 +127,7 @@ Treasury wallets (3 separated per ADR-024) :
 - [ ] Mainnet contract addresses filled in post Sprint J12 deploy
 - [ ] PageSpeed Insights score captured for production URL (mobile, throttled 4G)
 - [ ] DevTools Network panel snapshot saved (HAR file or screenshots) for each of the 6 surfaces
+- [ ] Sample tx Celoscan per method (structure ready, 25/40 V1-active entries populated, 15 pending FU-J11-004 smoke E2E) → see `docs/audit/SAMPLE_TXS.md`
 
 ## Cross-references
 
@@ -135,3 +136,6 @@ Treasury wallets (3 separated per ADR-024) :
 - `packages/contracts/deployments/celo-sepolia-v2.json` (canonical V2 addresses + tx hashes)
 - `packages/web/next.config.mjs` images remotePatterns
 - `packages/web/.env.example` for the env var contract surface
+- `docs/audit/SAMPLE_TXS.md` (sample transactions per V2 method, listing prereq §3)
+- `docs/CELOSCAN_VERIFICATION.md` (source-verification status, listing prereq §2)
+- `docs/audit/lighthouse/README.md` (PageSpeed mobile baseline, listing prereq §4)
