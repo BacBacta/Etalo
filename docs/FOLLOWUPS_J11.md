@@ -132,6 +132,50 @@ post-bundle fix/h1-dispute-funded-guard".
 
 ---
 
+## FU-J11-003 — Performance optimization for sub-90 surfaces
+
+**Origine** : Lighthouse Mobile baseline 2026-05-06 (branche `ops/pagespeed-baseline-j11`).
+**Estim** : 1-2 sprint days targeted work.
+**Prio** : Medium (non-blocking si MiniPay listing reviewers tolèrent 78-88 perf range ; blocking si strict ≥90).
+**Owner** : Mike.
+
+### Contexte
+
+Lighthouse prod build mobile baseline montre :
+
+| Surface | Perf | Gap to ≥90 |
+|---|---|---|
+| home | 85 | -5 |
+| boutique | 86 | -4 |
+| product | 88 | -2 |
+| marketplace | 78 | -12 |
+| checkout | 77 | -13 |
+| seller dashboard | 79 | -11 |
+
+Accessibility / Best Practices / SEO all 94-100 (no listing-blocking issues there). Performance gap to MiniPay listing target ≥90 mobile is concentrated in 3 surfaces (marketplace, checkout, dashboard), with 3 close-but-under (home, boutique, product).
+
+Common Lighthouse audit findings across the sub-80 surfaces : `mainthread-work-breakdown`, `render-blocking-insight`, `unused-javascript`, `forced-reflow`, `legacy-javascript-insight`. See `docs/audit/lighthouse/README.md` for per-surface details + raw HTML/JSON reports.
+
+### Scope
+
+1. **Code-split heavy tab content in dashboard** — convert `/seller/dashboard` tabs (Overview / Marketing / Products / Orders / etc.) to `next/dynamic` with `ssr: false` so each tab only loads when activated. Expected +5-10 perf points.
+2. **Defer chart hydration on dashboard** — recharts is heavy (~80 kB gzip). Use IntersectionObserver to lazy-mount charts only when scrolled into view. Expected +3-5 perf points.
+3. **Audit unused JavaScript on checkout** — run `ANALYZE=true pnpm build` (per `next.config.mjs` bundle analyzer wrap) to identify dead-code paths. Likely candidates : unused dispute hooks, multi-seller cart code, viem chains other than Celo Sepolia.
+4. **Lazy-load below-the-fold marketplace product cards** — convert product card images to `loading="lazy"` (likely already done via next/image — verify) + virtualize if list grows beyond viewport.
+5. **Audit legacy JavaScript polyfills** — Lighthouse flags 50% on marketplace + checkout for ES5-targeted polyfills. Modern browser users (MiniPay = Chromium-based) don't need these. Audit Babel/swc presets for browserslist tightening.
+
+### Critère d'acceptation
+
+- All 6 hot-path surfaces ≥ 90 Performance mobile (re-run Lighthouse prod build baseline)
+- A11y / BP / SEO unchanged (still ≥ 94)
+- Bundle size summary regression check : First Load JS shared chunks should not increase
+
+### Risque résiduel après FU-J11-003
+
+If MiniPay listing requires strict ≥90 cutoff, this is gating for J12 mainnet listing submission. If reviewers tolerate close-to-90 (especially the 3 surfaces in 85-88 range), can defer to V1.5 cleanup PR.
+
+---
+
 ## FU-J11-004 — Smoke test E2E + SAMPLE_TXS.md fill
 
 **Origine** : Sprint J11 listing prereq §3 (sample tx per user-facing method) requires actual on-chain executions. Structure shipped in `docs/audit/SAMPLE_TXS.md` (PR `ops/sample-tx-j11`) with TBD entries — this ticket fills them via a smoke E2E session.
