@@ -14,6 +14,7 @@ from app.models.order import Order
 from tests.e2e.fixtures_data import (
     AISSA,
     CHIOMA,
+    MAMADOU,
     SEED_ORDER_ONCHAIN_ID,
     SEED_SELLER_HANDLE,
 )
@@ -168,3 +169,118 @@ async def test_list_orders_includes_seller_handle(client: AsyncClient):
     assert seed is not None, "seeded order missing from buyer list"
     assert seed["seller_address"] == CHIOMA
     assert seed["seller_handle"] == SEED_SELLER_HANDLE
+
+
+# ============================================================
+# J11.5 Block 2 — privacy guard on detail endpoint (ADR-043)
+# ============================================================
+
+
+async def test_get_order_without_caller_succeeds_v1_casual_filter(
+    client: AsyncClient, db: AsyncSession
+):
+    """ADR-043 casual privacy : caller is OPTIONAL at V1. Endpoint
+    remains readable without the filter (backwards compat for seller
+    dashboard + other consumers). Buyer interface (J11.5 Block 4)
+    will pass caller systematically.
+    """
+    result = await db.execute(
+        select(Order).where(Order.onchain_order_id == SEED_ORDER_ONCHAIN_ID)
+    )
+    order = result.scalar_one()
+
+    r = await client.get(f"/api/v1/orders/{order.id}")
+    assert r.status_code == 200
+    assert r.json()["onchain_order_id"] == SEED_ORDER_ONCHAIN_ID
+
+
+async def test_get_order_with_buyer_caller_succeeds(
+    client: AsyncClient, db: AsyncSession
+):
+    """Caller == buyer → 200 with full detail."""
+    result = await db.execute(
+        select(Order).where(Order.onchain_order_id == SEED_ORDER_ONCHAIN_ID)
+    )
+    order = result.scalar_one()
+
+    r = await client.get(f"/api/v1/orders/{order.id}?caller={AISSA}")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["buyer_address"] == AISSA
+    assert data["seller_address"] == CHIOMA
+
+
+async def test_get_order_with_seller_caller_succeeds(
+    client: AsyncClient, db: AsyncSession
+):
+    """Caller == seller → 200 (the seller dashboard reads the same
+    detail endpoint to surface buyer order state)."""
+    result = await db.execute(
+        select(Order).where(Order.onchain_order_id == SEED_ORDER_ONCHAIN_ID)
+    )
+    order = result.scalar_one()
+
+    r = await client.get(f"/api/v1/orders/{order.id}?caller={CHIOMA}")
+    assert r.status_code == 200
+    assert r.json()["seller_handle"] == SEED_SELLER_HANDLE
+
+
+async def test_get_order_with_wrong_caller_returns_404_not_403(
+    client: AsyncClient, db: AsyncSession
+):
+    """ADR-043 — unauthorized caller returns 404 (NOT 403). 403 would
+    leak whether the order_id exists, enabling enumeration. 404
+    presents identical surface to "order doesn't exist".
+    """
+    result = await db.execute(
+        select(Order).where(Order.onchain_order_id == SEED_ORDER_ONCHAIN_ID)
+    )
+    order = result.scalar_one()
+
+    r = await client.get(f"/api/v1/orders/{order.id}?caller={MAMADOU}")
+    assert r.status_code == 404
+    # Body matches the "order not found" shape used elsewhere — no
+    # discriminating field that would let an attacker tell apart
+    # "doesn't exist" vs "exists but not yours".
+    assert r.json() == {"detail": "Order not found"}
+
+
+async def test_get_order_caller_case_insensitive(
+    client: AsyncClient, db: AsyncSession
+):
+    """Mixed-case (EIP-55 checksum) caller addresses must succeed —
+    `window.ethereum` may surface them. The privacy filter normalizes
+    lowercase before comparison.
+    """
+    result = await db.execute(
+        select(Order).where(Order.onchain_order_id == SEED_ORDER_ONCHAIN_ID)
+    )
+    order = result.scalar_one()
+
+    aissa_upper = "0x" + AISSA[2:].upper()
+    r = await client.get(f"/api/v1/orders/{order.id}?caller={aissa_upper}")
+    assert r.status_code == 200
+
+
+async def test_get_order_by_onchain_id_with_wrong_caller_returns_404(
+    client: AsyncClient,
+):
+    """The /by-onchain-id/ variant carries the same privacy guard.
+    Block 2 applies the filter to both lookup keys for symmetry.
+    """
+    r = await client.get(
+        f"/api/v1/orders/by-onchain-id/{SEED_ORDER_ONCHAIN_ID}?caller={MAMADOU}"
+    )
+    assert r.status_code == 404
+    assert r.json() == {"detail": "Order not found"}
+
+
+async def test_get_order_by_onchain_id_with_correct_caller_succeeds(
+    client: AsyncClient,
+):
+    """The /by-onchain-id/ variant accepts buyer caller too."""
+    r = await client.get(
+        f"/api/v1/orders/by-onchain-id/{SEED_ORDER_ONCHAIN_ID}?caller={AISSA}"
+    )
+    assert r.status_code == 200
+    assert r.json()["onchain_order_id"] == SEED_ORDER_ONCHAIN_ID
