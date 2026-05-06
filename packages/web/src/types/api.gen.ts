@@ -839,9 +839,13 @@ export interface paths {
          *       - product.stock must be ≥ requested qty
          *     Failures aggregate into a single 422 with a `validation_errors` list.
          *
-         *     is_cross_border defaults to True (ADR-005, no buyer country in V1).
-         *     TODO V1.5: ask buyer country at MiniPay onboarding for accurate
-         *     commission tier.
+         *     is_cross_border defaults to False per ADR-041 (V1 scope restriction —
+         *     intra-Africa only, single 1.8% commission rate, no cross-border).
+         *     Supersedes ADR-005 cross-border default. The V2 binary on Sepolia
+         *     still carries the flag in `createOrderWithItems` for V1.5 cross-
+         *     border re-enable, but V1 mainnet hardcodes to intra (`isCrossBorder
+         *     = false`) to avoid the cross-border seller-stake gate that would
+         *     revert with "Seller stake ineligible" without an EtaloStake deposit.
          */
         post: operations["create_cart_token_api_v1_cart_checkout_token_post"];
         delete?: never;
@@ -1435,6 +1439,8 @@ export interface components {
             buyer_address: string;
             /** Seller Address */
             seller_address: string;
+            /** Seller Handle */
+            seller_handle?: string | null;
             /** Total Amount Usdt */
             total_amount_usdt: number;
             /** Total Commission Usdt */
@@ -1967,8 +1973,11 @@ export interface components {
         app__schemas__analytics__ReputationBlock: {
             /** Score */
             score: number;
-            /** Badge */
-            badge: string;
+            /**
+             * Badge
+             * @enum {string}
+             */
+            badge: "new_seller" | "active" | "suspended";
             /** Auto Release Days */
             auto_release_days: number;
         };
@@ -2769,7 +2778,10 @@ export interface operations {
     };
     get_order_api_v1_orders__order_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional caller address for ADR-043 casual-privacy filter. If provided and not buyer/seller, returns 404 (no enumeration leak). */
+                caller?: string | null;
+            };
             header?: never;
             path: {
                 order_id: string;
@@ -2800,7 +2812,10 @@ export interface operations {
     };
     get_order_by_onchain_id_api_v1_orders_by_onchain_id__onchain_order_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Optional caller address for ADR-043 casual-privacy filter. If provided and not buyer/seller, returns 404 (no enumeration leak). */
+                caller?: string | null;
+            };
             header?: never;
             path: {
                 onchain_order_id: number;
