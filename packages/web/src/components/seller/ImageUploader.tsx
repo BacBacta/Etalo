@@ -1,7 +1,7 @@
 "use client";
 
 import { CircleNotch, WarningCircle, X } from "@phosphor-icons/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { uploadImage } from "@/lib/seller-api";
 
@@ -47,12 +47,22 @@ export function ImageUploader({
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const notifyParent = (next: ImageState[]) => {
-    const hashes = next
+  // Notify the parent of the current successful-hash list AFTER React
+  // commits, never during the setImages updater (would trigger React
+  // warning "Cannot update a component while rendering a different
+  // component"). Ref captures the latest onChange to avoid re-firing
+  // when the parent re-renders without changing semantics.
+  const onChangeRef = useRef(onChange);
+  useEffect(() => {
+    onChangeRef.current = onChange;
+  });
+
+  useEffect(() => {
+    const hashes = images
       .filter((i) => i.status === "success" && i.ipfsHash)
       .map((i) => i.ipfsHash as string);
-    onChange(hashes);
-  };
+    onChangeRef.current(hashes);
+  }, [images]);
 
   const handleFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -80,12 +90,13 @@ export function ImageUploader({
     }));
     setImages((prev) => [...prev, ...initialEntries]);
 
-    // Upload each in parallel — successes notify the parent as they land.
+    // Upload each in parallel. Parent notification fires from the
+    // images-watching useEffect after React commits each setImages call.
     for (const entry of entries) {
       uploadImage(walletAddress, entry.file)
         .then((response) => {
-          setImages((prev) => {
-            const next = prev.map((img) =>
+          setImages((prev) =>
+            prev.map((img) =>
               img.id === entry.id
                 ? {
                     ...img,
@@ -93,10 +104,8 @@ export function ImageUploader({
                     ipfsHash: response.ipfs_hash,
                   }
                 : img,
-            );
-            notifyParent(next);
-            return next;
-          });
+            ),
+          );
         })
         .catch((err: unknown) => {
           const message =
@@ -115,11 +124,7 @@ export function ImageUploader({
   };
 
   const removeImage = (id: string) => {
-    setImages((prev) => {
-      const next = prev.filter((img) => img.id !== id);
-      notifyParent(next);
-      return next;
-    });
+    setImages((prev) => prev.filter((img) => img.id !== id));
   };
 
   return (
