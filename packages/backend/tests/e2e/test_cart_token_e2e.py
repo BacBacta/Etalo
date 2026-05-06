@@ -202,7 +202,9 @@ async def test_resolve_token_returns_locked_cart(
     assert Decimal(item["price_usdt"]) == Decimal("12.99")
     assert Decimal(group["subtotal_usdt"]) == Decimal("25.98")
     assert Decimal(data["total_usdt"]) == Decimal("25.98")
-    assert group["is_cross_border"] is True
+    # ADR-041 V1 scope restriction : intra-Africa only, supersedes
+    # ADR-005 cross-border default.
+    assert group["is_cross_border"] is False
 
 
 @pytest.mark.asyncio
