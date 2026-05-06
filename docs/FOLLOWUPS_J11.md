@@ -439,6 +439,105 @@ runbook — separate doc.
 
 ---
 
+## FU-J11-008 — MiniPay rejects shipItemsGrouped intra with "BigInteger divide by zero"
+
+**Origine** : J11.5 Block 8 closure session, 2026-05-07. Mike clicked
+"Mark as shipped" on `/seller/dashboard` for an existing Funded
+intra order (orderId 1, seller 0x3154835d, 2 items × 50 USDT).
+MiniPay surfaced :
+> The contract function "shipItemsGrouped" reverted with the
+> following reason: BigInteger divide by zero
+
+**Owner** : Mike (or whoever owns wallet integration).
+**Estim** : 1-2h investigation + escalation pass.
+**Prio** : Medium for V1 launch (pre-J12 mainnet) — blocks the
+seller-side ship action via MiniPay UI on Sepolia ; live workaround
+exists (run via local script using a non-MiniPay wallet client). Not
+a buyer-interface MVP issue — surfaces independent of J11.5 sprint.
+**Severity** : functional impact only (no funds at risk, no contract
+divergence — `shipItemsGrouped` is still callable from any non-
+MiniPay client).
+
+### Diagnostic gathered
+
+Contract simulation eth_call for the exact failing tx succeeds end-
+to-end :
+- `pub.simulateContract({ args: [1n, [1n, 2n], keccak256("etalo-v1-shipped")], account: 0x3154835d })`
+  → `groupId = 5n` (would succeed)
+- `pub.estimateContractGas(...)` → 444 118 gas units (clean estimate)
+- Order 1 state confirmed valid : Funded, intra, items both Pending,
+  no shipment groups yet.
+- Seller wallet has 0.3 CELO (ample for gas).
+- `EtaloEscrow.shipItemsGrouped` intra path has zero division
+  operations (verified — only divisions are in cross-border 20%
+  release branch + dispute resolve, neither triggered here).
+
+The error message format `"reverted with the following reason: <X>"`
+is viem's `ContractFunctionRevertedError`, but no actual contract
+revert occurs in our reproductions. Therefore the divide-by-zero
+must originate inside MiniPay's wallet pre-flight pipeline — likely
+a fee-conversion or gas-cost-in-USDT calculation that hits a 0
+denominator (oracle rate, price ratio, or similar).
+
+Test 2 (close + re-open mini-app from MiniPay launcher) reproduced
+the same error → not a stale-state bug.
+
+### Hypotheses to investigate
+
+1. **MiniPay CIP-64 conversion** — even though FE specifies
+   `type: "legacy"` via `asLegacyTx()`, MiniPay may run an internal
+   USDT-fee preview that divides by an oracle CELO/USDT rate. If
+   the oracle returns 0 for some pair on Sepolia, the calc panics.
+2. **MiniPay ABI cache mismatch** — MiniPay may cache the contract
+   ABI from a previous deploy and decode the function call with
+   stale param types, producing a div-by-zero in its decoder.
+3. **Sepolia-specific edge** — MiniPay may only expect mainnet
+   contracts and have an untested Sepolia path.
+4. **gas estimate × 0 ratio** — some internal MiniPay code computes
+   `priorityFee * total / referenceFee` and `referenceFee` is 0 on
+   Sepolia.
+
+### Repro steps
+
+1. Open MiniPay → Etalo mini-app → /seller/dashboard
+2. Sign in with seller wallet that has at least 1 Funded intra order
+3. Click "Mark as shipped"
+4. Fill in a tracking number (or leave blank) → Confirm
+5. MiniPay surfaces "BigInteger divide by zero" before any tx is
+   actually sent
+
+### Workaround (pre-fix)
+
+Sellers can still ship via the smoke orchestrator pattern :
+```
+pnpm hardhat run scripts/smoke-e2e-j11-5.ts --network celoSepolia
+```
+or any non-MiniPay viem walletClient. Functionally unblocks ops if
+needed for testing before fix.
+
+### Acceptance
+
+- Repro confirmed on a second wallet / second order
+- MiniPay team contacted via Discord/Telegram with the diagnostic
+  above (eth_call succeeds + 444 118 gas estimate + clean order
+  state) — request internal pre-flight error log
+- Either : (a) MiniPay rolls a fix, we verify on Sepolia ; or
+  (b) workaround documented as "ship via desktop wallet" until
+  MiniPay V1.5+ resolves
+- Buyer interface MVP `/orders/[id]` ConfirmDelivery + OpenDispute
+  buttons tested for the same pattern — if they also fail, scope
+  expands
+
+### Risque résiduel après FU-J11-008
+
+If MiniPay is the only seller-facing surface in production V1, and
+the bug isn't fixed, sellers can't ship through MiniPay UI without
+a workaround. Severity bumps to High for V1 mainnet launch readiness
+if reproduced on mainnet. Mitigation : verify on mainnet ASAP post-
+J12 deploy ; if reproduces, escalate before public listing.
+
+---
+
 ## Notes générales
 
 - Reprise Track B (audit Reputation scan-only + synthesis
