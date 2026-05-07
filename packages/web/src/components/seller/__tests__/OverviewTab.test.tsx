@@ -231,10 +231,14 @@ describe("OverviewTab — 4 KPI tiles (Block 5 sub-block 5.4)", () => {
     expect(tiles).toHaveLength(4);
     const labels = tiles.map((t) => t.getAttribute("data-label"));
     expect(labels).toEqual([
+      // Reorder hotfix : actionable info first (In escrow → Active
+      // orders → Revenue 24h → Revenue 7d). The old order had the
+      // most-actionable number ("In escrow") in the 4th and smallest
+      // tile slot.
+      "In escrow",
+      "Active orders",
       "Revenue 24h",
       "Revenue 7d",
-      "Active orders",
-      "In escrow",
     ]);
   });
 
@@ -302,7 +306,7 @@ describe("OverviewTab — 4 KPI tiles (Block 5 sub-block 5.4)", () => {
       screen.getByTestId("overview-kpi-value-in-escrow"),
     ).toHaveTextContent("100.00 USDT");
     // In-escrow tile carries a sub-text with the released amount.
-    expect(screen.getByText(/Released:\s*50\.00 USDT/)).toBeInTheDocument();
+    expect(screen.getByText(/Released to wallet:\s*50\.00 USDT/)).toBeInTheDocument();
   });
 
   it("renders zeroed values as '0.00 USDT' / '0' (never NaN, never empty)", () => {
@@ -326,7 +330,7 @@ describe("OverviewTab — 4 KPI tiles (Block 5 sub-block 5.4)", () => {
     expect(
       screen.getByTestId("overview-kpi-value-in-escrow"),
     ).toHaveTextContent("0.00 USDT");
-    expect(screen.getByText(/Released:\s*0\.00 USDT/)).toBeInTheDocument();
+    expect(screen.getByText(/Released to wallet:\s*0\.00 USDT/)).toBeInTheDocument();
     // Sanity : "NaN" must never reach the DOM.
     expect(screen.queryByText(/NaN/)).not.toBeInTheDocument();
   });
@@ -410,7 +414,12 @@ describe("OverviewTab — revenue trend ChartLineV5 (Block 5 sub-block 5.5)", ()
     ).toHaveTextContent("May 1:70.5");
   });
 
-  it("still renders 7 points (all value=0) when the seller has no sales — empty state belongs to ChartLineV5, not OverviewTab", () => {
+  it("renders the 'Waiting for first sale' empty-state guidance when the 7d timeline is all zeros", () => {
+    // OverviewTab now intercepts the all-zero case before falling into
+    // ChartLineV5 — a flat-zero baseline reads as broken on the seller
+    // dashboard (screenshot critique). The empty branch nudges the
+    // seller toward sharing their boutique link instead of showing a
+    // chart with nothing to convey.
     useAnalyticsSummaryMock.mockReturnValue(dataState(ZEROED));
     render(
       <OverviewTab
@@ -419,17 +428,13 @@ describe("OverviewTab — revenue trend ChartLineV5 (Block 5 sub-block 5.5)", ()
         address={ADDRESS}
       />,
     );
-    const chart = screen.getByTestId("chart-line-mock");
-    expect(chart).toHaveAttribute("data-point-count", "7");
-    // Every value passes through as numeric 0 — no NaN, no missing
-    // entries. ChartLineV5 itself renders a flat baseline for all-
-    // zero data; its data.length === 0 empty branch isn't triggered
-    // because the backend zero-fills the timeline.
-    for (let i = 0; i < 7; i++) {
-      expect(
-        screen.getByTestId(`chart-line-mock-point-${i}`),
-      ).toHaveTextContent(/:0$/);
-    }
+    const empty = screen.getByTestId("overview-revenue-chart-empty");
+    expect(empty).toHaveTextContent(/Waiting for your first sale/i);
+    expect(empty).toHaveTextContent(
+      /Share your boutique link to start receiving orders/i,
+    );
+    // The chart itself must not render under this branch.
+    expect(screen.queryByTestId("chart-line-mock")).not.toBeInTheDocument();
   });
 
   it("date labels are timezone-stable (UTC) and locale-stable (en-US)", () => {

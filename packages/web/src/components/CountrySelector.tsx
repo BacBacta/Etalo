@@ -80,11 +80,14 @@ export function CountrySelector({
       {label ? (
         <label
           htmlFor={id}
-          className="mb-1 block text-base font-medium text-neutral-900"
+          className="mb-1 block text-base font-medium text-celo-dark dark:text-celo-light"
         >
           {label}
           {required ? (
-            <span className="ml-0.5 text-red-600" aria-hidden="true">
+            <span
+              className="ml-0.5 text-red-600 dark:text-celo-red-bright"
+              aria-hidden="true"
+            >
               *
             </span>
           ) : null}
@@ -100,11 +103,19 @@ export function CountrySelector({
         aria-invalid={error ? "true" : undefined}
         aria-describedby={describedBy}
         className={[
-          "min-h-[44px] w-full rounded-md border bg-white p-2 text-base",
-          "text-neutral-900",
-          error ? "border-red-500" : "border-neutral-300",
-          "focus:border-celo-forest focus:outline-none focus:ring-2 focus:ring-celo-forest",
-          "disabled:cursor-not-allowed disabled:bg-neutral-100",
+          "min-h-[44px] w-full rounded-md border p-2 text-base",
+          // Dark-mode parity : the white background was burning a stark
+          // contrast hole on the dark dashboard (screenshot bug). The
+          // dark variant uses the same elevated surface as other inputs
+          // in ProfileTab + ProductFormDialog so all form fields read
+          // as one cohesive group.
+          "bg-white text-celo-dark",
+          "dark:bg-celo-dark-elevated dark:text-celo-light",
+          error
+            ? "border-red-500 dark:border-celo-red-bright"
+            : "border-neutral-300 dark:border-celo-light/20",
+          "focus:border-celo-forest focus:outline-none focus:ring-2 focus:ring-celo-forest dark:focus:ring-celo-forest-bright",
+          "disabled:cursor-not-allowed disabled:bg-neutral-100 dark:disabled:bg-celo-dark-bg",
         ].join(" ")}
       >
         {!required ? <option value="">Select a country…</option> : null}
@@ -120,12 +131,19 @@ export function CountrySelector({
         ))}
       </select>
       {description ? (
-        <p id={descId} className="mt-1 text-sm text-neutral-600">
+        <p
+          id={descId}
+          className="mt-1 text-sm text-neutral-600 dark:text-neutral-400"
+        >
           {description}
         </p>
       ) : null}
       {error ? (
-        <p id={errorId} className="mt-1 text-sm text-red-600" role="alert">
+        <p
+          id={errorId}
+          className="mt-1 text-sm text-red-600 dark:text-celo-red-bright"
+          role="alert"
+        >
           {error}
         </p>
       ) : null}

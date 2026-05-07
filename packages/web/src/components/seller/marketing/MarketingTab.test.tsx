@@ -206,8 +206,12 @@ describe("MarketingTab — generate button gating", () => {
     fireEvent.change(select, { target: { value: SAMPLE_PRODUCT.id } });
     fireEvent.click(screen.getByTestId("template-card-ig_square"));
     expect(screen.getByTestId("generate-btn")).toBeDisabled();
-    // The hint also surfaces below the button.
-    expect(screen.getByTestId("insufficient-credits-hint")).toBeInTheDocument();
+    // Replaced "insufficient-credits-hint" with the unified
+    // "generate-hint" — same purpose (surface the disable reason)
+    // but covers all three blockers (no credits / no product / no
+    // template) instead of just credits.
+    const hint = screen.getByTestId("generate-hint");
+    expect(hint.textContent).toMatch(/at least 1 credit/i);
   });
 
   it("enables the generate button when product, template, and balance are all set", async () => {
@@ -219,16 +223,15 @@ describe("MarketingTab — generate button gating", () => {
   });
 });
 
-describe("MarketingTab — caption language toggle", () => {
-  it("switches between English and Swahili and reflects aria-pressed", async () => {
+describe("MarketingTab — caption language", () => {
+  it("ships English-only V1 (Swahili toggle dropped per 4-market scope)", async () => {
     renderWithQueryClient(<MarketingTab />);
-    const enBtn = await screen.findByTestId("lang-toggle-en");
-    const swBtn = screen.getByTestId("lang-toggle-sw");
-    expect(enBtn).toHaveAttribute("aria-pressed", "true");
-    expect(swBtn).toHaveAttribute("aria-pressed", "false");
-    fireEvent.click(swBtn);
-    expect(enBtn).toHaveAttribute("aria-pressed", "false");
-    expect(swBtn).toHaveAttribute("aria-pressed", "true");
+    // Wait for the page to mount via a known-stable testid.
+    await screen.findByTestId("product-picker-select");
+    // The English/Swahili toggle group is removed V1 ; multi-language
+    // returns post-V1.5 with seller.country auto-detection.
+    expect(screen.queryByTestId("lang-toggle-en")).toBeNull();
+    expect(screen.queryByTestId("lang-toggle-sw")).toBeNull();
   });
 });
 

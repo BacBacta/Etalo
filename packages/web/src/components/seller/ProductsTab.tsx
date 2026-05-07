@@ -1,7 +1,7 @@
 "use client";
 
-import { PencilSimple, Plus, Trash } from "@phosphor-icons/react";
-import { useCallback, useEffect, useState } from "react";
+import { ImageSquare, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
 import { ProductFormDialog } from "@/components/seller/ProductFormDialog";
@@ -14,6 +14,8 @@ import {
   type ProductDetail,
   type SellerProfilePublic,
 } from "@/lib/seller-api";
+
+const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
 
 interface Props {
   // Kept on the signature for parity with sibling tabs (Overview,
@@ -93,6 +95,25 @@ export function ProductsTab({ profile, walletAddress }: Props) {
     setDeleteOpen(true);
   };
 
+  // Aggregate counts across statuses so the seller knows at a glance
+  // how their catalog is split (the public marketplace only sees
+  // `active` rows ; everything else is internal to them). Memoized
+  // so the badge doesn't recompute on every keystroke in unrelated
+  // form state.
+  const counts = useMemo(() => {
+    if (!products) return { total: 0, active: 0, draft: 0, paused: 0 };
+    return products.reduce(
+      (acc, p) => {
+        acc.total += 1;
+        if (p.status === "active") acc.active += 1;
+        else if (p.status === "draft") acc.draft += 1;
+        else if (p.status === "paused") acc.paused += 1;
+        return acc;
+      },
+      { total: 0, active: 0, draft: 0, paused: 0 },
+    );
+  }, [products]);
+
   if (products === null) {
     return (
       <div className="space-y-3" data-testid="products-skeleton">
@@ -106,9 +127,21 @@ export function ProductsTab({ profile, walletAddress }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-base">
-          {products.length} product{products.length !== 1 ? "s" : ""}
-        </p>
+        <div data-testid="products-count">
+          <p className="text-base">
+            {counts.total} product{counts.total !== 1 ? "s" : ""}
+          </p>
+          {/* Status breakdown — only render when there's at least one
+              non-active row to disambiguate. A seller with 4 active
+              products doesn't need to see "4 active". */}
+          {counts.total > 0 && counts.active !== counts.total ? (
+            <p className="text-sm text-neutral-500 dark:text-neutral-400">
+              {counts.active} active
+              {counts.draft > 0 ? ` · ${counts.draft} draft` : ""}
+              {counts.paused > 0 ? ` · ${counts.paused} paused` : ""}
+            </p>
+          ) : null}
+        </div>
         <Button onClick={openCreate} className="min-h-[44px]">
           <Plus className="mr-2 h-4 w-4" />
           Add product
@@ -124,44 +157,73 @@ export function ProductsTab({ profile, walletAddress }: Props) {
         />
       ) : (
         <ul className="space-y-2">
-          {products.map((p) => (
-            <li
-              key={p.id}
-              className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 p-3"
-            >
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <h3 className="truncate text-base font-medium">{p.title}</h3>
-                  <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-sm ${STATUS_BADGE[p.status] ?? STATUS_BADGE.draft}`}
+          {products.map((p) => {
+            const firstImage =
+              p.image_ipfs_hashes && p.image_ipfs_hashes.length > 0
+                ? p.image_ipfs_hashes[0]
+                : null;
+            return (
+              <li
+                key={p.id}
+                className="flex items-center justify-between gap-3 rounded-md border border-neutral-200 p-3 dark:border-celo-light/10"
+              >
+                {/* Thumbnail — surfaces the product photo so the
+                    seller can scan their catalog visually at scale.
+                    Plain <img> for a 56 px square ; next/image perf
+                    benefit is negligible at this size. */}
+                <div
+                  className="flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-neutral-100 dark:bg-celo-dark-elevated"
+                  aria-hidden
+                >
+                  {firstImage ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`${PINATA_GATEWAY}${firstImage}`}
+                      alt=""
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <ImageSquare
+                      className="h-6 w-6 text-neutral-400 dark:text-celo-light/40"
+                      aria-hidden
+                    />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <h3 className="truncate text-base font-medium">{p.title}</h3>
+                    <span
+                      className={`shrink-0 rounded-full px-2 py-0.5 text-sm ${STATUS_BADGE[p.status] ?? STATUS_BADGE.draft}`}
+                    >
+                      {STATUS_LABEL[p.status] ?? p.status}
+                    </span>
+                  </div>
+                  <div className="text-sm text-neutral-600 tabular-nums dark:text-neutral-400">
+                    {Number(p.price_usdt).toFixed(2)} USDT · stock {p.stock}
+                  </div>
+                </div>
+                <div className="flex flex-shrink-0 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(p)}
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900 dark:text-celo-light/70 dark:hover:bg-celo-dark-elevated dark:hover:text-celo-light"
+                    aria-label={`Edit ${p.title}`}
                   >
-                    {STATUS_LABEL[p.status] ?? p.status}
-                  </span>
+                    <PencilSimple className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openDelete(p)}
+                    className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-celo-red-bright dark:hover:bg-celo-red-bright-soft"
+                    aria-label={`Delete ${p.title}`}
+                  >
+                    <Trash className="h-4 w-4" />
+                  </button>
                 </div>
-                <div className="text-sm text-neutral-600 tabular-nums">
-                  {Number(p.price_usdt).toFixed(2)} USDT · stock {p.stock}
-                </div>
-              </div>
-              <div className="flex flex-shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => openEdit(p)}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900"
-                  aria-label={`Edit ${p.title}`}
-                >
-                  <PencilSimple className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => openDelete(p)}
-                  className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700"
-                  aria-label={`Delete ${p.title}`}
-                >
-                  <Trash className="h-4 w-4" />
-                </button>
-              </div>
-            </li>
-          ))}
+              </li>
+            );
+          })}
         </ul>
       )}
 

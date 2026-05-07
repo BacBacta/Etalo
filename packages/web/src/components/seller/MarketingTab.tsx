@@ -33,7 +33,14 @@ export function MarketingTab() {
     useState<MyProductsListItem | null>(null);
   const [selectedTemplate, setSelectedTemplate] =
     useState<TemplateKey | null>(null);
-  const [captionLang, setCaptionLang] = useState<"en" | "sw">("en");
+  // Caption language : V1 ships English-only. Swahili was the only
+  // non-English option but doesn't fit the 4-market V1 scope (NGA /
+  // GHA / KEN / ZAF — Swahili is local in KEN only ; NGA = Yoruba/
+  // Igbo/Hausa, GHA = Twi, ZAF = Zulu/Xhosa). Surfacing one African
+  // language while ignoring the others is a worse signal than English
+  // common-denominator. Multi-lang revival = V1.5+ scope with
+  // seller.country auto-detection.
+  const captionLang = "en" as const;
   const [generating, setGenerating] = useState(false);
   const [result, setResult] = useState<GenerateImageResponse | null>(null);
 
@@ -43,6 +50,19 @@ export function MarketingTab() {
     !!selectedTemplate &&
     !generating &&
     balance >= 1;
+
+  // Surface the precise blocker so the disabled CTA isn't a black box.
+  // Order matters : credits first (most actionable), then product,
+  // then template (the "Choose template" grid lives furthest down).
+  let generateHint: string | null = null;
+  if (balance < 1) {
+    generateHint =
+      "You need at least 1 credit to generate. Tap “Buy more” above.";
+  } else if (!selectedProduct) {
+    generateHint = "Select a product to generate.";
+  } else if (!selectedTemplate) {
+    generateHint = "Choose a template to generate.";
+  }
 
   const handleGenerate = async () => {
     if (!address || !selectedProduct || !selectedTemplate) return;
@@ -96,55 +116,12 @@ export function MarketingTab() {
         }}
       />
 
-      {/*
-        J10-V5 Phase 5 Angle E sub-block E.2 — WCAG 1.3.1 Info and
-        Relationships (Level A). The visible "Caption language" text is
-        the group's accessible name, exposed via role="group" +
-        aria-labelledby pointing at the <span> id. <fieldset>/<legend>
-        would also work but break the existing flex/space-y-2 layout
-        without a `display: contents` workaround ; role=group is the
-        lower-cost path that preserves the styling.
-      */}
-      <div
-        role="group"
-        aria-labelledby="caption-lang-label"
-        className="space-y-2"
-      >
-        <span
-          id="caption-lang-label"
-          className="block text-base font-medium"
-        >
-          Caption language
-        </span>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => setCaptionLang("en")}
-            data-testid="lang-toggle-en"
-            aria-pressed={captionLang === "en"}
-            className={`min-h-[44px] rounded-md px-4 py-2 text-base ${
-              captionLang === "en"
-                ? "bg-neutral-900 text-white"
-                : "bg-neutral-100 text-neutral-700"
-            }`}
-          >
-            English
-          </button>
-          <button
-            type="button"
-            onClick={() => setCaptionLang("sw")}
-            data-testid="lang-toggle-sw"
-            aria-pressed={captionLang === "sw"}
-            className={`min-h-[44px] rounded-md px-4 py-2 text-base ${
-              captionLang === "sw"
-                ? "bg-neutral-900 text-white"
-                : "bg-neutral-100 text-neutral-700"
-            }`}
-          >
-            Swahili
-          </button>
-        </div>
-      </div>
+      {/* Caption language toggle removed V1. Swahili was the only
+          non-English option but mismatches the 4-market scope (NGA /
+          GHA / KEN / ZAF). Multi-language support returns V1.5+ tied
+          to seller.country auto-detection. The captionLang variable
+          is hardcoded "en" upstream so existing GenerateImage payload
+          shape is preserved. */}
 
       <Button
         type="button"
@@ -158,15 +135,18 @@ export function MarketingTab() {
           : "Generate marketing pack (1 credit)"}
       </Button>
 
-      {balance < 1 && (
+      {/* Surface the disable reason. Replaces the generic
+          "insufficient-credits-hint" with a dynamic message that
+          covers all three blockers (no credits / no product / no
+          template) so the seller never wonders why the CTA is grey. */}
+      {!generating && generateHint ? (
         <p
-          className="text-center text-sm text-neutral-600"
-          data-testid="insufficient-credits-hint"
+          className="text-center text-sm text-neutral-600 dark:text-neutral-400"
+          data-testid="generate-hint"
         >
-          You need at least 1 credit to generate. Purchase more credits
-          (Block 7b).
+          {generateHint}
         </p>
-      )}
+      ) : null}
 
       {generating && !result && (
         <div
@@ -191,10 +171,13 @@ export function MarketingTab() {
       )}
 
       {!generating && !result && (
+        // Empty state — the helper text "Pick a product, choose a
+        // template, and generate..." was redundant with the form
+        // sitting directly above and is dropped (screenshot bug).
         <EmptyStateV5
           illustration="no-marketing"
           title="No assets generated yet"
-          description="Pick a product, choose a template, and generate marketing visuals using the form above."
+          description="Your generated visuals will appear here."
         />
       )}
     </div>

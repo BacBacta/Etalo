@@ -40,7 +40,25 @@ interface Props {
 }
 
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
+const TITLE_MIN_LENGTH = 3;
 type StatusValue = "draft" | "active" | "paused";
+
+/**
+ * Slugify a free-form title into a marketplace-safe slug. Lowercase,
+ * strip diacritics, collapse non-alphanumeric runs into single
+ * dashes, trim leading/trailing dashes. Empty input → empty string
+ * so the caller can use it as the "current slug" without dancing
+ * around an "is the user typing?" race.
+ */
+function slugify(input: string): string {
+  return input
+    .normalize("NFKD")
+    .replace(/[̀-ͯ]/g, "") // strip combining diacritics
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 60);
+}
 
 interface FieldErrors {
   title?: string;
@@ -60,6 +78,11 @@ export function ProductFormDialog({
 }: Props) {
   const [title, setTitle] = useState("");
   const [slug, setSlug] = useState("");
+  // `slugManuallyEdited` decides whether the slug auto-tracks the
+  // title. Once the user types a single character into the slug field
+  // directly, we stop the auto-sync — they own the slug from then on.
+  // Reset whenever the dialog re-opens.
+  const [slugManuallyEdited, setSlugManuallyEdited] = useState(false);
   const [description, setDescription] = useState("");
   const [priceUsdt, setPriceUsdt] = useState("");
   const [stock, setStock] = useState("");
@@ -73,6 +96,10 @@ export function ProductFormDialog({
     if (mode === "edit" && initialProduct) {
       setTitle(initialProduct.title);
       setSlug(initialProduct.slug);
+      // Edit mode : slug is locked anyway, but mark as manually-set so
+      // a Title edit doesn't try to overwrite it (defense-in-depth ;
+      // the input is also disabled).
+      setSlugManuallyEdited(true);
       setDescription(initialProduct.description ?? "");
       setPriceUsdt(initialProduct.price_usdt);
       setStock(String(initialProduct.stock));
@@ -86,6 +113,7 @@ export function ProductFormDialog({
     } else {
       setTitle("");
       setSlug("");
+      setSlugManuallyEdited(false);
       setDescription("");
       setPriceUsdt("");
       setStock("");
@@ -95,9 +123,23 @@ export function ProductFormDialog({
     setErrors({});
   }, [open, mode, initialProduct]);
 
+  const handleTitleChange = (next: string) => {
+    setTitle(next);
+    // Auto-derive the slug while the user hasn't taken ownership of
+    // the slug field yet. Frees the seller from having to think about
+    // URL formatting on top of the title — most just want to type
+    // "Robe wax M" and ship.
+    if (mode === "create" && !slugManuallyEdited) {
+      setSlug(slugify(next));
+    }
+  };
+
   const validate = (): boolean => {
     const errs: FieldErrors = {};
-    if (!title.trim()) errs.title = "Title is required";
+    const trimmedTitle = title.trim();
+    if (!trimmedTitle) errs.title = "Title is required";
+    else if (trimmedTitle.length < TITLE_MIN_LENGTH)
+      errs.title = `Title must be at least ${TITLE_MIN_LENGTH} characters`;
     else if (title.length > 200) errs.title = "Title too long (max 200)";
     if (mode === "create") {
       if (!slug.trim()) errs.slug = "Slug is required";
@@ -189,37 +231,44 @@ export function ProductFormDialog({
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => handleTitleChange(e.target.value)}
+              minLength={TITLE_MIN_LENGTH}
               maxLength={200}
-              className="min-h-[44px] w-full rounded-md border border-neutral-300 p-2 text-base"
+              className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light"
             />
           </FormField>
 
           <FormField
             label="Slug"
             error={errors.slug}
-            hint={mode === "edit" ? "Locked after creation" : "lowercase, dashes only"}
+            hint={
+              mode === "edit"
+                ? "Locked after creation"
+                : "Auto-generated from title — edit to override"
+            }
           >
             <input
               type="text"
               value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase())}
+              onChange={(e) => {
+                setSlug(e.target.value.toLowerCase());
+                setSlugManuallyEdited(true);
+              }}
               disabled={mode === "edit"}
-              className="min-h-[44px] w-full rounded-md border border-neutral-300 p-2 text-base disabled:bg-neutral-100 disabled:text-neutral-500"
+              className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark disabled:bg-neutral-100 disabled:text-neutral-500 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:disabled:bg-celo-dark-bg dark:disabled:text-celo-light/40"
             />
           </FormField>
 
-          <FormField
-            label="Description"
-            error={errors.description}
-            hint='Tip: include size info in your description (e.g. "Available in S, M, L" or "Sizes EU 36-44"). Up to 2000 chars.'
-          >
+          <FormField label="Description" error={errors.description}>
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={4}
               maxLength={2000}
-              className="w-full rounded-md border border-neutral-300 p-2 text-base"
+              placeholder={
+                'Include size info, e.g. "Available in S, M, L" or "Sizes EU 36-44".'
+              }
+              className="w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark placeholder:text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:placeholder:text-neutral-500"
             />
           </FormField>
 
@@ -229,9 +278,10 @@ export function ProductFormDialog({
                 type="number"
                 step="0.01"
                 min="0.01"
+                placeholder="10.00"
                 value={priceUsdt}
                 onChange={(e) => setPriceUsdt(e.target.value)}
-                className="min-h-[44px] w-full rounded-md border border-neutral-300 p-2 text-base"
+                className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark placeholder:text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:placeholder:text-neutral-500"
               />
             </FormField>
             <FormField label="Stock" error={errors.stock}>
@@ -239,18 +289,20 @@ export function ProductFormDialog({
                 type="number"
                 step="1"
                 min="0"
+                placeholder="10"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
-                className="min-h-[44px] w-full rounded-md border border-neutral-300 p-2 text-base"
+                className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark placeholder:text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:placeholder:text-neutral-500"
               />
             </FormField>
           </div>
 
           <FormField label="Status">
             <select
+              aria-label="Product status"
               value={status}
               onChange={(e) => setStatus(e.target.value as StatusValue)}
-              className="min-h-[44px] w-full rounded-md border border-neutral-300 p-2 text-base"
+              className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light"
             >
               <option value="draft">Draft (not visible to buyers)</option>
               <option value="active">Active (visible & for sale)</option>
@@ -258,7 +310,11 @@ export function ProductFormDialog({
             </select>
           </FormField>
 
-          <FormField label="Images" hint="Up to 8 images">
+          {/* Image upload — drop the FormField hint "Up to 8 images" :
+              ImageUploader renders its own "Up to 8 images. JPEG, PNG,
+              or WebP. Max 5 MB each." helper internally, the FormField
+              hint was a dupe (screenshot bug). */}
+          <FormField label="Images">
             <ImageUploader
               initialIpfsHashes={imageHashes}
               walletAddress={walletAddress}
