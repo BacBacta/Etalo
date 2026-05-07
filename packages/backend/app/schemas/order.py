@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field, computed_field, field_serializer
 
 from app.models.enums import ItemStatus, OrderStatus, ShipmentStatus
 
@@ -49,6 +49,12 @@ class ShipmentGroupResponse(BaseModel):
     arrived_at: datetime | None
     majority_release_at: datetime | None
     final_release_after: datetime | None
+
+    @field_serializer('proof_hash', 'arrival_proof_hash')
+    def serialize_hash(self, value: bytes | None) -> str | None:
+        if value is None:
+            return None
+        return f"0x{value.hex()}"
 
 
 class OrderResponse(BaseModel):
