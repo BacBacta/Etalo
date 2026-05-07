@@ -105,7 +105,9 @@ def complete_onboarding(
         db.rollback()
         raise
 
+    profile_response = SellerProfilePublic.model_validate(profile)
+    profile_response.country = user.country
     return OnboardingCompleteResponse(
-        profile=SellerProfilePublic.model_validate(profile),
+        profile=profile_response,
         first_product=OnboardingCompleteProduct.model_validate(product),
     )

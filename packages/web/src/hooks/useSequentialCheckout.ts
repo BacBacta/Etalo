@@ -12,6 +12,7 @@ import {
   classifyError,
   parseOrderIdFromLog,
 } from "@/lib/checkout-orchestration";
+import { setOrderDeliverySnapshot } from "@/lib/orders/snapshot-api";
 
 // MiniPay rejects EIP-1559 (CLAUDE.md rule 3). Every writeContract below
 // passes `type: "legacy" as const` inline so wagmi v2's strict generic
@@ -75,7 +76,18 @@ function expandItemPrices(
   return out;
 }
 
-export function useSequentialCheckout(cart: ResolvedCart) {
+export interface UseSequentialCheckoutArgs {
+  /** Required pre-flight selection — checkout idle phase blocks until
+   *  the buyer picks a delivery address. The id is sent to the backend
+   *  PATCH endpoint after each successful fund so the order carries an
+   *  immutable snapshot of the address. */
+  deliveryAddressId: string | null;
+}
+
+export function useSequentialCheckout(
+  cart: ResolvedCart,
+  { deliveryAddressId }: UseSequentialCheckoutArgs = { deliveryAddressId: null },
+) {
   const { address: buyer } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
@@ -267,6 +279,28 @@ export function useSequentialCheckout(cart: ResolvedCart) {
             throw new Error("Fund transaction reverted.");
           }
 
+          // Snapshot the picked delivery address into the freshly-funded
+          // order (ADR-044, J11.7 Block 7). Best-effort : a failure here
+          // does NOT mark the seller as error — the on-chain tx already
+          // succeeded and the snapshot can be re-set from the order
+          // detail page later. We still log to the console for ops
+          // visibility.
+          if (deliveryAddressId && orderId !== undefined && buyer) {
+            try {
+              await setOrderDeliverySnapshot({
+                walletAddress: buyer,
+                onchainOrderId: orderId,
+                addressId: deliveryAddressId,
+              });
+            } catch (snapErr) {
+              // eslint-disable-next-line no-console
+              console.warn(
+                "Delivery snapshot persistence failed, continuing :",
+                snapErr,
+              );
+            }
+          }
+
           updateSeller(i, { status: "success" });
         } catch (err) {
           updateSeller(i, { status: "error", error: classifyError(err) });
@@ -291,6 +325,7 @@ export function useSequentialCheckout(cart: ResolvedCart) {
     buyer,
     publicClient,
     cart,
+    deliveryAddressId,
     updateSeller,
     finalizePhase,
     markRemainingCanceled,

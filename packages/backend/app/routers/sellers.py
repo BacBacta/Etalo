@@ -11,11 +11,11 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.config import settings
 from app.database import get_async_db, get_db
-from app.models.enums import SellerStatus, StakeTier
+from app.models.enums import Country, SellerStatus, StakeTier
 from app.models.order import Order
 from app.models.reputation_cache import ReputationCache
 from app.models.seller_credits_ledger import SellerCreditsLedger
@@ -104,7 +104,10 @@ def get_my_seller_profile(
     if profile is None:
         return SellersMeResponse(profile=None)
 
-    return SellersMeResponse(profile=SellerProfilePublic.model_validate(profile))
+    # Hydrate country from User (single source of truth per Block 0 recon).
+    profile_response = SellerProfilePublic.model_validate(profile)
+    profile_response.country = user.country
+    return SellersMeResponse(profile=profile_response)
 
 
 import re  # noqa: E402
@@ -293,13 +296,46 @@ async def update_my_profile(
     db: Annotated[AsyncSession, Depends(get_async_db)],
 ) -> SellerProfilePublic:
     """Self-service profile update. shop_handle stays immutable (would
-    break /[handle] URLs)."""
+    break /[handle] URLs).
+
+    `country` writes to the joined User row (single source of truth per
+    Block 0 recon), validated against the V1 enum {NGA, GHA, KEN}.
+    """
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Country lives on User, not SellerProfile — pull it out of the
+    # generic setattr loop.
+    new_country = update_data.pop("country", None)
+    if new_country is not None:
+        valid_countries = {c.value for c in Country}
+        if new_country not in valid_countries:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=f"Invalid country. Must be one of {sorted(valid_countries)}.",
+            )
+        # Eager-load user to write through the FK without a second query.
+        user = (
+            await db.execute(select(User).where(User.id == seller.user_id))
+        ).scalar_one()
+        user.country = new_country
+
     for key, value in update_data.items():
         setattr(seller, key, value)
+
     await db.commit()
     await db.refresh(seller)
-    return SellerProfilePublic.model_validate(seller)
+
+    # Re-read seller with user joined so the response carries country.
+    seller_with_user = (
+        await db.execute(
+            select(SellerProfile)
+            .where(SellerProfile.id == seller.id)
+            .options(selectinload(SellerProfile.user))
+        )
+    ).scalar_one()
+    response = SellerProfilePublic.model_validate(seller_with_user)
+    response.country = seller_with_user.user.country if seller_with_user.user else None
+    return response
 
 
 @router.get("/me/products", response_model=MyProductsListResponse)

@@ -21,6 +21,7 @@ import { useAccount } from "wagmi";
 
 import { AutoReleaseTimer } from "@/components/orders/AutoReleaseTimer";
 import { BuyerOrderActions } from "@/components/orders/BuyerOrderActions";
+import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
 import { OrderDetailHeader } from "@/components/orders/OrderDetailHeader";
 import { OrderItemsList } from "@/components/orders/OrderItemsList";
 import { OrdersLoadingState } from "@/components/orders/OrdersLoadingState";
@@ -123,6 +124,10 @@ function BuyerOrderDetailLoaded({
         <AutoReleaseTimer autoReleaseAt={autoReleaseAt} />
       )}
       <OrderItemsList order={data} />
+      <OrderDeliveryAddressCard
+        snapshot={data.delivery_address_snapshot ?? null}
+        orderId={data.onchain_order_id}
+      />
       <BuyerOrderActions order={data} />
     </article>
   );

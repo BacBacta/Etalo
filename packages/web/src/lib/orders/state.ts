@@ -28,8 +28,27 @@ export type OrderStatus = components["schemas"]["OrderStatus"];
 export type ItemStatus = components["schemas"]["ItemStatus"];
 export type ShipmentStatus = components["schemas"]["ShipmentStatus"];
 
-export type OrderResponse = components["schemas"]["OrderResponse"];
-export type OrderListResponse = components["schemas"]["OrderListResponse"];
+// J11.7 Block 8 — local extension : delivery_address_snapshot was
+// added to OrderResponse server-side at Block 7 (the field stores the
+// address picked at checkout). The api.gen.ts regen post-merge will
+// replace this intersection with a no-op.
+export type DeliveryAddressSnapshotJson = {
+  phone_number?: string | null;
+  country?: string | null;
+  city?: string | null;
+  region?: string | null;
+  address_line?: string | null;
+  landmark?: string | null;
+  notes?: string | null;
+};
+
+export type OrderResponse = components["schemas"]["OrderResponse"] & {
+  delivery_address_snapshot?: DeliveryAddressSnapshotJson | null;
+};
+export type OrderListResponse = Omit<
+  components["schemas"]["OrderListResponse"],
+  "items"
+> & { items: OrderResponse[] };
 export type OrderItemResponse = components["schemas"]["OrderItemResponse"];
 export type ShipmentGroupResponse =
   components["schemas"]["ShipmentGroupResponse"];

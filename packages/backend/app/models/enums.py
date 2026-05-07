@@ -80,6 +80,17 @@ class SellerStatus(str, Enum):
     BANNED = "Banned"        # 2 — permanent
 
 
+class Country(str, Enum):
+    """V1 launch markets — ISO 3166-1 alpha-3 codes (ADR-041 + ADR-045).
+
+    V1 intra-only scope restricts marketplace to 3 countries. Stored as
+    3-char alpha-3 codes; presented as full names in UI via FE mapping.
+    """
+    NIGERIA = "NGA"
+    GHANA = "GHA"
+    KENYA = "KEN"
+
+
 # Postgres ENUM type names (used by SQLAlchemy + Alembic migration)
 ORDER_STATUS_ENUM_NAME = "order_status"
 ITEM_STATUS_ENUM_NAME = "item_status"
