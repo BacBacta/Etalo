@@ -536,6 +536,40 @@ a workaround. Severity bumps to High for V1 mainnet launch readiness
 if reproduced on mainnet. Mitigation : verify on mainnet ASAP post-
 J12 deploy ; if reproduces, escalate before public listing.
 
+### Scope check 2026-05-07 — buyer-side approve ALSO affected (BROAD scope confirmed)
+
+Tested via MiniPay buyer interface (wallet AISSA, /smoke_b2 boutique,
+Smoke product 4.5 USDT × 3 units → /checkout → "Fund order"). MiniPay
+surfaced the SAME error on the FIRST step of checkout :
+
+> Checkout failed
+> The contract function "approve" reverted with the following reason:
+> BigInteger divide by zero
+
+The failure is on the standard ERC20 USDT.approve() call, **before**
+fundOrder is even reached. Etalo-specific functions are NOT the root
+cause — MiniPay's Sepolia pre-flight pipeline crashes on **any
+contract write transaction**, including basic ERC20 operations.
+
+→ Bug scope = VERY BROAD : MiniPay UI on Celo Sepolia cannot process
+  any contract write tx (approve, fundOrder, shipItemsGrouped — all
+  blocked at pre-flight phase).
+→ Severity bumps to HIGH for V1 mainnet launch readiness. If
+  reproduced on mainnet post-J12 deploy, MiniPay UI is unusable for
+  any Etalo flow except read-only browsing.
+→ Hypothesis : Sepolia-specific bug. Mainnet has 14M+ active MiniPay
+  users on functioning DApps, suggests pre-flight pipeline works on
+  mainnet. Sepolia may lack a price oracle (CELO/USDT) that MiniPay
+  queries for fee preview, returning 0 → div-by-zero.
+→ Pre-J12 testing implication : ALL contract-write flows must be
+  validated via desktop wallet (viem walletClient or MetaMask).
+  MiniPay UX validation deferred to mainnet post-J12 deploy.
+→ Mitigation if mainnet also affected (worst case) : detect MiniPay
+  context (window.ethereum?.isMiniPay) + surface "Open in browser"
+  fallback UX. Significant degradation, V1 launch impacted.
+→ URGENT escalation MiniPay team required before J12 mainnet deploy
+  to confirm Sepolia-only vs broader.
+
 ---
 
 ## Notes générales
