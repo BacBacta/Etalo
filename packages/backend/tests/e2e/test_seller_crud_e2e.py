@@ -291,6 +291,16 @@ async def test_seller_orders_public_read(
     data = resp.json()
     assert data["pagination"]["total"] == 2
     assert len(data["orders"]) == 2
+    # Block 8 hotfix : every order ships a `line_items` array (even
+    # empty fallback when product_ids is null). Seeded orders have no
+    # product_ids, so each row gets a single neutral fallback row whose
+    # qty mirrors the on-chain item_count.
+    for o in data["orders"]:
+        assert isinstance(o["line_items"], list)
+        assert len(o["line_items"]) == 1
+        assert o["line_items"][0]["qty"] == o["item_count"]
+        assert o["line_items"][0]["title"] == "Article"
+        assert o["line_items"][0]["image_ipfs_hash"] is None
 
 
 @pytest.mark.asyncio
@@ -306,6 +316,76 @@ async def test_seller_orders_status_filter(
     data = resp.json()
     assert data["pagination"]["total"] == 1
     assert data["orders"][0]["global_status"] == "Completed"
+
+
+@pytest.mark.asyncio
+async def test_seller_orders_line_items_aggregate_product_ids(
+    client: AsyncClient, db: AsyncSession
+):
+    """When `Order.product_ids` is populated, the seller orders endpoint
+    aggregates duplicate ids into (title, qty) rows + first product image,
+    preserving the order of first appearance. Hotfix Block 8 contract.
+    """
+    suffix = uuid.uuid4().hex[:8]
+    handle = f"agg-{suffix}"
+    seller, wallet = await _seed_seller(db, handle=handle, shop_name="Agg")
+
+    p1 = Product(
+        id=uuid.uuid4(),
+        seller_id=seller.id,
+        title="Robe wax M",
+        slug=f"robe-{suffix}",
+        price_usdt=Decimal("12.00"),
+        stock=10,
+        status="active",
+        image_ipfs_hashes=["QmRobeImage"],
+    )
+    p2 = Product(
+        id=uuid.uuid4(),
+        seller_id=seller.id,
+        title="T-shirt logo XL",
+        slug=f"tshirt-{suffix}",
+        price_usdt=Decimal("8.00"),
+        stock=20,
+        status="active",
+        image_ipfs_hashes=None,
+    )
+    db.add_all([p1, p2])
+    await db.flush()
+
+    base_id = 80_000 + (uuid.uuid4().int % 1_000)
+    o = Order(
+        id=uuid.uuid4(),
+        onchain_order_id=base_id,
+        buyer_address=_wallet(),
+        seller_address=wallet,
+        total_amount_usdt=32_000_000,
+        total_commission_usdt=576_000,
+        is_cross_border=False,
+        global_status=OrderStatus.FUNDED,
+        item_count=3,
+        product_ids=[p1.id, p1.id, p2.id],  # 2× robe + 1× tshirt
+        created_at_chain=datetime(2026, 5, 1, 10, tzinfo=timezone.utc),
+    )
+    db.add(o)
+    await db.commit()
+
+    try:
+        resp = await client.get(f"/api/v1/sellers/{wallet}/orders")
+        assert resp.status_code == 200
+        rows = resp.json()["orders"]
+        assert len(rows) == 1
+        line_items = rows[0]["line_items"]
+        assert len(line_items) == 2
+        # First-appearance order preserved : Robe before T-shirt.
+        assert line_items[0]["title"] == "Robe wax M"
+        assert line_items[0]["qty"] == 2
+        assert line_items[0]["image_ipfs_hash"] == "QmRobeImage"
+        assert line_items[1]["title"] == "T-shirt logo XL"
+        assert line_items[1]["qty"] == 1
+        assert line_items[1]["image_ipfs_hash"] is None
+    finally:
+        await _cleanup(db, [handle], extra_orders=[str(base_id)])
 
 
 # ============================================================

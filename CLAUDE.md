@@ -134,62 +134,110 @@ Language preference: French for conversation, English for code and docs.
 
 ## Current sprint
 
-Sprint J10-V5 — Design System V5 Robinhood-target. Plan détaillé
-dans `docs/SPRINT_J10_V5.md`. Branche `feat/design-system-v5`.
+**Sprint J11.7 — Geographic Location + Delivery Address ✓ MERGED
+2026-05-06** (PR #23 `feat/geo-and-delivery-address` + PR #24 hotfix
+`fix/address-book-upsert-user`). Plan détaillé dans
+`docs/SPRINT_J11_7.md`. Closure dans
+`docs/audit/SPRINT_J11_7_CLOSURE.md`.
 
-Phase closures :
+Tracking ADRs : **ADR-044** (delivery address) + **ADR-045** (geo
+filters / intra-Africa enforcement).
 
-- Phase 1 (Foundations) ✓ 16 commits
-- Phase 2 (Motion) ✓ 11 commits
-- Phase 3 (Visuals) ✓ 9 commits — bundle 262 KB strict, 4
-  composants V5 livrés, 8 lessons #73-#80
-- **Phase 4 (Layout refactor + V5 applications migration) ✓ done
-  2026-05-02** — 6 Blocks (1-4 + 5 + 6) + 10 hotfixes (incl. #9
-  dual-repo frontend + #10 dual-repo backend footgun
-  neutralization). 243 PASS frontend (+65 net Phase 4) / 120
-  PASS backend (+5). `/seller/dashboard` 22.9 kB route /
-  **263 kB First Load** (17 kB headroom préservé sous trigger
-  280 kB strict, −17 kB net Phase 4). Live MiniPay validation
-  confirmed end-to-end sur INNER frontend + INNER backend.
-  Cumulative pattern catalogue dans
-  `docs/PHASE_4_LESSONS_LEARNED.md`.
+Livré (10 blocks + hotfix) :
 
-**Phase 5 (Polish + Submission) IN PROGRESS depuis 2026-05-03**.
+- Block 1 — DB : `seller_profile.country` + `buyer_profile.country`,
+  table `delivery_addresses` (buyer address book), and
+  `orders.delivery_address_snapshot` (immutable JSON copy at
+  fund time). Migration additive, downgrade clean.
+- Block 2 — API address book CRUD (`POST/GET/PUT/DELETE
+  /api/v1/me/addresses`).
+- Block 3 — Marketplace country filter
+  (`GET /marketplace/products?country=`) + cross-border block au
+  cart-token (422 `cross_border_not_supported`).
+- Block 4 — Seller country edit via `CountrySelector` dans
+  `ProfileTab`.
+- Block 5 — Buyer country detection + prompt banner (fallback
+  manuel ; auto-detect MiniPay phone country reporté V1.5+).
+- Block 6 — Address book UI à `/profile/addresses` (new route,
+  145 kB First Load).
+- Block 7 — Checkout structured address picker + snapshot
+  persistence (`PATCH /orders/by-onchain-id/{id}/delivery-address`).
+- Block 8 — `OrderDeliveryAddressCard` côté acheteur dans
+  `/orders/[id]` (full address post-fund + WhatsApp deeplink).
+- Block 9 — Marketplace country filter chips + URL state +
+  prompt banner wiring.
+- Block 10 — Tests + bundle delta + closure doc.
+- Hotfix #24 — upsert User row on first address save (404 → 201).
+- Hotfix #25 — surface delivery_address_snapshot inline sur
+  cartes vendeur dashboard (mergé 2026-05-07).
 
-Block 1 (Tabular nums systematic application + bonus dates
-locale-pin sweep) ✓ done 2026-05-03 — 6 sub-blocks, 6 commits,
-~25 sites touched across dashboard + cart + checkout + boutique +
-marketplace, new `lib/format.ts` (formatChartDate + formatRowDate
-both pinned en-US UTC), 243 PASS conserved, /seller/dashboard
-22.9 → 23.2 kB route / 263 kB First Load (0 net), 17 kB headroom
-preserved. Closure section in `docs/SPRINT_J10_V5.md` Phase 5
-Block 1.
+Métriques closure :
 
-**Block 2 (Mobile gestures critiques) ✓ done 2026-05-04** —
-5 sub-blocks, 5 commits. Cart drawer swipe-to-close
-(SheetV4 migration + nested LazyMotion features={domMax} +
-m.div drag="x" + threshold helper `shouldCloseOnSwipe` 100 px
-OR 500 px/s) + marketplace pull-to-refresh (custom pointer
-handlers + CSS transitions, motion drag overkill avoided ;
-gating sur `window.scrollY === 0` ; threshold 80 px ;
-overscroll-contain blocks native Android Chrome PTR conflict)
-+ marketplace data path refactored to `useInfiniteQuery`
-(5e consumer TanStack Query) + visible Refresh button
-mandatory a11y. 247 → 266 PASS (+19), /seller/dashboard
-23.2 → 23.3 kB route / 263 → 264 kB First Load,
-/marketplace 8.23 → 9.27 kB route / 132 → 142 kB First Load
-(TanStack pagination infra acceptable trade-off), 16 kB
-headroom préservé. Closure section in
-`docs/SPRINT_J10_V5.md` Phase 5 Block 2.
+- Tests : **478 web vitest PASS** (+59 net, 419 → 478) /
+  **175 backend pytest PASS** (+24 net, 151 → 175). 6 preexisting
+  fails inchangés (marketing e2e + RPC fallback).
+- Bundle : `/profile/addresses` new 145 kB / `/checkout`
+  222 → 250 kB / `/marketplace` 143 → 150 kB / `/orders/[id]`
+  221 → 222 kB / `/seller/dashboard` 264 → 267 kB. Toutes
+  routes sous leur cap strict.
+- 0 contract changes — pure schema + API + frontend.
 
-Phase 5 Blocks restants : side-by-side Robinhood QA pass,
-polish details, demo video 3 min, Karma GAP profile + Farcaster
-post + repo README polish, grants Celo Foundation submission, tag
-final `v2.0.0-design-system-v5-sepolia`. Liste complete + plan
-Block 3-9 dans `docs/SPRINT_J10_V5.md`.
+Reportés à manuel post-merge :
 
-When user says "start Phase 5 Block N" or "continue Block X", read
-that block in `docs/SPRINT_J10_V5.md` and execute.
+- Lighthouse mobile run sur `/profile/addresses`, `/checkout`,
+  `/marketplace` (audit auto flaky sur Windows shell ; commande
+  manuelle dans closure doc).
+- WhatsApp deeplink device test (réel MiniPay).
+- `pnpm gen:api` regen post-restart backend (les types locaux
+  dans `seller-api.ts` deviennent redundant intersections, sans
+  régression).
+- Smoke E2E re-run bloqué par FU-J11-008 BigInteger bug
+  (re-tenté quand MiniPay team répond OU validation J12 mainnet).
+
+V1.5+ déférés : popularity sort, MiniPay phone auto-detection,
+comprehensive seller onboarding.
+
+**Branche en cours : `feat/seller-orders-pick-list-deadline`**
+— refonte UX du dashboard vendeur orders au-dessus de PR #25.
+Scope, post J11.7 follow-up (commit 2026-05-07) :
+
+- Backend : `SellerOrderItem.line_items[]` (per-SKU breakdown
+  agrégé depuis `Order.product_ids` join `products`, qty = count
+  d'occurrences). Field nommé `line_items` (pas `items`) pour
+  éviter le clash Pydantic `from_attributes` avec la relation
+  SQLAlchemy `Order.items` lazy-loaded (MissingGreenlet sinon).
+- Frontend `lib/sellerOrderHelpers.ts` (nouveau) — `buyerLabel`
+  (anonymise vs rule #5), `deadlineInfo` (ADR-019 7-day
+  seller-inactivity window), `statusBadgeClass`,
+  `aggregateOpenOrdersBySku`, `summarizeOrders`.
+- `OrdersTab` réécrit : bandeau agrégé sticky, toggle Orders ↔
+  Pick list, buyer label anonymisé (jamais 0x…), countdown
+  deadline color-coded, line_items inline avec thumbnails IPFS,
+  Mark shipped promu en primary CTA.
+- `PickListView` (nouveau) — Vue B item-centric, roll-up par
+  SKU, tri par deadline la plus proche puis qty desc.
+- `OrderDeliveryAddressCard` — drop `phone_number` brut (privacy,
+  anti-bypass escrow), prop `hideWhenEmpty` pour orders pre-fund.
+
+Métriques : 511 web vitest PASS (+33 net), 17/17 backend PASS sur
+`test_seller_crud_e2e.py` (+1 test agrégation). TSC + ESLint
+clean.
+
+Différés sprint J11.8 dédié : filter chips, MarkBatchShippedDialog,
+pagination infinite, polling, search, stock decrement, velocity
+ProductsTab. V1.5+ : print/share pick list, offline-first, swipe
+gestures.
+
+**Sprint suivant : J12 mainnet deploy + listing submission** avec
+baseline V1.2 (`v1.2-geo-and-delivery` tag pending).
+
+Sprint précédent J10-V5 (Design System V5 Robinhood-target) —
+Phases 1-4 closes 2026-05-02, Phase 5 Block 1 + 2 closes
+2026-05-03 et 2026-05-04. Plan complet dans
+`docs/SPRINT_J10_V5.md`, lessons cumulatives dans
+`docs/PHASE_4_LESSONS_LEARNED.md`. Phase 5 Block 3+
+(Robinhood QA pass, demo video, grants Celo Foundation,
+tag `v2.0.0-design-system-v5-sepolia`) reprend post-J12.
 
 Always propose a plan before executing, and wait for validation.
 Report what was done at the end of each block.

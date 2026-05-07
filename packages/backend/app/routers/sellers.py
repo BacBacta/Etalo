@@ -30,6 +30,7 @@ from app.schemas.seller import (
     MyProductsListItem,
     MyProductsListResponse,
     SellerOrderItem,
+    SellerOrderItemSummary,
     SellerOrdersPage,
     SellerProfilePublic,
     SellerProfileUpdate,
@@ -278,8 +279,30 @@ async def list_seller_orders(
         )
     ).scalars().all()
 
+    # Build a single product lookup for the page so each row's items
+    # breakdown is one extra round-trip total (not per-order). Skip
+    # entirely when no row carries product_ids.
+    page_pids: set = set()
+    for o in rows:
+        if o.product_ids:
+            page_pids.update(o.product_ids)
+    products_by_id: dict = {}
+    if page_pids:
+        product_rows = (
+            await db.execute(
+                select(Product).where(Product.id.in_(page_pids))
+            )
+        ).scalars().all()
+        products_by_id = {p.id: p for p in product_rows}
+
+    out: list[SellerOrderItem] = []
+    for o in rows:
+        item = SellerOrderItem.model_validate(o)
+        item.line_items = _aggregate_seller_order_items(o, products_by_id)
+        out.append(item)
+
     return SellerOrdersPage(
-        orders=[SellerOrderItem.model_validate(o) for o in rows],
+        orders=out,
         pagination={
             "page": page,
             "page_size": page_size,
@@ -287,6 +310,57 @@ async def list_seller_orders(
             "has_more": page * page_size < total,
         },
     )
+
+
+def _aggregate_seller_order_items(
+    order: Order, products_by_id: dict
+) -> list[SellerOrderItemSummary]:
+    """Group an order's product_ids into (title, qty, image) rows.
+
+    qty = id-occurrence count (a buyer with 2× same SKU appears twice
+    in product_ids). Missing product_ids → single fallback row using
+    the on-chain item_count so the seller still sees a number.
+    """
+    if not order.product_ids:
+        return [
+            SellerOrderItemSummary(
+                title="Article",
+                qty=order.item_count,
+                image_ipfs_hash=None,
+            )
+        ]
+
+    counts: dict = {}
+    order_index: dict = {}
+    for idx, pid in enumerate(order.product_ids):
+        counts[pid] = counts.get(pid, 0) + 1
+        order_index.setdefault(pid, idx)
+
+    summaries: list[SellerOrderItemSummary] = []
+    for pid in sorted(counts.keys(), key=lambda p: order_index[p]):
+        prod = products_by_id.get(pid)
+        if prod is None:
+            summaries.append(
+                SellerOrderItemSummary(
+                    title="Article",
+                    qty=counts[pid],
+                    image_ipfs_hash=None,
+                )
+            )
+        else:
+            first_image = (
+                prod.image_ipfs_hashes[0]
+                if prod.image_ipfs_hashes
+                else None
+            )
+            summaries.append(
+                SellerOrderItemSummary(
+                    title=prod.title,
+                    qty=counts[pid],
+                    image_ipfs_hash=first_image,
+                )
+            )
+    return summaries
 
 
 @router.put("/me/profile", response_model=SellerProfilePublic)

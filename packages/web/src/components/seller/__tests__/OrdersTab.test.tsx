@@ -156,6 +156,11 @@ const ORDER_FIXTURE = {
   total_amount_usdt: 70_000_000,
   global_status: "Completed",
   created_at_chain: "2026-05-01T10:00:00Z",
+  item_count: 1,
+  is_cross_border: false,
+  funded_at: null,
+  delivery_address_snapshot: null,
+  line_items: [],
 };
 
 describe("OrdersTab — first-sale milestone dialog (Block 6 sub-block 6.3)", () => {
@@ -265,5 +270,121 @@ describe("OrdersTab — first-sale milestone dialog (Block 6 sub-block 6.3)", ()
     await waitFor(() =>
       expect(screen.queryByTestId("milestone-dialog")).not.toBeInTheDocument(),
     );
+  });
+});
+
+// ============================================================
+// fix/seller-orders-delivery-info — orders dashboard UX upgrade :
+// anonymized buyer (rule 5), aggregate banner, deadline countdown,
+// inline line_items breakdown, pick-list view toggle.
+// ============================================================
+
+const FUNDED_ORDER = {
+  id: "order-funded-1",
+  onchain_order_id: 42,
+  buyer_address: "0xbuyer000000000000000000000000000000000042",
+  total_amount_usdt: 25_000_000,
+  global_status: "Funded",
+  created_at_chain: "2026-05-01T10:00:00Z",
+  funded_at: "2026-05-01T10:00:00Z",
+  item_count: 3,
+  is_cross_border: false,
+  delivery_address_snapshot: {
+    city: "Lagos",
+    country: "NGA",
+    address_line: "12 Allen Avenue",
+    phone_number: "+2349011234567",
+  },
+  line_items: [
+    { title: "Robe wax M", qty: 2, image_ipfs_hash: "QmRobe" },
+    { title: "Sandales 38", qty: 1, image_ipfs_hash: null },
+  ],
+};
+
+describe("OrdersTab — anonymized buyer + deadline + line items (Block 8 hotfix)", () => {
+  it("renders the anonymized 'Buyer in {city}, {country}' label, never the raw 0x address", async () => {
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [FUNDED_ORDER],
+      pagination: { total: 1, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByText(/Buyer in Lagos, Nigeria/)).toBeInTheDocument();
+    // Rule 5 — never surface a raw 0x… string to the seller UI.
+    expect(screen.queryByText(/0xbuyer/)).toBeNull();
+  });
+
+  it("renders the inline line_items breakdown so the seller knows what to ship", async () => {
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [FUNDED_ORDER],
+      pagination: { total: 1, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+    const breakdown = screen.getByTestId("order-row-line-items");
+    expect(breakdown).toBeInTheDocument();
+    expect(breakdown.textContent).toContain("Robe wax M");
+    expect(breakdown.textContent).toContain("× 2");
+    expect(breakdown.textContent).toContain("Sandales 38");
+    expect(breakdown.textContent).toContain("× 1");
+  });
+
+  it("renders the seller-inactivity deadline badge for shippable orders", async () => {
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [FUNDED_ORDER],
+      pagination: { total: 1, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+    const badge = screen.getByTestId("order-row-deadline");
+    expect(badge.textContent).toMatch(/Ship in .* or order auto-refunds|Past auto-refund deadline/);
+  });
+
+  it("renders the aggregate banner with totals when at least one shippable order is present", async () => {
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [FUNDED_ORDER],
+      pagination: { total: 1, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+    const banner = screen.getByTestId("orders-aggregate-banner");
+    expect(banner.textContent).toContain("To ship: 1 order");
+    // 2 + 1 = 3 articles across the line_items.
+    expect(banner.textContent).toContain("3 articles");
+  });
+
+  it("toggles into the pick-list view and aggregates SKUs by title across orders", async () => {
+    fetchSellerOrdersMock.mockResolvedValueOnce({
+      orders: [
+        FUNDED_ORDER,
+        {
+          ...FUNDED_ORDER,
+          id: "order-funded-2",
+          onchain_order_id: 43,
+          line_items: [
+            { title: "Robe wax M", qty: 3, image_ipfs_hash: "QmRobe" },
+          ],
+        },
+      ],
+      pagination: { total: 2, has_more: false, next_cursor: null },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    await waitFor(() =>
+      expect(screen.queryByTestId("orders-skeleton")).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: /Pick list/i }));
+    const list = screen.getByTestId("pick-list");
+    // Robe wax M = 2 + 3 = 5 across 2 orders.
+    expect(list.textContent).toContain("Robe wax M");
+    expect(list.textContent).toContain("× 5");
+    expect(list.textContent).toContain("2 orders");
   });
 });

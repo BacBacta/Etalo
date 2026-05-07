@@ -1,11 +1,12 @@
 "use client";
 
-import { Truck } from "@phosphor-icons/react";
+import { Package, Truck } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
+import { PickListView } from "@/components/seller/PickListView";
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
@@ -14,8 +15,18 @@ import { fireMilestone } from "@/lib/confetti/milestones";
 import { formatRowDate } from "@/lib/format";
 import {
   fetchSellerOrders,
+  type SellerOrderItem,
   type SellerOrdersPage,
 } from "@/lib/seller-api";
+import {
+  buyerLabel,
+  deadlineInfo,
+  ipfsImageUrl,
+  isShippable,
+  statusBadgeClass,
+  summarizeOrders,
+  type DeadlineUrgency,
+} from "@/lib/sellerOrderHelpers";
 import { formatRawUsdt } from "@/lib/usdt";
 
 // Block 6 sub-block 6.3 — MilestoneDialogV5 imported dynamically with
@@ -52,12 +63,19 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "Refunded", label: "Refunded" },
 ];
 
-// Statuses where the seller can still mark items as shipped.
-const SHIPPABLE_STATUSES = new Set(["Funded", "PartiallyShipped"]);
+const URGENCY_DEADLINE_CLASSES: Record<DeadlineUrgency, string> = {
+  expired: "bg-rose-100 text-rose-800",
+  urgent: "bg-rose-100 text-rose-800",
+  warn: "bg-amber-100 text-amber-800",
+  safe: "bg-emerald-50 text-emerald-700",
+};
+
+type ViewMode = "orders" | "pick-list";
 
 export function OrdersTab({ address }: Props) {
   const [data, setData] = useState<SellerOrdersPage | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("");
+  const [view, setView] = useState<ViewMode>("orders");
   const [shipTarget, setShipTarget] = useState<{
     dbOrderId: string;
     onchainOrderId: number;
@@ -110,25 +128,107 @@ export function OrdersTab({ address }: Props) {
       ? ((data.pagination as Record<string, unknown>).total as number)
       : null;
 
+  const aggregate = useMemo(
+    () => (data ? summarizeOrders(data.orders) : null),
+    [data],
+  );
+
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
-        <label htmlFor="status-filter" className="text-base">
-          Filter:
-        </label>
-        <select
-          id="status-filter"
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="min-h-[44px] rounded-md border border-neutral-300 p-2 text-base"
+      {/* Aggregate banner — sticky context bar above the list/pick view.
+          Always rendered when there's at least one shippable order so
+          the seller's "what to ship next" pressure is visible without
+          scrolling. */}
+      {aggregate && aggregate.shippableOrderCount > 0 ? (
+        <div
+          data-testid="orders-aggregate-banner"
+          className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 tabular-nums"
         >
-          {STATUS_OPTIONS.map((s) => (
-            <option key={s.value} value={s.value}>
-              {s.label}
-            </option>
-          ))}
-        </select>
+          <span className="font-medium">
+            To ship: {aggregate.shippableOrderCount}{" "}
+            {aggregate.shippableOrderCount === 1 ? "order" : "orders"}
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            {aggregate.totalItemsToShip}{" "}
+            {aggregate.totalItemsToShip === 1 ? "article" : "articles"}
+          </span>
+          {aggregate.earliestDeadline ? (
+            <>
+              <span aria-hidden>·</span>
+              <span
+                data-testid="orders-aggregate-deadline"
+                data-urgency={aggregate.earliestDeadline.urgency}
+              >
+                next deadline{" "}
+                <span className="font-semibold">
+                  {aggregate.earliestDeadline.urgency === "expired"
+                    ? "past due"
+                    : aggregate.earliestDeadline.label}
+                </span>
+              </span>
+            </>
+          ) : null}
+        </div>
+      ) : null}
+
+      {/* View toggle — orders (per-buyer) vs pick list (per-SKU).
+          Pick list aggregates open orders so a seller fulfilling 5 of
+          the same SKU sees `× 5` instead of 5 separate cards. */}
+      <div
+        role="tablist"
+        aria-label="Orders view"
+        className="inline-flex rounded-md border border-neutral-200 p-1"
+        data-testid="orders-view-toggle"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "orders" ? "true" : "false"}
+          onClick={() => setView("orders")}
+          className={`min-h-[40px] rounded px-3 text-sm font-medium ${
+            view === "orders"
+              ? "bg-neutral-900 text-white"
+              : "text-neutral-700 hover:bg-neutral-100"
+          }`}
+        >
+          Orders
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "pick-list" ? "true" : "false"}
+          onClick={() => setView("pick-list")}
+          className={`min-h-[40px] rounded px-3 text-sm font-medium ${
+            view === "pick-list"
+              ? "bg-neutral-900 text-white"
+              : "text-neutral-700 hover:bg-neutral-100"
+          }`}
+        >
+          <Package className="mr-1 inline h-4 w-4" aria-hidden />
+          Pick list
+        </button>
       </div>
+
+      {view === "orders" ? (
+        <div className="flex items-center gap-3">
+          <label htmlFor="status-filter" className="text-base">
+            Filter:
+          </label>
+          <select
+            id="status-filter"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="min-h-[44px] rounded-md border border-neutral-300 p-2 text-base"
+          >
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
 
       {data === null ? (
         <div
@@ -139,6 +239,8 @@ export function OrdersTab({ address }: Props) {
           <SkeletonV5 variant="row" />
           <SkeletonV5 variant="row" />
         </div>
+      ) : view === "pick-list" ? (
+        <PickListView orders={data.orders} />
       ) : data.orders.length === 0 ? (
         statusFilter ? (
           <p className="text-base text-neutral-600">
@@ -153,63 +255,22 @@ export function OrdersTab({ address }: Props) {
         )
       ) : (
         <ul className="space-y-2">
-          {data.orders.map((o) => {
-            const buyerShort = `${o.buyer_address.slice(0, 6)}…${o.buyer_address.slice(-4)}`;
-            const canShip = SHIPPABLE_STATUSES.has(o.global_status);
-            return (
-              <li
-                key={o.id}
-                className="rounded-md border border-neutral-200 p-3"
-              >
-                <div className="mb-1 flex items-center justify-between">
-                  <span className="text-base font-medium tabular-nums">
-                    Order #{o.onchain_order_id}
-                  </span>
-                  <span className="rounded bg-neutral-100 px-2 py-1 text-sm">
-                    {o.global_status}
-                  </span>
-                </div>
-                <div className="text-sm text-neutral-600 tabular-nums">
-                  Buyer {buyerShort} · {formatRawUsdt(o.total_amount_usdt)}{" "}
-                  USDT · {formatRowDate(o.created_at_chain)} · {o.item_count}{" "}
-                  {o.item_count === 1 ? "item" : "items"}
-                </div>
-                {/* Delivery snapshot — shipping context directly inline.
-                    Pre-fund orders show the neutral "will appear once
-                    funded" message ; post-fund orders show full address
-                    + WhatsApp coordinate deeplink. ADR-044 / J11.7 Block 8
-                    component reused here. */}
-                <div className="mt-3">
-                  <OrderDeliveryAddressCard
-                    snapshot={o.delivery_address_snapshot ?? null}
-                    orderId={o.onchain_order_id}
-                  />
-                </div>
-                {canShip ? (
-                  <div className="mt-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() =>
-                        setShipTarget({
-                          dbOrderId: o.id,
-                          onchainOrderId: o.onchain_order_id,
-                        })
-                      }
-                      className="min-h-[44px] text-base"
-                    >
-                      <Truck className="mr-2 h-4 w-4" />
-                      Mark shipped
-                    </Button>
-                  </div>
-                ) : null}
-              </li>
-            );
-          })}
+          {data.orders.map((o) => (
+            <OrderRow
+              key={o.id}
+              order={o}
+              onShipClick={() =>
+                setShipTarget({
+                  dbOrderId: o.id,
+                  onchainOrderId: o.onchain_order_id,
+                })
+              }
+            />
+          ))}
         </ul>
       )}
 
-      {data && totalNum !== null && data.orders.length < totalNum ? (
+      {data && view === "orders" && totalNum !== null && data.orders.length < totalNum ? (
         <p className="text-sm text-neutral-500 tabular-nums">
           Showing {data.orders.length} of {totalNum} — pagination coming.
         </p>
@@ -237,5 +298,118 @@ export function OrdersTab({ address }: Props) {
         onCtaClick={markFirstSaleShown}
       />
     </div>
+  );
+}
+
+interface OrderRowProps {
+  order: SellerOrderItem;
+  onShipClick: () => void;
+}
+
+function OrderRow({ order, onShipClick }: OrderRowProps) {
+  const canShip = isShippable(order.global_status);
+  const dl = deadlineInfo(order.funded_at, order.global_status);
+  const buyer = buyerLabel(order.delivery_address_snapshot, order.onchain_order_id);
+  const lineItems = order.line_items ?? [];
+
+  return (
+    <li className="rounded-md border border-neutral-200 p-3">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <span className="text-base font-medium tabular-nums">
+          Order #{order.onchain_order_id}
+        </span>
+        <span
+          data-testid="order-row-status"
+          className={`rounded px-2 py-1 text-sm ${statusBadgeClass(order.global_status)}`}
+        >
+          {order.global_status}
+        </span>
+      </div>
+      <div className="text-sm text-neutral-600 tabular-nums">
+        {buyer} · {formatRawUsdt(order.total_amount_usdt)} USDT ·{" "}
+        {formatRowDate(order.created_at_chain)} · {order.item_count}{" "}
+        {order.item_count === 1 ? "item" : "items"}
+      </div>
+
+      {/* Deadline countdown — only renders for shippable orders with a
+          fund timestamp. Codes urgency via color so the seller can scan
+          the list and prioritize without reading every label. */}
+      {dl ? (
+        <div
+          data-testid="order-row-deadline"
+          data-urgency={dl.urgency}
+          className={`mt-2 inline-flex items-center rounded px-2 py-1 text-sm font-medium ${URGENCY_DEADLINE_CLASSES[dl.urgency]}`}
+        >
+          {dl.urgency === "expired"
+            ? "Past auto-refund deadline"
+            : `Ship in ${dl.label} or order auto-refunds`}
+        </div>
+      ) : null}
+
+      {/* Line items — what to pull from shelves. Fallback row appears
+          when product_ids is null (legacy / pre-product-snapshot orders). */}
+      {lineItems.length > 0 ? (
+        <ul
+          className="mt-3 space-y-1.5"
+          data-testid="order-row-line-items"
+        >
+          {lineItems.map((item, idx) => (
+            <li
+              key={`${order.id}-${idx}`}
+              className="flex items-center gap-2 text-sm text-neutral-800"
+            >
+              {item.image_ipfs_hash ? (
+                // Plain <img> — 28 px thumbnail, see PickListRow note.
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={ipfsImageUrl(item.image_ipfs_hash) ?? ""}
+                  alt=""
+                  className="h-7 w-7 flex-shrink-0 rounded object-cover"
+                  loading="lazy"
+                />
+              ) : (
+                <Package
+                  className="h-5 w-5 flex-shrink-0 text-neutral-400"
+                  aria-hidden
+                />
+              )}
+              <span className="flex-1 truncate">{item.title}</span>
+              <span className="flex-shrink-0 font-medium tabular-nums">
+                × {item.qty}
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+
+      {/* Mark shipped is the action this row exists to enable when
+          status is Funded / PartiallyShipped — promoted to primary
+          variant + positioned ABOVE the delivery card so the CTA is
+          the first action a thumb reaches for. */}
+      {canShip ? (
+        <div className="mt-3">
+          <Button
+            type="button"
+            variant="default"
+            onClick={onShipClick}
+            className="min-h-[44px] text-base"
+          >
+            <Truck className="mr-2 h-4 w-4" />
+            Mark shipped
+          </Button>
+        </div>
+      ) : null}
+
+      {/* Delivery snapshot — shown only when the buyer has funded
+          (snapshot non-null). Pre-fund orders skip the entire card so
+          the list stays scannable when many orders are still Created. */}
+      <div className="mt-3">
+        <OrderDeliveryAddressCard
+          snapshot={order.delivery_address_snapshot ?? null}
+          orderId={order.onchain_order_id}
+          hideWhenEmpty
+        />
+      </div>
+    </li>
   );
 }

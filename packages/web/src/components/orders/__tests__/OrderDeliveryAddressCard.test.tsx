@@ -20,15 +20,29 @@ const FULL_SNAPSHOT: DeliveryAddressSnapshot = {
 };
 
 describe("OrderDeliveryAddressCard", () => {
-  it("renders all fields when snapshot is fully populated", () => {
+  it("renders address fields when snapshot is fully populated, but never the raw phone number", () => {
     render(<OrderDeliveryAddressCard snapshot={FULL_SNAPSHOT} orderId={42} />);
     expect(screen.getByTestId("order-delivery-card")).toBeDefined();
     expect(screen.getByText(/Lagos, Nigeria/)).toBeDefined();
     expect(screen.getByText("Lagos State")).toBeDefined();
     expect(screen.getByText("12 Allen Avenue, Ikeja")).toBeDefined();
     expect(screen.getByText("Near central pharmacy")).toBeDefined();
-    expect(screen.getByText("+2349011234567")).toBeDefined();
     expect(screen.getByText("Ring twice")).toBeDefined();
+    // Privacy + escrow-bypass-prevention contract — the raw phone is
+    // intentionally not surfaced ; only the WhatsApp deeplink is.
+    expect(screen.queryByText("+2349011234567")).toBeNull();
+    expect(screen.queryByTestId("order-delivery-phone")).toBeNull();
+  });
+
+  it("renders nothing when hideWhenEmpty is true and snapshot is null", () => {
+    const { container } = render(
+      <OrderDeliveryAddressCard
+        snapshot={null}
+        orderId={42}
+        hideWhenEmpty
+      />,
+    );
+    expect(container.firstChild).toBeNull();
   });
 
   it("renders gracefully when landmark + notes are null", () => {

@@ -51,10 +51,21 @@ interface Props {
   /** Order id for the WhatsApp pre-filled message. Use the on-chain
    *  ID (cleaner buyer-facing reference than a uuid). */
   orderId: string | number;
+  /** When true, the empty/pre-fund branch renders nothing instead of a
+   *  neutral notice card. Used by the seller orders list where the
+   *  per-row delivery card is noise on pre-fund orders. Default false
+   *  preserves the original buyer-facing /orders/[id] surface where
+   *  the explicit message is informative. */
+  hideWhenEmpty?: boolean;
 }
 
-export function OrderDeliveryAddressCard({ snapshot, orderId }: Props) {
+export function OrderDeliveryAddressCard({
+  snapshot,
+  orderId,
+  hideWhenEmpty = false,
+}: Props) {
   if (!snapshot) {
+    if (hideWhenEmpty) return null;
     return (
       <section
         data-testid="order-delivery-empty"
@@ -123,17 +134,11 @@ export function OrderDeliveryAddressCard({ snapshot, orderId }: Props) {
             </dd>
           </div>
         ) : null}
-        {snapshot.phone_number ? (
-          <div>
-            <dt className="sr-only">Phone</dt>
-            <dd
-              data-testid="order-delivery-phone"
-              className="font-medium"
-            >
-              {snapshot.phone_number}
-            </dd>
-          </div>
-        ) : null}
+        {/* Buyer phone number is intentionally NOT rendered. Surfacing
+            the raw number invites direct off-platform contact (privacy
+            risk + escrow bypass risk). The WhatsApp deeplink below
+            opens a pre-filled chat tied to the order ID, which is
+            sufficient for delivery coordination. */}
         {snapshot.notes ? (
           <div>
             <dt className="text-neutral-500">Notes</dt>
