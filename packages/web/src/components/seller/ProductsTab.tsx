@@ -1,7 +1,8 @@
 "use client";
 
 import { ImageSquare, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { useCallback, useMemo, useState } from "react";
 
 import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
 import { ProductFormDialog } from "@/components/seller/ProductFormDialog";
@@ -9,7 +10,10 @@ import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
-  fetchMyProducts,
+  MY_PRODUCTS_QUERY_KEY,
+  useMyProducts,
+} from "@/hooks/useMyProducts";
+import {
   type MyProductsListItem,
   type ProductDetail,
   type SellerProfilePublic,
@@ -41,7 +45,20 @@ const STATUS_LABEL: Record<string, string> = {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function ProductsTab({ profile, walletAddress }: Props) {
-  const [products, setProducts] = useState<MyProductsListItem[] | null>(null);
+  const queryClient = useQueryClient();
+  const productsQuery = useMyProducts({ walletAddress });
+  // Treat error and pending the same as the previous "still loading"
+  // branch — the dashboard already shows a retry path at a higher
+  // level if the seller profile fetch itself fails. Past hard
+  // failures here just rendered an empty list with no error toast,
+  // so we replicate that.
+  // Memoized so the `null` / array reference stays stable between
+  // renders that don't actually change the data — avoids cascading
+  // re-runs of the count `useMemo` below + child re-renders.
+  const products: MyProductsListItem[] | null = useMemo(() => {
+    if (productsQuery.isPending) return null;
+    return productsQuery.data?.products ?? [];
+  }, [productsQuery.isPending, productsQuery.data]);
   const [formOpen, setFormOpen] = useState(false);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
   const [editingProduct, setEditingProduct] = useState<ProductDetail | null>(
@@ -53,15 +70,15 @@ export function ProductsTab({ profile, walletAddress }: Props) {
     title: string;
   } | null>(null);
 
+  // Centralized cache invalidation : after a create / edit / delete
+  // mutation we invalidate the my-products query key so the next
+  // render refetches fresh data. Keeps every active subscriber
+  // (this tab + any future Overview-level "products count") in sync.
   const refetchProducts = useCallback(() => {
-    fetchMyProducts(walletAddress)
-      .then((d) => setProducts(d.products))
-      .catch(() => setProducts([]));
-  }, [walletAddress]);
-
-  useEffect(() => {
-    refetchProducts();
-  }, [refetchProducts]);
+    void queryClient.invalidateQueries({
+      queryKey: MY_PRODUCTS_QUERY_KEY,
+    });
+  }, [queryClient]);
 
   const openCreate = () => {
     setFormMode("create");

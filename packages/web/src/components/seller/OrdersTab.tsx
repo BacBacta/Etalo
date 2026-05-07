@@ -1,6 +1,7 @@
 "use client";
 
 import { Package, Truck } from "@phosphor-icons/react";
+import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -11,12 +12,14 @@ import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useMilestoneOnce } from "@/hooks/useMilestoneOnce";
+import {
+  SELLER_ORDERS_QUERY_KEY,
+  useSellerOrders,
+} from "@/hooks/useSellerOrders";
 import { fireMilestone } from "@/lib/confetti/milestones";
 import { formatRowDate } from "@/lib/format";
 import {
-  fetchSellerOrders,
   type SellerOrderItem,
-  type SellerOrdersPage,
 } from "@/lib/seller-api";
 import {
   buyerLabel,
@@ -73,7 +76,7 @@ const URGENCY_DEADLINE_CLASSES: Record<DeadlineUrgency, string> = {
 type ViewMode = "orders" | "pick-list";
 
 export function OrdersTab({ address }: Props) {
-  const [data, setData] = useState<SellerOrdersPage | null>(null);
+  const queryClient = useQueryClient();
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [view, setView] = useState<ViewMode>("orders");
   const [shipTarget, setShipTarget] = useState<{
@@ -81,15 +84,25 @@ export function OrdersTab({ address }: Props) {
     onchainOrderId: number;
   } | null>(null);
 
-  const refetch = useCallback(() => {
-    fetchSellerOrders(address, 1, 20, statusFilter || undefined)
-      .then((d) => setData(d))
-      .catch(() => setData(null));
-  }, [address, statusFilter]);
+  const ordersQuery = useSellerOrders({
+    address,
+    page: 1,
+    pageSize: 20,
+    status: statusFilter || undefined,
+  });
+  const data = ordersQuery.isPending || ordersQuery.isError
+    ? null
+    : (ordersQuery.data ?? null);
 
-  useEffect(() => {
-    refetch();
-  }, [refetch]);
+  // Centralized invalidation point used after a successful
+  // markShipped mutation. Hits every (address, page, pageSize,
+  // status) combo cached so the Overview tab's recent-orders strip
+  // also picks up the change.
+  const refetch = useCallback(() => {
+    void queryClient.invalidateQueries({
+      queryKey: SELLER_ORDERS_QUERY_KEY,
+    });
+  }, [queryClient]);
 
   // J10-V5 Block 7 — first-sale milestone. Track previous orders.length
   // and fire confetti when transition is 0 → ≥1 within the same mount.
