@@ -450,13 +450,15 @@ MiniPay surfaced :
 
 **Owner** : Mike (or whoever owns wallet integration).
 **Estim** : 1-2h investigation + escalation pass.
-**Prio** : Medium for V1 launch (pre-J12 mainnet) — blocks the
-seller-side ship action via MiniPay UI on Sepolia ; live workaround
-exists (run via local script using a non-MiniPay wallet client). Not
-a buyer-interface MVP issue — surfaces independent of J11.5 sprint.
-**Severity** : functional impact only (no funds at risk, no contract
+**Prio** : ~~Medium for V1 launch (pre-J12 mainnet)~~ **HIGH for V1
+launch — escalation pre-J12 mandatory** (cf. scope check 2026-05-07).
+**Severity** : ~~functional impact only (no funds at risk, no contract
 divergence — `shipItemsGrouped` is still callable from any non-
-MiniPay client).
+MiniPay client)~~ **BROAD — all contract-write tx via MiniPay UI on
+Celo Sepolia blocked at pre-flight, including standard ERC20
+approve(). Etalo-internal contract paths unaffected (verified).
+Severity bumps from Medium to HIGH for V1 mainnet launch readiness
+contingent on Sepolia-vs-mainnet behavior.**
 
 ### Diagnostic gathered
 
