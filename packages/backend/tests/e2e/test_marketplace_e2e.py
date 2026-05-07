@@ -66,6 +66,7 @@ async def _seed_product(
     status: str = "active",
     created_at: datetime | None = None,
     image_ipfs_hashes: list[str] | None = None,
+    category: str | None = None,
 ) -> Product:
     # Default to a placeholder image so the product clears the V1
     # marketplace quality bar (image_ipfs_hashes IS NOT NULL +
@@ -85,6 +86,7 @@ async def _seed_product(
         stock=stock,
         status=status,
         image_ipfs_hashes=image_hashes if image_hashes else None,
+        category=category,
         created_at=created_at or datetime.now(timezone.utc),
     )
     db.add(product)
@@ -425,3 +427,104 @@ async def test_marketplace_search_filters_by_title_substring(
         assert resp_none.json()["products"] == []
     finally:
         await _cleanup(db, [handle])
+
+
+@pytest.mark.asyncio
+async def test_marketplace_filter_by_category(
+    client: AsyncClient, db: AsyncSession
+):
+    """`?category=` scopes to a single V1 category. `?category=all` and
+    omitted both return everything."""
+    suffix = uuid.uuid4().hex[:8]
+    handle = f"mp-cat-{suffix}"
+    seller, _ = await _seed_seller(db, handle=handle, shop_name="Cat Seller")
+    base = datetime.now(timezone.utc) + timedelta(days=600)
+    await _seed_product(
+        db, seller=seller, slug=f"robe-{suffix}", title="Robe wax",
+        category="fashion", created_at=base + timedelta(hours=3),
+    )
+    await _seed_product(
+        db, seller=seller, slug=f"lipstick-{suffix}", title="Matte lipstick",
+        category="beauty", created_at=base + timedelta(hours=2),
+    )
+    await _seed_product(
+        db, seller=seller, slug=f"snack-{suffix}", title="Plantain chips",
+        category="food", created_at=base + timedelta(hours=1),
+    )
+    await db.commit()
+    try:
+        resp = await client.get(
+            "/api/v1/marketplace/products?limit=50&category=fashion",
+        )
+        slugs = {p["slug"] for p in resp.json()["products"]}
+        assert f"robe-{suffix}" in slugs
+        assert f"lipstick-{suffix}" not in slugs
+        assert f"snack-{suffix}" not in slugs
+
+        resp_all = await client.get(
+            "/api/v1/marketplace/products?limit=50&category=all",
+        )
+        all_slugs = {p["slug"] for p in resp_all.json()["products"]}
+        for s in (f"robe-{suffix}", f"lipstick-{suffix}", f"snack-{suffix}"):
+            assert s in all_slugs
+
+        # Unknown category → 400 (matches the country filter contract).
+        resp_bad = await client.get(
+            "/api/v1/marketplace/products?category=robotics",
+        )
+        assert resp_bad.status_code == 400
+    finally:
+        await _cleanup(db, [handle])
+
+
+@pytest.mark.asyncio
+async def test_marketplace_sort_price_asc_and_desc(
+    client: AsyncClient, db: AsyncSession
+):
+    """`sort=price_asc` and `sort=price_desc` order the listing by
+    Product.price_usdt with a created_at desc tiebreaker."""
+    suffix = uuid.uuid4().hex[:8]
+    handle = f"mp-sort-{suffix}"
+    seller, _ = await _seed_seller(db, handle=handle, shop_name="Sort Seller")
+    base = datetime.now(timezone.utc) + timedelta(days=700)
+    cheap = await _seed_product(
+        db, seller=seller, slug=f"cheap-{suffix}", title="Cheap item",
+        price="5.00", created_at=base + timedelta(hours=1),
+    )
+    mid = await _seed_product(
+        db, seller=seller, slug=f"mid-{suffix}", title="Mid item",
+        price="20.00", created_at=base + timedelta(hours=2),
+    )
+    pricey = await _seed_product(
+        db, seller=seller, slug=f"pricey-{suffix}", title="Pricey item",
+        price="100.00", created_at=base + timedelta(hours=3),
+    )
+    await db.commit()
+    try:
+        resp_asc = await client.get(
+            "/api/v1/marketplace/products?limit=50&sort=price_asc",
+        )
+        slugs_asc = [p["slug"] for p in resp_asc.json()["products"]]
+        # cheap → mid → pricey ordering, even though created order is the reverse.
+        idx_cheap = slugs_asc.index(cheap.slug)
+        idx_mid = slugs_asc.index(mid.slug)
+        idx_pricey = slugs_asc.index(pricey.slug)
+        assert idx_cheap < idx_mid < idx_pricey
+
+        resp_desc = await client.get(
+            "/api/v1/marketplace/products?limit=50&sort=price_desc",
+        )
+        slugs_desc = [p["slug"] for p in resp_desc.json()["products"]]
+        idx_cheap_d = slugs_desc.index(cheap.slug)
+        idx_mid_d = slugs_desc.index(mid.slug)
+        idx_pricey_d = slugs_desc.index(pricey.slug)
+        assert idx_pricey_d < idx_mid_d < idx_cheap_d
+
+        # Unknown sort → 400 surfaces the same error path as before.
+        resp_bad = await client.get(
+            "/api/v1/marketplace/products?sort=trending",
+        )
+        assert resp_bad.status_code == 400
+    finally:
+        await _cleanup(db, [handle])
+

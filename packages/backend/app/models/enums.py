@@ -91,6 +91,23 @@ class Country(str, Enum):
     KENYA = "KEN"
 
 
+class ProductCategory(str, Enum):
+    """V1 marketplace product categories — minimal 5-value enum.
+
+    Validated at the API layer (Pydantic) ; the underlying DB column is
+    `Product.category String(50)` so legacy / future values won't error
+    on read. Frontend mirror lives in `lib/categories.ts`. Migrating
+    additional values later is additive — just append a new member here
+    + the same key in the frontend constant. No DB migration required.
+    """
+
+    FASHION = "fashion"
+    BEAUTY = "beauty"
+    FOOD = "food"
+    HOME = "home"
+    OTHER = "other"
+
+
 # Postgres ENUM type names (used by SQLAlchemy + Alembic migration)
 ORDER_STATUS_ENUM_NAME = "order_status"
 ITEM_STATUS_ENUM_NAME = "item_status"

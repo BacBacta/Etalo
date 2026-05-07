@@ -4,6 +4,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.models.enums import ProductCategory
+
 
 class ProductCreate(BaseModel):
     """ADR-036 self-service create. Slug is owner-chosen and immutable
@@ -23,7 +25,11 @@ class ProductCreate(BaseModel):
     stock: int = Field(ge=0, default=0)
     status: str = Field(default="draft", pattern=r"^(active|draft|paused)$")
     image_ipfs_hashes: list[str] = Field(default_factory=list, max_length=8)
-    category: str | None = Field(default=None, max_length=50)
+    # Validated against the V1 enum so the public marketplace can
+    # bucket consistently. Free-form was rejected V1 — risk of
+    # fragmentation ("robe" / "Robes" / "ROBES") that destroys the
+    # filter UX. Keep `Other` for products that don't fit a bucket.
+    category: ProductCategory | None = Field(default=None)
 
 
 class ProductUpdate(BaseModel):
@@ -37,7 +43,7 @@ class ProductUpdate(BaseModel):
         default=None, pattern=r"^(active|draft|paused)$"
     )
     image_ipfs_hashes: list[str] | None = Field(default=None, max_length=8)
-    category: str | None = Field(default=None, max_length=50)
+    category: ProductCategory | None = Field(default=None)
 
 
 class ProductRead(BaseModel):

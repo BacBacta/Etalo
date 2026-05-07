@@ -21,15 +21,24 @@ import {
 import { CountryPromptBanner } from "@/components/CountryPromptBanner";
 import { MarketplaceGrid } from "@/components/MarketplaceGrid";
 import {
+  CategoryFilterChips,
+  type CategoryFilterValue,
+} from "@/components/marketplace/CategoryFilterChips";
+import {
   CountryFilterChips,
   type CountryFilterValue,
 } from "@/components/marketplace/CountryFilterChips";
 import { MarketplaceSearchInput } from "@/components/marketplace/MarketplaceSearchInput";
+import {
+  SortDropdown,
+  type SortValue,
+} from "@/components/marketplace/SortDropdown";
 import { Button } from "@/components/ui/button";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useBuyerCountry } from "@/hooks/useBuyerCountry";
 import { useMarketplaceProducts } from "@/hooks/useMarketplaceProducts";
 import { isValidCountryCode } from "@/components/CountrySelector";
+import { isValidCategoryCode } from "@/lib/categories";
 import { countryName } from "@/lib/country";
 import { detectMiniPay } from "@/lib/minipay-detect";
 import { cn } from "@/lib/utils";
@@ -102,12 +111,23 @@ function MarketplacePageInner() {
 
   const urlCountry = searchParams?.get("country") ?? null;
   const urlQ = searchParams?.get("q") ?? "";
+  const urlCategory = searchParams?.get("category") ?? null;
+  const urlSort = searchParams?.get("sort") ?? null;
   const countryFilter: CountryFilterValue = useMemo(() => {
     if (urlCountry === "all") return "all";
     if (urlCountry && isValidCountryCode(urlCountry)) return urlCountry;
     if (buyerCountry && isValidCountryCode(buyerCountry)) return buyerCountry;
     return "all";
   }, [urlCountry, buyerCountry]);
+  const categoryFilter: CategoryFilterValue = useMemo(() => {
+    if (urlCategory === "all" || urlCategory === null) return "all";
+    if (isValidCategoryCode(urlCategory)) return urlCategory;
+    return "all";
+  }, [urlCategory]);
+  const sortValue: SortValue = useMemo(() => {
+    if (urlSort === "price_asc" || urlSort === "price_desc") return urlSort;
+    return "newest";
+  }, [urlSort]);
 
   const updateCountryFilter = useCallback(
     (next: CountryFilterValue) => {
@@ -135,6 +155,36 @@ function MarketplacePageInner() {
         params.delete("q");
       } else {
         params.set("q", trimmed);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
+
+  const updateCategoryFilter = useCallback(
+    (next: CategoryFilterValue) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      if (next === "all") {
+        params.delete("category");
+      } else {
+        params.set("category", next);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
+
+  const updateSort = useCallback(
+    (next: SortValue) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      // "newest" is the default — keep the URL clean for shareable
+      // links.
+      if (next === "newest") {
+        params.delete("sort");
+      } else {
+        params.set("sort", next);
       }
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -175,6 +225,8 @@ function MarketplacePageInner() {
     enabled: isMiniPay === true,
     country: countryFilter,
     q: urlQ,
+    category: categoryFilter,
+    sort: sortValue,
   });
 
   const products = useMemo(
@@ -304,6 +356,16 @@ function MarketplacePageInner() {
           <CountryFilterChips
             value={countryFilter}
             onChange={updateCountryFilter}
+            className="mb-3"
+          />
+          <CategoryFilterChips
+            value={categoryFilter}
+            onChange={updateCategoryFilter}
+            className="mb-3"
+          />
+          <SortDropdown
+            value={sortValue}
+            onChange={updateSort}
             className="mb-6"
           />
           <div
@@ -483,6 +545,18 @@ function MarketplacePageInner() {
           <CountryFilterChips
             value={countryFilter}
             onChange={updateCountryFilter}
+            className="mb-3"
+            disabled={isRefreshing}
+          />
+          <CategoryFilterChips
+            value={categoryFilter}
+            onChange={updateCategoryFilter}
+            className="mb-3"
+            disabled={isRefreshing}
+          />
+          <SortDropdown
+            value={sortValue}
+            onChange={updateSort}
             className="mb-6"
             disabled={isRefreshing}
           />

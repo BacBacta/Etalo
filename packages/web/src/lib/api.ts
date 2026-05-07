@@ -155,6 +155,12 @@ export interface FetchMarketplaceProductsArgs {
   /** Optional case-insensitive substring search over Product.title.
    *  Empty / undefined disables search. Trimmed by the backend. */
   q?: string | null;
+  /** Category filter (fashion / beauty / food / home / other / "all").
+   *  Omit or pass "all" for no filter. */
+  category?: string | null;
+  /** Sort order : "newest" / "popular" / "price_asc" / "price_desc".
+   *  Defaults to backend's "newest" if omitted. */
+  sort?: string | null;
 }
 
 export async function fetchMarketplaceProducts(
@@ -163,11 +169,13 @@ export async function fetchMarketplaceProducts(
 ): Promise<MarketplaceListResponse> {
   // Backwards-compatible signature : the legacy form
   // `fetchMarketplaceProducts(cursor, limit)` still works ; new callers
-  // can pass an args object with country / q.
+  // can pass an args object with country / q / category / sort.
   let cursor: string | null | undefined;
   let effectiveLimit = limit;
   let country: string | null | undefined;
   let q: string | null | undefined;
+  let category: string | null | undefined;
+  let sort: string | null | undefined;
   if (
     cursorOrArgs !== null &&
     typeof cursorOrArgs === "object" &&
@@ -177,6 +185,8 @@ export async function fetchMarketplaceProducts(
     effectiveLimit = cursorOrArgs.limit ?? limit;
     country = cursorOrArgs.country;
     q = cursorOrArgs.q;
+    category = cursorOrArgs.category;
+    sort = cursorOrArgs.sort;
   } else {
     cursor = cursorOrArgs as string | null | undefined;
   }
@@ -189,6 +199,11 @@ export async function fetchMarketplaceProducts(
   if (cursor) params.set("after", cursor);
   if (country && country !== "all") params.set("country", country);
   if (q && q.trim().length > 0) params.set("q", q.trim());
+  if (category && category !== "all") params.set("category", category);
+  // Only set sort when caller explicitly passed a non-default — keeps
+  // the URL query string clean for the common newest case (cleaner
+  // shareable links + a trivial cache-key win).
+  if (sort && sort !== "newest") params.set("sort", sort);
   const res = await fetchApi(`/marketplace/products?${params.toString()}`, {
     next: { revalidate: 30 },
   });

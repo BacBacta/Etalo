@@ -41,6 +41,13 @@ export interface UseMarketplaceProductsOptions {
    *  query key — leading/trailing whitespace doesn't change the
    *  effective query, so it shouldn't bust the cache. */
   q?: string | null;
+  /** Category filter (fashion / beauty / food / home / other). Omit or
+   *  pass "all" for no filter. */
+  category?: string | null;
+  /** Sort order — "newest" / "popular" / "price_asc" / "price_desc".
+   *  Defaults to "newest" backend-side ; we collapse "newest" to null
+   *  in the query key so the default is cache-key-stable. */
+  sort?: string | null;
 }
 
 export function useMarketplaceProducts(
@@ -51,11 +58,21 @@ export function useMarketplaceProducts(
     : null;
   const trimmedQ = options.q?.trim() ?? "";
   const q = trimmedQ.length > 0 ? trimmedQ : null;
+  const category =
+    options.category && options.category !== "all"
+      ? options.category
+      : null;
+  // "newest" is the backend default ; treat it identically to "no
+  // sort selected" in the query key + payload.
+  const sort =
+    options.sort && options.sort !== "newest" ? options.sort : null;
   return useInfiniteQuery<MarketplaceListResponse, Error>({
     queryKey: [
       ...MARKETPLACE_PRODUCTS_QUERY_KEY,
       country ?? "all",
       q ?? "",
+      category ?? "all",
+      sort ?? "newest",
     ],
     queryFn: ({ pageParam }) =>
       fetchMarketplaceProducts({
@@ -63,6 +80,8 @@ export function useMarketplaceProducts(
         limit: PAGE_SIZE,
         country,
         q,
+        category,
+        sort,
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => {

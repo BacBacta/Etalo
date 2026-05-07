@@ -22,6 +22,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  CATEGORY_OPTIONS,
+  categoryLabel,
+  isValidCategoryCode,
+  type CategoryCode,
+} from "@/lib/categories";
+import {
   createProduct,
   ProductSlugConflictError,
   updateProduct,
@@ -88,6 +94,11 @@ export function ProductFormDialog({
   const [stock, setStock] = useState("");
   const [status, setStatus] = useState<StatusValue>("draft");
   const [imageHashes, setImageHashes] = useState<string[]>([]);
+  // Default to "other" rather than null — the buyer-facing category
+  // filter is most useful when every active product is bucketed
+  // somewhere. "Other" makes the bucket explicit when the seller
+  // doesn't fit a named category.
+  const [category, setCategory] = useState<CategoryCode>("other");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
 
@@ -110,6 +121,11 @@ export function ProductFormDialog({
           : "draft",
       );
       setImageHashes(initialProduct.image_ipfs_hashes ?? []);
+      setCategory(
+        isValidCategoryCode(initialProduct.category)
+          ? initialProduct.category
+          : "other",
+      );
     } else {
       setTitle("");
       setSlug("");
@@ -119,6 +135,7 @@ export function ProductFormDialog({
       setStock("");
       setStatus("draft");
       setImageHashes([]);
+      setCategory("other");
     }
     setErrors({});
   }, [open, mode, initialProduct]);
@@ -178,6 +195,7 @@ export function ProductFormDialog({
           stock: Number(stock),
           status,
           image_ipfs_hashes: imageHashes,
+          category,
         };
         await createProduct(walletAddress, payload);
         toast.success("Product created");
@@ -190,6 +208,7 @@ export function ProductFormDialog({
           stock: Number(stock),
           status,
           image_ipfs_hashes: imageHashes,
+          category,
         };
         await updateProduct(walletAddress, initialProduct.id, payload);
         toast.success("Product updated");
@@ -296,6 +315,28 @@ export function ProductFormDialog({
               />
             </FormField>
           </div>
+
+          {/* Category — bucket the product so the marketplace filter
+              chips can target it. Default "other" keeps every product
+              bucketed (the buyer-facing chips assume non-null). */}
+          <FormField
+            label="Category"
+            hint='Pick "Other" if no category fits.'
+          >
+            <select
+              aria-label="Product category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value as CategoryCode)}
+              data-testid="product-form-category"
+              className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light"
+            >
+              {CATEGORY_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {categoryLabel(c)}
+                </option>
+              ))}
+            </select>
+          </FormField>
 
           <FormField label="Status">
             <select

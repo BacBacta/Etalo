@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_db
-from app.models.enums import Country
+from app.models.enums import Country, ProductCategory
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
@@ -27,11 +27,20 @@ from app.services.ipfs import build_ipfs_url_or_none as _ipfs_url
 # corresponding alpha-3 codes used in DB are NGA / GHA / KEN.
 _VALID_COUNTRY_FILTER = {c.value for c in Country} | {"all"}
 
+# Allowed category filter values : the 5 V1 marketplace categories +
+# "all" sentinel. Mirrors `ProductCategory` enum so the buyer-facing
+# chips and the seller-facing form share one source of truth.
+_VALID_CATEGORY_FILTER = {c.value for c in ProductCategory} | {"all"}
+
 # Allowed sort values. "newest" sorts by Product.created_at desc.
 # "popular" fallbacks to newest in V1 — denormalized completed_orders
 # count is V1.5+ scope (no cached field exists yet ; running a JOIN
 # COUNT on every marketplace request would not scale).
-_VALID_SORT = {"newest", "popular"}
+# `price_asc` / `price_desc` operate on Product.price_usdt directly ;
+# the cursor pagination still uses created_at internally so the cursor
+# token semantics stay stable across sort changes (a fresh sort
+# selection effectively resets pagination).
+_VALID_SORT = {"newest", "popular", "price_asc", "price_desc"}
 
 
 @router.get("/products", response_model=MarketplaceListResponse)
@@ -49,12 +58,16 @@ async def list_marketplace_products(
     ),
     sort: str = Query(
         "newest",
-        description="Sort order : 'newest' (created_at desc) or 'popular' (V1 fallback to newest until denormalized score ships in V1.5+).",
+        description="Sort order : 'newest' / 'popular' / 'price_asc' / 'price_desc'. 'popular' falls back to newest V1.",
     ),
     q: str | None = Query(
         None,
         max_length=100,
         description="Optional case-insensitive substring search over Product.title. Empty / None disables search.",
+    ),
+    category: str | None = Query(
+        None,
+        description="Category filter (fashion / beauty / food / home / other / 'all'). When omitted or 'all', returns every category.",
     ),
 ) -> MarketplaceListResponse:
     """
@@ -76,11 +89,33 @@ async def list_marketplace_products(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid country filter. Must be one of {sorted(_VALID_COUNTRY_FILTER)}.",
         )
+    if category is not None and category not in _VALID_CATEGORY_FILTER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid category filter. Must be one of {sorted(_VALID_CATEGORY_FILTER)}.",
+        )
     if sort not in _VALID_SORT:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid sort. Must be one of {sorted(_VALID_SORT)}.",
         )
+
+    # Sort selection — defaults to created_at desc ("newest"). For the
+    # price sorts we add a stable created_at tiebreaker so two products
+    # at the exact same price don't shuffle between renders.
+    if sort == "price_asc":
+        order_by_clauses = (
+            Product.price_usdt.asc(),
+            Product.created_at.desc(),
+        )
+    elif sort == "price_desc":
+        order_by_clauses = (
+            Product.price_usdt.desc(),
+            Product.created_at.desc(),
+        )
+    else:
+        # "newest" + "popular" both fall back to created_at desc V1.
+        order_by_clauses = (Product.created_at.desc(),)
 
     stmt = (
         select(Product, SellerProfile, User)
@@ -93,12 +128,15 @@ async def list_marketplace_products(
         # (DB allowed but UX-equivalent to NULL).
         .where(Product.image_ipfs_hashes.is_not(None))
         .where(func.cardinality(Product.image_ipfs_hashes) >= 1)
-        .order_by(Product.created_at.desc())
+        .order_by(*order_by_clauses)
         .limit(limit + 1)  # +1 to detect has_more without a count query
     )
 
     if country is not None and country != "all":
         stmt = stmt.where(User.country == country)
+
+    if category is not None and category != "all":
+        stmt = stmt.where(Product.category == category)
 
     if q:
         # Strip + collapse whitespace ; if nothing's left, treat as
