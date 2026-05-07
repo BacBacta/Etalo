@@ -12,6 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import (
+    addresses,
     admin,
     analytics,
     auth,
@@ -131,6 +132,7 @@ def create_app() -> FastAPI:
     app.include_router(cart.router, prefix="/api/v1")
     app.include_router(marketplace.router, prefix="/api/v1")
     app.include_router(marketing.router, prefix="/api/v1")
+    app.include_router(addresses.router, prefix="/api/v1")
 
     return app
 
