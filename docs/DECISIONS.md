@@ -2347,3 +2347,254 @@ Tracking ticket for the privacy graduation investigation : FU-J11-005.
 - Indexer mirror tables : `docs/BACKEND.md` (V2 indexer section)
 - Threat model parent : ADR-034 (EIP-191 deprecation rationale)
 - Follow-up : FU-J11-005 (real session auth graduation)
+
+---
+
+## ADR-044 — Delivery Address Capture for V1
+
+**Date** : 2026-05-07
+**Status** : Accepted
+
+### Context
+
+Etalo's order schema has `delivery_address: str | None` on Order
+and OrderMetadataUpdate (cf. ADR-014 V1 boutique model, schema
+established Sprint J5), but the V1 UX does not systematically
+collect this field. During Sprint J11.5 Block 8 smoke E2E,
+delivery address was filled with arbitrary strings ("any string")
+to allow the test to proceed — usable for testing, unusable for
+real commerce.
+
+Without a structured delivery address :
+
+1. **Sellers cannot ship** — receiving a "Funded" order with no
+   address means the seller has to coordinate via WhatsApp ad-hoc,
+   creating friction and inconsistent UX
+2. **Support load explodes post-launch** — every order will
+   generate "where do I ship to?" / "where is my package?"
+   support tickets
+3. **Disputes lack evidence** — if the buyer claims they didn't
+   receive the package, there's no record of where it was sent
+
+This was missed in ADR-014 V1 boutique model because the
+architecture focused on USDT escrow + IPFS metadata + WhatsApp
+notifications, leaving the physical-world delivery layer in a
+grey zone.
+
+### Decision
+
+Make delivery address **mandatory at checkout** with a structured
+form adapted to African informal addressing context.
+
+**Required fields at checkout** :
+
+- Phone number (auto-populated from MiniPay if available)
+- Country (dropdown : Nigeria / Ghana / Kenya per ADR-041 V1 scope)
+- City
+- Region / State
+- Address line (free-form, e.g. "près de la pharmacie centrale,
+  maison bleue avec portail rouge")
+
+**Optional fields** :
+
+- Postal code (rare in African informal addressing)
+- Landmark / repère
+- Delivery notes for the courier
+
+**Address book pattern** :
+
+- Buyer profile stores 1-3 saved addresses (no hard limit, but
+  practical UX limit)
+- At checkout, pick from book or add new (saved automatically)
+- Address becomes immutable on `fundOrder` (state lock at escrow
+  funding), editable until then
+
+**Seller dashboard surface** :
+
+- Full address visible on order detail post-fund
+- "Coordinate via WhatsApp" deeplink button using buyer phone
+  (delegates fine details : meeting point, delivery time, etc.)
+
+**Privacy** :
+
+- PII stored backend DB only (PostgreSQL)
+- NOT in on-chain events
+- NOT on IPFS public metadata
+- Auto-anonymize after 90 days post-completion (cron job)
+- Buyer can manually wipe address from profile at any time
+
+### Out of scope V1, deferred V1.5+
+
+- Postal code validation against external DB
+- Map pin / geocoding integration (Google Maps, Mapbox)
+- Multi-recipient or multi-address per order
+- On-chain address attestation (FederatedAttestations pattern)
+- Delivery tracking integration with logistics providers
+- "Pickup point" alternative to home delivery
+
+### Rationale
+
+- **V1 must function as actual commerce** — without delivery
+  address, the value prop "buy from a seller via stablecoin
+  escrow with delivery" is broken at the delivery step.
+- **Africa-informal context** drives free-form within structured
+  frame. Forcing strict postal code validation would block real
+  users who don't have formal addresses.
+- **Phone+WhatsApp delegation pattern** matches existing user
+  habits in target markets — sellers already coordinate
+  off-chain via WhatsApp for delivery details.
+- **Privacy by design** — PII never leaves the backend. Aligns
+  with ADR-022 non-custodial spirit (only what needs to be on-
+  chain is on-chain).
+- **Foundation for V1.5+ features** : delivery tracking events,
+  dispute on missing items with shipping evidence, address book
+  sharing across orders.
+
+### Consequences
+
+- **Sprint J11.7 inserted** between J11 BLOCKING closure and J12
+  mainnet deploy. Combined with ADR-045 in single sprint.
+- **Estimated ~5-7 days dev** (~40-60h) — combined ADR-044 +
+  ADR-045.
+- **Mainnet delayed by ~1 week** vs previous J12 plan — accepted
+  trade-off for shipping a usable V1 vs MVP-rough.
+- **Address book** is a new schema concept on buyer_profile.
+  Migration light (1-2 new columns or 1 new table).
+- **Reduces seller frustration + support load** post-launch.
+- **Strengthens marketing narrative** : "stablecoin escrow + real
+  delivery coordination" vs competing pure-DeFi-checkout
+  competitors.
+
+### References
+
+- ADR-014 (V1 boutique model — original schema)
+- ADR-041 (V1 scope intra-only, 3 target countries)
+- ADR-043 (Buyer Interface MVP — `/orders/[id]` shows order detail)
+- ADR-045 (Geographic location, country filtering — same sprint)
+- `minipay-requirements.md` rule 5 (phone-first identity)
+- `docs/SPRINT_J11_7.md` (implementation blocks)
+
+---
+
+## ADR-045 — Geographic Location & Marketplace Filters for V1
+
+**Date** : 2026-05-07
+**Status** : Accepted
+
+### Context
+
+V1 marketplace currently shows all sellers globally without
+geographic filtering. Sellers don't declare their country in the
+profile schema. Buyers cannot filter or sort the marketplace by
+location.
+
+This creates three concrete problems :
+
+1. **Cross-border purchase paths broken** — ADR-018 cross-border
+   release schedule and ADR-020 seller stake logic both depend on
+   knowing the country of seller and buyer. Without this data, V1
+   cannot enforce ADR-041 intra-only constraint at the
+   transaction level.
+2. **Marketplace UX is unstructured** — a Nigerian buyer browsing
+   sees Ghanaian and Kenyan sellers mixed with Nigerian ones,
+   creating irrelevant browsing. Without country filter, the app
+   feels like a proof-of-concept rather than a real product.
+3. **Listing review polish** — MiniPay reviewers compare against
+   14M+ user expectations. A commerce app without basic location
+   filtering reads as MVP-rough.
+
+### Decision
+
+Add **mandatory country declaration** on seller and buyer
+profiles, expose **simple country filter + sort** on the
+marketplace.
+
+**Seller side** :
+
+- Country becomes a mandatory field in seller onboarding
+  (dropdown : Nigeria / Ghana / Kenya per ADR-041 V1 scope)
+- Existing sellers without country : prompt at next login to
+  complete profile, soft-block until done (allow browsing but
+  not order management)
+- Boutique page displays seller country as a small flag/label
+  near the handle
+
+**Buyer side** :
+
+- Country auto-detected from MiniPay phone number country code
+  on first connection
+- Editable in profile if detection fails (dropdown 3 countries)
+- Stored in buyer_profile schema
+
+**Marketplace filter** :
+
+- Default filter = buyer's country (most common case)
+- "+ Show all countries" toggle to override default
+- Country chips visual : Nigeria | Ghana | Kenya
+- (Without flag emoji per CLAUDE.md no-emoji rule, use country
+  name with subtle background color)
+
+**Sort options** :
+
+- Default : newest products first
+- Secondary : popularity (based on completed_orders count if
+  available, otherwise hide)
+
+**Backend validation** :
+
+- Order creation : block if buyer.country ≠ seller.country
+  (cross-border deferred V2 per ADR-041, defense-in-depth at
+  backend even if frontend filter prevents the case)
+- Backend rejects with clear error message : "Cross-border
+  orders not yet supported. This seller is in Ghana, you are
+  in Nigeria."
+
+### Out of scope V1, deferred V1.5+
+
+- Price range filter
+- Category filter
+- Rating filter (no rating system V1)
+- City-level filtering
+- Multi-country selection / region selection
+- Distance-based sort (requires geocoding)
+- Currency conversion display ("Show prices in NGN")
+
+### Rationale
+
+- **Country is the foundation** for ADR-018 (cross-border
+  release), ADR-020 (cross-border stake), ADR-041 (V1 intra
+  scope), and ADR-044 (delivery address country constraint).
+  Without it, multiple existing ADRs cannot enforce their logic.
+- **3-country V1 scope makes the filter trivial** — no complex
+  region grouping needed (ADR-041 already constrains to 3
+  countries).
+- **Local-default reduces irrelevant browsing** — most buyers
+  want sellers in their own country first.
+- **Auto-detection from MiniPay phone** is a UX win — buyer
+  doesn't have to declare anything actively, just confirm if
+  MiniPay didn't auto-detect.
+- **Defense in depth at backend** ensures cross-border orders
+  cannot be created via API even if frontend has bugs.
+
+### Consequences
+
+- **Sprint J11.7 combined with ADR-044** — both target the same
+  schema/UX surfaces.
+- **Migration** : existing sellers without country need backfill
+  prompt (soft block until completed). Existing buyers : auto-
+  populate country at next session via MiniPay phone code.
+- **Backend API** : new query param `country` on `GET /products`
+  and `GET /sellers`. Default = buyer's country if authenticated.
+- **Frontend marketplace** : filter UI + buyer country auto-
+  detect on first load.
+- **No contract changes needed** — country is metadata stored
+  off-chain only.
+
+### References
+
+- ADR-018 (cross-border release schedule)
+- ADR-020 (seller stake cross-border tiers)
+- ADR-041 (V1 scope intra-only, 3 countries)
+- ADR-043 (Buyer Interface MVP)
+- ADR-044 (Delivery address — country dependency)
+- `docs/SPRINT_J11_7.md` (implementation blocks)
