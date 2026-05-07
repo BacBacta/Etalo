@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import DateTime, Index, String, Boolean
+from sqlalchemy import CheckConstraint, DateTime, Index, String, Boolean
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,7 +15,7 @@ class User(Base):
     wallet_address: Mapped[str] = mapped_column(String(42), unique=True, nullable=False, index=True)
     phone: Mapped[str | None] = mapped_column(String(20))
     email: Mapped[str | None] = mapped_column(String(255))
-    country: Mapped[str | None] = mapped_column(String(3))  # ISO 3166-1 alpha-3
+    country: Mapped[str | None] = mapped_column(String(3))  # ISO 3166-1 alpha-3 (ADR-041 V1: NGA/GHA/KEN)
     language: Mapped[str] = mapped_column(String(5), default="en")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False)
@@ -24,12 +24,18 @@ class User(Base):
 
     seller_profile: Mapped["SellerProfile | None"] = relationship(back_populates="user", uselist=False)
     notifications: Mapped[list["Notification"]] = relationship(back_populates="user")
+    delivery_addresses: Mapped[list["DeliveryAddress"]] = relationship(back_populates="user")
 
     __table_args__ = (
         Index("ix_users_wallet_address", "wallet_address"),
+        CheckConstraint(
+            "country IS NULL OR country IN ('NGA', 'GHA', 'KEN')",
+            name="users_country_iso_alpha3",
+        ),
     )
 
 
 # Import here to avoid circular imports at module level
 from app.models.seller_profile import SellerProfile  # noqa: E402, F811
 from app.models.notification import Notification  # noqa: E402, F811
+from app.models.delivery_address import DeliveryAddress  # noqa: E402, F811

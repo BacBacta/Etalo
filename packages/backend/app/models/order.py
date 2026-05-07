@@ -26,7 +26,7 @@ from sqlalchemy import (
     String,
     Text,
 )
-from sqlalchemy.dialects.postgresql import ARRAY, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -80,7 +80,8 @@ class Order(Base):
     )
 
     # --- Off-chain metadata (writable by HTTP, never by indexer) ---
-    delivery_address: Mapped[str | None] = mapped_column(Text)
+    delivery_address: Mapped[str | None] = mapped_column(Text)  # legacy free-text, deprecated post-J11.7 (ADR-044)
+    delivery_address_snapshot: Mapped[dict | None] = mapped_column(JSONB)  # immutable copy at fundOrder (ADR-044)
     tracking_number: Mapped[str | None] = mapped_column(String(100))
     product_ids: Mapped[list[uuid.UUID] | None] = mapped_column(ARRAY(UUID(as_uuid=True)))
     notes: Mapped[str | None] = mapped_column(Text)
