@@ -21,6 +21,11 @@ const TEMPLATES: Array<{
   // sufficient-contrast tone against celo-dark-bg. TikTok already had
   // a dark-friendly base (neutral-900) so its dark variant just adds
   // border tone alignment.
+  // Vibe tags homogenized to a single dimension : "use case" — the
+  // screenshot showed a mismatch (Feed posts / Vertical, warm /
+  // WhatsApp green / Dark trending / Horizontal) mixing usage, mood,
+  // theme, and shape. Now every entry answers "what do I post this
+  // on?" — easier to scan, easier to translate later.
   {
     key: "ig_square",
     label: "Instagram Square",
@@ -33,7 +38,7 @@ const TEMPLATES: Array<{
     key: "ig_story",
     label: "Instagram Story",
     dimensions: "1080×1920",
-    vibe: "Vertical, warm",
+    vibe: "Stories & Reels",
     bgClass:
       "bg-orange-50 border-orange-200 dark:bg-orange-950/30 dark:border-orange-700/40 dark:text-celo-light",
   },
@@ -41,7 +46,7 @@ const TEMPLATES: Array<{
     key: "wa_status",
     label: "WhatsApp Status",
     dimensions: "1080×1920",
-    vibe: "WhatsApp green",
+    vibe: "Status broadcasts",
     bgClass:
       "bg-green-50 border-green-200 dark:bg-green-950/30 dark:border-green-700/40 dark:text-celo-light",
   },
@@ -49,7 +54,7 @@ const TEMPLATES: Array<{
     key: "tiktok",
     label: "TikTok Cover",
     dimensions: "1080×1920",
-    vibe: "Dark trending",
+    vibe: "Short-form covers",
     bgClass:
       "bg-neutral-900 text-amber-400 border-neutral-700 dark:bg-celo-dark-elevated dark:border-celo-light/[12%]",
   },
@@ -57,7 +62,7 @@ const TEMPLATES: Array<{
     key: "fb_feed",
     label: "Facebook Feed",
     dimensions: "1200×630",
-    vibe: "Horizontal",
+    vibe: "Page shares",
     bgClass:
       "bg-neutral-50 border-neutral-200 dark:bg-celo-dark-elevated dark:border-celo-light/[12%] dark:text-celo-light",
   },
@@ -92,7 +97,7 @@ export function TemplateSelector({ selected, onSelect }: Props) {
             type="button"
             onClick={() => onSelect(t.key)}
             data-testid={`template-card-${t.key}`}
-            aria-pressed={selected === t.key}
+            aria-pressed={selected === t.key ? "true" : "false"}
             className={`min-h-[88px] rounded-lg border-2 p-4 text-left transition-all ${
               selected === t.key
                 ? "border-neutral-900 ring-2 ring-neutral-900 ring-offset-2 dark:border-celo-light dark:ring-celo-light dark:ring-offset-celo-dark-bg"

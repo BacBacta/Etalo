@@ -74,10 +74,41 @@ export function OverviewTab({ address }: Props) {
         max-w-3xl px-4` so this grid stays inside the viewport without
         re-introducing horizontal scroll.
       */}
+      {/* KPI tiles reordered : actionable info first.
+          1. In escrow — funds locked waiting for the seller to ship.
+             Most actionable number on the dashboard ; was buried in
+             4th position on the previous layout (screenshot critique).
+          2. Active orders — count of in-flight orders ; pairs with
+             the escrow figure as "what needs your attention now".
+          3-4. Revenue 24h / 7d — historical / lagging indicators,
+             relegated to the bottom row on mobile (2x2 grid). */}
       <div
         className="grid grid-cols-2 gap-4 lg:grid-cols-4"
         data-testid="overview-kpi-grid"
       >
+        <KpiTile
+          label="In escrow"
+          value={
+            analytics.data
+              ? displayUsdtFromHumanNumber(analytics.data.escrow.in_escrow)
+              : null
+          }
+          subText={
+            analytics.data
+              ? `Released to wallet: ${displayUsdtFromHumanNumber(analytics.data.escrow.released)}`
+              : undefined
+          }
+          loading={analytics.isPending}
+          error={analytics.isError}
+        />
+        <KpiTile
+          label="Active orders"
+          value={
+            analytics.data ? String(analytics.data.active_orders) : null
+          }
+          loading={analytics.isPending}
+          error={analytics.isError}
+        />
         <KpiTile
           label="Revenue 24h"
           value={
@@ -94,29 +125,6 @@ export function OverviewTab({ address }: Props) {
             analytics.data
               ? displayUsdtFromHumanNumber(analytics.data.revenue.d7)
               : null
-          }
-          loading={analytics.isPending}
-          error={analytics.isError}
-        />
-        <KpiTile
-          label="Active orders"
-          value={
-            analytics.data ? String(analytics.data.active_orders) : null
-          }
-          loading={analytics.isPending}
-          error={analytics.isError}
-        />
-        <KpiTile
-          label="In escrow"
-          value={
-            analytics.data
-              ? displayUsdtFromHumanNumber(analytics.data.escrow.in_escrow)
-              : null
-          }
-          subText={
-            analytics.data
-              ? `Released: ${displayUsdtFromHumanNumber(analytics.data.escrow.released)}`
-              : undefined
           }
           loading={analytics.isPending}
           error={analytics.isError}
@@ -156,6 +164,24 @@ export function OverviewTab({ address }: Props) {
           >
             Unable to load chart
           </p>
+        ) : analytics.data.revenue.timeline_7d.every(
+            (p) => p.revenue_usdt === 0,
+          ) ? (
+          // No completed orders in the last 7 days — a flat-zero
+          // line chart conveys nothing useful and looks broken. Swap
+          // for a guidance card that nudges the seller toward their
+          // first sale instead.
+          <div
+            data-testid="overview-revenue-chart-empty"
+            className="flex h-[200px] flex-col items-center justify-center px-4 text-center"
+          >
+            <p className="text-base font-medium text-celo-dark dark:text-celo-light">
+              Waiting for your first sale
+            </p>
+            <p className="mt-1 text-sm text-celo-dark/60 dark:text-celo-light/60">
+              Share your boutique link to start receiving orders.
+            </p>
+          </div>
         ) : (
           <ChartLineV5
             data={analytics.data.revenue.timeline_7d.map((p) => ({

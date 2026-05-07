@@ -7,9 +7,16 @@ from pydantic import BaseModel, Field
 
 class ProductCreate(BaseModel):
     """ADR-036 self-service create. Slug is owner-chosen and immutable
-    once set (changing it would break SEO / share links)."""
+    once set (changing it would break SEO / share links).
 
-    title: str = Field(min_length=1, max_length=200)
+    Title min_length is 3 chars : single-letter / two-letter titles
+    ("E", "Ggh") tested in the device-screenshot pass leave the
+    marketplace card with no scannable signal. 3 chars is enough to
+    constitute a real word ; the validator runs server-side as the
+    source of truth + frontend mirrors it for instant feedback.
+    """
+
+    title: str = Field(min_length=3, max_length=200)
     slug: str = Field(min_length=1, max_length=60, pattern=r"^[a-z0-9-]+$")
     description: str | None = Field(default=None, max_length=2000)
     price_usdt: Decimal = Field(gt=0)
@@ -22,7 +29,7 @@ class ProductCreate(BaseModel):
 class ProductUpdate(BaseModel):
     """ADR-036 self-service update. Slug is intentionally NOT updatable."""
 
-    title: str | None = Field(default=None, min_length=1, max_length=200)
+    title: str | None = Field(default=None, min_length=3, max_length=200)
     description: str | None = Field(default=None, max_length=2000)
     price_usdt: Decimal | None = Field(default=None, gt=0)
     stock: int | None = Field(default=None, ge=0)

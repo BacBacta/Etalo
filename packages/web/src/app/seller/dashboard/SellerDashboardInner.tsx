@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
 import { DashboardSkeleton } from "@/app/seller/dashboard/DashboardSkeleton";
@@ -97,6 +97,27 @@ export function SellerDashboardInner() {
     router.replace(`/seller/dashboard?${params.toString()}`);
   };
 
+  // Auto-scroll the active tab into view when it changes. The tab list
+  // is `overflow-x-auto` so on a 360 px viewport with 5 tabs, the active
+  // one can be partially or fully off-screen depending on the previous
+  // selection (screenshot bug : "Overview" was clipped to "iew" because
+  // it sits at index 0 and the row had been scrolled by selecting a
+  // later tab). `inline: 'center'` keeps it visually centered ;
+  // `block: 'nearest'` prevents the page itself from jumping vertically
+  // when the dashboard re-renders.
+  const tabsListRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const list = tabsListRef.current;
+    if (!list) return;
+    const active = list.querySelector<HTMLElement>('[data-state="active"]');
+    if (!active) return;
+    active.scrollIntoView({
+      behavior: "smooth",
+      inline: "center",
+      block: "nearest",
+    });
+  }, [safeTab]);
+
   // J10-V5 Phase 5 polish #7 — both pre-render gates (MiniPay
   // detection + profile fetch) now share the DashboardSkeleton so the
   // user sees the page structure on first paint instead of two
@@ -178,7 +199,10 @@ export function SellerDashboardInner() {
             to Overview in the tab order makes it the natural second
             stop for any seller landing on the dashboard.
           */}
-          <TabsV4List className="mb-6 w-full overflow-x-auto">
+          <TabsV4List
+            ref={tabsListRef}
+            className="mb-6 w-full overflow-x-auto"
+          >
             <TabsV4Trigger value="overview">Overview</TabsV4Trigger>
             <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
             <TabsV4Trigger value="products">Products</TabsV4Trigger>
