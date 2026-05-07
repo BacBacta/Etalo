@@ -538,6 +538,21 @@ J12 deploy ; if reproduces, escalate before public listing.
 
 ---
 
+### FU-J11-009 — Sprint J11.7 geographic + delivery address
+
+**Status** : Planned post-J11 BLOCKING closure
+**Tracking** : ADR-044 + ADR-045 + `docs/SPRINT_J11_7.md`
+**Estim** : ~5-7 working days
+**Pre-req** : J11 BLOCKING #3 NETWORK_MANIFEST closed + ADR-043
+buyer interface MVP merged (V1.1 tag)
+**Unblocks** : J12 mainnet deploy with usable V1 commerce UX
+
+Scope : 11 blocks dans `docs/SPRINT_J11_7.md`. Combines ADR-044
+delivery address structured capture + ADR-045 geographic filter
++ country mandatory on profiles. No contract changes.
+
+---
+
 ## Notes générales
 
 - Reprise Track B (audit Reputation scan-only + synthesis
