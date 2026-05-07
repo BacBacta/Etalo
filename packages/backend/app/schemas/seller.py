@@ -12,6 +12,10 @@ class SellerProfilePublic(BaseModel):
     Never include raw wallet addresses or internal IDs that aren't safe
     to render. `logo_ipfs_hash` is kept so the client can build the
     gateway URL itself (the IPFS gateway is public).
+
+    `country` is hydrated from the joined User row (denormalization
+    avoided per Block 0 recon — User.country is the single source of
+    truth, accessed via SellerProfile.user.country).
     """
 
     id: UUID
@@ -22,6 +26,7 @@ class SellerProfilePublic(BaseModel):
     banner_ipfs_hash: str | None = None
     socials: dict | None = None
     categories: list[str] | None = None
+    country: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -47,7 +52,13 @@ class HandleAvailabilityResponse(BaseModel):
 
 class SellerProfileUpdate(BaseModel):
     """ADR-036 self-service profile update. shop_handle is intentionally
-    NOT updatable (would break /[handle] URLs / boutique pages)."""
+    NOT updatable (would break /[handle] URLs / boutique pages).
+
+    `country` writes to the joined User row, not SellerProfile (the
+    column lives on User per Block 0 recon). Validation against the
+    V1 enum {NGA, GHA, KEN} is enforced at the route handler + DB
+    CheckConstraint level.
+    """
 
     shop_name: str | None = None
     description: str | None = None
@@ -55,6 +66,7 @@ class SellerProfileUpdate(BaseModel):
     banner_ipfs_hash: str | None = None
     socials: dict | None = None
     categories: list[str] | None = None
+    country: str | None = None
 
 
 class SellerOrderItem(BaseModel):

@@ -17,8 +17,19 @@
 import { fetchApi, fetchApiFormData } from "@/lib/fetch-api";
 import type { components } from "@/types/api.gen";
 
-export type SellerProfilePublic = components["schemas"]["SellerProfilePublic"];
-export type SellersMeResponse = components["schemas"]["SellersMeResponse"];
+// J11.7 Block 4 — `country` was added to SellerProfilePublic and
+// SellerProfileUpdate at the backend (ADR-045 country edit support).
+// The api.gen.ts file is auto-regenerated from the running backend's
+// OpenAPI spec via `pnpm gen:api`; until it's re-run post-Block 4 merge,
+// we extend the generated types locally so ProfileTab can pass `country`
+// through. The extensions are forward-compatible : once gen:api re-runs
+// they become no-op intersections.
+export type SellerProfilePublic =
+  components["schemas"]["SellerProfilePublic"] & { country?: string | null };
+export type SellersMeResponse = Omit<
+  components["schemas"]["SellersMeResponse"],
+  "profile"
+> & { profile: SellerProfilePublic | null };
 export type SellerProfileResponse =
   components["schemas"]["SellerProfileResponse"];
 export type StakeBlock = components["schemas"]["StakeBlock"];
@@ -26,7 +37,7 @@ export type StakeTier = components["schemas"]["StakeTier"];
 export type SellerOrdersPage = components["schemas"]["SellerOrdersPage"];
 export type SellerOrderItem = components["schemas"]["SellerOrderItem"];
 export type SellerProfileUpdate =
-  components["schemas"]["SellerProfileUpdate"];
+  components["schemas"]["SellerProfileUpdate"] & { country?: string | null };
 export type ProductDetail = components["schemas"]["ProductDetail"];
 export type ProductCreate = components["schemas"]["ProductCreate"];
 export type ProductUpdate = components["schemas"]["ProductUpdate"];
