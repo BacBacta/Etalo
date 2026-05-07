@@ -146,16 +146,43 @@ export async function fetchPublicBoutique(
   return (await res.json()) as BoutiquePublic;
 }
 
+export interface FetchMarketplaceProductsArgs {
+  cursor?: string | null;
+  limit?: number;
+  /** Country filter (NGA / GHA / KEN / "all"). Omit or pass "all" for no
+   *  filter. J11.7 Block 9 (ADR-045). */
+  country?: string | null;
+}
+
 export async function fetchMarketplaceProducts(
-  cursor?: string | null,
+  cursorOrArgs?: string | null | FetchMarketplaceProductsArgs,
   limit: number = 20,
 ): Promise<MarketplaceListResponse> {
+  // Backwards-compatible signature : the legacy form
+  // `fetchMarketplaceProducts(cursor, limit)` still works ; new callers
+  // can pass an args object with country.
+  let cursor: string | null | undefined;
+  let effectiveLimit = limit;
+  let country: string | null | undefined;
+  if (
+    cursorOrArgs !== null &&
+    typeof cursorOrArgs === "object" &&
+    !Array.isArray(cursorOrArgs)
+  ) {
+    cursor = cursorOrArgs.cursor;
+    effectiveLimit = cursorOrArgs.limit ?? limit;
+    country = cursorOrArgs.country;
+  } else {
+    cursor = cursorOrArgs as string | null | undefined;
+  }
+
   const params = new URLSearchParams();
-  params.set("limit", String(limit));
+  params.set("limit", String(effectiveLimit));
   // URLSearchParams encodes `+` as `%2B`, which the backend round-trips
   // correctly even for ISO datetimes containing `+HH:MM` tz offsets
   // (Étape 7.1 defensive parse). Never string-concat the cursor.
   if (cursor) params.set("after", cursor);
+  if (country && country !== "all") params.set("country", country);
   const res = await fetchApi(`/marketplace/products?${params.toString()}`, {
     next: { revalidate: 30 },
   });

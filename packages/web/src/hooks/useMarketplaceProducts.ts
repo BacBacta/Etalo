@@ -31,11 +31,28 @@ export const MARKETPLACE_PRODUCTS_QUERY_KEY = ["marketplace-products"] as const;
 
 const PAGE_SIZE = 20;
 
-export function useMarketplaceProducts(options: { enabled?: boolean } = {}) {
+export interface UseMarketplaceProductsOptions {
+  enabled?: boolean;
+  /** ISO 3166-1 alpha-3 country filter (NGA / GHA / KEN). Omit or pass
+   *  "all" for no filter. J11.7 Block 9 (ADR-045) — included in the
+   *  query key so changes refetch a fresh page. */
+  country?: string | null;
+}
+
+export function useMarketplaceProducts(
+  options: UseMarketplaceProductsOptions = {},
+) {
+  const country = options.country && options.country !== "all"
+    ? options.country
+    : null;
   return useInfiniteQuery<MarketplaceListResponse, Error>({
-    queryKey: MARKETPLACE_PRODUCTS_QUERY_KEY,
+    queryKey: [...MARKETPLACE_PRODUCTS_QUERY_KEY, country ?? "all"],
     queryFn: ({ pageParam }) =>
-      fetchMarketplaceProducts(pageParam as string | null, PAGE_SIZE),
+      fetchMarketplaceProducts({
+        cursor: pageParam as string | null,
+        limit: PAGE_SIZE,
+        country,
+      }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => {
       if (!lastPage.pagination.has_more) return undefined;

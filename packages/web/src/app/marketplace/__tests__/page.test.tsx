@@ -34,6 +34,26 @@ vi.mock("@/lib/minipay-detect", () => ({
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams(),
+  usePathname: () => "/marketplace",
+}));
+
+// J11.7 Block 9 — MarketplacePage now reads buyer country + connection
+// state to gate the prompt banner + drive the default filter. Mock
+// both at the module boundary so existing pre-Block-9 specs don't have
+// to know about the new data path.
+vi.mock("wagmi", () => ({
+  useAccount: () => ({ address: undefined, isConnected: false }),
+}));
+
+vi.mock("@/hooks/useBuyerCountry", () => ({
+  useBuyerCountry: () => ({
+    data: null,
+    isSuccess: false,
+    isLoading: false,
+    isError: false,
+  }),
+  useSetMyCountry: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
 // MarketplaceGrid renders next/image which doesn't run cleanly in jsdom;

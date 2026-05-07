@@ -95,7 +95,12 @@ describe("useMarketplaceProducts — gating", () => {
     );
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     expect(fetchMarketplaceProductsMock).toHaveBeenCalledTimes(1);
-    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith(null, 20);
+    // J11.7 Block 9 — hook now passes args object with country support.
+    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith({
+      cursor: null,
+      limit: 20,
+      country: null,
+    });
   });
 });
 
@@ -146,11 +151,39 @@ describe("useMarketplaceProducts — pagination", () => {
     await waitFor(() => {
       expect(fetchMarketplaceProductsMock).toHaveBeenCalledTimes(2);
     });
-    expect(fetchMarketplaceProductsMock).toHaveBeenNthCalledWith(
-      2,
-      "2026-05-04T00:00:00Z",
-      20,
-    );
+    expect(fetchMarketplaceProductsMock).toHaveBeenNthCalledWith(2, {
+      cursor: "2026-05-04T00:00:00Z",
+      limit: 20,
+      country: null,
+    });
     expect(result.current.data?.pages).toHaveLength(2);
+  });
+
+  it("forwards the country filter to fetchMarketplaceProducts (J11.7 Block 9)", async () => {
+    fetchMarketplaceProductsMock.mockResolvedValue(makePage());
+    const { result } = renderHook(
+      () => useMarketplaceProducts({ enabled: true, country: "GHA" }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith({
+      cursor: null,
+      limit: 20,
+      country: "GHA",
+    });
+  });
+
+  it("collapses 'all' country filter to null (no filter applied)", async () => {
+    fetchMarketplaceProductsMock.mockResolvedValue(makePage());
+    const { result } = renderHook(
+      () => useMarketplaceProducts({ enabled: true, country: "all" }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith({
+      cursor: null,
+      limit: 20,
+      country: null,
+    });
   });
 });
