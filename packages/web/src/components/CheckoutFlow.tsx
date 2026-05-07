@@ -1,14 +1,20 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { parseUnits } from "viem";
-import { useChainId } from "wagmi";
+import { useAccount, useChainId } from "wagmi";
 
 import { CheckoutErrorView } from "@/components/CheckoutErrorView";
 import { CheckoutSellerStatus } from "@/components/CheckoutSellerStatus";
 import { CheckoutSuccessView } from "@/components/CheckoutSuccessView";
 import { InsufficientBalanceCTA } from "@/components/checkout/InsufficientBalanceCTA";
+import {
+  CheckoutDeliveryAddressStep,
+  isCheckoutAddressReady,
+} from "@/components/checkout/CheckoutDeliveryAddressStep";
 import { Button } from "@/components/ui/button";
+import { useAddresses } from "@/hooks/useAddresses";
+import { useBuyerCountry } from "@/hooks/useBuyerCountry";
 import { useCheckoutBalanceGate } from "@/hooks/useCheckoutBalanceGate";
 import { useSequentialCheckout } from "@/hooks/useSequentialCheckout";
 import { useCartStore } from "@/lib/cart-store";
@@ -23,7 +29,33 @@ interface Props {
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function CheckoutFlow({ cart, token }: Props) {
-  const { state, start, cancel } = useSequentialCheckout(cart);
+  const { address: wallet } = useAccount();
+  const walletStr = wallet?.toLowerCase() ?? "";
+  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
+    null,
+  );
+
+  // Resolve the picked address to read its country for the FE
+  // cross-border guard. Already cached via useAddresses inside the
+  // step ; this hook reuses the same query to avoid a second fetch.
+  const addressesQuery = useAddresses({ wallet: walletStr });
+  const selectedAddress = useMemo(() => {
+    const items = addressesQuery.data?.items ?? [];
+    return items.find((a) => a.id === selectedAddressId) ?? null;
+  }, [addressesQuery.data, selectedAddressId]);
+
+  const buyerCountryQuery = useBuyerCountry({ wallet: walletStr });
+  const buyerCountry = buyerCountryQuery.data?.country ?? null;
+
+  const addressReady = isCheckoutAddressReady({
+    selectedId: selectedAddressId,
+    selectedCountry: selectedAddress?.country,
+    expectedCountry: buyerCountry,
+  });
+
+  const { state, start, cancel } = useSequentialCheckout(cart, {
+    deliveryAddressId: selectedAddressId,
+  });
   const chainId = useChainId();
 
   // Stable references so the cleanup effect doesn't fire repeatedly.
@@ -75,15 +107,30 @@ export function CheckoutFlow({ cart, token }: Props) {
               needed, then create + fund per seller).
             </p>
           </div>
+
+          {walletStr ? (
+            <div className="mb-4">
+              <CheckoutDeliveryAddressStep
+                wallet={walletStr}
+                selectedId={selectedAddressId}
+                onSelectedChange={setSelectedAddressId}
+                expectedCountry={buyerCountry}
+              />
+            </div>
+          ) : null}
+
           {balanceGate.hasInsufficient ? (
             <InsufficientBalanceCTA deficitRaw={balanceGate.deficitRaw} />
           ) : (
             <Button
               className="min-h-[44px] w-full text-base"
               onClick={start}
-              disabled={balanceGate.isLoading}
+              disabled={balanceGate.isLoading || !addressReady}
+              data-testid="checkout-start"
             >
-              Start checkout
+              {addressReady
+                ? "Start checkout"
+                : "Pick a delivery address to continue"}
             </Button>
           )}
         </div>

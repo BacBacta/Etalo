@@ -1,21 +1,29 @@
-"""V2 Orders router — Sprint J5 Block 6.
+"""V2 Orders router — Sprint J5 Block 6 + J11.7 Block 7 (ADR-044).
 
 GET endpoints read from the indexer-populated DB. POST /metadata
 writes off-chain fields (delivery, tracking, notes) — gated by
 EIP-191 signature where the recovered address must be the buyer or
 seller of the order.
+
+J11.7 Block 7 adds PATCH /by-onchain-id/{id}/delivery-address — the
+buyer's structured delivery address gets snapshotted into the order
+post-fund. Uses X-Wallet-Address header (ADR-036 dev pattern, no new
+EIP-191 per ADR-034 / CLAUDE.md rule 14).
 """
 from __future__ import annotations
 
 import uuid
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth import verify_signature
 from app.database import get_async_db
+from app.models.delivery_address import DeliveryAddress
 from app.models.enums import OrderStatus
 from app.models.order import Order
 from app.models.user import User
@@ -29,6 +37,15 @@ from app.schemas.order import (
 
 
 router = APIRouter(prefix="/orders", tags=["orders"])
+
+
+class DeliveryAddressSnapshotRequest(BaseModel):
+    """Body for PATCH .../delivery-address — references an entry in the
+    buyer's address book (DeliveryAddress.id). Backend looks up the row,
+    builds the snapshot JSON, and writes it to orders.delivery_address_snapshot.
+    """
+
+    address_id: uuid.UUID
 
 
 def _normalize(addr: str | None) -> str | None:
@@ -209,6 +226,92 @@ async def update_order_metadata(
         order.product_ids = body.product_ids
     if body.notes is not None:
         order.notes = body.notes
+
+    await db.commit()
+    await db.refresh(order, attribute_names=["items", "shipment_groups"])
+    return OrderResponse.model_validate(order)
+
+
+@router.patch(
+    "/by-onchain-id/{onchain_order_id}/delivery-address",
+    response_model=OrderResponse,
+)
+async def set_order_delivery_snapshot(
+    onchain_order_id: int,
+    body: DeliveryAddressSnapshotRequest,
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    x_wallet_address: Annotated[
+        str | None, Header(alias="X-Wallet-Address")
+    ] = None,
+) -> OrderResponse:
+    """Snapshot a buyer's address book entry into the order — Sprint
+    J11.7 Block 7 (ADR-044).
+
+    Auth : X-Wallet-Address must equal the order's buyer_address. The
+    referenced DeliveryAddress.id must belong to the same buyer (no
+    spoofing another buyer's address into your order).
+
+    Idempotent across overwrites : multiple PATCH calls update the
+    snapshot. Frontend retries on 404 (indexer race window — Order row
+    not yet written when the buyer's wallet completes fund tx).
+    """
+    if not x_wallet_address:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="X-Wallet-Address header required.",
+        )
+    caller = x_wallet_address.lower()
+
+    # Find the on-chain order (404 if indexer hasn't written it yet —
+    # frontend retries with backoff).
+    order = (
+        await db.execute(
+            select(Order)
+            .where(Order.onchain_order_id == onchain_order_id)
+            .options(*_ORDER_LOAD_OPTIONS)
+        )
+    ).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if caller != order.buyer_address:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the buyer can set the delivery address snapshot.",
+        )
+
+    # Resolve the address book row + ensure it belongs to the buyer.
+    addr = (
+        await db.execute(
+            select(DeliveryAddress).where(DeliveryAddress.id == body.address_id)
+        )
+    ).scalar_one_or_none()
+    if addr is None or addr.is_deleted:
+        raise HTTPException(status_code=404, detail="Address not found")
+
+    # The address belongs to a User row identified by user_id ; we map
+    # that User back to a wallet to compare with the order's buyer.
+    addr_owner = (
+        await db.execute(select(User).where(User.id == addr.user_id))
+    ).scalar_one_or_none()
+    if addr_owner is None or addr_owner.wallet_address != caller:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Address does not belong to the caller.",
+        )
+
+    # Snapshot the address into the order. Immutable once the buyer is
+    # past fund — but the column itself is overwriteable for V1.7 retry
+    # tolerance ; future hardening can lock once non-null + funded.
+    order.delivery_address_snapshot = {
+        "phone_number": addr.phone_number,
+        "country": addr.country,
+        "city": addr.city,
+        "region": addr.region,
+        "address_line": addr.address_line,
+        "landmark": addr.landmark,
+        "notes": addr.notes,
+    }
 
     await db.commit()
     await db.refresh(order, attribute_names=["items", "shipment_groups"])

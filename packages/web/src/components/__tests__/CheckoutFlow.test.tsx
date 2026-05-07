@@ -30,9 +30,69 @@ vi.mock("@/hooks/useCheckoutBalanceGate", () => ({
   useCheckoutBalanceGate: (...args: unknown[]) => balanceGateMock(...args),
 }));
 
+const TEST_BUYER = "0xabc1234567890abcdef1234567890abcdef12345";
+
 vi.mock("wagmi", () => ({
   useChainId: () => 11142220,
+  useAccount: () => ({ address: TEST_BUYER, isConnected: true }),
 }));
+
+// J11.7 Block 7 — CheckoutFlow now reads buyer addresses + country to
+// gate the Start button. Mock both hooks at the module boundary so
+// the existing balance-gate specs don't have to know about the new
+// data path.
+const TEST_ADDR = {
+  id: "addr-test-1",
+  phone_number: "+2348012345678",
+  country: "NGA",
+  city: "Lagos",
+  region: "Lagos State",
+  address_line: "12 Allen Avenue",
+  landmark: null,
+  notes: null,
+  is_default: true,
+  created_at: "2026-05-01T00:00:00Z",
+  updated_at: "2026-05-01T00:00:00Z",
+};
+
+// Stub the entire module so the mutation hooks (used by
+// AddressFormModal embedded in CheckoutDeliveryAddressStep) also
+// resolve without a QueryClientProvider.
+vi.mock("@/hooks/useAddresses", () => ({
+  ADDRESSES_QUERY_KEY: "buyer-addresses",
+  useAddresses: () => ({
+    data: { items: [TEST_ADDR], count: 1 },
+    isLoading: false,
+    isError: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+  useCreateAddress: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateAddress: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useDeleteAddress: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useSetDefaultAddress: () => ({ mutateAsync: vi.fn(), isPending: false }),
+}));
+
+vi.mock("@/hooks/useBuyerCountry", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useBuyerCountry")>(
+    "@/hooks/useBuyerCountry",
+  );
+  return {
+    ...actual,
+    useBuyerCountry: () => ({
+      data: {
+        id: "u-1",
+        wallet_address: TEST_BUYER,
+        country: "NGA",
+        language: "en",
+        has_seller_profile: false,
+        created_at: "2026-05-01T00:00:00Z",
+      },
+      isLoading: false,
+      isError: false,
+    }),
+  };
+});
 
 vi.mock("@/lib/cart-store", () => ({
   useCartStore: (selector: (state: unknown) => unknown) =>

@@ -75,6 +75,7 @@ class OrderResponse(BaseModel):
     created_at_chain: datetime
     created_at_db: datetime
     delivery_address: str | None
+    delivery_address_snapshot: dict | None = None
     tracking_number: str | None
     product_ids: list[uuid.UUID] | None
     notes: str | None
