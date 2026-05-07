@@ -34,8 +34,27 @@ export type SellerProfileResponse =
   components["schemas"]["SellerProfileResponse"];
 export type StakeBlock = components["schemas"]["StakeBlock"];
 export type StakeTier = components["schemas"]["StakeTier"];
-export type SellerOrdersPage = components["schemas"]["SellerOrdersPage"];
-export type SellerOrderItem = components["schemas"]["SellerOrderItem"];
+// J11.7 hotfix — SellerOrderItem gains delivery_address_snapshot so the
+// seller dashboard can surface shipping context (where to ship + buyer
+// phone) directly on the orders list. Local extension until pnpm gen:api
+// re-runs post-merge ; intersection becomes a no-op after re-gen.
+type DeliveryAddressSnapshotJson = {
+  phone_number?: string | null;
+  country?: string | null;
+  city?: string | null;
+  region?: string | null;
+  address_line?: string | null;
+  landmark?: string | null;
+  notes?: string | null;
+};
+
+export type SellerOrderItem = components["schemas"]["SellerOrderItem"] & {
+  delivery_address_snapshot?: DeliveryAddressSnapshotJson | null;
+};
+export type SellerOrdersPage = Omit<
+  components["schemas"]["SellerOrdersPage"],
+  "orders"
+> & { orders: SellerOrderItem[] };
 export type SellerProfileUpdate =
   components["schemas"]["SellerProfileUpdate"] & { country?: string | null };
 export type ProductDetail = components["schemas"]["ProductDetail"];

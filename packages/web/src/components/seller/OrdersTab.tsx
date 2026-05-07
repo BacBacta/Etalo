@@ -4,6 +4,7 @@ import { Truck } from "@phosphor-icons/react";
 import dynamic from "next/dynamic";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
@@ -170,7 +171,19 @@ export function OrdersTab({ address }: Props) {
                 </div>
                 <div className="text-sm text-neutral-600 tabular-nums">
                   Buyer {buyerShort} · {formatRawUsdt(o.total_amount_usdt)}{" "}
-                  USDT · {formatRowDate(o.created_at_chain)}
+                  USDT · {formatRowDate(o.created_at_chain)} · {o.item_count}{" "}
+                  {o.item_count === 1 ? "item" : "items"}
+                </div>
+                {/* Delivery snapshot — shipping context directly inline.
+                    Pre-fund orders show the neutral "will appear once
+                    funded" message ; post-fund orders show full address
+                    + WhatsApp coordinate deeplink. ADR-044 / J11.7 Block 8
+                    component reused here. */}
+                <div className="mt-3">
+                  <OrderDeliveryAddressCard
+                    snapshot={o.delivery_address_snapshot ?? null}
+                    orderId={o.onchain_order_id}
+                  />
                 </div>
                 {canShip ? (
                   <div className="mt-3">
