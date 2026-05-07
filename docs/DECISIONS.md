@@ -2347,3 +2347,129 @@ Tracking ticket for the privacy graduation investigation : FU-J11-005.
 - Indexer mirror tables : `docs/BACKEND.md` (V2 indexer section)
 - Threat model parent : ADR-034 (EIP-191 deprecation rationale)
 - Follow-up : FU-J11-005 (real session auth graduation)
+
+---
+
+## ADR-044 — Delivery Address Capture for V1
+
+**Date** : 2026-05-07
+**Status** : Accepted
+
+### Context
+
+Etalo's order schema has `delivery_address: str | None` on Order
+and OrderMetadataUpdate (cf. ADR-014 V1 boutique model, schema
+established Sprint J5), but the V1 UX does not systematically
+collect this field. During Sprint J11.5 Block 8 smoke E2E,
+delivery address was filled with arbitrary strings ("any string")
+to allow the test to proceed — usable for testing, unusable for
+real commerce.
+
+Without a structured delivery address :
+
+1. **Sellers cannot ship** — receiving a "Funded" order with no
+   address means the seller has to coordinate via WhatsApp ad-hoc,
+   creating friction and inconsistent UX
+2. **Support load explodes post-launch** — every order will
+   generate "where do I ship to?" / "where is my package?"
+   support tickets
+3. **Disputes lack evidence** — if the buyer claims they didn't
+   receive the package, there's no record of where it was sent
+
+This was missed in ADR-014 V1 boutique model because the
+architecture focused on USDT escrow + IPFS metadata + WhatsApp
+notifications, leaving the physical-world delivery layer in a
+grey zone.
+
+### Decision
+
+Make delivery address **mandatory at checkout** with a structured
+form adapted to African informal addressing context.
+
+**Required fields at checkout** :
+
+- Phone number (auto-populated from MiniPay if available)
+- Country (dropdown : Nigeria / Ghana / Kenya per ADR-041 V1 scope)
+- City
+- Region / State
+- Address line (free-form, e.g. "près de la pharmacie centrale,
+  maison bleue avec portail rouge")
+
+**Optional fields** :
+
+- Postal code (rare in African informal addressing)
+- Landmark / repère
+- Delivery notes for the courier
+
+**Address book pattern** :
+
+- Buyer profile stores 1-3 saved addresses (no hard limit, but
+  practical UX limit)
+- At checkout, pick from book or add new (saved automatically)
+- Address becomes immutable on `fundOrder` (state lock at escrow
+  funding), editable until then
+
+**Seller dashboard surface** :
+
+- Full address visible on order detail post-fund
+- "Coordinate via WhatsApp" deeplink button using buyer phone
+  (delegates fine details : meeting point, delivery time, etc.)
+
+**Privacy** :
+
+- PII stored backend DB only (PostgreSQL)
+- NOT in on-chain events
+- NOT on IPFS public metadata
+- Auto-anonymize after 90 days post-completion (cron job)
+- Buyer can manually wipe address from profile at any time
+
+### Out of scope V1, deferred V1.5+
+
+- Postal code validation against external DB
+- Map pin / geocoding integration (Google Maps, Mapbox)
+- Multi-recipient or multi-address per order
+- On-chain address attestation (FederatedAttestations pattern)
+- Delivery tracking integration with logistics providers
+- "Pickup point" alternative to home delivery
+
+### Rationale
+
+- **V1 must function as actual commerce** — without delivery
+  address, the value prop "buy from a seller via stablecoin
+  escrow with delivery" is broken at the delivery step.
+- **Africa-informal context** drives free-form within structured
+  frame. Forcing strict postal code validation would block real
+  users who don't have formal addresses.
+- **Phone+WhatsApp delegation pattern** matches existing user
+  habits in target markets — sellers already coordinate
+  off-chain via WhatsApp for delivery details.
+- **Privacy by design** — PII never leaves the backend. Aligns
+  with ADR-022 non-custodial spirit (only what needs to be on-
+  chain is on-chain).
+- **Foundation for V1.5+ features** : delivery tracking events,
+  dispute on missing items with shipping evidence, address book
+  sharing across orders.
+
+### Consequences
+
+- **Sprint J11.7 inserted** between J11 BLOCKING closure and J12
+  mainnet deploy. Combined with ADR-045 in single sprint.
+- **Estimated ~5-7 days dev** (~40-60h) — combined ADR-044 +
+  ADR-045.
+- **Mainnet delayed by ~1 week** vs previous J12 plan — accepted
+  trade-off for shipping a usable V1 vs MVP-rough.
+- **Address book** is a new schema concept on buyer_profile.
+  Migration light (1-2 new columns or 1 new table).
+- **Reduces seller frustration + support load** post-launch.
+- **Strengthens marketing narrative** : "stablecoin escrow + real
+  delivery coordination" vs competing pure-DeFi-checkout
+  competitors.
+
+### References
+
+- ADR-014 (V1 boutique model — original schema)
+- ADR-041 (V1 scope intra-only, 3 target countries)
+- ADR-043 (Buyer Interface MVP — `/orders/[id]` shows order detail)
+- ADR-045 (Geographic location, country filtering — same sprint)
+- `minipay-requirements.md` rule 5 (phone-first identity)
+- `docs/SPRINT_J11_7.md` (implementation blocks)
