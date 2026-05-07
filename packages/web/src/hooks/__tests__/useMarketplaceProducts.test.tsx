@@ -101,6 +101,8 @@ describe("useMarketplaceProducts — gating", () => {
       limit: 20,
       country: null,
       q: null,
+      category: null,
+      sort: null,
     });
   });
 });
@@ -157,6 +159,8 @@ describe("useMarketplaceProducts — pagination", () => {
       limit: 20,
       country: null,
       q: null,
+      category: null,
+      sort: null,
     });
     expect(result.current.data?.pages).toHaveLength(2);
   });
@@ -173,6 +177,8 @@ describe("useMarketplaceProducts — pagination", () => {
       limit: 20,
       country: "GHA",
       q: null,
+      category: null,
+      sort: null,
     });
   });
 
@@ -188,6 +194,8 @@ describe("useMarketplaceProducts — pagination", () => {
       limit: 20,
       country: null,
       q: "Robe wax",
+      category: null,
+      sort: null,
     });
   });
 
@@ -203,6 +211,8 @@ describe("useMarketplaceProducts — pagination", () => {
       limit: 20,
       country: null,
       q: null,
+      category: null,
+      sort: null,
     });
   });
 
@@ -218,6 +228,52 @@ describe("useMarketplaceProducts — pagination", () => {
       limit: 20,
       country: null,
       q: null,
+      category: null,
+      sort: null,
+    });
+  });
+
+  it("forwards category + sort and collapses 'all' / 'newest' to null", async () => {
+    fetchMarketplaceProductsMock.mockResolvedValue(makePage());
+    const { result } = renderHook(
+      () =>
+        useMarketplaceProducts({
+          enabled: true,
+          category: "fashion",
+          sort: "price_asc",
+        }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith({
+      cursor: null,
+      limit: 20,
+      country: null,
+      q: null,
+      category: "fashion",
+      sort: "price_asc",
+    });
+
+    // 'all' / 'newest' are the cache-key-stable defaults.
+    fetchMarketplaceProductsMock.mockClear();
+    fetchMarketplaceProductsMock.mockResolvedValue(makePage());
+    const { result: r2 } = renderHook(
+      () =>
+        useMarketplaceProducts({
+          enabled: true,
+          category: "all",
+          sort: "newest",
+        }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(r2.current.isSuccess).toBe(true));
+    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith({
+      cursor: null,
+      limit: 20,
+      country: null,
+      q: null,
+      category: null,
+      sort: null,
     });
   });
 });
