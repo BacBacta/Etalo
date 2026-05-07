@@ -70,7 +70,13 @@ class SellerProfileUpdate(BaseModel):
 
 
 class SellerOrderItem(BaseModel):
-    """Minimal order summary returned by GET /sellers/{address}/orders."""
+    """Minimal order summary returned by GET /sellers/{address}/orders.
+
+    `delivery_address_snapshot` was added in fix/seller-orders-delivery-info
+    so the seller dashboard surfaces shipping context (where to ship +
+    buyer phone for WhatsApp coordinate) directly on the order list,
+    without an extra detail-page navigation.
+    """
 
     id: UUID
     onchain_order_id: int
@@ -81,6 +87,7 @@ class SellerOrderItem(BaseModel):
     item_count: int
     created_at_chain: datetime
     funded_at: datetime | None = None
+    delivery_address_snapshot: dict | None = None
 
     model_config = {"from_attributes": True}
 
