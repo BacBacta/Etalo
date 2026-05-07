@@ -23,6 +23,9 @@ from app.models.user import User
 # Dedicated test wallets (lowercase, won't collide with seed CHIOMA/AISSA)
 TEST_BUYER_A = "0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
 TEST_BUYER_B = "0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2"
+# Fresh buyer with no pre-seeded User row — covers the upsert path
+# introduced in fix/address-book-upsert-user.
+TEST_BUYER_FRESH = "0xfeefeefeefeefeefeefeefeefeefeefeefeefee1"
 
 
 @pytest_asyncio.fixture(autouse=True)
@@ -32,25 +35,26 @@ async def _cleanup_addresses_fixture() -> AsyncGenerator[None, None]:
     cleanup."""
     factory = get_async_session_factory()
 
+    test_wallets = [TEST_BUYER_A, TEST_BUYER_B, TEST_BUYER_FRESH]
+
     async def wipe():
         async with factory() as s:
             users = (
                 await s.execute(
-                    select(User).where(
-                        User.wallet_address.in_([TEST_BUYER_A, TEST_BUYER_B])
-                    )
+                    select(User).where(User.wallet_address.in_(test_wallets))
                 )
             ).scalars().all()
             for u in users:
                 await s.execute(delete(DeliveryAddress).where(DeliveryAddress.user_id == u.id))
             await s.execute(
-                delete(User).where(User.wallet_address.in_([TEST_BUYER_A, TEST_BUYER_B]))
+                delete(User).where(User.wallet_address.in_(test_wallets))
             )
             await s.commit()
 
     await wipe()
 
-    # Seed both test users so the router's _get_or_404_user passes.
+    # Seed test buyers A + B with a User row + country. Buyer FRESH is
+    # intentionally NOT seeded — fresh-buyer specs cover the upsert path.
     async with factory() as s:
         s.add(User(wallet_address=TEST_BUYER_A, country="NGA"))
         s.add(User(wallet_address=TEST_BUYER_B, country="GHA"))
@@ -267,3 +271,59 @@ async def test_set_default_unsets_others(client: AsyncClient):
     by_id = {item["id"]: item for item in listing["items"]}
     assert by_id[id2]["is_default"] is True
     assert by_id[id1]["is_default"] is False
+
+
+# ============================================================
+# 7. Fresh-buyer upsert (fix/address-book-upsert-user)
+# ============================================================
+async def test_list_addresses_for_fresh_buyer_returns_empty(client: AsyncClient):
+    """A wallet with no User row should get an empty list, NOT a 404.
+    The frontend treats empty list as 'no saved addresses'."""
+    r = await client.get("/api/v1/me/addresses", headers=_hdr(TEST_BUYER_FRESH))
+    assert r.status_code == 200, r.text
+    body = r.json()
+    assert body["count"] == 0
+    assert body["items"] == []
+
+
+async def test_create_address_upserts_user_for_fresh_buyer(client: AsyncClient):
+    """A wallet with no User row should be able to save its first
+    address — the endpoint upserts the User row on first write.
+
+    Regression : pre-fix this returned 404 'User not found' because the
+    address book CRUD assumed a pre-existing User row. The country
+    prompt banner upserted via PUT /users/me, but a buyer who skipped
+    or dismissed the banner couldn't save addresses at all.
+    """
+    r = await client.post(
+        "/api/v1/me/addresses", headers=_hdr(TEST_BUYER_FRESH), json=_payload()
+    )
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["is_default"] is True  # first address auto-default
+
+    # Verify the User row was created with wallet_address only (country
+    # stays null until set explicitly).
+    factory = get_async_session_factory()
+    async with factory() as s:
+        u = (
+            await s.execute(
+                select(User).where(User.wallet_address == TEST_BUYER_FRESH)
+            )
+        ).scalar_one()
+        assert u.country is None  # not set by address creation
+
+
+async def test_fresh_buyer_can_list_addresses_after_first_create(
+    client: AsyncClient,
+):
+    """Round-trip : create then list, verify the upsert is visible."""
+    create = await client.post(
+        "/api/v1/me/addresses", headers=_hdr(TEST_BUYER_FRESH), json=_payload()
+    )
+    assert create.status_code == 201
+    listing = (
+        await client.get("/api/v1/me/addresses", headers=_hdr(TEST_BUYER_FRESH))
+    ).json()
+    assert listing["count"] == 1
+    assert listing["items"][0]["city"] == "Lagos"
