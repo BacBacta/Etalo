@@ -32,12 +32,35 @@ from app.schemas.delivery_address import (
 router = APIRouter(prefix="/me/addresses", tags=["addresses"])
 
 
+def _find_user(db: Session, wallet: str) -> User | None:
+    """Read-only lookup. Returns None if no User row exists for the wallet
+    (fresh buyer who has never declared country / saved an address)."""
+    return db.query(User).filter(User.wallet_address == wallet).one_or_none()
+
+
+def _get_or_create_user(db: Session, wallet: str) -> User:
+    """Upsert pattern : create the User row on first write if absent.
+    Mirrors PUT /users/me behavior (Block 5) so the address book CRUD
+    works for fresh buyers who haven't completed the country prompt yet.
+    """
+    user = _find_user(db, wallet)
+    if user is None:
+        user = User(wallet_address=wallet)
+        db.add(user)
+        db.flush()  # populate user.id without committing
+    return user
+
+
 def _get_or_404_user(db: Session, wallet: str) -> User:
-    user = db.query(User).filter(User.wallet_address == wallet).one_or_none()
+    """Strict lookup — used by mutation endpoints that operate on an
+    existing address (PATCH / DELETE / set-default). 404 here is correct
+    : if there's no User there's no addresses, so any address_id will
+    404 anyway."""
+    user = _find_user(db, wallet)
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="User not found. Onboard via wallet connect first.",
+            detail="Address not found.",
         )
     return user
 
@@ -68,7 +91,11 @@ def list_addresses(
     wallet: Annotated[str, Depends(get_current_wallet)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DeliveryAddressList:
-    user = _get_or_404_user(db, wallet)
+    # Fresh buyer (no User row yet) → return empty list, not 404. The
+    # frontend treats empty list as "no saved addresses, prompt to add".
+    user = _find_user(db, wallet)
+    if user is None:
+        return DeliveryAddressList(items=[], count=0)
     rows = (
         db.query(DeliveryAddress)
         .filter(
@@ -97,7 +124,11 @@ def create_address(
     wallet: Annotated[str, Depends(get_current_wallet)],
     db: Annotated[Session, Depends(get_db)],
 ) -> DeliveryAddressResponse:
-    user = _get_or_404_user(db, wallet)
+    # Upsert User on first address write — buyers don't need to set
+    # country before saving their first address. The User row carries
+    # only wallet_address ; country can be added later via PUT /users/me
+    # or via CountrySelector in /seller/dashboard ProfileTab.
+    user = _get_or_create_user(db, wallet)
 
     # First non-deleted address of this user becomes default automatically.
     existing_count = (
