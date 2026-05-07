@@ -1,6 +1,5 @@
 "use client";
 
-import { ImageSquare } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -9,6 +8,7 @@ import {
   type CountryCode,
   isValidCountryCode,
 } from "@/components/CountrySelector";
+import { LogoUploader } from "@/components/seller/LogoUploader";
 import { Button } from "@/components/ui/button";
 import {
   type SellerProfilePublic,
@@ -59,17 +59,20 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
     : null;
   const initialSocials = readSocials(profile.socials);
 
+  const initialLogo: string | null = profile.logo_ipfs_hash ?? null;
   const [shopName, setShopName] = useState(profile.shop_name);
   const [description, setDescription] = useState(profile.description ?? "");
   const [country, setCountry] = useState<CountryCode | null>(initialCountry);
   const [socials, setSocials] = useState<SocialsForm>(initialSocials);
+  const [logoIpfsHash, setLogoIpfsHash] = useState<string | null>(initialLogo);
   const [saving, setSaving] = useState(false);
 
   const dirty =
     shopName !== profile.shop_name ||
     (description ?? "") !== (profile.description ?? "") ||
     country !== initialCountry ||
-    !socialsEqual(socials, initialSocials);
+    !socialsEqual(socials, initialSocials) ||
+    logoIpfsHash !== initialLogo;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,6 +96,11 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
           tiktok: socials.tiktok.trim() || null,
         };
       }
+      if (logoIpfsHash !== initialLogo) {
+        // null = remove logo, string = set new logo. Backend treats
+        // both as a direct overwrite of `SellerProfile.logo_ipfs_hash`.
+        payload.logo_ipfs_hash = logoIpfsHash;
+      }
       const updated = await updateSellerProfile(address, payload);
       onUpdated(updated);
       toast.success("Profile updated");
@@ -105,25 +113,12 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Logo upload placeholder — visual slot only V1. The dashed
-          border + ImageSquare icon mirrors Add product › Images so the
-          seller has a concrete mental model of where the upload lives.
-          Real wiring lands once IPFS pipeline scope is finalized. */}
-      <div>
-        <span className="mb-1 block text-base font-medium text-celo-dark dark:text-celo-light">
-          Shop logo
-        </span>
-        <div
-          aria-label="Shop logo upload placeholder"
-          data-testid="profile-logo-placeholder"
-          className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light/40"
-        >
-          <ImageSquare className="h-8 w-8" aria-hidden />
-        </div>
-        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Logo upload coming soon.
-        </p>
-      </div>
+      <LogoUploader
+        value={logoIpfsHash}
+        onChange={setLogoIpfsHash}
+        walletAddress={address}
+        disabled={saving}
+      />
       <div>
         <label
           htmlFor="shop-name"
