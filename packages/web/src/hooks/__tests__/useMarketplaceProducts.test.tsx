@@ -100,6 +100,7 @@ describe("useMarketplaceProducts — gating", () => {
       cursor: null,
       limit: 20,
       country: null,
+      q: null,
     });
   });
 });
@@ -155,6 +156,7 @@ describe("useMarketplaceProducts — pagination", () => {
       cursor: "2026-05-04T00:00:00Z",
       limit: 20,
       country: null,
+      q: null,
     });
     expect(result.current.data?.pages).toHaveLength(2);
   });
@@ -170,6 +172,37 @@ describe("useMarketplaceProducts — pagination", () => {
       cursor: null,
       limit: 20,
       country: "GHA",
+      q: null,
+    });
+  });
+
+  it("forwards the q search query (trimmed) to fetchMarketplaceProducts", async () => {
+    fetchMarketplaceProductsMock.mockResolvedValue(makePage());
+    const { result } = renderHook(
+      () => useMarketplaceProducts({ enabled: true, q: "  Robe wax  " }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith({
+      cursor: null,
+      limit: 20,
+      country: null,
+      q: "Robe wax",
+    });
+  });
+
+  it("collapses whitespace-only q to null (no search applied)", async () => {
+    fetchMarketplaceProductsMock.mockResolvedValue(makePage());
+    const { result } = renderHook(
+      () => useMarketplaceProducts({ enabled: true, q: "   " }),
+      { wrapper: makeWrapper() },
+    );
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(fetchMarketplaceProductsMock).toHaveBeenCalledWith({
+      cursor: null,
+      limit: 20,
+      country: null,
+      q: null,
     });
   });
 
@@ -184,6 +217,7 @@ describe("useMarketplaceProducts — pagination", () => {
       cursor: null,
       limit: 20,
       country: null,
+      q: null,
     });
   });
 });

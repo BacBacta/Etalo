@@ -65,7 +65,17 @@ async def _seed_product(
     stock: int = 5,
     status: str = "active",
     created_at: datetime | None = None,
+    image_ipfs_hashes: list[str] | None = None,
 ) -> Product:
+    # Default to a placeholder image so the product clears the V1
+    # marketplace quality bar (image_ipfs_hashes IS NOT NULL +
+    # cardinality >= 1). Tests that specifically need an image-less
+    # product pass `image_ipfs_hashes=[]` explicitly.
+    image_hashes = (
+        image_ipfs_hashes
+        if image_ipfs_hashes is not None
+        else ["QmTestPlaceholder"]
+    )
     product = Product(
         id=uuid.uuid4(),
         seller_id=seller.id,
@@ -74,6 +84,7 @@ async def _seed_product(
         price_usdt=Decimal(price),
         stock=stock,
         status=status,
+        image_ipfs_hashes=image_hashes if image_hashes else None,
         created_at=created_at or datetime.now(timezone.utc),
     )
     db.add(product)
@@ -326,3 +337,91 @@ async def test_marketplace_invalid_cursor_falls_back(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert "products" in data
+
+
+@pytest.mark.asyncio
+async def test_marketplace_excludes_products_without_images(
+    client: AsyncClient, db: AsyncSession
+):
+    """V1 quality bar — products with NULL or empty image_ipfs_hashes
+    must not appear in the public marketplace listing. Same seller
+    surfaces them on the dashboard (seller-side query is unaffected).
+    """
+    suffix = uuid.uuid4().hex[:8]
+    handle = f"mp-image-filter-{suffix}"
+    seller, _ = await _seed_seller(db, handle=handle, shop_name="Image Filter")
+    base = datetime.now(timezone.utc) + timedelta(days=400)
+    with_image = await _seed_product(
+        db,
+        seller=seller,
+        slug=f"with-image-{suffix}",
+        title="Has Image",
+        created_at=base + timedelta(hours=2),
+    )
+    await _seed_product(
+        db,
+        seller=seller,
+        slug=f"no-image-{suffix}",
+        title="No Image",
+        image_ipfs_hashes=[],  # explicit opt-out → row gets image_ipfs_hashes=NULL
+        created_at=base + timedelta(hours=1),
+    )
+    await db.commit()
+    try:
+        resp = await client.get(
+            "/api/v1/marketplace/products?limit=50",
+        )
+        assert resp.status_code == 200
+        slugs = {p["slug"] for p in resp.json()["products"]}
+        assert with_image.slug in slugs
+        assert f"no-image-{suffix}" not in slugs
+    finally:
+        await _cleanup(db, [handle])
+
+
+@pytest.mark.asyncio
+async def test_marketplace_search_filters_by_title_substring(
+    client: AsyncClient, db: AsyncSession
+):
+    """`?q=` performs a case-insensitive substring match over Product.title.
+    Empty / whitespace-only q is treated as absent."""
+    suffix = uuid.uuid4().hex[:8]
+    handle = f"mp-search-{suffix}"
+    seller, _ = await _seed_seller(db, handle=handle, shop_name="Search Seller")
+    base = datetime.now(timezone.utc) + timedelta(days=500)
+    await _seed_product(
+        db, seller=seller, slug=f"robe-{suffix}", title="Robe wax M",
+        created_at=base + timedelta(hours=2),
+    )
+    await _seed_product(
+        db, seller=seller, slug=f"tshirt-{suffix}", title="T-shirt logo XL",
+        created_at=base + timedelta(hours=1),
+    )
+    await db.commit()
+    try:
+        # Substring match (case-insensitive) — "robe" finds "Robe wax M".
+        resp = await client.get(
+            "/api/v1/marketplace/products?limit=50&q=robe",
+        )
+        assert resp.status_code == 200
+        slugs = {p["slug"] for p in resp.json()["products"]}
+        assert f"robe-{suffix}" in slugs
+        assert f"tshirt-{suffix}" not in slugs
+
+        # Whitespace-only q → no filter (both products visible).
+        resp_blank = await client.get(
+            "/api/v1/marketplace/products?limit=50&q=   ",
+        )
+        assert resp_blank.status_code == 200
+        blank_slugs = {p["slug"] for p in resp_blank.json()["products"]}
+        assert f"robe-{suffix}" in blank_slugs
+        assert f"tshirt-{suffix}" in blank_slugs
+
+        # No match → empty product list (200, not 404).
+        resp_none = await client.get(
+            "/api/v1/marketplace/products?limit=50&q=nonexistent-xyz",
+        )
+        assert resp_none.status_code == 200
+        assert resp_none.json()["products"] == []
+    finally:
+        await _cleanup(db, [handle])

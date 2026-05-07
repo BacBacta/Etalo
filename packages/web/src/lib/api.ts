@@ -152,6 +152,9 @@ export interface FetchMarketplaceProductsArgs {
   /** Country filter (NGA / GHA / KEN / "all"). Omit or pass "all" for no
    *  filter. J11.7 Block 9 (ADR-045). */
   country?: string | null;
+  /** Optional case-insensitive substring search over Product.title.
+   *  Empty / undefined disables search. Trimmed by the backend. */
+  q?: string | null;
 }
 
 export async function fetchMarketplaceProducts(
@@ -160,10 +163,11 @@ export async function fetchMarketplaceProducts(
 ): Promise<MarketplaceListResponse> {
   // Backwards-compatible signature : the legacy form
   // `fetchMarketplaceProducts(cursor, limit)` still works ; new callers
-  // can pass an args object with country.
+  // can pass an args object with country / q.
   let cursor: string | null | undefined;
   let effectiveLimit = limit;
   let country: string | null | undefined;
+  let q: string | null | undefined;
   if (
     cursorOrArgs !== null &&
     typeof cursorOrArgs === "object" &&
@@ -172,6 +176,7 @@ export async function fetchMarketplaceProducts(
     cursor = cursorOrArgs.cursor;
     effectiveLimit = cursorOrArgs.limit ?? limit;
     country = cursorOrArgs.country;
+    q = cursorOrArgs.q;
   } else {
     cursor = cursorOrArgs as string | null | undefined;
   }
@@ -183,6 +188,7 @@ export async function fetchMarketplaceProducts(
   // (Étape 7.1 defensive parse). Never string-concat the cursor.
   if (cursor) params.set("after", cursor);
   if (country && country !== "all") params.set("country", country);
+  if (q && q.trim().length > 0) params.set("q", q.trim());
   const res = await fetchApi(`/marketplace/products?${params.toString()}`, {
     next: { revalidate: 30 },
   });

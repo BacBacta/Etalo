@@ -78,6 +78,7 @@ async def _seed_block3() -> AsyncGenerator[dict, None]:
             price_usdt=10,
             stock=5,
             status="active",
+            image_ipfs_hashes=["QmTestPlaceholder"],
         )
         s.add(nga_product)
 
@@ -97,6 +98,7 @@ async def _seed_block3() -> AsyncGenerator[dict, None]:
             price_usdt=12,
             stock=5,
             status="active",
+            image_ipfs_hashes=["QmTestPlaceholder"],
         )
         s.add(gha_product)
 

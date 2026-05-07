@@ -24,6 +24,7 @@ import {
   CountryFilterChips,
   type CountryFilterValue,
 } from "@/components/marketplace/CountryFilterChips";
+import { MarketplaceSearchInput } from "@/components/marketplace/MarketplaceSearchInput";
 import { Button } from "@/components/ui/button";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useBuyerCountry } from "@/hooks/useBuyerCountry";
@@ -100,6 +101,7 @@ function MarketplacePageInner() {
   const buyerCountry = buyerCountryQuery.data?.country ?? null;
 
   const urlCountry = searchParams?.get("country") ?? null;
+  const urlQ = searchParams?.get("q") ?? "";
   const countryFilter: CountryFilterValue = useMemo(() => {
     if (urlCountry === "all") return "all";
     if (urlCountry && isValidCountryCode(urlCountry)) return urlCountry;
@@ -114,6 +116,25 @@ function MarketplacePageInner() {
         params.delete("country");
       } else {
         params.set("country", next);
+      }
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname);
+    },
+    [pathname, router, searchParams],
+  );
+
+  // Search query lives in URL state so a buyer who shared a deeplink
+  // (or hit back) gets the same filtered listing. Updates are debounced
+  // upstream by MarketplaceSearchInput so router.replace is hit at most
+  // once per ~300 ms of typing — no per-keystroke history pollution.
+  const updateSearchQuery = useCallback(
+    (next: string) => {
+      const params = new URLSearchParams(searchParams?.toString() ?? "");
+      const trimmed = next.trim();
+      if (trimmed.length === 0) {
+        params.delete("q");
+      } else {
+        params.set("q", trimmed);
       }
       const qs = params.toString();
       router.replace(qs ? `${pathname}?${qs}` : pathname);
@@ -153,6 +174,7 @@ function MarketplacePageInner() {
   const query = useMarketplaceProducts({
     enabled: isMiniPay === true,
     country: countryFilter,
+    q: urlQ,
   });
 
   const products = useMemo(
@@ -266,16 +288,19 @@ function MarketplacePageInner() {
 
   if (products.length === 0) {
     const filteredOnCountry = countryFilter !== "all";
+    const hasSearchQuery = urlQ.trim().length > 0;
     return (
       <main
         id="main"
         className="min-h-screen"
       >
         <div className="mx-auto max-w-3xl px-4 py-6">
-          <h1 className="mb-1 text-xl font-semibold">Marketplace</h1>
-          <p className="mb-4 text-sm text-neutral-600">
-            Discover products from sellers across Africa
-          </p>
+          <h1 className="mb-3 text-xl font-semibold">Marketplace</h1>
+          <MarketplaceSearchInput
+            value={urlQ}
+            onChange={updateSearchQuery}
+            className="mb-3"
+          />
           <CountryFilterChips
             value={countryFilter}
             onChange={updateCountryFilter}
@@ -283,15 +308,33 @@ function MarketplacePageInner() {
           />
           <div
             data-testid="marketplace-empty"
-            className="flex flex-col items-center justify-center rounded-lg border border-neutral-200 bg-white p-8 text-center"
+            className="flex flex-col items-center justify-center rounded-lg border border-neutral-200 bg-white p-8 text-center dark:border-celo-light/[8%] dark:bg-celo-dark-elevated"
           >
-            {filteredOnCountry ? (
+            {hasSearchQuery ? (
+              <>
+                <h2 className="mb-2 text-lg font-medium">
+                  No products match &ldquo;{urlQ}&rdquo;
+                </h2>
+                <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+                  Try a different word or clear the search.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => updateSearchQuery("")}
+                  data-testid="marketplace-empty-clear-search"
+                  className="min-h-[44px]"
+                >
+                  Clear search
+                </Button>
+              </>
+            ) : filteredOnCountry ? (
               <>
                 <h2 className="mb-2 text-lg font-medium">
                   No sellers in {countryName(countryFilter) ?? countryFilter}{" "}
                   yet
                 </h2>
-                <p className="mb-4 text-sm text-neutral-600">
+                <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
                   Try &quot;All countries&quot; or check back soon.
                 </p>
                 <Button
@@ -307,7 +350,7 @@ function MarketplacePageInner() {
             ) : (
               <>
                 <h2 className="mb-2 text-lg font-medium">No products yet</h2>
-                <p className="text-sm text-neutral-600">
+                <p className="text-sm text-neutral-600 dark:text-neutral-400">
                   Etalo&apos;s marketplace is just getting started. Check back
                   soon!
                 </p>
@@ -398,9 +441,16 @@ function MarketplacePageInner() {
               />
             </button>
           </div>
-          <p className="mb-4 text-sm text-neutral-600">
-            Discover products from sellers across Africa
-          </p>
+          {/* Subtitle "Discover products from sellers across Africa"
+              dropped : low contrast on dark mode + redundant context
+              given the country chips below. ~24 px reclaimed above the
+              fold on a 360 px viewport. */}
+
+          <MarketplaceSearchInput
+            value={urlQ}
+            onChange={updateSearchQuery}
+            className="mb-3"
+          />
 
           {showCountryBanner ? (
             <div className="mb-4">
@@ -437,7 +487,10 @@ function MarketplacePageInner() {
             disabled={isRefreshing}
           />
 
-          <MarketplaceGrid products={products} />
+          <MarketplaceGrid
+            products={products}
+            hideSellerCountry={countryFilter !== "all"}
+          />
 
           {query.hasNextPage ? (
             <div className="mt-8 flex justify-center">
