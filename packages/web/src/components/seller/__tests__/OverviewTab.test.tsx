@@ -10,7 +10,7 @@
  * standing up a QueryClientProvider — the OverviewTab assertions are
  * about presentation, not the data flow.
  */
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { OverviewTab } from "@/components/seller/OverviewTab";
@@ -79,18 +79,42 @@ vi.mock("next/image", () => ({
   ),
 }));
 
-const fetchSellerOrdersMock = vi.fn();
-vi.mock("@/lib/seller-api", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/seller-api")>(
-      "@/lib/seller-api",
-    );
+// Tab-switch perf hotfix : recent-orders strip now reads from
+// useSellerOrders (TanStack Query) instead of a raw fetch +
+// useState. Mock the hook directly so spec bodies stay focused on
+// presentation without standing up a QueryClientProvider.
+const useSellerOrdersMock = vi.fn();
+vi.mock("@/hooks/useSellerOrders", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/hooks/useSellerOrders")
+  >("@/hooks/useSellerOrders");
   return {
     ...actual,
-    fetchSellerOrders: (...args: unknown[]) =>
-      fetchSellerOrdersMock(...args),
+    useSellerOrders: (...args: unknown[]) => useSellerOrdersMock(...args),
   };
 });
+
+function recentPending() {
+  useSellerOrdersMock.mockReturnValue({
+    data: undefined,
+    isPending: true,
+    isError: false,
+    isSuccess: false,
+    error: null,
+    refetch: vi.fn(),
+  });
+}
+
+function recentSuccess(data: unknown) {
+  useSellerOrdersMock.mockReturnValue({
+    data,
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+    error: null,
+    refetch: vi.fn(),
+  });
+}
 
 const ADDRESS = "0xabc0000000000000000000000000000000000001";
 
@@ -162,14 +186,14 @@ const ZEROED: AnalyticsSummaryParsed = {
 };
 
 beforeEach(() => {
-  fetchSellerOrdersMock.mockReset();
+  useSellerOrdersMock.mockReset();
   useAnalyticsSummaryMock.mockReset();
   // Default the analytics hook to loading state so individual specs
   // only override what they care about.
   useAnalyticsSummaryMock.mockReturnValue(loadingState());
-  // Default the recent-orders fetch to never-resolves so the recent
-  // section sits in skeleton state and doesn't pollute KPI assertions.
-  fetchSellerOrdersMock.mockReturnValue(new Promise(() => {}));
+  // Default the recent-orders hook to pending so the strip sits in
+  // skeleton state and doesn't pollute KPI / chart assertions.
+  recentPending();
 });
 
 afterEach(() => {
@@ -180,8 +204,8 @@ afterEach(() => {
 // Block 3b regression-guard — preserved unchanged in 5.4
 // ============================================================
 describe("OverviewTab — Recent orders false-empty regression-guard (Block 3b)", () => {
-  it("shows skeleton stack while recent === null (fetch in flight), NOT empty state", () => {
-    fetchSellerOrdersMock.mockReturnValue(new Promise(() => {}));
+  it("shows skeleton stack while the query is pending, NOT the empty state", () => {
+    recentPending();
     render(
       <OverviewTab
         // @ts-expect-error — minimal stub for unused profile prop
@@ -193,8 +217,8 @@ describe("OverviewTab — Recent orders false-empty regression-guard (Block 3b)"
     expect(screen.queryByText(/No orders yet/i)).not.toBeInTheDocument();
   });
 
-  it("shows 'No orders yet' once recent resolves with []", async () => {
-    fetchSellerOrdersMock.mockResolvedValue({
+  it("shows 'No orders yet' once recent resolves with []", () => {
+    recentSuccess({
       orders: [],
       pagination: { total: 0, has_more: false, next_cursor: null },
     });
@@ -205,12 +229,10 @@ describe("OverviewTab — Recent orders false-empty regression-guard (Block 3b)"
         address={ADDRESS}
       />,
     );
-    expect(screen.getByTestId("overview-skeleton")).toBeInTheDocument();
-    await waitFor(() =>
-      expect(
-        screen.queryByTestId("overview-skeleton"),
-      ).not.toBeInTheDocument(),
-    );
+    // With the hook returning a synchronous success state on first
+    // render, the skeleton never mounts ; previous useEffect-based
+    // path went pending → settle in two tick cycles.
+    expect(screen.queryByTestId("overview-skeleton")).not.toBeInTheDocument();
     expect(screen.getByText(/No orders yet/i)).toBeInTheDocument();
   });
 });

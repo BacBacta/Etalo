@@ -9,15 +9,34 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProductsTab } from "@/components/seller/ProductsTab";
 
-const fetchMyProductsMock = vi.fn();
-vi.mock("@/lib/seller-api", async () => {
-  const actual =
-    await vi.importActual<typeof import("@/lib/seller-api")>(
-      "@/lib/seller-api",
-    );
+// Mock the TanStack Query hook directly so the test stays focused on
+// presentation + interaction, no QueryClientProvider scaffolding
+// required (matches the pattern used by OverviewTab + MarketingTab
+// tests with useAnalyticsSummary / useCreditsBalance).
+const useMyProductsMock = vi.fn();
+vi.mock("@/hooks/useMyProducts", async () => {
+  const actual = await vi.importActual<typeof import("@/hooks/useMyProducts")>(
+    "@/hooks/useMyProducts",
+  );
   return {
     ...actual,
-    fetchMyProducts: (...args: unknown[]) => fetchMyProductsMock(...args),
+    useMyProducts: (...args: unknown[]) => useMyProductsMock(...args),
+  };
+});
+
+// `useQueryClient` is invoked inside ProductsTab for the cache-invalidate
+// path post-mutation. Stub it so we don't need a QueryClientProvider
+// wrapper just to render the tab.
+const invalidateQueriesMock = vi.fn();
+vi.mock("@tanstack/react-query", async () => {
+  const actual = await vi.importActual<typeof import("@tanstack/react-query")>(
+    "@tanstack/react-query",
+  );
+  return {
+    ...actual,
+    useQueryClient: () => ({
+      invalidateQueries: invalidateQueriesMock,
+    }),
   };
 });
 
@@ -30,6 +49,20 @@ vi.mock("@/components/seller/ProductFormDialog", () => ({
 vi.mock("@/components/seller/DeleteProductDialog", () => ({
   DeleteProductDialog: () => null,
 }));
+
+// Helper : build the shape the hook would return on a happy-path
+// resolved fetch. `data` is what useQuery returns when not pending +
+// not erroring.
+function happyPath<T>(data: T) {
+  return {
+    data,
+    isPending: false,
+    isError: false,
+    isSuccess: true,
+    error: null,
+    refetch: vi.fn(),
+  };
+}
 
 const PROFILE = {
   shop_handle: "test-shop",
@@ -46,7 +79,8 @@ const PROFILE = {
 const WALLET = "0xabc0000000000000000000000000000000000001";
 
 beforeEach(() => {
-  fetchMyProductsMock.mockReset();
+  useMyProductsMock.mockReset();
+  invalidateQueriesMock.mockReset();
 });
 
 afterEach(() => {
@@ -55,7 +89,7 @@ afterEach(() => {
 
 describe("ProductsTab — empty state (Block 5b)", () => {
   it("renders EmptyStateV5 no-products with CTA when product list is []", async () => {
-    fetchMyProductsMock.mockResolvedValue({ products: [], total: 0 });
+    useMyProductsMock.mockReturnValue(happyPath({ products: [], total: 0 }));
     render(
       // @ts-expect-error — minimal stub for unused profile fields
       <ProductsTab profile={PROFILE} walletAddress={WALLET} />,
@@ -71,7 +105,7 @@ describe("ProductsTab — empty state (Block 5b)", () => {
   });
 
   it("CTA opens the ProductFormDialog (create mode)", async () => {
-    fetchMyProductsMock.mockResolvedValue({ products: [], total: 0 });
+    useMyProductsMock.mockReturnValue(happyPath({ products: [], total: 0 }));
     render(
       // @ts-expect-error — minimal stub
       <ProductsTab profile={PROFILE} walletAddress={WALLET} />,

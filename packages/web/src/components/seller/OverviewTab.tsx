@@ -1,21 +1,17 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useState } from "react";
 
 import {
   useAnalyticsSummary,
   type AnalyticsSummaryParsed,
 } from "@/hooks/useAnalyticsSummary";
+import { useSellerOrders } from "@/hooks/useSellerOrders";
 import { CardV4 } from "@/components/ui/v4/Card";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { formatChartDate, formatRowDate } from "@/lib/format";
-import {
-  fetchSellerOrders,
-  type SellerOrdersPage,
-  type SellerProfilePublic,
-} from "@/lib/seller-api";
+import { type SellerProfilePublic } from "@/lib/seller-api";
 import { displayUsdtFromHumanNumber, formatRawUsdt } from "@/lib/usdt";
 
 // Block 5 sub-block 5.6 — IPFS gateway constant. Mirrors the local
@@ -55,13 +51,16 @@ interface Props {
 
 export function OverviewTab({ address }: Props) {
   const analytics = useAnalyticsSummary(address);
-  const [recent, setRecent] = useState<SellerOrdersPage | null>(null);
-
-  useEffect(() => {
-    fetchSellerOrders(address, 1, 5)
-      .then(setRecent)
-      .catch(() => setRecent(null));
-  }, [address]);
+  // Recent orders share the seller-orders cache with OrdersTab : the
+  // (page=1, pageSize=5) slot is distinct from the OrdersTab slot
+  // (page=1, pageSize=20), so each subscriber pulls/refetches its own
+  // shape independently while still benefiting from per-key
+  // staleTime + invalidation.
+  const recentQuery = useSellerOrders({ address, page: 1, pageSize: 5 });
+  const recent =
+    recentQuery.isPending || recentQuery.isError
+      ? null
+      : (recentQuery.data ?? null);
 
   return (
     <div className="space-y-6">

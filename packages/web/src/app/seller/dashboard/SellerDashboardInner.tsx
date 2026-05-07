@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
@@ -16,9 +17,13 @@ import {
   TabsV4Root,
   TabsV4Trigger,
 } from "@/components/ui/v4/Tabs";
+import { MY_PRODUCTS_QUERY_KEY } from "@/hooks/useMyProducts";
+import { SELLER_ORDERS_QUERY_KEY } from "@/hooks/useSellerOrders";
 import { detectMiniPay } from "@/lib/minipay-detect";
 import {
+  fetchMyProducts,
   fetchMyProfile,
+  fetchSellerOrders,
   type SellerProfilePublic,
 } from "@/lib/seller-api";
 
@@ -37,6 +42,7 @@ export function SellerDashboardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { address } = useAccount();
+  const queryClient = useQueryClient();
 
   const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
   const [profile, setProfile] = useState<SellerProfilePublic | null>(null);
@@ -86,6 +92,37 @@ export function SellerDashboardInner() {
       cancelled = true;
     };
   }, [isMiniPay, address]);
+
+  // Pre-warm every tab's data cache as soon as we know the wallet, in
+  // parallel with the seller-profile fetch above. The user reported
+  // tab-switch lag : with this in place, by the time they tap any tab
+  // the underlying TanStack Query already has data and the tab
+  // renders synchronously off cache instead of firing a fresh
+  // network request on every Radix Tabs mount.
+  //
+  // Each prefetchQuery's key MUST mirror the consumer hook's key
+  // exactly (useMyProducts / useSellerOrders) ; otherwise the cache
+  // entries are orphans and the consumer still fires.
+  useEffect(() => {
+    if (isMiniPay !== true || !address) return;
+    void queryClient.prefetchQuery({
+      queryKey: [...MY_PRODUCTS_QUERY_KEY, address, false],
+      queryFn: () => fetchMyProducts(address, false),
+      staleTime: 30_000,
+    });
+    void queryClient.prefetchQuery({
+      // OrdersTab default : page 1, pageSize 20, no status filter.
+      queryKey: [...SELLER_ORDERS_QUERY_KEY, address, 1, 20, ""],
+      queryFn: () => fetchSellerOrders(address, 1, 20, undefined),
+      staleTime: 30_000,
+    });
+    void queryClient.prefetchQuery({
+      // Overview recent-orders strip : page 1, pageSize 5.
+      queryKey: [...SELLER_ORDERS_QUERY_KEY, address, 1, 5, ""],
+      queryFn: () => fetchSellerOrders(address, 1, 5, undefined),
+      staleTime: 30_000,
+    });
+  }, [isMiniPay, address, queryClient]);
 
   const requestedTab = searchParams.get("tab") as TabKey | null;
   const safeTab: TabKey =
