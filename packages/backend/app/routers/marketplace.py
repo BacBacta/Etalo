@@ -1,11 +1,12 @@
 from datetime import datetime
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Query, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_db
+from app.models.enums import Country
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
@@ -21,6 +22,18 @@ router = APIRouter(prefix="/marketplace", tags=["marketplace"])
 from app.services.ipfs import build_ipfs_url_or_none as _ipfs_url
 
 
+# Allowed country filter values : the 3 V1 markets per ADR-041, OR
+# the literal "all" sentinel to bypass the filter explicitly. The
+# corresponding alpha-3 codes used in DB are NGA / GHA / KEN.
+_VALID_COUNTRY_FILTER = {c.value for c in Country} | {"all"}
+
+# Allowed sort values. "newest" sorts by Product.created_at desc.
+# "popular" fallbacks to newest in V1 — denormalized completed_orders
+# count is V1.5+ scope (no cached field exists yet ; running a JOIN
+# COUNT on every marketplace request would not scale).
+_VALID_SORT = {"newest", "popular"}
+
+
 @router.get("/products", response_model=MarketplaceListResponse)
 async def list_marketplace_products(
     response: Response,
@@ -30,15 +43,35 @@ async def list_marketplace_products(
         description="ISO datetime cursor — returns items strictly older than this.",
     ),
     limit: int = Query(20, ge=1, le=50),
+    country: str | None = Query(
+        None,
+        description="ISO 3166-1 alpha-3 country filter (NGA, GHA, KEN, or 'all'). When omitted or 'all', returns sellers from every V1 market.",
+    ),
+    sort: str = Query(
+        "newest",
+        description="Sort order : 'newest' (created_at desc) or 'popular' (V1 fallback to newest until denormalized score ships in V1.5+).",
+    ),
 ) -> MarketplaceListResponse:
     """
     Public marketplace listing across all sellers.
 
     Sort: created_at DESC. Cursor-based pagination via `?after=<iso_dt>`.
-    Excludes Product.status != 'active'. (V1.5: also exclude suspended
-    sellers once SellerProfile.status enum exists — same TODO as cart
-    token endpoint.)
+    Excludes Product.status != 'active'. Optional country filter scopes
+    to a single V1 launch market (ADR-045). (V1.5: also exclude
+    suspended sellers once SellerProfile.status enum exists — same TODO
+    as cart token endpoint.)
     """
+    if country is not None and country not in _VALID_COUNTRY_FILTER:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid country filter. Must be one of {sorted(_VALID_COUNTRY_FILTER)}.",
+        )
+    if sort not in _VALID_SORT:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Invalid sort. Must be one of {sorted(_VALID_SORT)}.",
+        )
+
     stmt = (
         select(Product, SellerProfile, User)
         .join(SellerProfile, Product.seller_id == SellerProfile.id)
@@ -47,6 +80,9 @@ async def list_marketplace_products(
         .order_by(Product.created_at.desc())
         .limit(limit + 1)  # +1 to detect has_more without a count query
     )
+
+    if country is not None and country != "all":
+        stmt = stmt.where(User.country == country)
 
     if after:
         # FastAPI's query parser decodes raw `+` as space (form-urlencoded

@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -10,6 +10,7 @@ from sqlalchemy.orm import selectinload
 from app.database import get_async_db
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
+from app.models.user import User
 from app.schemas.cart import (
     CartTokenRequest,
     CartTokenResponse,
@@ -30,6 +31,9 @@ from app.services.ipfs import build_ipfs_url_or_none as _ipfs_url
 async def create_cart_token(
     request: CartTokenRequest,
     db: Annotated[AsyncSession, Depends(get_async_db)],
+    x_wallet_address: Annotated[
+        str | None, Header(alias="X-Wallet-Address")
+    ] = None,
 ) -> CartTokenResponse:
     """
     Validate a cart payload + lock prices/seller info into a 15-minute
@@ -90,6 +94,60 @@ async def create_cart_token(
                 "validation_errors": [e.model_dump(mode="json") for e in errors]
             },
         )
+
+    # Cross-border defense-in-depth (ADR-045 + ADR-041) — V1 is intra-only,
+    # so a buyer in country X cannot purchase from a seller in country Y.
+    # Frontend filter (Block 7/9) prevents the case in normal UX, but we
+    # block here too in case a malformed client bypasses the FE check.
+    # Optional auth : if X-Wallet-Address header absent, we cannot enforce
+    # the rule (legacy public callers may not pass it). Frontend SHOULD
+    # always pass it post-J11.7.
+    if x_wallet_address:
+        buyer = (
+            await db.scalars(
+                select(User).where(User.wallet_address == x_wallet_address.lower())
+            )
+        ).one_or_none()
+        if buyer is not None and buyer.country is not None:
+            mismatched_handles: list[tuple[str, str | None]] = []
+            for product_id, _qty in qty_by_id.items():
+                product = products_by_id.get(product_id)
+                if product is None or product.seller is None:
+                    continue
+                seller_country = (
+                    product.seller.user.country if product.seller.user else None
+                )
+                if seller_country is None:
+                    continue  # legacy seller without country — let it through
+                if seller_country != buyer.country:
+                    mismatched_handles.append(
+                        (product.seller.shop_handle, seller_country)
+                    )
+            if mismatched_handles:
+                # Deduplicate seller handles for a clean error message.
+                seen: dict[str, str | None] = {}
+                for handle, country in mismatched_handles:
+                    seen.setdefault(handle, country)
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail={
+                        "validation_errors": [
+                            {
+                                "reason": "cross_border_not_supported",
+                                "buyer_country": buyer.country,
+                                "blocked_sellers": [
+                                    {"shop_handle": h, "country": c}
+                                    for h, c in seen.items()
+                                ],
+                                "message": (
+                                    "Cross-border orders are not yet supported. "
+                                    "Your country differs from at least one "
+                                    "seller in this cart."
+                                ),
+                            }
+                        ]
+                    },
+                )
 
     # Group by seller. We rebuild ResolvedCart* models so the schema
     # round-trip serialization matches what /resolve will return.
