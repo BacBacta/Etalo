@@ -34,10 +34,14 @@ export type SellerProfileResponse =
   components["schemas"]["SellerProfileResponse"];
 export type StakeBlock = components["schemas"]["StakeBlock"];
 export type StakeTier = components["schemas"]["StakeTier"];
-// J11.7 hotfix — SellerOrderItem gains delivery_address_snapshot so the
-// seller dashboard can surface shipping context (where to ship + buyer
-// phone) directly on the orders list. Local extension until pnpm gen:api
-// re-runs post-merge ; intersection becomes a no-op after re-gen.
+// fix/seller-orders-delivery-info hotfix — SellerOrderItem gains two
+// field groups so the seller dashboard surfaces shipping + picking
+// context directly on the orders list (no detail-page navigation
+// required) :
+//   - delivery_address_snapshot — where to ship + WhatsApp deeplink.
+//   - line_items — per-SKU breakdown {title, qty, image_ipfs_hash}.
+// Both extensions are local until `pnpm gen:api` re-runs post-merge ;
+// intersections become no-ops once the regen lands.
 type DeliveryAddressSnapshotJson = {
   phone_number?: string | null;
   country?: string | null;
@@ -48,8 +52,15 @@ type DeliveryAddressSnapshotJson = {
   notes?: string | null;
 };
 
+export type SellerOrderItemSummary = {
+  title: string;
+  qty: number;
+  image_ipfs_hash?: string | null;
+};
+
 export type SellerOrderItem = components["schemas"]["SellerOrderItem"] & {
   delivery_address_snapshot?: DeliveryAddressSnapshotJson | null;
+  line_items?: SellerOrderItemSummary[];
 };
 export type SellerOrdersPage = Omit<
   components["schemas"]["SellerOrdersPage"],
