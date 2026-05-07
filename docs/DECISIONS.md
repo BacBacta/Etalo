@@ -2473,3 +2473,128 @@ form adapted to African informal addressing context.
 - ADR-045 (Geographic location, country filtering — same sprint)
 - `minipay-requirements.md` rule 5 (phone-first identity)
 - `docs/SPRINT_J11_7.md` (implementation blocks)
+
+---
+
+## ADR-045 — Geographic Location & Marketplace Filters for V1
+
+**Date** : 2026-05-07
+**Status** : Accepted
+
+### Context
+
+V1 marketplace currently shows all sellers globally without
+geographic filtering. Sellers don't declare their country in the
+profile schema. Buyers cannot filter or sort the marketplace by
+location.
+
+This creates three concrete problems :
+
+1. **Cross-border purchase paths broken** — ADR-018 cross-border
+   release schedule and ADR-020 seller stake logic both depend on
+   knowing the country of seller and buyer. Without this data, V1
+   cannot enforce ADR-041 intra-only constraint at the
+   transaction level.
+2. **Marketplace UX is unstructured** — a Nigerian buyer browsing
+   sees Ghanaian and Kenyan sellers mixed with Nigerian ones,
+   creating irrelevant browsing. Without country filter, the app
+   feels like a proof-of-concept rather than a real product.
+3. **Listing review polish** — MiniPay reviewers compare against
+   14M+ user expectations. A commerce app without basic location
+   filtering reads as MVP-rough.
+
+### Decision
+
+Add **mandatory country declaration** on seller and buyer
+profiles, expose **simple country filter + sort** on the
+marketplace.
+
+**Seller side** :
+
+- Country becomes a mandatory field in seller onboarding
+  (dropdown : Nigeria / Ghana / Kenya per ADR-041 V1 scope)
+- Existing sellers without country : prompt at next login to
+  complete profile, soft-block until done (allow browsing but
+  not order management)
+- Boutique page displays seller country as a small flag/label
+  near the handle
+
+**Buyer side** :
+
+- Country auto-detected from MiniPay phone number country code
+  on first connection
+- Editable in profile if detection fails (dropdown 3 countries)
+- Stored in buyer_profile schema
+
+**Marketplace filter** :
+
+- Default filter = buyer's country (most common case)
+- "+ Show all countries" toggle to override default
+- Country chips visual : Nigeria | Ghana | Kenya
+- (Without flag emoji per CLAUDE.md no-emoji rule, use country
+  name with subtle background color)
+
+**Sort options** :
+
+- Default : newest products first
+- Secondary : popularity (based on completed_orders count if
+  available, otherwise hide)
+
+**Backend validation** :
+
+- Order creation : block if buyer.country ≠ seller.country
+  (cross-border deferred V2 per ADR-041, defense-in-depth at
+  backend even if frontend filter prevents the case)
+- Backend rejects with clear error message : "Cross-border
+  orders not yet supported. This seller is in Ghana, you are
+  in Nigeria."
+
+### Out of scope V1, deferred V1.5+
+
+- Price range filter
+- Category filter
+- Rating filter (no rating system V1)
+- City-level filtering
+- Multi-country selection / region selection
+- Distance-based sort (requires geocoding)
+- Currency conversion display ("Show prices in NGN")
+
+### Rationale
+
+- **Country is the foundation** for ADR-018 (cross-border
+  release), ADR-020 (cross-border stake), ADR-041 (V1 intra
+  scope), and ADR-044 (delivery address country constraint).
+  Without it, multiple existing ADRs cannot enforce their logic.
+- **3-country V1 scope makes the filter trivial** — no complex
+  region grouping needed (ADR-041 already constrains to 3
+  countries).
+- **Local-default reduces irrelevant browsing** — most buyers
+  want sellers in their own country first.
+- **Auto-detection from MiniPay phone** is a UX win — buyer
+  doesn't have to declare anything actively, just confirm if
+  MiniPay didn't auto-detect.
+- **Defense in depth at backend** ensures cross-border orders
+  cannot be created via API even if frontend has bugs.
+
+### Consequences
+
+- **Sprint J11.7 combined with ADR-044** — both target the same
+  schema/UX surfaces.
+- **Migration** : existing sellers without country need backfill
+  prompt (soft block until completed). Existing buyers : auto-
+  populate country at next session via MiniPay phone code.
+- **Backend API** : new query param `country` on `GET /products`
+  and `GET /sellers`. Default = buyer's country if authenticated.
+- **Frontend marketplace** : filter UI + buyer country auto-
+  detect on first load.
+- **No contract changes needed** — country is metadata stored
+  off-chain only.
+
+### References
+
+- ADR-018 (cross-border release schedule)
+- ADR-020 (seller stake cross-border tiers)
+- ADR-041 (V1 scope intra-only, 3 countries)
+- ADR-043 (Buyer Interface MVP)
+- ADR-044 (Delivery address — country dependency)
+- `docs/SPRINT_J11_7.md` (implementation blocks)
