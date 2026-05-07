@@ -33,9 +33,16 @@ export function CartTrigger({ onClick }: Props) {
     >
       <ShoppingBag className="h-6 w-6" />
       {displayCount > 0 ? (
+        // Override the default Badge variant : the celo-yellow accent
+        // (FBCC5C — the logo's circle) gives high contrast on both
+        // light AND dark backgrounds, while the default forest-on-light
+        // variant disappeared on dark mode (screenshot bug). 22 px tall
+        // + ring offset bumps visual weight so it reads as a real
+        // notification not a stray decoration.
         <Badge
           variant="default"
-          className="absolute -right-1 -top-1 flex h-5 min-w-[20px] items-center justify-center px-1 text-sm"
+          aria-hidden="true"
+          className="absolute -right-1 -top-1 flex h-[22px] min-w-[22px] items-center justify-center bg-celo-yellow px-1.5 text-xs font-semibold text-celo-dark ring-2 ring-celo-light dark:ring-celo-dark-bg"
         >
           {displayCount > 99 ? "99+" : displayCount}
         </Badge>

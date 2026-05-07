@@ -37,6 +37,10 @@ export interface UseMarketplaceProductsOptions {
    *  "all" for no filter. J11.7 Block 9 (ADR-045) — included in the
    *  query key so changes refetch a fresh page. */
   country?: string | null;
+  /** Title substring search. Trimmed before being included in the
+   *  query key — leading/trailing whitespace doesn't change the
+   *  effective query, so it shouldn't bust the cache. */
+  q?: string | null;
 }
 
 export function useMarketplaceProducts(
@@ -45,13 +49,20 @@ export function useMarketplaceProducts(
   const country = options.country && options.country !== "all"
     ? options.country
     : null;
+  const trimmedQ = options.q?.trim() ?? "";
+  const q = trimmedQ.length > 0 ? trimmedQ : null;
   return useInfiniteQuery<MarketplaceListResponse, Error>({
-    queryKey: [...MARKETPLACE_PRODUCTS_QUERY_KEY, country ?? "all"],
+    queryKey: [
+      ...MARKETPLACE_PRODUCTS_QUERY_KEY,
+      country ?? "all",
+      q ?? "",
+    ],
     queryFn: ({ pageParam }) =>
       fetchMarketplaceProducts({
         cursor: pageParam as string | null,
         limit: PAGE_SIZE,
         country,
+        q,
       }),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => {

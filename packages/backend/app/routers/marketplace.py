@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_db
@@ -51,13 +51,23 @@ async def list_marketplace_products(
         "newest",
         description="Sort order : 'newest' (created_at desc) or 'popular' (V1 fallback to newest until denormalized score ships in V1.5+).",
     ),
+    q: str | None = Query(
+        None,
+        max_length=100,
+        description="Optional case-insensitive substring search over Product.title. Empty / None disables search.",
+    ),
 ) -> MarketplaceListResponse:
     """
     Public marketplace listing across all sellers.
 
     Sort: created_at DESC. Cursor-based pagination via `?after=<iso_dt>`.
-    Excludes Product.status != 'active'. Optional country filter scopes
-    to a single V1 launch market (ADR-045). (V1.5: also exclude
+    Excludes Product.status != 'active'. Excludes products without at
+    least one image (V1 quality bar — a "No image" placeholder card
+    erodes buyer trust ; the seller dashboard surfaces these as draft-
+    visual rows with an upload nudge instead). Optional country filter
+    scopes to a single V1 launch market (ADR-045). Optional `q` does
+    case-insensitive ILIKE over title — V1 search is title-only ;
+    description / category fts is V1.5+ scope. (V1.5: also exclude
     suspended sellers once SellerProfile.status enum exists — same TODO
     as cart token endpoint.)
     """
@@ -77,12 +87,25 @@ async def list_marketplace_products(
         .join(SellerProfile, Product.seller_id == SellerProfile.id)
         .join(User, SellerProfile.user_id == User.id)
         .where(Product.status == "active")
+        # V1 quality bar — public marketplace excludes products with no
+        # primary image. The IS NOT NULL guard handles legacy NULL rows ;
+        # the array length check rules out an empty `{}`-shaped array
+        # (DB allowed but UX-equivalent to NULL).
+        .where(Product.image_ipfs_hashes.is_not(None))
+        .where(func.cardinality(Product.image_ipfs_hashes) >= 1)
         .order_by(Product.created_at.desc())
         .limit(limit + 1)  # +1 to detect has_more without a count query
     )
 
     if country is not None and country != "all":
         stmt = stmt.where(User.country == country)
+
+    if q:
+        # Strip + collapse whitespace ; if nothing's left, treat as
+        # absent to avoid an ILIKE '%%' that scans the world.
+        normalized_q = " ".join(q.split())
+        if normalized_q:
+            stmt = stmt.where(Product.title.ilike(f"%{normalized_q}%"))
 
     if after:
         # FastAPI's query parser decodes raw `+` as space (form-urlencoded

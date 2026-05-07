@@ -14,7 +14,18 @@ interface Props {
   priceUsdt: string;
   imageUrl: string | null;
   stock: number;
+  /** Where to anchor the absolute-positioned button inside the
+   *  parent. Default `bottom-right` matches the boutique
+   *  ProductCard layout. `top-right` is used by MarketplaceProductCard
+   *  so the button sits inside the image area instead of overlapping
+   *  the price/seller meta footer. */
+  position?: "bottom-right" | "top-right";
 }
+
+const POSITION_CLASSES: Record<NonNullable<Props["position"]>, string> = {
+  "bottom-right": "bottom-2 right-2",
+  "top-right": "top-2 right-2",
+};
 
 // Compact "+" overlay used inside ProductCard. Stops propagation so the
 // click doesn't trigger the parent <Link> nav.
@@ -27,6 +38,7 @@ export function AddToCartIcon({
   priceUsdt,
   imageUrl,
   stock,
+  position = "bottom-right",
 }: Props) {
   const addItem = useCartStore((state) => state.addItem);
   const disabled = stock <= 0;
@@ -53,7 +65,7 @@ export function AddToCartIcon({
       type="button"
       onClick={handleClick}
       disabled={disabled}
-      className="absolute bottom-2 right-2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900 text-white shadow-md hover:bg-neutral-800 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:opacity-40"
+      className={`absolute ${POSITION_CLASSES[position]} inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900/90 text-white shadow-md backdrop-blur-sm hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:opacity-40`}
       aria-label={disabled ? `${title} out of stock` : `Add ${title} to cart`}
     >
       <Plus className="h-5 w-5" />

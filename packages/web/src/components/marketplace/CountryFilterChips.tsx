@@ -47,7 +47,19 @@ export function CountryFilterChips({
       role="radiogroup"
       aria-label="Filter by country"
       data-testid="country-filter-chips"
-      className={cn("flex flex-wrap gap-2", className)}
+      // Horizontal scroll instead of `flex-wrap` so the chips never
+      // claim a second row of vertical space — critical on the 360 px
+      // MiniPay viewport where 4 chips wrapped to 2 lines were eating
+      // ~120 px above the fold. `-mx-4 px-4` lets the row bleed to the
+      // edges of the page padding so chips can scroll past the visual
+      // boundary like a native carousel. `[&::-webkit-scrollbar]:hidden`
+      // hides the scrollbar inline ; mobile webkit doesn't render one
+      // anyway, this only affects desktop preview.
+      className={cn(
+        "-mx-4 flex gap-2 overflow-x-auto px-4",
+        "[scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+        className,
+      )}
     >
       {options.map((opt) => {
         const checked = value === opt.key;
@@ -56,12 +68,15 @@ export function CountryFilterChips({
             key={opt.key}
             type="button"
             role="radio"
-            aria-checked={checked}
+            aria-checked={checked ? "true" : "false"}
             disabled={disabled}
             onClick={() => onChange(opt.key)}
             data-testid={`country-chip-${opt.key}`}
             className={cn(
-              "inline-flex items-center justify-center",
+              // `flex-shrink-0` + `whitespace-nowrap` lock each chip's
+              // width to its content so the row stays single-line and
+              // overflows horizontally instead of wrapping.
+              "inline-flex flex-shrink-0 items-center justify-center whitespace-nowrap",
               "min-h-[44px] px-4 py-2",
               "rounded-full text-sm font-medium",
               "transition-colors duration-200",
@@ -69,7 +84,7 @@ export function CountryFilterChips({
               "disabled:opacity-50 disabled:cursor-not-allowed",
               checked
                 ? "bg-celo-forest text-celo-light hover:bg-celo-forest/90"
-                : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200",
+                : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200 dark:bg-celo-dark-elevated dark:text-celo-light dark:hover:bg-celo-dark-surface",
             )}
           >
             {opt.label}
