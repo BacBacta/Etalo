@@ -1,0 +1,7 @@
+{
+  "name": "Etalo (Codespaces universal)",
+  "image": "mcr.microsoft.com/devcontainers/universal:2",
+  "postStartCommand": "bash .devcontainer/setup-swap.sh",
+  "remoteUser": "codespace",
+  "workspaceFolder": "/workspaces/Etalo"
+}
