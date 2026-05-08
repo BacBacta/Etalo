@@ -10,10 +10,14 @@ from app.models import *  # noqa: F401, F403 — ensure all models are registere
 
 config = context.config
 
-# Override sqlalchemy.url from app settings
+# Override sqlalchemy.url from app settings.
+# Accepts both `postgresql://` (SQLAlchemy canonical) and `postgres://`
+# (Fly Postgres / Heroku DATABASE_URL convention).
 db_url = settings.database_url
 if db_url.startswith("postgresql://"):
     db_url = db_url.replace("postgresql://", "postgresql+psycopg://", 1)
+elif db_url.startswith("postgres://"):
+    db_url = db_url.replace("postgres://", "postgresql+psycopg://", 1)
 config.set_main_option("sqlalchemy.url", db_url)
 
 if config.config_file_name is not None:

@@ -1,0 +1,55 @@
+# Fly.io configuration for Etalo FastAPI backend.
+#
+# Architecture (V1, ADR-035 + V2 invariant #14) :
+# - Single Machine running uvicorn (HTTP API) + indexer (in-process).
+# - V2 invariant : indexer is the SOLE writer to on-chain mirror tables,
+#   so we MUST run exactly one machine. Auto-scale OFF, min 1, max 1.
+# - Region jnb (Johannesburg) = closest Fly region for V1 markets
+#   (NG / GH / KE / ZA, ADR-041), co-located with Vercel cpt1 frontend.
+#
+# Postgres + Redis are external services attached via :
+#   fly postgres create --name etalo-db --region jnb
+#   fly postgres attach --app etalo-api etalo-db
+#   fly redis create  (Upstash extension, free tier)
+# Both inject DATABASE_URL / REDIS_URL as secrets automatically.
+
+app = "etalo-api"
+primary_region = "jnb"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Runs alembic upgrade on a temporary Machine before each deploy.
+# Migrations are applied even if no Machines were running.
+[deploy]
+  release_command = "alembic upgrade head"
+
+[env]
+  ENVIRONMENT = "production"
+  ENFORCE_JWT_AUTH = "true"
+  CORS_ORIGINS = "https://etalo.app,https://www.etalo.app,https://etalo.vercel.app"
+  FRONTEND_BASE_URL = "https://etalo.vercel.app"
+  INDEXER_ENABLED = "true"
+  AUTO_RELEASE_DAYS = "3"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  # V2 invariant #14 — indexer must stay alive. Don't suspend the only
+  # Machine when traffic is idle.
+  auto_stop_machines = "off"
+  auto_start_machines = false
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    grace_period = "30s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/api/v1/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"
+  cpus = 1

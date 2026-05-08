@@ -18,10 +18,16 @@ from app.config import settings
 
 
 def _normalized_db_url() -> str:
-    """psycopg3 driver string used for both sync and async engines."""
+    """psycopg3 driver string used for both sync and async engines.
+
+    Accepts both `postgresql://` (SQLAlchemy canonical) and `postgres://`
+    (Fly Postgres / Heroku DATABASE_URL convention).
+    """
     url = settings.database_url
     if url.startswith("postgresql://"):
         url = url.replace("postgresql://", "postgresql+psycopg://", 1)
+    elif url.startswith("postgres://"):
+        url = url.replace("postgres://", "postgresql+psycopg://", 1)
     return url
 
 
