@@ -46,8 +46,14 @@ const clearMiniPay = () => {
   });
 };
 
-const LANDING_HEADING = /Etalo — Your digital stall, open 24\/7/i;
-const MINIPAY_HEADING = /Welcome to Etalo/i;
+// Post Block-4c-v2 (web hero unification with HomeMiniPay) the two
+// surfaces share the same h1 "Welcome to Etalo", so the heading text
+// is no longer a reliable discriminator. Identify each surface by its
+// primary CTA testid instead — `landing-browse-marketplace` is the
+// HomeLanding anchor (web), `minipay-browse-marketplace` is the
+// HomeMiniPay button (MiniPay surface).
+const LANDING_TESTID = "landing-browse-marketplace";
+const MINIPAY_TESTID = "minipay-browse-marketplace";
 
 beforeEach(() => {
   window.localStorage.clear();
@@ -74,9 +80,7 @@ describe("HomeRouter — onboarding overlay (Block 4b)", () => {
     render(<HomeRouter featuredSellers={[]} />);
     await waitFor(() => {
       // HomeMiniPay h1 visible (post-Block 4c view dispatch).
-      expect(
-        screen.getByRole("heading", { level: 1, name: MINIPAY_HEADING }),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId(MINIPAY_TESTID)).toBeInTheDocument();
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -86,9 +90,7 @@ describe("HomeRouter — onboarding overlay (Block 4b)", () => {
     render(<HomeRouter featuredSellers={[]} />);
     await waitFor(() => {
       // HomeLanding marketing heading visible (web SEO surface).
-      expect(
-        screen.getByRole("heading", { level: 1, name: LANDING_HEADING }),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId(LANDING_TESTID)).toBeInTheDocument();
     });
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
@@ -107,9 +109,7 @@ describe("HomeRouter — onboarding overlay (Block 4b)", () => {
       expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     });
     // HomeMiniPay still visible underneath the dismissed overlay.
-    expect(
-      screen.getByRole("heading", { level: 1, name: MINIPAY_HEADING }),
-    ).toBeInTheDocument();
+    expect(screen.getByTestId(MINIPAY_TESTID)).toBeInTheDocument();
   });
 });
 
@@ -125,18 +125,14 @@ describe("HomeRouter — view dispatch landing|minipay (Block 4c)", () => {
     // The legacy HomeLanding marketing heading must NOT appear in
     // MiniPay context — Get-MiniPay store CTAs + Discover-sellers grid
     // were Mike's #1 + #2 UX trous post Block 4b.
-    expect(
-      screen.queryByRole("heading", { level: 1, name: LANDING_HEADING }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId(LANDING_TESTID)).not.toBeInTheDocument();
   });
 
   it("non-MiniPay context renders HomeLanding (not HomeMiniPay)", async () => {
     setMiniPay(false);
     render(<HomeRouter featuredSellers={[]} />);
     await waitFor(() => {
-      expect(
-        screen.getByRole("heading", { level: 1, name: LANDING_HEADING }),
-      ).toBeInTheDocument();
+      expect(screen.getByTestId(LANDING_TESTID)).toBeInTheDocument();
     });
     expect(
       screen.queryByTestId("minipay-browse-marketplace"),
@@ -200,8 +196,6 @@ describe("HomeRouter — dynamic import HomeMiniPay (Phase 4 hotfix #6)", () => 
         screen.getByTestId("minipay-browse-marketplace"),
       ).toBeInTheDocument();
     });
-    expect(
-      screen.queryByRole("heading", { level: 1, name: LANDING_HEADING }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByTestId(LANDING_TESTID)).not.toBeInTheDocument();
   });
 });

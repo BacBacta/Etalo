@@ -20,39 +20,10 @@
 
 import { useRouter } from "next/navigation";
 
-// Visual match for ButtonV4 primary forest/pill/lg without importing
-// ButtonV4 itself (Lesson #80 récidive — module-level motion in
-// ButtonV4 would inject ~15-20 KB into the / route bundle for two
-// nav buttons that don't need press-scale spring physics). Same
-// pattern shipped on EmptyStateV5 P3 B5b + OnboardingScreenV5 CTA
-// P4 B4a.
-const PRIMARY_CTA_CLASSES = [
-  "inline-flex items-center justify-center gap-2",
-  "h-12 px-6 min-w-[200px]",
-  "font-sans font-medium text-body-lg",
-  "rounded-pill whitespace-nowrap",
-  "bg-celo-forest text-celo-light hover:bg-celo-forest-dark",
-  "dark:bg-celo-green dark:text-celo-dark dark:hover:bg-celo-green-hover",
-  "transition-colors duration-200 ease-out",
-  "outline-none",
-  "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-celo-light",
-  "dark:focus-visible:ring-celo-forest-bright dark:focus-visible:ring-offset-celo-dark-bg",
-].join(" ");
-
-const SECONDARY_CTA_CLASSES = [
-  "inline-flex items-center justify-center gap-2",
-  "h-12 px-6 min-w-[200px]",
-  "font-sans font-medium text-body-lg",
-  "rounded-pill whitespace-nowrap",
-  "border border-celo-forest bg-transparent text-celo-forest",
-  "hover:bg-celo-forest-soft",
-  "dark:border-celo-forest-bright dark:text-celo-forest-bright",
-  "dark:hover:bg-celo-forest-bright-soft",
-  "transition-colors duration-200 ease-out",
-  "outline-none",
-  "focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 focus-visible:ring-offset-celo-light",
-  "dark:focus-visible:ring-celo-forest-bright dark:focus-visible:ring-offset-celo-dark-bg",
-].join(" ");
+import {
+  PRIMARY_CTA_CLASSES,
+  SECONDARY_CTA_CLASSES,
+} from "@/components/home-cta-styles";
 
 export function HomeMiniPay() {
   const router = useRouter();

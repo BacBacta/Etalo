@@ -1,4 +1,6 @@
 import { FeaturedSellers } from "@/components/FeaturedSellers";
+import { PRIMARY_CTA_CLASSES } from "@/components/home-cta-styles";
+import { OpenBoutiqueCTA } from "@/components/OpenBoutiqueCTA";
 import {
   CardDescriptionV4,
   CardTitleV4,
@@ -17,56 +19,43 @@ const APP_STORE_URL = "https://apps.apple.com/app/minipay/id6463420669";
 export function HomeLanding({ featuredSellers }: Props) {
   return (
     <main id="main" className="min-h-screen">
-      <section className="mx-auto max-w-5xl px-4 py-12">
+      <section className="mx-auto max-w-3xl px-4 py-12">
         {/*
-          flex-col-reverse on mobile so the illustration sits above the
-          headline (visual hook on first paint), md:flex-row keeps the
-          DOM order text-first (h1/p/CTA before <img>) so AT and SEO
-          read the primary content first while desktop renders text on
-          the left and the illustration on the right.
+          Single-column centered hero — visually unified with HomeMiniPay
+          so the / route reads identically inside MiniPay and on web,
+          while CTAs route to web-appropriate destinations (anchor scroll
+          to the FeaturedSellers preview below for "Browse marketplace",
+          modal with Get-MiniPay fallbacks for "Open my boutique"). The
+          full marketplace remains MiniPay-gated — a public read-only
+          marketplace is deferred to a follow-up sprint.
         */}
-        <div className="flex flex-col-reverse items-center gap-8 md:flex-row md:gap-12">
-          <div className="flex-1 text-center md:text-left">
-            <h1 className="mb-4 text-3xl font-bold md:text-4xl">
-              Etalo — Your digital stall, open 24/7
+        <div className="flex flex-col items-center gap-8 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/illustrations/v5/landing-hero.svg"
+            alt="Etalo seller boutique illustrating sellers reaching customers across Africa via USDT escrow"
+            loading="eager"
+            className="block h-auto w-full max-w-sm"
+          />
+
+          <div className="space-y-3">
+            <h1 className="font-display text-display-2 text-celo-dark dark:text-celo-light">
+              Welcome to Etalo
             </h1>
-            <p className="mx-auto mb-8 max-w-xl text-base text-neutral-700 md:mx-0 md:text-lg">
-              Buy and sell with African sellers using USDT stablecoin.
-              Protected by smart contract escrow on Celo.
+            <p className="mx-auto max-w-md font-sans text-body text-celo-dark/60 dark:text-celo-light/60">
+              Your digital stall, open 24/7. Pick a path to get started.
             </p>
-            <div className="flex flex-col justify-center gap-3 sm:flex-row md:justify-start">
-              <a
-                href={PLAY_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-black px-6 py-3 text-base font-medium text-white"
-              >
-                Get MiniPay on Play Store
-              </a>
-              <a
-                href={APP_STORE_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-black px-6 py-3 text-base font-medium text-white"
-              >
-                Get MiniPay on App Store
-              </a>
-            </div>
           </div>
-          <div className="w-full max-w-sm md:max-w-md md:flex-1">
-            {/*
-              Vector SVG (~3.5 KB) — already optimized, no resizing
-              variants needed, so a plain <img> is the right primitive
-              over next/image. eager loading because the hero is
-              above-the-fold on every viewport.
-            */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/illustrations/v5/landing-hero.svg"
-              alt="Etalo seller boutique illustrating sellers reaching customers across Africa via USDT escrow"
-              loading="eager"
-              className="block h-auto w-full"
-            />
+
+          <div className="flex w-full flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
+            <a
+              href="#featured-sellers"
+              data-testid="landing-browse-marketplace"
+              className={PRIMARY_CTA_CLASSES}
+            >
+              Browse marketplace
+            </a>
+            <OpenBoutiqueCTA />
           </div>
         </div>
       </section>
@@ -98,7 +87,10 @@ export function HomeLanding({ featuredSellers }: Props) {
       </section>
 
       {featuredSellers.length > 0 ? (
-        <section className="mx-auto max-w-3xl px-4 py-12">
+        <section
+          id="featured-sellers"
+          className="mx-auto max-w-3xl scroll-mt-16 px-4 py-12"
+        >
           <h2 className="mb-2 text-center text-xl font-semibold">
             Discover sellers
           </h2>
