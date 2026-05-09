@@ -5,8 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.config import settings
-from app.dependencies.seller_auth import require_seller_auth
-from app.models.seller_profile import SellerProfile
+from app.routers.sellers import get_current_wallet
 from app.schemas.upload import IpfsUploadResponse
 from app.services.ipfs import ipfs_service
 
@@ -30,10 +29,15 @@ def _dev_stub_hash(content: bytes) -> str:
 
 @router.post("/ipfs", response_model=IpfsUploadResponse)
 async def upload_to_ipfs(
-    # ADR-036: tightened from "any wallet" to "registered seller". The
-    # _seller arg is unused at body-level but enforces the dependency
-    # which 404s callers without a SellerProfile.
-    _seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    # ADR-036 originally tightened this to "registered seller" only.
+    # Rolled back to "any authenticated wallet" because the seller
+    # onboarding wizard needs to upload first-product photos BEFORE
+    # the SellerProfile exists (chicken-and-egg : POST
+    # /onboarding/complete only accepts photo_ipfs_hashes strings, so
+    # photos must be uploaded first via this endpoint). The
+    # X-Wallet-Address header is still required, so anonymous spam
+    # is still blocked. V1.5 should add per-wallet rate limiting.
+    _wallet: Annotated[str, Depends(get_current_wallet)],
     file: Annotated[UploadFile, File()],
 ) -> IpfsUploadResponse:
     """
@@ -63,12 +67,16 @@ async def upload_to_ipfs(
             detail="Empty file.",
         )
 
-    has_creds = bool(settings.pinata_api_key and settings.pinata_api_secret)
+    has_creds = bool(
+        settings.pinata_jwt
+        or (settings.pinata_api_key and settings.pinata_api_secret)
+    )
 
     if not has_creds:
         logger.warning(
             "Pinata creds missing — returning dev-stub hash for %s (%d bytes). "
-            "Production must provide PINATA_API_KEY and PINATA_SECRET_KEY.",
+            "Production must provide PINATA_JWT (preferred) or "
+            "PINATA_API_KEY + PINATA_API_SECRET.",
             file.filename,
             len(content),
         )

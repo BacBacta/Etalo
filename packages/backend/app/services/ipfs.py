@@ -36,10 +36,19 @@ class IPFSService:
     MAX_RETRIES = 3
 
     def __init__(self):
-        self._headers = {
-            "pinata_api_key": settings.pinata_api_key,
-            "pinata_secret_api_key": settings.pinata_api_secret,
-        }
+        # Prefer JWT bearer auth (Pinata's recommended method since 2023).
+        # Falls back to the legacy api_key + secret pair so existing
+        # dev setups keep working — the config.py comment flagged JWT
+        # as the migration target.
+        if settings.pinata_jwt:
+            self._headers = {
+                "Authorization": f"Bearer {settings.pinata_jwt}",
+            }
+        else:
+            self._headers = {
+                "pinata_api_key": settings.pinata_api_key,
+                "pinata_secret_api_key": settings.pinata_api_secret,
+            }
 
     async def upload_json(self, data: dict) -> str:
         """Upload JSON metadata to IPFS. Returns IPFS hash."""
