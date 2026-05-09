@@ -1,6 +1,5 @@
 "use client";
 
-import { ImageSquare } from "@phosphor-icons/react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -9,6 +8,7 @@ import {
   type CountryCode,
   isValidCountryCode,
 } from "@/components/CountrySelector";
+import { ImageUploader } from "@/components/seller/ImageUploader";
 import { Button } from "@/components/ui/button";
 import {
   type SellerProfilePublic,
@@ -63,12 +63,16 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
   const [description, setDescription] = useState(profile.description ?? "");
   const [country, setCountry] = useState<CountryCode | null>(initialCountry);
   const [socials, setSocials] = useState<SocialsForm>(initialSocials);
+  const [logoHash, setLogoHash] = useState<string | null>(
+    profile.logo_ipfs_hash ?? null,
+  );
   const [saving, setSaving] = useState(false);
 
   const dirty =
     shopName !== profile.shop_name ||
     (description ?? "") !== (profile.description ?? "") ||
     country !== initialCountry ||
+    logoHash !== (profile.logo_ipfs_hash ?? null) ||
     !socialsEqual(socials, initialSocials);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -82,6 +86,9 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
       };
       if (country !== null && country !== initialCountry) {
         payload.country = country;
+      }
+      if (logoHash !== (profile.logo_ipfs_hash ?? null)) {
+        payload.logo_ipfs_hash = logoHash;
       }
       if (!socialsEqual(socials, initialSocials)) {
         // Only persist non-empty values ; empty inputs treated as "clear
@@ -105,24 +112,16 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      {/* Logo upload placeholder — visual slot only V1. The dashed
-          border + ImageSquare icon mirrors Add product › Images so the
-          seller has a concrete mental model of where the upload lives.
-          Real wiring lands once IPFS pipeline scope is finalized. */}
       <div>
         <span className="mb-1 block text-base font-medium text-celo-dark dark:text-celo-light">
           Shop logo
         </span>
-        <div
-          aria-label="Shop logo upload placeholder"
-          data-testid="profile-logo-placeholder"
-          className="flex h-24 w-24 items-center justify-center rounded-full border-2 border-dashed border-neutral-300 bg-neutral-50 text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light/40"
-        >
-          <ImageSquare className="h-8 w-8" aria-hidden />
-        </div>
-        <p className="mt-1 text-sm text-neutral-500 dark:text-neutral-400">
-          Logo upload coming soon.
-        </p>
+        <ImageUploader
+          walletAddress={address}
+          maxImages={1}
+          initialIpfsHashes={logoHash ? [logoHash] : []}
+          onChange={(hashes) => setLogoHash(hashes[0] ?? null)}
+        />
       </div>
       <div>
         <label
