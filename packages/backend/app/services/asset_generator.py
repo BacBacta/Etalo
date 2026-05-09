@@ -59,30 +59,40 @@ TEMPLATE_DIMENSIONS: dict[TemplateKey, tuple[int, int]] = {
     "fb_feed": (1200, 630),
 }
 
-# Flux Kontext per-template config (ADR-047). aspect_ratio values are
-# the strings the fal.ai API accepts ; output_dim is what we'd ideally
-# crop to but Flux returns its own canvas size — Pinata serves
-# whatever we pin, downstream consumers (next/image) handle resize.
+# Flux Kontext per-template config (ADR-047 hybrid pipeline).
+#
+# The aspect ratio MUST match the image slot inside the template, not
+# the full template — Playwright wraps the Flux output in chrome
+# (header, title, price, CTA, QR) and fits the photo in a fixed-size
+# slot via `object-fit: cover`, so an aspect mismatch cropped the
+# product (vacuum brushhead lost on first hybrid output).
+#
+# Image slot dimensions per asset_templates/*.html :
+#   ig_square  : 880x660  (4:3 landscape)
+#   ig_story   : 920x920  (1:1 square)
+#   wa_status  : 920x920  (1:1 square)
+#   tiktok     : 920x920  (1:1 square)
+#   fb_feed    : 540x630  (close to 3:4 portrait)
 FLUX_TEMPLATE_CONFIG: dict[TemplateKey, dict[str, str]] = {
     "ig_square": {
-        "aspect_ratio": "1:1",
-        "extra": "square Instagram-feed composition",
+        "aspect_ratio": "4:3",
+        "extra": "balanced landscape composition",
     },
     "ig_story": {
-        "aspect_ratio": "9:16",
-        "extra": "vertical Instagram-story composition, full bleed",
+        "aspect_ratio": "1:1",
+        "extra": "balanced square composition",
     },
     "wa_status": {
-        "aspect_ratio": "9:16",
-        "extra": "vertical WhatsApp-status composition, full bleed",
+        "aspect_ratio": "1:1",
+        "extra": "balanced square composition",
     },
     "tiktok": {
-        "aspect_ratio": "9:16",
-        "extra": "vertical TikTok cover composition, full bleed",
+        "aspect_ratio": "1:1",
+        "extra": "balanced square composition",
     },
     "fb_feed": {
-        "aspect_ratio": "16:9",
-        "extra": "horizontal landscape Facebook-feed composition",
+        "aspect_ratio": "3:4",
+        "extra": "balanced portrait composition",
     },
 }
 
