@@ -94,6 +94,15 @@ REMBG_TIMEOUT_SECONDS = 60.0
 # isn't flush against the rounded-corner border of the template.
 ISOLATE_MARGIN = 0.05
 
+# Composite output is 3× the template slot dimensions. Playwright /
+# browser downscales it to the slot at render time, which preserves
+# source photo detail far better than letting Pillow downscale a
+# multi-megapixel phone shot directly to 920x920 (Lanczos was
+# blurring fine details on a Dreame vacuum live test). PNG of a
+# product on a mostly-white canvas compresses well, so the data:
+# URL stays under a few hundred KB even at 3×.
+COMPOSITE_OUTPUT_SCALE = 3
+
 
 class AssetGenerationResult(TypedDict):
     ipfs_hash: str
@@ -253,22 +262,34 @@ def _composite_on_white(
     """Pillow-only sync helper : take a transparent PNG, scale it to
     fit a template's image slot with a small margin, paste centered
     on a pure white canvas. Wrapped via asyncio.to_thread so it
-    doesn't block the event loop."""
+    doesn't block the event loop.
+
+    Output canvas is `COMPOSITE_OUTPUT_SCALE`× the template slot
+    dimensions so the browser downscale at render time preserves
+    source photo detail (the previous 1× output was visibly soft on
+    the Dreame vacuum live test even though the source phone shot
+    was high-res — Pillow's Lanczos downscale to 920×920 was the
+    bottleneck, not Birefnet).
+    """
     from PIL import Image
 
-    out_w, out_h = TEMPLATE_IMAGE_SLOT[template]
+    slot_w, slot_h = TEMPLATE_IMAGE_SLOT[template]
+    out_w = slot_w * COMPOSITE_OUTPUT_SCALE
+    out_h = slot_h * COMPOSITE_OUTPUT_SCALE
 
     src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
     src_w, src_h = src.size
 
     # Compute scaled dimensions : fit within (1 - 2*margin) of the
-    # slot, preserving aspect ratio.
+    # canvas, preserving aspect ratio. We never upscale beyond the
+    # source — if the seller uploaded a tiny photo, it stays small
+    # on the canvas (better honest blur than fake-upscaled mush).
     target_w = int(out_w * (1 - 2 * ISOLATE_MARGIN))
     target_h = int(out_h * (1 - 2 * ISOLATE_MARGIN))
-    scale = min(target_w / src_w, target_h / src_h)
+    scale = min(target_w / src_w, target_h / src_h, 1.0)
     new_w = max(1, int(src_w * scale))
     new_h = max(1, int(src_h * scale))
-    resized = src.resize((new_w, new_h), Image.LANCZOS)
+    resized = src.resize((new_w, new_h), Image.LANCZOS) if scale != 1.0 else src
 
     canvas = Image.new("RGB", (out_w, out_h), (255, 255, 255))
     paste_x = (out_w - new_w) // 2
@@ -279,7 +300,18 @@ def _composite_on_white(
 
     out_buf = BytesIO()
     canvas.save(out_buf, format="PNG", optimize=True)
-    return out_buf.getvalue()
+    composite_bytes = out_buf.getvalue()
+    logger.info(
+        "Composite %s : src=%dx%d → canvas=%dx%d (scale=%.3f) → %d KB",
+        template,
+        src_w,
+        src_h,
+        out_w,
+        out_h,
+        scale,
+        len(composite_bytes) // 1024,
+    )
+    return composite_bytes
 
 
 async def generate_marketing_image(
