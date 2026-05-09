@@ -2598,3 +2598,60 @@ marketplace.
 - ADR-043 (Buyer Interface MVP)
 - ADR-044 (Delivery address — country dependency)
 - `docs/SPRINT_J11_7.md` (implementation blocks)
+
+## ADR-046 — V1 testnet auth posture (`ENFORCE_JWT_AUTH=false`)
+
+**Status :** Accepted, transitional · 2026-05-09
+
+### Context
+
+The Fly.io backend deploy initially set `ENFORCE_JWT_AUTH=true` to honor
+the security comment in `app/config.py` ("MUST be true before any
+deployment"). With that flag on, every authenticated endpoint
+(`/sellers/me`, `/sellers/me/profile`, `/orders/*`, `/disputes/*`, etc.)
+returns HTTP 501 `JWT auth not yet wired; contact backend team` —
+because JWT issuance and verification are NOT actually implemented in
+`app/auth.py` yet (per ADR-034 the path forward is on-chain events,
+not JWT). The frontend continues to authenticate via the legacy
+`X-Wallet-Address` header (also flagged for removal by ADR-034).
+
+End result : the seller dashboard, buyer orders, and any mutating flow
+were unreachable in production from MiniPay (visible as "Couldn't
+load dashboard / Retry" on `/seller/dashboard`).
+
+### Decision
+
+For the V1 Sepolia testnet launch, set
+`ENFORCE_JWT_AUTH=false` on Fly. This restores the legacy
+`X-Wallet-Address` auth path used by every existing endpoint, which is
+also the path the deployed frontend currently sends.
+
+### Consequences
+
+- **Anyone can claim any wallet address as their own** by passing the
+  header. On testnet this is acceptable — no real money, MockUSDT
+  contracts, public chain. On mainnet this is NOT acceptable.
+- **Hard requirement before sprint J12 mainnet :** flip the flag back
+  to `true` after one of these has shipped :
+    - JWT issuance + EIP-191 challenge endpoint (`POST /api/v1/auth/login`),
+      or
+    - Full migration to on-chain events as the V2 invariant #14 path
+      (writes flow through Solidity events captured by the indexer).
+
+### Tracking
+
+- The fly.toml `[env]` block carries the flag with a comment pointing
+  here so future deploys don't silently re-enable JWT enforcement.
+- The CLAUDE.md "Critical rules" reference to ADR-034 still holds —
+  no NEW EIP-191 backend mutations may be added. Existing X-Wallet-
+  Address consumers stay frozen at their current count and migrate
+  flow-by-flow.
+- Pre-mainnet smoke test : `curl -H "X-Wallet-Address: 0x0..." …/sellers/me`
+  must return 401/403 (not the current 200) once the flag flips back.
+
+### References
+
+- ADR-034 (no new EIP-191 backend auth)
+- CLAUDE.md Critical rules #14
+- `packages/backend/app/config.py` (`enforce_jwt_auth` field comment)
+- `packages/backend/app/auth.py` (the 501 raise site)

@@ -26,7 +26,12 @@ primary_region = "jnb"
 
 [env]
   ENVIRONMENT = "production"
-  ENFORCE_JWT_AUTH = "true"
+  # V1 testnet posture (ADR-046) — JWT auth not yet wired ; the frontend
+  # still authenticates via the X-Wallet-Address header (deprecated path
+  # per ADR-034). Setting this to "false" reverts the auth.py guard so
+  # those existing endpoints keep working. MUST flip back to "true"
+  # before mainnet J12 once JWT (or the on-chain-events migration) ships.
+  ENFORCE_JWT_AUTH = "false"
   CORS_ORIGINS = "https://etalo.app,https://www.etalo.app,https://etalo.vercel.app"
   FRONTEND_BASE_URL = "https://etalo.vercel.app"
   INDEXER_ENABLED = "true"
