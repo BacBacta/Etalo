@@ -88,13 +88,18 @@ FLUX_TEMPLATE_CONFIG: dict[TemplateKey, dict[str, str]] = {
 
 # Base prompt — the "preserve exact product details" sentence is the
 # Kontext-specific guardrail that keeps the seller's product unchanged
-# while the model only restyles the surrounding context.
+# while the model only restyles the surrounding context. The
+# `text labels visible on the product` clause is the targeted fix
+# for the Dreame-vacuum regression where Flux smoothed out the
+# brand wordmark on the brushhead.
 FLUX_BASE_PROMPT = (
     "Premium ecommerce product photo of this exact item, "
     "clean white seamless studio backdrop, soft top lighting, "
-    "centered subject, professional product photography style. "
+    "centered subject, subtle drop shadow under product, "
+    "magazine-quality detail with sharp focus. "
+    "Professional product photography style. "
     "Preserve the exact product shape, color, branding, "
-    "and texture details."
+    "text labels visible on the product, and texture details."
 )
 
 FLUX_MODEL_ID = "fal-ai/flux-pro/kontext"
@@ -288,29 +293,38 @@ async def generate_marketing_image(
     )
     seller_handle = product.seller.shop_handle.lower()
 
-    # ADR-047 dispatch : Flux Kontext when FAL_KEY is set, else fall
-    # back to the legacy Playwright/HTML composite so dev environments
-    # without a fal.ai account keep working. Both paths produce PNG
-    # bytes ; the rest of the pipeline (pin, caption, return) is
-    # identical.
+    # ADR-047 hybrid pipeline :
+    #   1. Flux Kontext retouches the seller's photo (clean studio
+    #      backdrop, soft lighting) — but loses the Etalo brand chrome.
+    #   2. Playwright then composites the chrome (header, title, price,
+    #      CTA, QR) over the retouched photo via the existing template.
+    # The Flux output is fed to Playwright as a base64 data: URL so we
+    # avoid a Pinata round-trip just to host the intermediate image.
+    #
+    # If FAL_KEY is unset, or the Flux call raises, we degrade
+    # gracefully to the original photo + chrome (= the pre-ADR-047
+    # baseline). The seller never sees a 502.
+    image_for_template = primary_image_url
     if settings.fal_key:
         try:
-            png_bytes = await _render_via_flux_kontext(
+            flux_png_bytes = await _render_via_flux_kontext(
                 primary_image_url, template
             )
+            # data: URL keeps the round-trip in-process. Playwright
+            # honors data: schemes natively.
+            b64 = base64.b64encode(flux_png_bytes).decode("ascii")
+            image_for_template = f"data:image/png;base64,{b64}"
         except Exception:
             logger.exception(
                 "Flux Kontext failed for product %s — falling back to "
-                "Playwright template render.",
+                "the original photo with chrome.",
                 product.id,
             )
-            png_bytes = await _render_template_to_png(
-                template, _build_template_vars(product, primary_image_url, seller_handle)
-            )
-    else:
-        png_bytes = await _render_template_to_png(
-            template, _build_template_vars(product, primary_image_url, seller_handle)
-        )
+
+    png_bytes = await _render_template_to_png(
+        template,
+        _build_template_vars(product, image_for_template, seller_handle),
+    )
 
     filename = f"marketing_{product.id}_{template}_{caption_lang}.png"
     ipfs_hash = await _pin_with_dev_fallback(png_bytes, filename)
