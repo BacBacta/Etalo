@@ -45,6 +45,14 @@ class Settings(BaseSettings):
     # caption so the rest of the pipeline keeps working in dev.
     anthropic_api_key: str = ""
 
+    # fal.ai API key (ADR-047 — Flux Kontext marketing image
+    # generation). When unset, asset_generator falls back to the
+    # legacy Playwright template render so dev environments without a
+    # fal.ai account keep working. Production sets this on Fly so
+    # sellers get the AI-retouched output instead of the template
+    # composite that triggered the J7 quality complaint.
+    fal_key: str = ""
+
     # Twilio WhatsApp
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""

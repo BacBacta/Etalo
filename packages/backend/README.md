@@ -117,6 +117,7 @@ curl https://etalo-api.fly.dev/api/v1/health
 | `CART_TOKEN_SECRET` | random 48 chars (≥ 32) | ✓ |
 | `PINATA_JWT` | Pinata dashboard | ✓ for IPFS |
 | `ANTHROPIC_API_KEY` | console.anthropic.com | optional (J7 caption gen) |
+| `FAL_KEY` | fal.ai dashboard | ✓ for marketing images (ADR-047). Without it, asset_generator falls back to the legacy Playwright HTML composite. |
 | `TWILIO_*` | twilio.com console | optional (J11.5 WhatsApp notifs) |
 
 Non-secret config (region, contract addresses, CORS, indexer flags) is

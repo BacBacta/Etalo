@@ -35,3 +35,8 @@ qrcode[pil]>=8,<9
 # Anthropic SDK for Claude API caption generation (Sprint J7 Block 4).
 # Pre-1.0 — pin within minor range to avoid surprise breaks.
 anthropic>=0.97,<1.0
+
+# fal.ai SDK — Flux Kontext image-to-image generation (ADR-047).
+# Replaces the Playwright/HTML compositing path with a true AI retouch
+# pipeline. Falls back to Playwright when FAL_KEY is unset (dev local).
+fal-client>=0.5,<1.0

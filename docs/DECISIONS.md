@@ -2655,3 +2655,98 @@ also the path the deployed frontend currently sends.
 - CLAUDE.md Critical rules #14
 - `packages/backend/app/config.py` (`enforce_jwt_auth` field comment)
 - `packages/backend/app/auth.py` (the 501 raise site)
+
+## ADR-047 — Marketing image generation : Flux Kontext via fal.ai
+
+**Status :** Accepted · 2026-05-09
+
+### Context
+
+The Sprint J7 marketing image generator (`asset_generator.py`,
+ADR-037) composes seller marketing images via :
+
+1. Take the seller's product photo as-is
+2. Drop it into a Jinja2 HTML template wrapped with brand chrome
+   (header, price, QR, hashtags) — 5 templates : `fb_feed`,
+   `ig_story`, `ig_square`, `wa_status`, `tiktok`
+3. Screenshot the rendered HTML through Playwright headless Chromium
+4. Pin the screenshot to Pinata
+5. Generate caption text via Anthropic Claude
+
+The seller-facing result is a brand-chrome rectangle around the
+unmodified product photo. When the seller's photo is shot on a
+bedroom floor with phone-grade lighting, the marketing output looks
+amateur — exactly the case that surfaced live (Mike's Dreame H12
+Wet & Dry vacuum test on a parquet floor).
+
+The pipeline is a **template compositor**, not an **AI image
+retouch tool**. The "premium ecommerce shot" expectation cannot be
+met by repositioning + framing alone.
+
+### Decision
+
+Replace the Playwright HTML composite step with a call to fal.ai's
+**Flux Kontext** model — the Black Forest Labs image-to-image
+edit-with-preservation model. The seller's product photo URL +
+per-template prompt + aspect ratio go in ; a retouched PNG with
+clean studio backdrop and centered subject comes out, while the
+product itself is preserved (Kontext's specific guarantee).
+
+The legacy Playwright path is kept as a fallback when `FAL_KEY` is
+unset, so :
+
+- Local dev environments without a fal.ai account still iterate the
+  rest of the pipeline (caption generation, ledger debit, Pinata pin)
+- Production transient fal.ai outages degrade gracefully to template
+  composite rather than 502-ing
+
+### Pricing & operational considerations
+
+- Flux Kontext via fal.ai is pay-as-you-go ; ~$0.04 per image at
+  current pricing.
+- Etalo's credit ledger keeps its 1 credit = 0.15 USDT semantics
+  (PRICING_MODEL_CREDITS.md). The seller-facing pricing layer and
+  Etalo's provider cost layer are decoupled — sellers see a credit
+  cost, Etalo absorbs the Flux per-call cost.
+- Margin per generation : 0.15 USDT revenue − $0.04 Flux − $0.0005
+  Claude caption = ~$0.11 (~73 %).
+- Free tiers (10 welcome + 5 monthly per seller) are subsidized by
+  Etalo at $0.04 each — costs ~$0.20-0.40 per active seller per
+  month, accepted as marketing acquisition spend.
+- Mike must set fal.ai auto-recharge (e.g., +$20 when balance < $5)
+  to avoid hard outages on the / route MarketingTab.
+
+### Migration
+
+- `requirements.txt` adds `fal-client>=0.5,<1.0`
+- `app/config.py` adds `fal_key: str = ""` field
+- `app/services/asset_generator.py` :
+    - Adds `_render_via_flux_kontext(image_url, template) -> bytes`
+    - `generate_marketing_image` dispatches Flux when `settings.fal_key`
+      is set, falls back to the existing
+      `_render_template_to_png` + `_build_template_vars` extracted
+      helper otherwise
+    - On Flux exception, falls back to template render so a transient
+      provider outage doesn't break the user-facing flow
+- Tests : pure helpers (`_dev_stub_hash`, `_generate_qr_data_url`,
+  `TEMPLATE_DIMENSIONS`) untouched ; Flux is exercised via
+  end-to-end smoke tests post-deploy (mocking fal.ai's response
+  surface in unit tests would be more brittle than valuable).
+
+### Future work (V1.5+)
+
+- DIY pipeline (rembg + Flux Schnell + composite via Playwright)
+  brings cost from $0.04 to ~$0.005/image — 8× margin improvement.
+  Worth implementing when monthly volume passes ~10k images.
+- Admin margin dashboard (USDT in vs USD out fal.ai) — listed as a
+  Sprint 2 follow-up to avoid being blind on per-image economics.
+
+### References
+
+- ADR-037 (Marketing asset generator architecture, Sprint J7)
+- ADR-014 (V1 Boutique model + credits 0.15 USDT/credit)
+- `docs/PRICING_MODEL_CREDITS.md`
+- `packages/backend/app/services/asset_generator.py` (the dispatch
+  + Flux helper)
+- `packages/backend/app/config.py` (`fal_key` field)
+- fal.ai docs : https://fal.ai/models/fal-ai/flux-pro/kontext

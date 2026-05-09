@@ -1,12 +1,18 @@
-"""Asset generator — Sprint J7 Block 3.
+"""Asset generator — Sprint J7 Block 3, refactored for ADR-047.
 
-Pipeline: fetch product+seller -> render Jinja2 HTML template via
-Playwright headless Chromium -> pin PNG to IPFS via Pinata (with dev
-stub fallback when creds are missing) -> return hash + URL + caption.
+Pipeline (production, FAL_KEY set):
+1. Fetch product + seller (eager-load shop_handle + image)
+2. Send the seller's product photo URL + per-template prompt to
+   fal.ai Flux Kontext for AI retouch (white seamless studio backdrop,
+   centered subject, professional ecommerce look)
+3. Pin the retouched PNG to Pinata
+4. Generate caption via Anthropic Claude
+5. Return hash + URL + caption
 
-Caption is currently stubbed; Block 4 wires Claude API for real
-EN/Swahili captions. Credit deduction is stubbed; Block 6 wires the
-EtaloCredits hybrid balance check + off-chain ledger consumption.
+Pipeline (dev fallback, FAL_KEY unset):
+- Steps 1, 4, 5 same.
+- Step 2/3 use the legacy Playwright/HTML template render so devs
+  without a fal.ai account can still iterate the rest of the flow.
 """
 from __future__ import annotations
 
@@ -20,6 +26,7 @@ from pathlib import Path
 from typing import Literal, TypedDict
 from uuid import UUID
 
+import httpx
 import qrcode
 from jinja2 import Template
 from playwright.sync_api import sync_playwright
@@ -51,6 +58,47 @@ TEMPLATE_DIMENSIONS: dict[TemplateKey, tuple[int, int]] = {
     "tiktok": (1080, 1920),
     "fb_feed": (1200, 630),
 }
+
+# Flux Kontext per-template config (ADR-047). aspect_ratio values are
+# the strings the fal.ai API accepts ; output_dim is what we'd ideally
+# crop to but Flux returns its own canvas size — Pinata serves
+# whatever we pin, downstream consumers (next/image) handle resize.
+FLUX_TEMPLATE_CONFIG: dict[TemplateKey, dict[str, str]] = {
+    "ig_square": {
+        "aspect_ratio": "1:1",
+        "extra": "square Instagram-feed composition",
+    },
+    "ig_story": {
+        "aspect_ratio": "9:16",
+        "extra": "vertical Instagram-story composition, full bleed",
+    },
+    "wa_status": {
+        "aspect_ratio": "9:16",
+        "extra": "vertical WhatsApp-status composition, full bleed",
+    },
+    "tiktok": {
+        "aspect_ratio": "9:16",
+        "extra": "vertical TikTok cover composition, full bleed",
+    },
+    "fb_feed": {
+        "aspect_ratio": "16:9",
+        "extra": "horizontal landscape Facebook-feed composition",
+    },
+}
+
+# Base prompt — the "preserve exact product details" sentence is the
+# Kontext-specific guardrail that keeps the seller's product unchanged
+# while the model only restyles the surrounding context.
+FLUX_BASE_PROMPT = (
+    "Premium ecommerce product photo of this exact item, "
+    "clean white seamless studio backdrop, soft top lighting, "
+    "centered subject, professional product photography style. "
+    "Preserve the exact product shape, color, branding, "
+    "and texture details."
+)
+
+FLUX_MODEL_ID = "fal-ai/flux-pro/kontext"
+FLUX_TIMEOUT_SECONDS = 60.0
 
 
 class AssetGenerationResult(TypedDict):
@@ -124,10 +172,31 @@ async def _render_template_to_png(
     return await asyncio.to_thread(_render_sync, template_name, template_vars)
 
 
+def _build_template_vars(
+    product: Product,
+    primary_image_url: str,
+    seller_handle: str,
+) -> dict:
+    """Compose the Jinja2 template context for the legacy Playwright
+    composite path. Extracted as a helper so both the dispatch and
+    the Flux-fallback branches share the same vars dict shape."""
+    product_url = f"https://etalo.app/{seller_handle}/{product.slug}"
+    return {
+        "product_image_url": primary_image_url,
+        "title": product.title,
+        "price_usdt": f"{product.price_usdt:.2f}",
+        "seller_handle": seller_handle,
+        "qr_url": _generate_qr_data_url(product_url),
+    }
+
+
 async def _pin_with_dev_fallback(content: bytes, filename: str) -> str:
     """Pin PNG to Pinata if creds are present, otherwise return a deterministic
     dev stub hash. Same fallback pattern as routers/uploads.py."""
-    has_creds = bool(settings.pinata_api_key and settings.pinata_api_secret)
+    has_creds = bool(
+        settings.pinata_jwt
+        or (settings.pinata_api_key and settings.pinata_api_secret)
+    )
     if not has_creds:
         logger.warning(
             "Pinata creds missing — returning dev-stub hash for %s (%d bytes).",
@@ -136,6 +205,55 @@ async def _pin_with_dev_fallback(content: bytes, filename: str) -> str:
         )
         return _dev_stub_hash(content)
     return await ipfs_service.upload_image(content, filename)
+
+
+async def _render_via_flux_kontext(
+    image_url: str,
+    template: TemplateKey,
+) -> bytes:
+    """Send the seller's product photo to fal.ai Flux Kontext for AI
+    retouch (white studio backdrop, centered subject, ecom look) and
+    return the resulting PNG as bytes. ADR-047.
+
+    fal_client reads FAL_KEY from the env automatically (set via
+    `fly secrets set FAL_KEY=...`). subscribe_async polls the queue
+    until the image is ready ; the model name + arguments map 1:1 to
+    the fal.ai API docs.
+    """
+    import fal_client  # local import — avoid pulling at module load
+
+    cfg = FLUX_TEMPLATE_CONFIG[template]
+    prompt = f"{FLUX_BASE_PROMPT} {cfg['extra']}."
+
+    logger.info(
+        "Flux Kontext call : template=%s aspect=%s prompt_chars=%d",
+        template,
+        cfg["aspect_ratio"],
+        len(prompt),
+    )
+
+    handler = await fal_client.subscribe_async(
+        FLUX_MODEL_ID,
+        arguments={
+            "prompt": prompt,
+            "image_url": image_url,
+            "aspect_ratio": cfg["aspect_ratio"],
+            "output_format": "png",
+            "safety_tolerance": "5",
+        },
+    )
+
+    images = handler.get("images") or []
+    if not images:
+        raise RuntimeError(
+            f"Flux Kontext returned no images (handler keys={list(handler.keys())})"
+        )
+    output_url = images[0]["url"]
+
+    async with httpx.AsyncClient(timeout=FLUX_TIMEOUT_SECONDS) as client:
+        resp = await client.get(output_url)
+        resp.raise_for_status()
+        return resp.content
 
 
 async def generate_marketing_image(
@@ -169,18 +287,30 @@ async def generate_marketing_image(
         else "QmPlaceholder"
     )
     seller_handle = product.seller.shop_handle.lower()
-    product_url = f"https://etalo.app/{seller_handle}/{product.slug}"
-    qr_data_url = _generate_qr_data_url(product_url)
 
-    template_vars = {
-        "product_image_url": primary_image_url,
-        "title": product.title,
-        "price_usdt": f"{product.price_usdt:.2f}",
-        "seller_handle": seller_handle,
-        "qr_url": qr_data_url,
-    }
-
-    png_bytes = await _render_template_to_png(template, template_vars)
+    # ADR-047 dispatch : Flux Kontext when FAL_KEY is set, else fall
+    # back to the legacy Playwright/HTML composite so dev environments
+    # without a fal.ai account keep working. Both paths produce PNG
+    # bytes ; the rest of the pipeline (pin, caption, return) is
+    # identical.
+    if settings.fal_key:
+        try:
+            png_bytes = await _render_via_flux_kontext(
+                primary_image_url, template
+            )
+        except Exception:
+            logger.exception(
+                "Flux Kontext failed for product %s — falling back to "
+                "Playwright template render.",
+                product.id,
+            )
+            png_bytes = await _render_template_to_png(
+                template, _build_template_vars(product, primary_image_url, seller_handle)
+            )
+    else:
+        png_bytes = await _render_template_to_png(
+            template, _build_template_vars(product, primary_image_url, seller_handle)
+        )
 
     filename = f"marketing_{product.id}_{template}_{caption_lang}.png"
     ipfs_hash = await _pin_with_dev_fallback(png_bytes, filename)
