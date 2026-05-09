@@ -132,7 +132,7 @@ export function MarketingTab() {
       >
         {generating
           ? "Generating… (5–10s)"
-          : "Generate marketing pack (1 credit)"}
+          : "Generate marketing pack (1 credit · 0.15 USDT)"}
       </Button>
 
       {/* Surface the disable reason. Replaces the generic

@@ -13,6 +13,11 @@ import {
 
 const LOW_BALANCE_THRESHOLD = 5;
 
+// Mirror of USDT_PER_CREDIT (150_000 raw at 6 decimals = 0.15 USDT).
+// Hardcoded as a float because we only ever multiply small credit
+// counts here ; no on-chain math, no precision loss to worry about.
+const USDT_PER_CREDIT_FLOAT = 0.15;
+
 // Indexer mirrors CreditsPurchased on its 30s polling cycle. We
 // invalidate /credits/balance up to 4 times (10s, 20s, 30s, 40s) after
 // a successful purchase so the balance updates quickly without forcing
@@ -63,7 +68,9 @@ export function CreditsBalance() {
         <div className="flex items-center gap-3">
           <Coins className="h-6 w-6 text-amber-600" aria-hidden />
           <div>
-            <div className="text-sm text-neutral-600">Marketing credits</div>
+            <div className="text-sm text-neutral-600 dark:text-celo-light/70">
+              Marketing credits
+            </div>
             <div className="text-xl font-semibold" data-testid="credits-amount">
               {isLoading ? (
                 "…"
@@ -73,9 +80,18 @@ export function CreditsBalance() {
                 <AnimatedNumber value={balance} decimals={0} suffix=" credits" />
               )}
             </div>
+            {!isLoading && !isError ? (
+              <div
+                className="text-sm tabular-nums text-neutral-500 dark:text-celo-light/60"
+                data-testid="credits-usdt-equiv"
+              >
+                ≈ {(balance * USDT_PER_CREDIT_FLOAT).toFixed(2)} USDT (0.15
+                USDT/credit)
+              </div>
+            ) : null}
             {!isLoading && !isError && balance < LOW_BALANCE_THRESHOLD && (
               <div
-                className="mt-1 text-sm text-amber-700"
+                className="mt-1 text-sm text-amber-700 dark:text-amber-400"
                 data-testid="low-balance-warning"
               >
                 Low balance — purchase more soon
