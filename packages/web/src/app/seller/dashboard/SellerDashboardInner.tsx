@@ -7,6 +7,7 @@ import { useAccount } from "wagmi";
 
 import { DashboardSkeleton } from "@/app/seller/dashboard/DashboardSkeleton";
 import { MarketingTab } from "@/components/seller/MarketingTab";
+import { OnboardingWizard } from "@/components/seller/OnboardingWizard";
 import { OrdersTab } from "@/components/seller/OrdersTab";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProductsTab } from "@/components/seller/ProductsTab";
@@ -171,19 +172,16 @@ export function SellerDashboardInner() {
     return <DashboardSkeleton />;
   }
 
-  if (error === "not_found") {
+  if (error === "not_found" && address) {
     return (
       <StatusShell>
-        <div className="mx-auto max-w-md py-12 text-center">
-          <h2 className="mb-3 text-xl font-semibold">No seller profile yet</h2>
-          <p className="mb-4 text-base text-neutral-700">
-            Etalo is in a curated launch phase. To set up your shop, please
-            contact our team.
-          </p>
-          <p className="text-sm text-neutral-500">
-            Self-service onboarding coming in V1.5.
-          </p>
-        </div>
+        <OnboardingWizard
+          walletAddress={address}
+          onSuccess={(response) => {
+            setProfile(response.profile);
+            setError(null);
+          }}
+        />
       </StatusShell>
     );
   }
