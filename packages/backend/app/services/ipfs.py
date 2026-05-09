@@ -40,9 +40,18 @@ class IPFSService:
         # Falls back to the legacy api_key + secret pair so existing
         # dev setups keep working — the config.py comment flagged JWT
         # as the migration target.
-        if settings.pinata_jwt:
+        #
+        # Defensive normalization : strip whitespace and a stray
+        # "Bearer " prefix the operator may have included when pasting
+        # the secret. Both produce a 401 from Pinata that's hard to
+        # diagnose ; better to tolerate the common mistake.
+        jwt = settings.pinata_jwt.strip()
+        if jwt.lower().startswith("bearer "):
+            jwt = jwt[len("bearer ") :].strip()
+
+        if jwt:
             self._headers = {
-                "Authorization": f"Bearer {settings.pinata_jwt}",
+                "Authorization": f"Bearer {jwt}",
             }
         else:
             self._headers = {
