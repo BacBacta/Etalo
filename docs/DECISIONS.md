@@ -2750,3 +2750,93 @@ unset, so :
   + Flux helper)
 - `packages/backend/app/config.py` (`fal_key` field)
 - fal.ai docs : https://fal.ai/models/fal-ai/flux-pro/kontext
+
+## ADR-048 — Marketing image generation : switch from Flux Kontext to rembg+composite
+
+**Status :** Accepted · 2026-05-09
+
+### Context
+
+ADR-047 wired `fal-ai/flux-pro/kontext` (image-to-image generative
+retouch) as the primary path for the marketing image pipeline.
+Multiple live iterations on the Dreame H12 vacuum test exposed
+fundamental limits of the generative approach :
+
+- The "DREAME" wordmark on the brushhead got smoothed/illegible —
+  Flux interprets text rather than copying it pixel-near-perfect.
+- The output consistently rendered a heavy halo shadow behind the
+  product, despite explicit prompt guardrails ("only minimal contact
+  shadow", "no large background shadow", "no halo").
+- The backdrop landed as a grey-ish studio look instead of the
+  pure-white catalog backdrop the prompt requested.
+
+Bumping `num_inference_steps` from 28 to 40 (~10 % cost increase)
+and tightening the prompt copy did not move the dial. The model is
+generative — its priors override prompt guardrails on these specific
+issues.
+
+### Decision
+
+Switch the primary pipeline to `fal-ai/birefnet/v2` (background
+removal) + Pillow white-canvas composite :
+
+1. birefnet/v2 returns the seller's product on a transparent canvas
+   without modifying the product itself — text, logos, colors,
+   textures preserved 100 %.
+2. Pillow scales the transparent product to fit the template's
+   image slot with a 5 % margin and pastes it centered on a pure
+   white canvas.
+3. The white-bg PNG is fed to Playwright via a base64 data: URL ;
+   the existing template chrome (header, title, price, CTA, QR)
+   wraps it.
+
+Surgical, deterministic, drift-free. Loses the "creative restaging"
+that Flux promised but solves the issues that mattered (text
+legibility, no unwanted shadow, pure-white backdrop).
+
+### Trade-offs vs ADR-047
+
+|  | Flux Kontext (ADR-047) | birefnet+composite (ADR-048) |
+|---|---|---|
+| Cost/image | $0.04-0.045 | ~$0.001 |
+| Margin (1 credit revenue) | 70-73 % | ~99 % |
+| Text/logo fidelity | weak | perfect |
+| Background control | prompt-dependent, drift | pure white, deterministic |
+| Shadow control | prompt-dependent, drift | none (could be added later via Pillow drop-shadow filter) |
+| Lighting harmonization | yes (creative re-lighting) | no (original photo lighting kept) |
+| Creative restaging | yes (lifestyle, scenery) | no |
+
+The "no creative restaging" loss is acceptable for V1 — the seller's
+product photos in the wild are typically phone snapshots that need
+**cleaning**, not re-imagining. If V1.5+ a "Studio mode" that
+re-lights and restages is desired, it can be added back as a paid
+premium tier (e.g., 2 credits = 1 Flux Kontext Max image) without
+displacing the default rembg path.
+
+### Implementation
+
+- `app/services/asset_generator.py` :
+    - `_render_via_clean_isolate(image_url, template) -> bytes` —
+      birefnet call + Pillow composite.
+    - `_composite_on_white(transparent_bytes, template) -> bytes`
+      sync Pillow helper (wrapped in `asyncio.to_thread`).
+    - `TEMPLATE_IMAGE_SLOT` map exposes per-template slot dimensions
+      so the composite output fits each template's CSS slot exactly
+      (no `object-fit: cover` cropping).
+- The Flux Kontext code paths (`FLUX_BASE_PROMPT`,
+  `FLUX_TEMPLATE_CONFIG`, `FLUX_MODEL_ID`, `_render_via_flux_kontext`)
+  are removed, not commented out — keeping dead code rots faster
+  than recovering it from git.
+- Pillow is already a transitive dep via `qrcode[pil]`.
+- `httpx` (already present) downloads the transparent PNG from the
+  fal.ai-hosted URL.
+
+### References
+
+- ADR-047 (Flux Kontext rollout — superseded by this ADR)
+- `packages/backend/app/services/asset_generator.py` (the dispatch
+  + clean-isolate helper)
+- fal.ai birefnet/v2 : https://fal.ai/models/fal-ai/birefnet
+- Live test outputs (pre-switch) : 4 iterations on Dreame H12 vacuum
+  showed persistent text-loss + shadow-halo regressions across
+  prompt rewrites and inference-step bumps.
