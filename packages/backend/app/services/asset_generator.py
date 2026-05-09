@@ -259,17 +259,27 @@ def _composite_on_white(
     transparent_bytes: bytes,
     template: TemplateKey,
 ) -> bytes:
-    """Pillow-only sync helper : take a transparent PNG, scale it to
-    fit a template's image slot with a small margin, paste centered
-    on a pure white canvas. Wrapped via asyncio.to_thread so it
+    """Pillow-only sync helper : take a transparent PNG, auto-correct
+    its color channels, scale it to fit the template slot with a
+    margin, paste a soft drop shadow then the product centered on
+    a pure white canvas. Wrapped via `asyncio.to_thread` so it
     doesn't block the event loop.
 
     Output canvas is `COMPOSITE_OUTPUT_SCALE`× the template slot
     dimensions so the browser downscale at render time preserves
-    source photo detail (the previous 1× output was visibly soft on
-    the Dreame vacuum live test even though the source phone shot
-    was high-res — Pillow's Lanczos downscale to 920×920 was the
-    bottleneck, not Birefnet).
+    source photo detail.
+
+    Steps :
+      1. Auto-correct (autocontrast + saturation + unsharp mask) on
+         the product's RGB channels — birefnet's alpha mask already
+         isolated the product, so the correction only affects pixels
+         the buyer will actually see (no risk of pulling a yellow
+         indoor cast through a transparent background).
+      2. Scale (downscale only ; never upscale tiny source photos
+         beyond their native resolution).
+      3. Drop-shadow under product (blur + offset down) — soft
+         "ground shadow" rather than a flat halo.
+      4. Paste the corrected product on top.
     """
     from PIL import Image
 
@@ -278,12 +288,9 @@ def _composite_on_white(
     out_h = slot_h * COMPOSITE_OUTPUT_SCALE
 
     src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
+    src = _auto_correct_rgba(src)
     src_w, src_h = src.size
 
-    # Compute scaled dimensions : fit within (1 - 2*margin) of the
-    # canvas, preserving aspect ratio. We never upscale beyond the
-    # source — if the seller uploaded a tiny photo, it stays small
-    # on the canvas (better honest blur than fake-upscaled mush).
     target_w = int(out_w * (1 - 2 * ISOLATE_MARGIN))
     target_h = int(out_h * (1 - 2 * ISOLATE_MARGIN))
     scale = min(target_w / src_w, target_h / src_h, 1.0)
@@ -294,8 +301,9 @@ def _composite_on_white(
     canvas = Image.new("RGB", (out_w, out_h), (255, 255, 255))
     paste_x = (out_w - new_w) // 2
     paste_y = (out_h - new_h) // 2
-    # Use the alpha channel as the paste mask so transparent pixels
-    # don't bleed into the white canvas as gray fringes.
+
+    _paste_drop_shadow(canvas, resized, paste_x, paste_y, out_h)
+    # Product on top of its own shadow.
     canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
 
     out_buf = BytesIO()
@@ -312,6 +320,57 @@ def _composite_on_white(
         len(composite_bytes) // 1024,
     )
     return composite_bytes
+
+
+def _auto_correct_rgba(src):
+    """Auto-correct an RGBA image's color channels (white balance via
+    autocontrast, mild saturation boost, light sharpening). The alpha
+    channel is preserved untouched."""
+    from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
+    r, g, b, a = src.split()
+    rgb = Image.merge("RGB", (r, g, b))
+    # cutoff=1 = clip the brightest/darkest 1 % to anchor white/black,
+    # which reliably normalizes the muddy-yellow indoor shots we see
+    # from sellers without nuking pure-white backdrops or pure-black
+    # logos when the source is already well-exposed.
+    rgb = ImageOps.autocontrast(rgb, cutoff=1)
+    rgb = ImageEnhance.Color(rgb).enhance(1.10)
+    rgb = rgb.filter(
+        ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3)
+    )
+    r2, g2, b2 = rgb.split()
+    return Image.merge("RGBA", (r2, g2, b2, a))
+
+
+def _paste_drop_shadow(canvas, product_rgba, paste_x, paste_y, canvas_h):
+    """Paste a soft "ground shadow" under the product. The shadow is
+    the product's alpha mask blurred + dimmed + offset down so most
+    of the visible darkness lands BELOW the product silhouette,
+    approximating a Zalando-style studio shadow rather than a flat
+    halo around the subject."""
+    from PIL import Image, ImageFilter
+
+    alpha = product_rgba.split()[3]
+    # Blur radius scales with canvas size — 2 % of canvas height gives
+    # a natural softness across all template sizes (40-55 px on the
+    # 3× canvases used today).
+    blur_radius = max(12, int(canvas_h * 0.020))
+    blurred = alpha.filter(ImageFilter.GaussianBlur(radius=blur_radius))
+    # 30 % opacity — soft enough to hint at depth without darkening
+    # the white backdrop.
+    dimmed = blurred.point(lambda p: int(p * 0.30))
+    # Dark gray (not pure black) — feels softer and avoids tinting
+    # transparent edges of the blur into hard black fringes.
+    shadow_fill = Image.new("RGB", product_rgba.size, (60, 60, 60))
+    # Offset 4 % of canvas height down → shadow extends below the
+    # product's contact line, mimicking a top-down studio light.
+    shadow_offset_y = int(canvas_h * 0.04)
+    canvas.paste(
+        shadow_fill,
+        (paste_x, paste_y + shadow_offset_y),
+        mask=dimmed,
+    )
 
 
 async def generate_marketing_image(
