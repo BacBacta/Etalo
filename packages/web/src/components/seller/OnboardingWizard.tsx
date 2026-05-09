@@ -110,8 +110,10 @@ export function OnboardingWizard({ walletAddress, onSuccess }: Props) {
   return (
     <div className="mx-auto w-full max-w-md py-8">
       <header className="mb-6 text-center">
-        <h2 className="mb-1 text-xl font-semibold">Create your boutique</h2>
-        <p className="text-sm text-neutral-600">
+        <h2 className="mb-1 text-xl font-semibold text-celo-dark dark:text-celo-light">
+          Create your boutique
+        </h2>
+        <p className="text-sm text-neutral-600 dark:text-celo-light/70">
           Step {step === "boutique" ? 1 : 2} of 2 ·{" "}
           {step === "boutique" ? "Your shop" : "Your first product"}
         </p>
@@ -120,7 +122,7 @@ export function OnboardingWizard({ walletAddress, onSuccess }: Props) {
       {boutiqueConflict ? (
         <div
           role="alert"
-          className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+          className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300"
           data-testid="onboarding-handle-conflict"
         >
           Shop handle was taken. Please pick another.

@@ -136,7 +136,7 @@ export function OnboardingStepBoutique({
           maxLength={100}
           placeholder="My Boutique"
           required
-          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
+          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
         />
       </div>
 
@@ -148,7 +148,7 @@ export function OnboardingStepBoutique({
           Shop handle
         </label>
         <div className="flex items-center gap-2">
-          <span className="text-base text-neutral-500">etalo.app/</span>
+          <span className="text-base text-neutral-500 dark:text-celo-light/60">etalo.app/</span>
           <input
             id="shop-handle"
             type="text"
@@ -159,17 +159,17 @@ export function OnboardingStepBoutique({
             maxLength={30}
             placeholder="myshop"
             required
-            className="block flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-base focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
+            className="block flex-1 rounded-md border border-neutral-300 bg-white px-3 py-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
           />
         </div>
         <p
           className={`mt-1 text-sm ${
             handleStatus.state === "available"
-              ? "text-celo-forest"
+              ? "text-celo-forest dark:text-celo-forest-bright"
               : handleStatus.state === "taken" ||
                   handleStatus.state === "format"
-                ? "text-red-600"
-                : "text-neutral-500"
+                ? "text-red-600 dark:text-red-400"
+                : "text-neutral-500 dark:text-celo-light/60"
           }`}
           data-testid="onboarding-handle-status"
         >
@@ -201,7 +201,7 @@ export function OnboardingStepBoutique({
           htmlFor="shop-description"
           className="mb-1 block text-sm font-medium"
         >
-          About your shop <span className="text-neutral-500">(optional)</span>
+          About your shop <span className="text-neutral-500 dark:text-celo-light/60">(optional)</span>
         </label>
         <textarea
           id="shop-description"
@@ -210,16 +210,16 @@ export function OnboardingStepBoutique({
           maxLength={500}
           rows={3}
           placeholder="What you sell, who you make it for…"
-          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
+          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
         />
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-celo-light/60">
           {description.length}/500
         </p>
       </div>
 
       <div>
         <label className="mb-1 block text-sm font-medium">
-          Logo <span className="text-neutral-500">(optional)</span>
+          Logo <span className="text-neutral-500 dark:text-celo-light/60">(optional)</span>
         </label>
         <ImageUploader
           walletAddress={walletAddress}

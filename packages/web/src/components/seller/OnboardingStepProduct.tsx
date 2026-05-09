@@ -101,7 +101,7 @@ export function OnboardingStepProduct({
           minLength={TITLE_MIN}
           placeholder="Handmade leather bag"
           required
-          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
+          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
         />
       </div>
 
@@ -119,10 +119,10 @@ export function OnboardingStepProduct({
             placeholder="12.50"
             required
             aria-invalid={priceRaw.length > 0 && !priceValid}
-            className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base tabular-nums focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
+            className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base tabular-nums text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
           />
           {priceRaw.length > 0 && !priceValid ? (
-            <p className="mt-1 text-sm text-red-600">
+            <p className="mt-1 text-sm text-red-600 dark:text-red-400">
               Use digits only, e.g. 12.50
             </p>
           ) : null}
@@ -141,7 +141,7 @@ export function OnboardingStepProduct({
             max={STOCK_MAX}
             step={1}
             required
-            className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base tabular-nums focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
+            className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base tabular-nums text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
           />
         </div>
       </div>
@@ -151,7 +151,7 @@ export function OnboardingStepProduct({
           htmlFor="product-description"
           className="mb-1 block text-sm font-medium"
         >
-          Description <span className="text-neutral-500">(optional)</span>
+          Description <span className="text-neutral-500 dark:text-celo-light/60">(optional)</span>
         </label>
         <textarea
           id="product-description"
@@ -160,16 +160,16 @@ export function OnboardingStepProduct({
           maxLength={500}
           rows={3}
           placeholder="Materials, sizes, what makes it special…"
-          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
+          className="block w-full rounded-md border border-neutral-300 bg-white px-3 py-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light focus:border-celo-forest focus:outline-none focus:ring-1 focus:ring-celo-forest"
         />
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-celo-light/60">
           {description.length}/500
         </p>
       </div>
 
       <div>
         <label className="mb-1 block text-sm font-medium">
-          Photos <span className="text-red-600">*</span>
+          Photos <span className="text-red-600 dark:text-red-400">*</span>
         </label>
         <ImageUploader
           walletAddress={walletAddress}
@@ -177,7 +177,7 @@ export function OnboardingStepProduct({
           initialIpfsHashes={photos}
           onChange={setPhotos}
         />
-        <p className="mt-1 text-sm text-neutral-500">
+        <p className="mt-1 text-sm text-neutral-500 dark:text-celo-light/60">
           At least 1 photo is required. Up to 5 total.
         </p>
       </div>
