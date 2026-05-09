@@ -99,17 +99,23 @@ FLUX_TEMPLATE_CONFIG: dict[TemplateKey, dict[str, str]] = {
 # Base prompt — the "preserve exact product details" sentence is the
 # Kontext-specific guardrail that keeps the seller's product unchanged
 # while the model only restyles the surrounding context. The
-# `text labels visible on the product` clause is the targeted fix
-# for the Dreame-vacuum regression where Flux smoothed out the
-# brand wordmark on the brushhead.
+# `text labels visible on the product` clause targets text/logo
+# preservation. The "minimal contact shadow only" + "no background
+# shadow" clauses fix the heavy drop-shadow regression observed live
+# (Dreame vacuum had a dramatic grey halo behind it). The pure-white
+# wording with explicit hex push the backdrop away from the grey
+# studio look that some test outputs landed on.
 FLUX_BASE_PROMPT = (
     "Premium ecommerce product photo of this exact item, "
-    "clean white seamless studio backdrop, soft top lighting, "
-    "centered subject, subtle drop shadow under product, "
-    "magazine-quality detail with sharp focus. "
-    "Professional product photography style. "
+    "pure white #FFFFFF seamless paper backdrop, "
+    "even bright lighting, no color cast, "
+    "centered subject, only a minimal contact shadow directly under "
+    "the product base, no large background shadow, no halo. "
+    "Crisp magazine-quality detail with razor-sharp focus, "
+    "high-resolution catalog product photography. "
     "Preserve the exact product shape, color, branding, "
-    "text labels visible on the product, and texture details."
+    "text labels and logos visible on the product, "
+    "and surface texture details. No artifacts."
 )
 
 FLUX_MODEL_ID = "fal-ai/flux-pro/kontext"
@@ -255,6 +261,11 @@ async def _render_via_flux_kontext(
             "aspect_ratio": cfg["aspect_ratio"],
             "output_format": "png",
             "safety_tolerance": "5",
+            # 40 steps is the sweet spot for Kontext : ~10 % more cost
+            # than the default 28 but visibly cleaner edges and
+            # texture preservation. Goes from $0.04 to ~$0.045 — still
+            # ~70 % margin against 1 credit revenue.
+            "num_inference_steps": 40,
         },
     )
 
