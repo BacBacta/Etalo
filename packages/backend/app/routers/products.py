@@ -312,7 +312,10 @@ async def delete_product(
 from datetime import datetime, timezone
 
 from app.services import credit_service
-from app.services.asset_generator import enhance_product_photo
+from app.services.asset_generator import (
+    enhance_product_photo,
+    enhance_product_photo_variants,
+)
 from app.services.credit_service import InsufficientCreditsError
 from app.services.ipfs import build_ipfs_url, ipfs_service
 
@@ -384,7 +387,9 @@ async def enhance_photo_endpoint(
         )
 
     source_url = build_ipfs_url(source_hash)
-    enhanced_bytes = await enhance_product_photo(source_url)
+    enhanced_bytes = await enhance_product_photo(
+        source_url, category=product.category
+    )
 
     filename = f"enhanced_{product.id}_{source_hash[:8]}.png"
     enhanced_hash = await ipfs_service.upload_image(enhanced_bytes, filename)
@@ -424,6 +429,12 @@ from pydantic import BaseModel, Field
 
 class EnhanceImageRequest(BaseModel):
     image_ipfs_hash: str = Field(..., min_length=10, max_length=100)
+    # ADR-049 Block A — category drives the per-preset backdrop +
+    # saturation + sharpening + margin. Optional : if absent or unknown,
+    # the backend falls back to the "other" preset (cream cream backdrop
+    # + neutral settings). Frontend ProductFormDialog passes the form's
+    # category state when calling enhanceImage().
+    category: str | None = Field(default=None, max_length=50)
 
 
 @router.post("/enhance-image")
@@ -461,7 +472,9 @@ async def enhance_image_endpoint(
 
     source_url = build_ipfs_url(payload.image_ipfs_hash)
     try:
-        enhanced_bytes = await enhance_product_photo(source_url)
+        enhanced_bytes = await enhance_product_photo(
+            source_url, category=payload.category
+        )
     except httpx.HTTPStatusError as exc:
         # Bad IPFS hash, Pinata 4xx, or transient gateway issue. Don't
         # charge the seller for an unrenderable input — surface a clean
@@ -493,6 +506,77 @@ async def enhance_image_endpoint(
     return {
         "enhanced_image_ipfs_hash": enhanced_hash,
         "enhanced_image_url": build_ipfs_url(enhanced_hash),
+        "credits_consumed": 1,
+        "credits_remaining": new_balance,
+    }
+
+
+# ============================================================
+# ADR-049 Block C — Multi-variant generation
+# ============================================================
+
+
+class EnhanceImageVariantsRequest(BaseModel):
+    image_ipfs_hash: str = Field(..., min_length=10, max_length=100)
+    category: str | None = Field(default=None, max_length=50)
+
+
+@router.post("/enhance-image-variants")
+async def enhance_image_variants_endpoint(
+    payload: EnhanceImageVariantsRequest,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> dict:
+    """ADR-049 Block C — Generate 3 backdrop variants of the enhanced
+    photo (Recommended / White bright / Neutral cool) so the seller
+    can pick the aesthetic that fits best. Same atomic charge as
+    `/enhance-image` (1 credit covers all 3 variants — Mike's call).
+
+    The seller-side state (which IPFS hash to save with the product)
+    is the frontend's responsibility — it slots the picked variant
+    into image_ipfs_hashes before calling createProduct/updateProduct.
+
+    402 Payment Required if balance < 1 credit.
+    """
+    await credit_service.grant_welcome_bonus_if_first(seller.id, db)
+    balance = await credit_service.get_balance(seller.id, db)
+    if balance < 1:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=(
+                "Insufficient credits. Purchase more credits via "
+                "EtaloCredits.purchaseCredits to enhance product photos."
+            ),
+        )
+
+    import httpx
+
+    source_url = build_ipfs_url(payload.image_ipfs_hash)
+    try:
+        variants, _ = await enhance_product_photo_variants(
+            source_url, category=payload.category
+        )
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Source image could not be fetched "
+                f"(IPFS gateway returned {exc.response.status_code})."
+            ),
+        )
+
+    try:
+        new_balance = await credit_service.consume_credits(
+            seller_id=seller.id, db=db, amount=1, image_id=None
+        )
+    except InsufficientCreditsError:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Insufficient credits — please buy more credits.",
+        )
+
+    return {
+        "variants": variants,
         "credits_consumed": 1,
         "credits_remaining": new_balance,
     }

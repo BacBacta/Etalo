@@ -29,10 +29,11 @@ import {
 } from "@/lib/categories";
 import {
   createProduct,
-  enhanceImage,
+  enhanceImageVariants,
   InsufficientCreditsForEnhanceError,
   ProductSlugConflictError,
   updateProduct,
+  type EnhanceVariant,
   type ProductCreate,
   type ProductDetail,
   type ProductUpdate,
@@ -103,24 +104,26 @@ export function ProductFormDialog({
   const [category, setCategory] = useState<CategoryCode>("other");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  // ADR-049 — enhance photo state machine.
+  // ADR-049 Block C — enhance photo state machine.
   // - phase "idle": the form's hero photo has not been enhanced this session
   // - phase "loading": API call in flight
-  // - phase "preview": enhance call returned, the seller is choosing
-  //   whether to use the enhanced photo or keep their original. The
-  //   credit is already consumed at this point — the choice is only
-  //   about which IPFS hash lands in image_ipfs_hashes[0].
-  // - phase "used": the seller picked the enhanced photo and we've
-  //   swapped image_ipfs_hashes[0] to it.
+  // - phase "preview": variants returned, the seller is picking one
+  //   (Recommended / White bright / Neutral cool) — or rejecting all
+  //   to keep the original. Credit is already consumed.
+  // - phase "used": the seller picked a variant ; image_ipfs_hashes[0]
+  //   was swapped to it.
   // Reset on dialog re-open.
   type EnhancePhase = "idle" | "loading" | "preview" | "used";
   const [enhancePhase, setEnhancePhase] = useState<EnhancePhase>("idle");
   // Hash of the seller's original photo, captured just before we call
-  // /enhance-image so we can offer "Keep original" in the preview step.
+  // /enhance-image-variants so we can offer "Keep original" in the
+  // preview step.
   const [originalHashAtEnhance, setOriginalHashAtEnhance] = useState<
     string | null
   >(null);
-  const [enhancedHash, setEnhancedHash] = useState<string | null>(null);
+  const [enhanceVariants, setEnhanceVariants] = useState<
+    EnhanceVariant[] | null
+  >(null);
 
   useEffect(() => {
     if (!open) return;
@@ -160,7 +163,7 @@ export function ProductFormDialog({
     setErrors({});
     setEnhancePhase("idle");
     setOriginalHashAtEnhance(null);
-    setEnhancedHash(null);
+    setEnhanceVariants(null);
   }, [open, mode, initialProduct]);
 
   const heroHash = imageHashes[0] ?? null;
@@ -172,14 +175,18 @@ export function ProductFormDialog({
     setEnhancePhase("loading");
     setOriginalHashAtEnhance(heroHash);
     try {
-      const result = await enhanceImage(walletAddress, heroHash);
-      // The credit is already consumed server-side. Stash the enhanced
-      // hash and flip into preview phase — image_ipfs_hashes[0] stays on
-      // the original until the seller confirms "Use enhanced".
-      setEnhancedHash(result.enhanced_image_ipfs_hash);
+      const result = await enhanceImageVariants(
+        walletAddress,
+        heroHash,
+        category,
+      );
+      // Credit consumed server-side. Stash the variants and flip into
+      // preview phase — image_ipfs_hashes[0] stays on the original
+      // until the seller picks a variant.
+      setEnhanceVariants(result.variants);
       setEnhancePhase("preview");
       toast.success(
-        `Photo enhanced · ${result.credits_remaining} credits left · choose below`,
+        `3 variants ready · ${result.credits_remaining} credits left · pick one below`,
       );
     } catch (err) {
       setEnhancePhase("idle");
@@ -194,18 +201,17 @@ export function ProductFormDialog({
     }
   };
 
-  const handleUseEnhanced = () => {
-    if (!enhancedHash) return;
-    setImageHashes((prev) => [enhancedHash, ...prev.slice(1)]);
+  const handleUseVariant = (variant: EnhanceVariant) => {
+    setImageHashes((prev) => [variant.ipfs_hash, ...prev.slice(1)]);
     setEnhancePhase("used");
   };
 
   const handleKeepOriginal = () => {
-    // The credit was already consumed but the seller doesn't like the
-    // result — go back to the original photo. Don't refund (the work
-    // was done) but make it easy to move on.
+    // The credit was already consumed but the seller doesn't like any
+    // variant — go back to the original photo. Don't refund (work was
+    // done, all 3 variants pinned) but make it easy to move on.
     setEnhancePhase("idle");
-    setEnhancedHash(null);
+    setEnhanceVariants(null);
     setOriginalHashAtEnhance(null);
   };
 
@@ -443,10 +449,10 @@ export function ProductFormDialog({
             <EnhanceSection
               phase={enhancePhase}
               originalHash={originalHashAtEnhance ?? heroHash}
-              enhancedHash={enhancedHash}
+              variants={enhanceVariants}
               canEnhance={canEnhance}
               onEnhance={handleEnhance}
-              onUseEnhanced={handleUseEnhanced}
+              onUseVariant={handleUseVariant}
               onKeepOriginal={handleKeepOriginal}
             />
           ) : null}
@@ -488,34 +494,34 @@ const PINATA_GATEWAY_FOR_PREVIEW = "https://gateway.pinata.cloud/ipfs/";
 function EnhanceSection({
   phase,
   originalHash,
-  enhancedHash,
+  variants,
   canEnhance,
   onEnhance,
-  onUseEnhanced,
+  onUseVariant,
   onKeepOriginal,
 }: {
   phase: "idle" | "loading" | "preview" | "used";
   originalHash: string;
-  enhancedHash: string | null;
+  variants: EnhanceVariant[] | null;
   canEnhance: boolean;
   onEnhance: () => void;
-  onUseEnhanced: () => void;
+  onUseVariant: (variant: EnhanceVariant) => void;
   onKeepOriginal: () => void;
 }) {
   const wrapperClass =
     "rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-celo-light/20 dark:bg-celo-dark-elevated";
 
-  if (phase === "preview" && enhancedHash) {
+  if (phase === "preview" && variants && variants.length > 0) {
     return (
       <div className={wrapperClass}>
         <p className="mb-1 text-base font-medium text-celo-dark dark:text-celo-light">
-          Pick a photo to use
+          Pick a backdrop you like
         </p>
         <p className="mb-3 text-sm text-neutral-500 dark:text-celo-light/60">
-          1 credit was used to generate the enhanced version. Choosing
+          1 credit was used to generate {variants.length} variants. Choosing
           &quot;Keep original&quot; doesn&apos;t refund the credit.
         </p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <figure className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20">
             <img
               src={`${PINATA_GATEWAY_FOR_PREVIEW}${originalHash}`}
@@ -525,34 +531,36 @@ function EnhanceSection({
             <figcaption className="px-2 py-1 text-center text-sm text-neutral-500">
               Original
             </figcaption>
+            <button
+              type="button"
+              onClick={onKeepOriginal}
+              className="block w-full border-t border-neutral-200 bg-neutral-50 py-2 text-sm font-medium text-celo-dark hover:bg-neutral-100 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:hover:bg-celo-dark-bg"
+            >
+              Keep this
+            </button>
           </figure>
-          <figure className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20">
-            <img
-              src={`${PINATA_GATEWAY_FOR_PREVIEW}${enhancedHash}`}
-              alt="Enhanced photo"
-              className="aspect-square w-full object-cover"
-            />
-            <figcaption className="px-2 py-1 text-center text-sm text-neutral-500">
-              ✨ Enhanced
-            </figcaption>
-          </figure>
-        </div>
-        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <Button
-            type="button"
-            variant="outline"
-            onClick={onKeepOriginal}
-            className="min-h-[44px] sm:flex-1"
-          >
-            Keep original
-          </Button>
-          <Button
-            type="button"
-            onClick={onUseEnhanced}
-            className="min-h-[44px] sm:flex-1"
-          >
-            Use enhanced photo
-          </Button>
+          {variants.map((v) => (
+            <figure
+              key={v.ipfs_hash}
+              className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20"
+            >
+              <img
+                src={v.image_url}
+                alt={`${v.label} variant`}
+                className="aspect-square w-full object-cover"
+              />
+              <figcaption className="px-2 py-1 text-center text-sm text-neutral-500">
+                {v.label}
+              </figcaption>
+              <button
+                type="button"
+                onClick={() => onUseVariant(v)}
+                className="block w-full border-t border-neutral-200 bg-celo-dark py-2 text-sm font-medium text-white hover:bg-celo-dark/90 dark:border-celo-light/20"
+              >
+                Use this
+              </button>
+            </figure>
+          ))}
         </div>
       </div>
     );
@@ -569,8 +577,8 @@ function EnhanceSection({
           </p>
           <p className="text-sm text-neutral-500 dark:text-celo-light/60">
             {phase === "used"
-              ? "Background removed, cream studio backdrop applied."
-              : "AI removes the background and gives you a clean cream-studio shot."}
+              ? "Background removed, studio backdrop applied."
+              : "AI generates 3 backdrop variants — pick the one that fits."}
           </p>
         </div>
         {phase !== "used" ? (
@@ -580,7 +588,7 @@ function EnhanceSection({
             disabled={!canEnhance}
             className="min-h-[44px] shrink-0"
           >
-            {phase === "loading" ? "Enhancing…" : "Enhance · 1 credit"}
+            {phase === "loading" ? "Generating…" : "Enhance · 1 credit"}
           </Button>
         ) : null}
       </div>

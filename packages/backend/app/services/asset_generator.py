@@ -122,8 +122,75 @@ ENHANCE_OUTPUT_DIM = 2048
 # Cream off-white backdrop, warmer than pure #FFFFFF. Matches the
 # Net-a-Porter / MyTheresa premium ecom convention — pure white reads
 # as clinical/cold on consumer-grade phone screens, the cream tone makes
-# product photos feel more curated. Hex #F7F5F0.
+# product photos feel more curated. Hex #F7F5F0. Used as the default
+# preset's backdrop (overridden per category — see ENHANCE_PRESETS).
 ENHANCE_BACKDROP_RGB = (247, 245, 240)
+
+
+# Per-category enhance presets — the V1 pipeline was one-size-fits-all
+# (cream bg + 10 % sat + soft sharpen) which plateaued quality across
+# different product types. Tighten:
+#  - backdrop: warmer cream for beauty, neutral light gray for home
+#  - saturation: high for beauty packagings, neutral for home (preserve
+#    real wood/metal tones), low for food (avoid washing out food colors)
+#  - sharpening: stronger for home (hard product lines / electronics
+#    edges) and beauty packaging fonts ; lighter for food and fashion
+#    (texture noise / fabric patterns amplify ugly with hard sharpening)
+#  - margin: more air for fashion (tall garments / shoes) ; tighter for
+#    beauty/home where the product is the whole story
+ENHANCE_PRESETS: dict[str, dict] = {
+    "fashion": {
+        "backdrop": (247, 245, 240),  # #F7F5F0 cream
+        "saturation": 1.05,
+        "sharpen_radius": 1,
+        "sharpen_percent": 20,
+        "sharpen_threshold": 4,
+        "margin": 0.07,
+    },
+    "beauty": {
+        "backdrop": (250, 247, 242),  # #FAF7F2 warmer cream
+        "saturation": 1.12,
+        "sharpen_radius": 1,
+        "sharpen_percent": 28,
+        "sharpen_threshold": 3,
+        "margin": 0.06,
+    },
+    "food": {
+        "backdrop": (250, 245, 235),  # #FAF5EB warm cream
+        "saturation": 1.08,
+        "sharpen_radius": 1,
+        "sharpen_percent": 15,
+        "sharpen_threshold": 5,
+        "margin": 0.05,
+    },
+    "home": {
+        "backdrop": (245, 245, 245),  # #F5F5F5 neutral light gray
+        "saturation": 1.0,
+        "sharpen_radius": 1,
+        "sharpen_percent": 32,
+        "sharpen_threshold": 3,
+        "margin": 0.05,
+    },
+    "other": {
+        "backdrop": ENHANCE_BACKDROP_RGB,
+        "saturation": 1.05,
+        "sharpen_radius": 1,
+        "sharpen_percent": 22,
+        "sharpen_threshold": 4,
+        "margin": 0.05,
+    },
+}
+
+DEFAULT_PRESET_KEY = "other"
+
+
+def get_enhance_preset(category: str | None) -> dict:
+    """Return the enhance preset for a category, falling back to "other"
+    on unknown / null inputs (defensive — sellers can theoretically set
+    a stale category from before the enum was locked)."""
+    if category is None:
+        return ENHANCE_PRESETS[DEFAULT_PRESET_KEY]
+    return ENHANCE_PRESETS.get(category, ENHANCE_PRESETS[DEFAULT_PRESET_KEY])
 
 
 class AssetGenerationResult(TypedDict):
@@ -406,46 +473,47 @@ def _composite_on_white(
     return composite_bytes
 
 
-def _composite_square(transparent_bytes: bytes) -> bytes:
+def _composite_square(
+    transparent_bytes: bytes,
+    preset: dict | None = None,
+) -> bytes:
     """ADR-049 V1 enhance flow : take a transparent PNG and paste it
-    centered on a fixed cream-bg square 2048×2048 canvas. No template
-    chrome, no per-platform slot dimensions — the output is the seller's
-    new product hero photo, used universally across the boutique grid +
-    storefront detail view.
+    centered on a square 2048×2048 canvas using the preset's backdrop
+    color. No template chrome, no per-platform slot dimensions — the
+    output is the seller's new product hero photo, used universally
+    across the boutique grid + storefront detail view.
 
     Crops to the alpha bbox first so the visible product is centered
     against the canvas, not against where it happened to sit in the
-    seller's original phone shot. Without this, products that the seller
-    framed off-center come back off-center on the white square.
+    seller's original phone shot.
 
-    Same auto-correct (autocontrast + saturation + unsharp) as the
-    template path because birefnet's cutout sometimes carries a slight
-    indoor color cast through. Same scale-to-fit-with-margin policy
-    (5% margin, Lanczos, cap upscale at 4x to guard thumbnails).
+    `preset` (default = the "other" preset) decides the backdrop color,
+    auto-correct strength, and the margin around the product. See
+    ENHANCE_PRESETS for the per-category tuning.
     """
     from PIL import Image
 
+    if preset is None:
+        preset = ENHANCE_PRESETS[DEFAULT_PRESET_KEY]
+
     out_dim = ENHANCE_OUTPUT_DIM
     src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
-    src = _auto_correct_rgba(src)
+    src = _auto_correct_rgba(src, preset)
 
-    # Crop to the product's alpha bounding box before scaling so the
-    # product (not the original frame) is what gets centered on the
-    # canvas. Falls back to the full image if birefnet returned a fully
-    # opaque output (defensive — shouldn't happen with bg-removal model
-    # but a transparent product would otherwise crash).
     bbox = src.getbbox()
     if bbox is not None:
         src = src.crop(bbox)
     src_w, src_h = src.size
 
-    target = int(out_dim * (1 - 2 * ISOLATE_MARGIN))
+    margin = preset.get("margin", ISOLATE_MARGIN)
+    target = int(out_dim * (1 - 2 * margin))
     scale = min(target / src_w, target / src_h, 4.0)
     new_w = max(1, int(src_w * scale))
     new_h = max(1, int(src_h * scale))
     resized = src.resize((new_w, new_h), Image.LANCZOS) if scale != 1.0 else src
 
-    canvas = Image.new("RGB", (out_dim, out_dim), ENHANCE_BACKDROP_RGB)
+    backdrop = preset.get("backdrop", ENHANCE_BACKDROP_RGB)
+    canvas = Image.new("RGB", (out_dim, out_dim), backdrop)
     paste_x = (out_dim - new_w) // 2
     paste_y = (out_dim - new_h) // 2
     canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
@@ -454,31 +522,53 @@ def _composite_square(transparent_bytes: bytes) -> bytes:
     canvas.save(out_buf, format="PNG", optimize=True)
     composite_bytes = out_buf.getvalue()
     logger.info(
-        "Composite enhance : src=%dx%d (cropped) → %dx%d cream (scale=%.3f) → %d KB",
+        "Composite enhance : src=%dx%d (cropped) → %dx%d bg=%s margin=%.0f%% (scale=%.3f) → %d KB",
         src_w,
         src_h,
         out_dim,
         out_dim,
+        backdrop,
+        margin * 100,
         scale,
         len(composite_bytes) // 1024,
     )
     return composite_bytes
 
 
-async def enhance_product_photo(image_url: str) -> bytes:
+async def enhance_product_photo(
+    image_url: str,
+    category: str | None = None,
+) -> bytes:
     """ADR-049 V1 — bg-remove the seller's product photo via fal.ai
-    birefnet/v2 and composite on a square 2048×2048 white canvas.
-    Returns the final PNG bytes, ready to pin to IPFS and use as the
-    product's hero image (Product.image_ipfs_hashes[0]).
+    birefnet/v2 and composite on a square 2048×2048 canvas using a
+    preset that combines the seller's `category` (Block A defaults)
+    with vision insights from Claude (Block B overrides). Returns the
+    final PNG bytes, ready to pin to IPFS and use as the product's
+    hero image (Product.image_ipfs_hashes[0]).
 
-    Reuses the proven `_render_via_clean_isolate` resize + birefnet
-    upload + transparent download pipeline, then drops the per-template
-    composite path in favor of `_composite_square`. No Playwright, no
-    HTML chrome, no caption — pure photo enhancement.
+    Pipeline order :
+    1. Download source from IPFS gateway.
+    2. Resize to 1536px JPEG (~200 KB) for fast birefnet upload.
+    3. Vision call to Claude Sonnet 4.6 in PARALLEL with birefnet
+       (asyncio.gather) — vision insights tune the composite preset
+       without adding to wall-clock latency.
+    4. birefnet returns a transparent PNG.
+    5. Pillow composite on the preset-driven backdrop.
+
+    Vision call failure / no API key → falls back to the category
+    preset (Block A) cleanly. No regression vs Block A behavior.
     """
     import fal_client
 
-    logger.info("Enhance call : start")
+    from app.services.vision_classifier import (
+        analyze_product_image,
+        select_preset_with_insights,
+    )
+
+    logger.info(
+        "Enhance call : start category=%s",
+        category,
+    )
 
     t = time.monotonic()
     async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
@@ -496,7 +586,12 @@ async def enhance_product_photo(image_url: str) -> bytes:
         time.monotonic() - t,
     )
 
+    # Run vision analysis in parallel with birefnet — both take a few
+    # seconds, no need to serialize. Vision failures return None
+    # (handled by select_preset_with_insights → category preset
+    # fallback), so a Claude outage never blocks the enhance.
     t = time.monotonic()
+    vision_task = asyncio.create_task(_safe_vision_call(src_bytes))
     handler = await fal_client.subscribe_async(
         REMBG_MODEL_ID,
         arguments={"image_url": fal_url},
@@ -515,31 +610,206 @@ async def enhance_product_photo(image_url: str) -> bytes:
     logger.info("step.birefnet: %.2fs", time.monotonic() - t)
 
     t = time.monotonic()
-    composite = await asyncio.to_thread(_composite_square, transparent_bytes)
+    insights = await vision_task
+    logger.info(
+        "step.vision: insights=%s (%.2fs since birefnet end)",
+        insights,
+        time.monotonic() - t,
+    )
+
+    preset = select_preset_with_insights(category, insights)
+    logger.info("step.preset: backdrop=%s margin=%.2f sharpen=%d",
+                preset.get("backdrop"), preset.get("margin"),
+                preset.get("sharpen_percent"))
+
+    t = time.monotonic()
+    composite = await asyncio.to_thread(
+        _composite_square, transparent_bytes, preset
+    )
     logger.info("step.composite: %.2fs", time.monotonic() - t)
     return composite
 
 
-def _auto_correct_rgba(src):
+async def _safe_vision_call(src_bytes: bytes):
+    """Wrap analyze_product_image so any unexpected error returns None
+    (which select_preset_with_insights treats as "no insights, use
+    category preset"). Defense-in-depth — analyze_product_image already
+    catches anthropic.APIError but we want to swallow asyncio
+    cancellation, network errors, etc. too without breaking the enhance."""
+    try:
+        from app.services.vision_classifier import analyze_product_image
+
+        return await analyze_product_image(src_bytes)
+    except Exception:
+        logger.exception("Vision call failed unexpectedly — preset fallback")
+        return None
+
+
+# ADR-049 Block C — multi-variant generation. Three preset overrides
+# applied to the SAME birefnet output, so we run birefnet once and
+# composite three times. Cost = 1× birefnet ($0.001) + 3× Pillow
+# (negligible). Charged at 1 credit (Mike's call) — margin stays >95%.
+#
+# Variant 1 = the seller-derived preset (Block A + B insights).
+# Variant 2 = "white-bright" override (pure white backdrop, more sat).
+# Variant 3 = "neutral-cool" override (light gray backdrop, less sat).
+# Sellers pick whichever matches their aesthetic in the frontend grid.
+def _variant_white_bright(base_preset: dict) -> dict:
+    """Pure white backdrop + slightly more sat. Closer to the Apple /
+    Bose pure-catalog aesthetic. Useful for products the seller wants
+    to look 'clinical professional'."""
+    adapted = dict(base_preset)
+    adapted["backdrop"] = (255, 255, 255)
+    adapted["saturation"] = min(1.20, base_preset.get("saturation", 1.05) + 0.05)
+    return adapted
+
+
+def _variant_neutral_cool(base_preset: dict) -> dict:
+    """Light gray backdrop + slightly less sat. Closer to the
+    Aesop / Muji muted-editorial aesthetic. Useful for sellers
+    targeting a more sober brand voice."""
+    adapted = dict(base_preset)
+    adapted["backdrop"] = (235, 235, 232)
+    adapted["saturation"] = max(0.95, base_preset.get("saturation", 1.05) - 0.05)
+    return adapted
+
+
+class EnhanceVariant(TypedDict):
+    label: str
+    backdrop_hex: str
+    ipfs_hash: str
+    image_url: str
+
+
+async def enhance_product_photo_variants(
+    image_url: str,
+    category: str | None = None,
+) -> tuple[list[EnhanceVariant], int]:
+    """ADR-049 Block C — generate 3 variants of an enhance pipeline
+    output for the same source photo. Sellers pick one in the
+    frontend ; the unselected variants are pinned but unused (Pinata
+    storage cost ~negligible).
+
+    Returns a tuple `(variants, credits_consumed)` where credits_consumed
+    is always 1 (Mike's call : 1 credit gives access to all 3 variants
+    so sellers don't pay 3× for 3 alternatives of the same product
+    photo). The credit consumption is the caller's job (this function
+    just generates + pins).
+
+    Pipeline :
+    1. Download + resize source.
+    2. Vision call in parallel with birefnet (same as single-variant).
+    3. Compose THREE variant presets : recommended (Block A + B
+       insights), white-bright, neutral-cool.
+    4. Composite + pin all three in parallel via asyncio.gather.
+    """
+    import fal_client
+
+    from app.services.vision_classifier import (
+        select_preset_with_insights,
+    )
+
+    logger.info("Enhance variants : start category=%s", category)
+
+    t = time.monotonic()
+    async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
+        resp = await client.get(image_url)
+        resp.raise_for_status()
+        src_bytes = resp.content
+    resized_bytes = await asyncio.to_thread(_resize_for_isolation, src_bytes)
+    fal_url = await fal_client.upload_async(
+        resized_bytes, content_type="image/jpeg"
+    )
+    logger.info(
+        "step.resize: %d KB → %d KB in %.2fs",
+        len(src_bytes) // 1024,
+        len(resized_bytes) // 1024,
+        time.monotonic() - t,
+    )
+
+    t = time.monotonic()
+    vision_task = asyncio.create_task(_safe_vision_call(src_bytes))
+    handler = await fal_client.subscribe_async(
+        REMBG_MODEL_ID,
+        arguments={"image_url": fal_url},
+    )
+    image = handler.get("image")
+    if not image or "url" not in image:
+        raise RuntimeError(
+            f"birefnet returned no image (handler keys={list(handler.keys())})"
+        )
+    transparent_url = image["url"]
+
+    async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
+        resp = await client.get(transparent_url)
+        resp.raise_for_status()
+        transparent_bytes = resp.content
+    logger.info("step.birefnet: %.2fs", time.monotonic() - t)
+
+    insights = await vision_task
+    logger.info("step.vision: insights=%s", insights)
+
+    recommended_preset = select_preset_with_insights(category, insights)
+    presets: list[tuple[str, dict]] = [
+        ("Recommended", recommended_preset),
+        ("White bright", _variant_white_bright(recommended_preset)),
+        ("Neutral cool", _variant_neutral_cool(recommended_preset)),
+    ]
+
+    t = time.monotonic()
+
+    async def _build_variant(label: str, preset: dict) -> EnhanceVariant:
+        composite = await asyncio.to_thread(
+            _composite_square, transparent_bytes, preset
+        )
+        bd = preset["backdrop"]
+        backdrop_hex = f"#{bd[0]:02X}{bd[1]:02X}{bd[2]:02X}"
+        slug = label.replace(" ", "_").lower()
+        filename = f"variant_{slug}_{int(time.monotonic())}.png"
+        ipfs_hash = await ipfs_service.upload_image(composite, filename)
+        return EnhanceVariant(
+            label=label,
+            backdrop_hex=backdrop_hex,
+            ipfs_hash=ipfs_hash,
+            image_url=ipfs_service.get_url(ipfs_hash),
+        )
+
+    variants = await asyncio.gather(
+        *(_build_variant(label, preset) for label, preset in presets)
+    )
+    logger.info(
+        "step.variants: %d composites + pins in %.2fs",
+        len(variants),
+        time.monotonic() - t,
+    )
+
+    return list(variants), 1
+
+
+def _auto_correct_rgba(src, preset: dict | None = None):
     """Auto-correct an RGBA image's color channels (white balance via
-    autocontrast, mild saturation boost, light sharpening). The alpha
-    channel is preserved untouched."""
+    autocontrast, saturation boost, light sharpening). The alpha
+    channel is preserved untouched. The saturation + sharpen parameters
+    come from the preset so a Beauty product gets a vibrant boost while
+    a Home product stays color-faithful."""
     from PIL import Image, ImageEnhance, ImageFilter, ImageOps
+
+    if preset is None:
+        preset = ENHANCE_PRESETS[DEFAULT_PRESET_KEY]
 
     r, g, b, a = src.split()
     rgb = Image.merge("RGB", (r, g, b))
-    # cutoff=1 = clip the brightest/darkest 1 % to anchor white/black,
-    # which reliably normalizes the muddy-yellow indoor shots we see
-    # from sellers without nuking pure-white backdrops or pure-black
-    # logos when the source is already well-exposed.
+    # cutoff=1 = clip the brightest/darkest 1 % to anchor white/black.
+    # Stays the same across presets — it's a generic indoor-shot fix
+    # that doesn't bias the product's signature colors.
     rgb = ImageOps.autocontrast(rgb, cutoff=1)
-    rgb = ImageEnhance.Color(rgb).enhance(1.10)
-    # Mild sharpening only. percent=60 was creating visible halos on
-    # birefnet's already-clean cutout edges (the alpha mask gives a
-    # hard product/transparent boundary, and unsharp mask amplifies
-    # any pixel-level transition into a bright/dark fringe).
+    rgb = ImageEnhance.Color(rgb).enhance(preset.get("saturation", 1.10))
     rgb = rgb.filter(
-        ImageFilter.UnsharpMask(radius=1, percent=25, threshold=4)
+        ImageFilter.UnsharpMask(
+            radius=preset.get("sharpen_radius", 1),
+            percent=preset.get("sharpen_percent", 25),
+            threshold=preset.get("sharpen_threshold", 4),
+        )
     )
     r2, g2, b2 = rgb.split()
     return Image.merge("RGBA", (r2, g2, b2, a))

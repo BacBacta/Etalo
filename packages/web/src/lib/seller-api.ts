@@ -272,6 +272,7 @@ export class InsufficientCreditsForEnhanceError extends Error {
 export async function enhanceImage(
   walletAddress: string,
   imageIpfsHash: string,
+  category?: string,
 ): Promise<EnhanceImageResponse> {
   const res = await fetchApi("/products/enhance-image", {
     method: "POST",
@@ -279,7 +280,10 @@ export async function enhanceImage(
       "Content-Type": "application/json",
       "X-Wallet-Address": walletAddress,
     },
-    body: JSON.stringify({ image_ipfs_hash: imageIpfsHash }),
+    body: JSON.stringify({
+      image_ipfs_hash: imageIpfsHash,
+      ...(category ? { category } : {}),
+    }),
   });
   if (res.status === 402) {
     let detail = "Insufficient credits to enhance photo";
@@ -295,6 +299,56 @@ export async function enhanceImage(
     throw new Error(`Enhance failed: ${res.status}`);
   }
   return (await res.json()) as EnhanceImageResponse;
+}
+
+// ADR-049 Block C — multi-variant. POST /products/enhance-image-variants
+// returns 3 backdrop variants (Recommended / White bright / Neutral cool)
+// for 1 credit. The seller picks one in the frontend grid ; the
+// unselected variants are pinned but unused (Pinata storage cost
+// negligible for the V1 scale).
+export interface EnhanceVariant {
+  label: string;
+  backdrop_hex: string;
+  ipfs_hash: string;
+  image_url: string;
+}
+
+export interface EnhanceImageVariantsResponse {
+  variants: EnhanceVariant[];
+  credits_consumed: number;
+  credits_remaining: number;
+}
+
+export async function enhanceImageVariants(
+  walletAddress: string,
+  imageIpfsHash: string,
+  category?: string,
+): Promise<EnhanceImageVariantsResponse> {
+  const res = await fetchApi("/products/enhance-image-variants", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Wallet-Address": walletAddress,
+    },
+    body: JSON.stringify({
+      image_ipfs_hash: imageIpfsHash,
+      ...(category ? { category } : {}),
+    }),
+  });
+  if (res.status === 402) {
+    let detail = "Insufficient credits to enhance photo";
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // body wasn't JSON — fall through with default
+    }
+    throw new InsufficientCreditsForEnhanceError(detail);
+  }
+  if (!res.ok) {
+    throw new Error(`Enhance variants failed: ${res.status}`);
+  }
+  return (await res.json()) as EnhanceImageVariantsResponse;
 }
 
 // Owner-side product list (Étape 8.4) — surfaces ALL statuses (incl.
