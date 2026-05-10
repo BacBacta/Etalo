@@ -16,7 +16,7 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -43,9 +43,68 @@ class DeliveryAddressSnapshotRequest(BaseModel):
     """Body for PATCH .../delivery-address — references an entry in the
     buyer's address book (DeliveryAddress.id). Backend looks up the row,
     builds the snapshot JSON, and writes it to orders.delivery_address_snapshot.
+
+    Deprecated by ADR-050 inline checkout pivot — kept for backwards
+    compat with sessions that still have the J11.7 picker UI in cache.
+    New checkouts go through `DeliveryAddressInlineRequest` below.
     """
 
     address_id: uuid.UUID
+
+
+class DeliveryAddressInlineRequest(BaseModel):
+    """Body for PATCH .../delivery-address-inline — full snapshot
+    submitted at checkout, no address-book row created (ADR-050).
+
+    All required fields validate non-empty after trim. Country must be
+    in the V1 intra-Africa set {NGA, GHA, KEN} (ADR-041 / ADR-045).
+    `recipient_name` and `area` are NEW vs J11.7 — they fix the courier-
+    refused-package gap and add the African neighborhood/estate level
+    that's more useful than a street number in informal areas.
+    """
+
+    recipient_name: str = Field(..., min_length=2, max_length=100)
+    phone_number: str = Field(..., min_length=5, max_length=20)
+    country: str = Field(..., min_length=3, max_length=3)
+    region: str = Field(..., min_length=1, max_length=100)
+    city: str = Field(..., min_length=1, max_length=100)
+    area: str = Field(..., min_length=1, max_length=100)
+    address_line: str = Field(..., min_length=3, max_length=500)
+    landmark: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=500)
+
+    @field_validator("country")
+    @classmethod
+    def _country_v1_scope(cls, v: str) -> str:
+        v = v.upper()
+        if v not in {"NGA", "GHA", "KEN"}:
+            raise ValueError(
+                "country must be one of NGA, GHA, KEN (V1 intra-Africa scope)"
+            )
+        return v
+
+    @field_validator(
+        "recipient_name",
+        "phone_number",
+        "region",
+        "city",
+        "area",
+        "address_line",
+    )
+    @classmethod
+    def _strip_required(cls, v: str) -> str:
+        stripped = v.strip()
+        if not stripped:
+            raise ValueError("Field cannot be empty or whitespace-only")
+        return stripped
+
+    @field_validator("landmark", "notes")
+    @classmethod
+    def _strip_optional(cls, v: str | None) -> str | None:
+        if v is None:
+            return None
+        stripped = v.strip()
+        return stripped if stripped else None
 
 
 def _normalize(addr: str | None) -> str | None:
@@ -311,6 +370,75 @@ async def set_order_delivery_snapshot(
         "address_line": addr.address_line,
         "landmark": addr.landmark,
         "notes": addr.notes,
+    }
+
+    await db.commit()
+    await db.refresh(order, attribute_names=["items", "shipment_groups"])
+    return OrderResponse.model_validate(order)
+
+
+@router.patch(
+    "/by-onchain-id/{onchain_order_id}/delivery-address-inline",
+    response_model=OrderResponse,
+)
+async def set_order_delivery_snapshot_inline(
+    onchain_order_id: int,
+    body: DeliveryAddressInlineRequest,
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+    x_wallet_address: Annotated[
+        str | None, Header(alias="X-Wallet-Address")
+    ] = None,
+) -> OrderResponse:
+    """ADR-050 — inline delivery-address snapshot at checkout. The
+    buyer typed the address directly in the checkout form (no address-
+    book row created) ; backend writes the validated JSON straight to
+    `orders.delivery_address_snapshot`.
+
+    Differs from `set_order_delivery_snapshot` (above) in TWO ways :
+    1. Body is the full address JSON, not an `address_id` reference.
+    2. No DeliveryAddress row is created or read. The snapshot is the
+       only persistence — buyer types fresh each checkout (or pre-fills
+       from frontend sessionStorage).
+
+    Auth : same as the address-book variant — X-Wallet-Address must
+    equal the order's buyer_address.
+
+    Idempotent across overwrites : the frontend may retry the call on
+    indexer race or network flake (same pattern as J11.7).
+    """
+    if not x_wallet_address:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="X-Wallet-Address header required.",
+        )
+    caller = x_wallet_address.lower()
+
+    order = (
+        await db.execute(
+            select(Order)
+            .where(Order.onchain_order_id == onchain_order_id)
+            .options(*_ORDER_LOAD_OPTIONS)
+        )
+    ).scalar_one_or_none()
+    if order is None:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if caller != order.buyer_address:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only the buyer can set the delivery address snapshot.",
+        )
+
+    order.delivery_address_snapshot = {
+        "recipient_name": body.recipient_name,
+        "phone_number": body.phone_number,
+        "country": body.country,
+        "region": body.region,
+        "city": body.city,
+        "area": body.area,
+        "address_line": body.address_line,
+        "landmark": body.landmark,
+        "notes": body.notes,
     }
 
     await db.commit()

@@ -190,3 +190,82 @@ async def test_unknown_onchain_id_returns_404(client: AsyncClient, seeded):
         json={"address_id": seeded["buyer_addr_id"]},
     )
     assert r.status_code == 404
+
+
+# ============================================================
+# ADR-050 — inline endpoint (delivery-address-inline)
+# ============================================================
+INLINE_PATH = (
+    f"/api/v1/orders/by-onchain-id/{_ONCHAIN_ID}/delivery-address-inline"
+)
+
+_VALID_INLINE = {
+    "recipient_name": "Adaeze Okafor",
+    "phone_number": "+234 801 234 5678",
+    "country": "NGA",
+    "region": "Lagos State",
+    "city": "Lagos",
+    "area": "Lekki Phase 1",
+    "address_line": "Plot 12B, off Adeola Odeku Street, Block C",
+    "landmark": "Behind the blue gate, opposite the bakery",
+    "notes": "Call when 5 minutes away",
+}
+
+
+async def test_inline_buyer_can_set_snapshot(client: AsyncClient, seeded):
+    r = await client.patch(
+        INLINE_PATH, headers=_hdr(_BUYER), json=_VALID_INLINE
+    )
+    assert r.status_code == 200, r.text
+    snap = r.json()["delivery_address_snapshot"]
+    assert snap["recipient_name"] == "Adaeze Okafor"
+    assert snap["area"] == "Lekki Phase 1"
+    assert snap["country"] == "NGA"
+    assert snap["address_line"].startswith("Plot 12B")
+
+
+async def test_inline_no_auth_returns_401(client: AsyncClient, seeded):
+    r = await client.patch(INLINE_PATH, json=_VALID_INLINE)
+    assert r.status_code == 401
+
+
+async def test_inline_wrong_buyer_returns_403(client: AsyncClient, seeded):
+    r = await client.patch(
+        INLINE_PATH, headers=_hdr(_OTHER), json=_VALID_INLINE
+    )
+    assert r.status_code == 403
+
+
+async def test_inline_invalid_country_returns_422(
+    client: AsyncClient, seeded
+):
+    bad = {**_VALID_INLINE, "country": "USA"}
+    r = await client.patch(INLINE_PATH, headers=_hdr(_BUYER), json=bad)
+    assert r.status_code == 422
+
+
+async def test_inline_missing_recipient_name_returns_422(
+    client: AsyncClient, seeded
+):
+    bad = {**_VALID_INLINE}
+    del bad["recipient_name"]
+    r = await client.patch(INLINE_PATH, headers=_hdr(_BUYER), json=bad)
+    assert r.status_code == 422
+
+
+async def test_inline_whitespace_only_field_returns_422(
+    client: AsyncClient, seeded
+):
+    bad = {**_VALID_INLINE, "area": "   "}
+    r = await client.patch(INLINE_PATH, headers=_hdr(_BUYER), json=bad)
+    assert r.status_code == 422
+
+
+async def test_inline_unknown_onchain_id_returns_404(
+    client: AsyncClient, seeded
+):
+    fake_path = (
+        "/api/v1/orders/by-onchain-id/9999999999/delivery-address-inline"
+    )
+    r = await client.patch(fake_path, headers=_hdr(_BUYER), json=_VALID_INLINE)
+    assert r.status_code == 404
