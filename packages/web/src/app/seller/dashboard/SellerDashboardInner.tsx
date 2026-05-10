@@ -30,13 +30,19 @@ import {
 
 // Block 5 sub-block 5.1 — "stake" tab dropped per ADR-041 V1 scope
 // (stake retired, cross-border deferred V2). Five tabs remain.
-const VALID_TABS = [
-  "overview",
-  "products",
-  "orders",
-  "profile",
-  "marketing",
-] as const;
+//
+// ADR-049 — `marketing` tab is gated behind
+// NEXT_PUBLIC_ENABLE_MARKETING_TAB. V1 default `false` hides the
+// 5-template marketing pack flow ; the photo-enhancement feature
+// lives in the add-product dialog instead. The MarketingTab UI
+// stays in the codebase for V1.5+ reactivation.
+const MARKETING_TAB_ENABLED =
+  process.env.NEXT_PUBLIC_ENABLE_MARKETING_TAB === "true";
+const VALID_TABS = (
+  MARKETING_TAB_ENABLED
+    ? (["overview", "products", "orders", "profile", "marketing"] as const)
+    : (["overview", "products", "orders", "profile"] as const)
+);
 type TabKey = (typeof VALID_TABS)[number];
 
 export function SellerDashboardInner() {
@@ -125,9 +131,12 @@ export function SellerDashboardInner() {
     });
   }, [isMiniPay, address, queryClient]);
 
-  const requestedTab = searchParams.get("tab") as TabKey | null;
+  const requestedTab = searchParams.get("tab");
   const safeTab: TabKey =
-    requestedTab && VALID_TABS.includes(requestedTab) ? requestedTab : "overview";
+    requestedTab &&
+    (VALID_TABS as readonly string[]).includes(requestedTab)
+      ? (requestedTab as TabKey)
+      : "overview";
 
   const setTab = (next: string) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -242,7 +251,9 @@ export function SellerDashboardInner() {
             <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
             <TabsV4Trigger value="products">Products</TabsV4Trigger>
             <TabsV4Trigger value="orders">Orders</TabsV4Trigger>
-            <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
+            {MARKETING_TAB_ENABLED ? (
+              <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
+            ) : null}
           </TabsV4List>
 
           <TabsV4Content value="overview">
@@ -261,9 +272,11 @@ export function SellerDashboardInner() {
               onUpdated={setProfile}
             />
           </TabsV4Content>
-          <TabsV4Content value="marketing">
-            <MarketingTab />
-          </TabsV4Content>
+          {MARKETING_TAB_ENABLED ? (
+            <TabsV4Content value="marketing">
+              <MarketingTab />
+            </TabsV4Content>
+          ) : null}
         </TabsV4Root>
       </div>
     </main>
