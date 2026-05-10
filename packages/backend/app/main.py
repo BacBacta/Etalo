@@ -27,6 +27,7 @@ from app.routers import (
     orders,
     products,
     sellers,
+    short_links,
     sitemap,
     uploads,
     users,
@@ -133,6 +134,9 @@ def create_app() -> FastAPI:
     app.include_router(marketplace.router, prefix="/api/v1")
     app.include_router(marketing.router, prefix="/api/v1")
     app.include_router(addresses.router, prefix="/api/v1")
+    # Mounted at root (no /api/v1 prefix) — short URLs are
+    # `etalo.app/r/{code}` for branding. Next.js rewrites /r/* to here.
+    app.include_router(short_links.router)
 
     return app
 

@@ -2,10 +2,9 @@
 
 Calls Anthropic's Messages API via the AsyncAnthropic SDK. Per-language
 system prompts are stable (engineered for marketing tone); the variable
-product details go in the user message. This split keeps the system
-prefix cacheable if/when prompt size grows past Sonnet 4.6's 2048-token
-caching threshold (today's prompts are well below it, so cache_control
-is a no-op — kept anyway as a free signal of intent).
+product details + platform CTA hint go in the user message. This split
+keeps the system prefix cacheable if/when prompt size grows past Sonnet
+4.6's 2048-token caching threshold.
 
 Configured for content generation per the Claude API skill:
 - model: claude-sonnet-4-6 (good speed / cost / intelligence balance)
@@ -25,8 +24,38 @@ from app.config import settings
 logger = logging.getLogger(__name__)
 
 CaptionLang = Literal["en", "sw"]
+TemplateKey = Literal["ig_square", "ig_story", "wa_status", "tiktok", "fb_feed"]
 MODEL = "claude-sonnet-4-6"
 MAX_TOKENS = 400  # ~280-char output target, with headroom for tokenization
+
+# Platform-specific CTA hint — passed to the model so the caption ends
+# with the right action verb for the surface. WA/FB get the URL on its
+# own line because text URLs are clickable there. IG/TikTok point the
+# reader at the bio/sticker because in-image URLs aren't tappable.
+_CTA_BY_TEMPLATE: dict[TemplateKey, str] = {
+    "ig_square": (
+        "End the caption with a soft CTA pointing at link in bio. The "
+        "image already shows the URL prominently."
+    ),
+    "ig_story": (
+        "End with a CTA telling the viewer to tap the link sticker. "
+        "Stories support tappable link stickers — that's the path to "
+        "the product page."
+    ),
+    "wa_status": (
+        "End the caption with the URL on its own line, prefixed by "
+        "an emoji like 👉 — text URLs are clickable in WhatsApp Status."
+    ),
+    "tiktok": (
+        "End with a CTA pointing at link in bio. Short, punchy, "
+        "TikTok-native — think 'link in bio fr fr' style energy if it "
+        "fits the language."
+    ),
+    "fb_feed": (
+        "End with the URL on its own line, prefixed by 👉 — text URLs "
+        "are clickable in Facebook posts."
+    ),
+}
 
 
 class CaptionGenerationError(Exception):
@@ -56,12 +85,13 @@ SYSTEM_PROMPTS: dict[CaptionLang, str] = {
         "are welcome but not excessive.\n\n"
         "Output rules:\n"
         "- Write in English\n"
-        "- Maximum 280 characters total\n"
+        "- Maximum 320 characters total (caption + URL line if any)\n"
         "- Mention the price prominently\n"
         "- Emphasize buyer protection through USDT escrow\n"
-        "- Include a soft call-to-action\n"
+        "- Follow the platform CTA instruction in the user message\n"
+        "- Add 2-4 relevant hashtags at the end (country + category)\n"
         "- Return ONLY the caption text — no quotes, no preamble, no "
-        "  explanations"
+        "explanations"
     ),
     "sw": (
         "You write marketing captions for African sellers on Etalo, a "
@@ -71,12 +101,13 @@ SYSTEM_PROMPTS: dict[CaptionLang, str] = {
         "are welcome but not excessive.\n\n"
         "Output rules:\n"
         "- Write in Swahili (Kenya / Tanzania East-African style)\n"
-        "- Maximum 280 characters total\n"
+        "- Maximum 320 characters total (caption + URL line if any)\n"
         "- Mention the price prominently\n"
         "- Emphasize buyer protection through USDT escrow\n"
-        "- Include a soft call-to-action\n"
+        "- Follow the platform CTA instruction in the user message\n"
+        "- Add 2-4 relevant hashtags at the end (country + category)\n"
         "- Return ONLY the caption text — no quotes, no preamble, no "
-        "  explanations"
+        "explanations"
     ),
 }
 
@@ -88,13 +119,21 @@ def _build_user_message(
     description: str | None,
     seller_handle: str,
     country: str,
+    short_url: str,
+    template: TemplateKey,
 ) -> str:
+    cta_hint = _CTA_BY_TEMPLATE.get(
+        template, "End with a soft CTA pointing at the URL."
+    )
     return (
         f"Product: {title}\n"
         f"Price: {price_usdt} USDT\n"
         f"Description: {description or '(no description)'}\n"
         f"Seller: @{seller_handle}\n"
-        f"Country: {country}"
+        f"Country: {country}\n"
+        f"Short URL: {short_url}\n"
+        f"Target platform: {template}\n"
+        f"Platform CTA instruction: {cta_hint}"
     )
 
 
@@ -106,8 +145,11 @@ async def generate_caption(
     seller_handle: str,
     country: str,
     lang: CaptionLang,
+    short_url: str,
+    template: TemplateKey,
 ) -> str:
-    """Generate a marketing caption via Claude (~280-char EN or Swahili)."""
+    """Generate a marketing caption via Claude (~280-char EN or Swahili)
+    with a platform-aware CTA and the trackable short URL embedded."""
     if lang not in SYSTEM_PROMPTS:
         raise ValueError(f"Unsupported caption_lang: {lang}")
 
@@ -133,6 +175,8 @@ async def generate_caption(
                         description=description,
                         seller_handle=seller_handle,
                         country=country,
+                        short_url=short_url,
+                        template=template,
                     ),
                 }
             ],

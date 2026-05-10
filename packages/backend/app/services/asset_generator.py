@@ -55,6 +55,7 @@ from app.services.caption_generator import (
     generate_caption,
 )
 from app.services.ipfs import ipfs_service
+from app.services.short_link_service import create_short_link
 
 logger = logging.getLogger(__name__)
 
@@ -188,17 +189,23 @@ def _build_template_vars(
     product: Product,
     primary_image_url: str,
     seller_handle: str,
+    short_url: str,
 ) -> dict:
     """Compose the Jinja2 template context for the Playwright render.
     Extracted as a helper so the clean-isolate path and the
-    fall-back-to-original-photo path share the same vars dict shape."""
-    product_url = f"https://etalo.app/{seller_handle}/{product.slug}"
+    fall-back-to-original-photo path share the same vars dict shape.
+
+    `short_url` is the trackable etalo.app/r/{code} URL the templates
+    display and that the QR encodes, so seller posts and image-pixels
+    point at the same destination.
+    """
     return {
         "product_image_url": primary_image_url,
         "title": product.title,
         "price_usdt": f"{product.price_usdt:.2f}",
         "seller_handle": seller_handle,
-        "qr_url": _generate_qr_data_url(product_url),
+        "short_url": short_url,
+        "qr_url": _generate_qr_data_url(short_url),
     }
 
 
@@ -416,9 +423,16 @@ async def _generate_caption_safe(
     product: Product,
     seller_handle: str,
     caption_lang: CaptionLang,
+    short_url: str,
+    template: TemplateKey,
 ) -> str:
     """generate_caption + the title/price fallback in one place so it
-    can run as an asyncio task in parallel with image rendering."""
+    can run as an asyncio task in parallel with image rendering.
+
+    The short_url + template are passed through so the caption can carry
+    a platform-aware CTA (e.g. "Tap link in bio" for IG, raw URL for
+    WhatsApp where text URLs are clickable).
+    """
     try:
         return await generate_caption(
             title=product.title,
@@ -427,6 +441,8 @@ async def _generate_caption_safe(
             seller_handle=seller_handle,
             country=product.seller.user.country or "AFR",
             lang=caption_lang,
+            short_url=short_url,
+            template=template,
         )
     except CaptionGenerationError as exc:
         logger.warning(
@@ -434,7 +450,11 @@ async def _generate_caption_safe(
             product.id,
             exc,
         )
-        return f"{product.title} — {product.price_usdt} USDT @{seller_handle}"
+        return (
+            f"{product.title} — {product.price_usdt} USDT\n"
+            f"👉 {short_url}\n"
+            f"@{seller_handle} on Etalo"
+        )
 
 
 async def generate_marketing_image(
@@ -472,10 +492,21 @@ async def generate_marketing_image(
         else "QmPlaceholder"
     )
     seller_handle = product.seller.shop_handle.lower()
+    product_url = (
+        f"https://etalo.app/{seller_handle}/{product.slug}"
+    )
+
+    # Trackable short URL — embedded in template (QR + visible chip)
+    # and in caption so seller posts and image pixels point at the same
+    # destination. Click counter increments on each /r/{code} resolve.
+    short_code = await create_short_link(product_url, db)
+    short_url = f"https://etalo.app/r/{short_code}"
 
     overall_start = time.monotonic()
     caption_task = asyncio.create_task(
-        _generate_caption_safe(product, seller_handle, caption_lang)
+        _generate_caption_safe(
+            product, seller_handle, caption_lang, short_url, template
+        )
     )
 
     # ADR-048 clean-isolate pipeline :
@@ -515,7 +546,9 @@ async def generate_marketing_image(
     t = time.monotonic()
     png_bytes = await _render_template_to_png(
         template,
-        _build_template_vars(product, image_for_template, seller_handle),
+        _build_template_vars(
+            product, image_for_template, seller_handle, short_url
+        ),
     )
     logger.info("step.playwright: %.2fs", time.monotonic() - t)
 

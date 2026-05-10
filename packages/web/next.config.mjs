@@ -18,14 +18,26 @@ const nextConfig = {
     ],
   },
   async rewrites() {
-    // Conditional: only rewrite /api/* to a local backend if explicitly
+    // Production: /r/{code} forwards to the backend short-link redirector
+    // so seller marketing captions can use the short, brand-consistent
+    // `etalo.app/r/{code}` URL. Backend hosts the route at the root.
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/v1\/?$/, "") ??
+      "https://etalo-api.fly.dev";
+    const prodRewrites = [
+      {
+        source: "/r/:code",
+        destination: `${apiBase}/r/:code`,
+      },
+    ];
+
+    // Dev: also rewrite /api/* to a local backend if explicitly
     // configured via LOCAL_API_REWRITE_TARGET. Used during ngrok dev
     // (frontend on ngrok URL, backend on localhost) to avoid CORS.
-    // Production builds (Vercel) leave this empty — fetches use
-    // NEXT_PUBLIC_API_URL directly.
     const localApiTarget = process.env.LOCAL_API_REWRITE_TARGET;
-    if (!localApiTarget) return [];
+    if (!localApiTarget) return prodRewrites;
     return [
+      ...prodRewrites,
       {
         source: "/api/:path*",
         destination: `${localApiTarget}/api/:path*`,
