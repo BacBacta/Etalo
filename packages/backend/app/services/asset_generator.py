@@ -119,6 +119,12 @@ MAX_SOURCE_DIM_FOR_ISOLATION = 1536
 # format is universal across the boutique grid + storefront detail view.
 ENHANCE_OUTPUT_DIM = 2048
 
+# Cream off-white backdrop, warmer than pure #FFFFFF. Matches the
+# Net-a-Porter / MyTheresa premium ecom convention — pure white reads
+# as clinical/cold on consumer-grade phone screens, the cream tone makes
+# product photos feel more curated. Hex #F7F5F0.
+ENHANCE_BACKDROP_RGB = (247, 245, 240)
+
 
 class AssetGenerationResult(TypedDict):
     ipfs_hash: str
@@ -402,10 +408,15 @@ def _composite_on_white(
 
 def _composite_square(transparent_bytes: bytes) -> bytes:
     """ADR-049 V1 enhance flow : take a transparent PNG and paste it
-    centered on a fixed pure-white square 2048×2048 canvas. No template
+    centered on a fixed cream-bg square 2048×2048 canvas. No template
     chrome, no per-platform slot dimensions — the output is the seller's
     new product hero photo, used universally across the boutique grid +
     storefront detail view.
+
+    Crops to the alpha bbox first so the visible product is centered
+    against the canvas, not against where it happened to sit in the
+    seller's original phone shot. Without this, products that the seller
+    framed off-center come back off-center on the white square.
 
     Same auto-correct (autocontrast + saturation + unsharp) as the
     template path because birefnet's cutout sometimes carries a slight
@@ -417,6 +428,15 @@ def _composite_square(transparent_bytes: bytes) -> bytes:
     out_dim = ENHANCE_OUTPUT_DIM
     src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
     src = _auto_correct_rgba(src)
+
+    # Crop to the product's alpha bounding box before scaling so the
+    # product (not the original frame) is what gets centered on the
+    # canvas. Falls back to the full image if birefnet returned a fully
+    # opaque output (defensive — shouldn't happen with bg-removal model
+    # but a transparent product would otherwise crash).
+    bbox = src.getbbox()
+    if bbox is not None:
+        src = src.crop(bbox)
     src_w, src_h = src.size
 
     target = int(out_dim * (1 - 2 * ISOLATE_MARGIN))
@@ -425,7 +445,7 @@ def _composite_square(transparent_bytes: bytes) -> bytes:
     new_h = max(1, int(src_h * scale))
     resized = src.resize((new_w, new_h), Image.LANCZOS) if scale != 1.0 else src
 
-    canvas = Image.new("RGB", (out_dim, out_dim), (255, 255, 255))
+    canvas = Image.new("RGB", (out_dim, out_dim), ENHANCE_BACKDROP_RGB)
     paste_x = (out_dim - new_w) // 2
     paste_y = (out_dim - new_h) // 2
     canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
@@ -434,7 +454,7 @@ def _composite_square(transparent_bytes: bytes) -> bytes:
     canvas.save(out_buf, format="PNG", optimize=True)
     composite_bytes = out_buf.getvalue()
     logger.info(
-        "Composite enhance : src=%dx%d → %dx%d (scale=%.3f) → %d KB",
+        "Composite enhance : src=%dx%d (cropped) → %dx%d cream (scale=%.3f) → %d KB",
         src_w,
         src_h,
         out_dim,

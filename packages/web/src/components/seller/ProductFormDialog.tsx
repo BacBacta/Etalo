@@ -103,12 +103,24 @@ export function ProductFormDialog({
   const [category, setCategory] = useState<CategoryCode>("other");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
-  // ADR-049 — track which IPFS hash was AI-enhanced so we can show a
-  // "✨ Enhanced" badge + disable the button. Reset whenever the dialog
-  // re-opens. Stores the post-enhance hash; if it matches imageHashes[0]
-  // the badge shows.
+  // ADR-049 — enhance photo state machine.
+  // - phase "idle": the form's hero photo has not been enhanced this session
+  // - phase "loading": API call in flight
+  // - phase "preview": enhance call returned, the seller is choosing
+  //   whether to use the enhanced photo or keep their original. The
+  //   credit is already consumed at this point — the choice is only
+  //   about which IPFS hash lands in image_ipfs_hashes[0].
+  // - phase "used": the seller picked the enhanced photo and we've
+  //   swapped image_ipfs_hashes[0] to it.
+  // Reset on dialog re-open.
+  type EnhancePhase = "idle" | "loading" | "preview" | "used";
+  const [enhancePhase, setEnhancePhase] = useState<EnhancePhase>("idle");
+  // Hash of the seller's original photo, captured just before we call
+  // /enhance-image so we can offer "Keep original" in the preview step.
+  const [originalHashAtEnhance, setOriginalHashAtEnhance] = useState<
+    string | null
+  >(null);
   const [enhancedHash, setEnhancedHash] = useState<string | null>(null);
-  const [enhancing, setEnhancing] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -146,30 +158,32 @@ export function ProductFormDialog({
       setCategory("other");
     }
     setErrors({});
+    setEnhancePhase("idle");
+    setOriginalHashAtEnhance(null);
     setEnhancedHash(null);
-    setEnhancing(false);
   }, [open, mode, initialProduct]);
 
   const heroHash = imageHashes[0] ?? null;
-  const heroIsEnhanced = heroHash !== null && heroHash === enhancedHash;
-  const canEnhance = heroHash !== null && !heroIsEnhanced && !enhancing;
+  const canEnhance =
+    heroHash !== null && enhancePhase === "idle";
 
   const handleEnhance = async () => {
     if (!heroHash) return;
-    setEnhancing(true);
+    setEnhancePhase("loading");
+    setOriginalHashAtEnhance(heroHash);
     try {
       const result = await enhanceImage(walletAddress, heroHash);
-      // Replace the hero photo (image_ipfs_hashes[0]) with the
-      // enhanced one. Keep the rest of the gallery untouched.
-      setImageHashes((prev) => [
-        result.enhanced_image_ipfs_hash,
-        ...prev.slice(1),
-      ]);
+      // The credit is already consumed server-side. Stash the enhanced
+      // hash and flip into preview phase — image_ipfs_hashes[0] stays on
+      // the original until the seller confirms "Use enhanced".
       setEnhancedHash(result.enhanced_image_ipfs_hash);
+      setEnhancePhase("preview");
       toast.success(
-        `Photo enhanced · ${result.credits_remaining} credits left`,
+        `Photo enhanced · ${result.credits_remaining} credits left · choose below`,
       );
     } catch (err) {
+      setEnhancePhase("idle");
+      setOriginalHashAtEnhance(null);
       if (err instanceof InsufficientCreditsForEnhanceError) {
         toast.error("Not enough credits to enhance. Buy more from your dashboard.");
       } else {
@@ -177,9 +191,22 @@ export function ProductFormDialog({
           err instanceof Error ? err.message : "Photo enhancement failed",
         );
       }
-    } finally {
-      setEnhancing(false);
     }
+  };
+
+  const handleUseEnhanced = () => {
+    if (!enhancedHash) return;
+    setImageHashes((prev) => [enhancedHash, ...prev.slice(1)]);
+    setEnhancePhase("used");
+  };
+
+  const handleKeepOriginal = () => {
+    // The credit was already consumed but the seller doesn't like the
+    // result — go back to the original photo. Don't refund (the work
+    // was done) but make it easy to move on.
+    setEnhancePhase("idle");
+    setEnhancedHash(null);
+    setOriginalHashAtEnhance(null);
   };
 
   const handleTitleChange = (next: string) => {
@@ -407,37 +434,21 @@ export function ProductFormDialog({
           </FormField>
 
           {/* ADR-049 — V1 photo enhancement. Visible only after the
-              seller uploads at least one image. Click runs birefnet
-              bg-removal + composite on a 2048×2048 white square and
-              swaps imageHashes[0] for the enhanced version. Charges 1
-              credit immediately (no preview-then-confirm step). */}
+              seller uploads at least one image. State machine:
+              idle → loading → preview → used (or back to idle on revert).
+              Credit is consumed at the API call (loading→preview); the
+              preview phase only decides whether to swap imageHashes[0]
+              to the enhanced version or keep the original. */}
           {heroHash ? (
-            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-celo-light/20 dark:bg-celo-dark-elevated">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-base font-medium text-celo-dark dark:text-celo-light">
-                    {heroIsEnhanced
-                      ? "✨ Photo enhanced"
-                      : "Make this photo look pro"}
-                  </p>
-                  <p className="text-sm text-neutral-500 dark:text-celo-light/60">
-                    {heroIsEnhanced
-                      ? "Background removed, white studio backdrop applied."
-                      : "AI removes the background and gives you a clean white-studio shot."}
-                  </p>
-                </div>
-                {!heroIsEnhanced ? (
-                  <Button
-                    type="button"
-                    onClick={handleEnhance}
-                    disabled={!canEnhance}
-                    className="min-h-[44px] shrink-0"
-                  >
-                    {enhancing ? "Enhancing…" : "Enhance · 1 credit"}
-                  </Button>
-                ) : null}
-              </div>
-            </div>
+            <EnhanceSection
+              phase={enhancePhase}
+              originalHash={originalHashAtEnhance ?? heroHash}
+              enhancedHash={enhancedHash}
+              canEnhance={canEnhance}
+              onEnhance={handleEnhance}
+              onUseEnhanced={handleUseEnhanced}
+              onKeepOriginal={handleKeepOriginal}
+            />
           ) : null}
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">
@@ -465,6 +476,115 @@ export function ProductFormDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+// ADR-049 — Inline UI for the photo-enhance flow. State-driven so the
+// section morphs through idle → loading → preview → used without nested
+// modals (less visual noise on mobile, no double-modality with the
+// surrounding ProductFormDialog).
+const PINATA_GATEWAY_FOR_PREVIEW = "https://gateway.pinata.cloud/ipfs/";
+
+function EnhanceSection({
+  phase,
+  originalHash,
+  enhancedHash,
+  canEnhance,
+  onEnhance,
+  onUseEnhanced,
+  onKeepOriginal,
+}: {
+  phase: "idle" | "loading" | "preview" | "used";
+  originalHash: string;
+  enhancedHash: string | null;
+  canEnhance: boolean;
+  onEnhance: () => void;
+  onUseEnhanced: () => void;
+  onKeepOriginal: () => void;
+}) {
+  const wrapperClass =
+    "rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-celo-light/20 dark:bg-celo-dark-elevated";
+
+  if (phase === "preview" && enhancedHash) {
+    return (
+      <div className={wrapperClass}>
+        <p className="mb-1 text-base font-medium text-celo-dark dark:text-celo-light">
+          Pick a photo to use
+        </p>
+        <p className="mb-3 text-sm text-neutral-500 dark:text-celo-light/60">
+          1 credit was used to generate the enhanced version. Choosing
+          "Keep original" doesn't refund the credit.
+        </p>
+        <div className="grid grid-cols-2 gap-3">
+          <figure className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20">
+            <img
+              src={`${PINATA_GATEWAY_FOR_PREVIEW}${originalHash}`}
+              alt="Original photo"
+              className="aspect-square w-full object-cover"
+            />
+            <figcaption className="px-2 py-1 text-center text-sm text-neutral-500">
+              Original
+            </figcaption>
+          </figure>
+          <figure className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20">
+            <img
+              src={`${PINATA_GATEWAY_FOR_PREVIEW}${enhancedHash}`}
+              alt="Enhanced photo"
+              className="aspect-square w-full object-cover"
+            />
+            <figcaption className="px-2 py-1 text-center text-sm text-neutral-500">
+              ✨ Enhanced
+            </figcaption>
+          </figure>
+        </div>
+        <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onKeepOriginal}
+            className="min-h-[44px] sm:flex-1"
+          >
+            Keep original
+          </Button>
+          <Button
+            type="button"
+            onClick={onUseEnhanced}
+            className="min-h-[44px] sm:flex-1"
+          >
+            Use enhanced photo
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className={wrapperClass}>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-base font-medium text-celo-dark dark:text-celo-light">
+            {phase === "used"
+              ? "✨ Photo enhanced"
+              : "Make this photo look pro"}
+          </p>
+          <p className="text-sm text-neutral-500 dark:text-celo-light/60">
+            {phase === "used"
+              ? "Background removed, cream studio backdrop applied."
+              : "AI removes the background and gives you a clean cream-studio shot."}
+          </p>
+        </div>
+        {phase !== "used" ? (
+          <Button
+            type="button"
+            onClick={onEnhance}
+            disabled={!canEnhance}
+            className="min-h-[44px] shrink-0"
+          >
+            {phase === "loading" ? "Enhancing…" : "Enhance · 1 credit"}
+          </Button>
+        ) : null}
+      </div>
+    </div>
   );
 }
 

@@ -457,8 +457,22 @@ async def enhance_image_endpoint(
             ),
         )
 
+    import httpx
+
     source_url = build_ipfs_url(payload.image_ipfs_hash)
-    enhanced_bytes = await enhance_product_photo(source_url)
+    try:
+        enhanced_bytes = await enhance_product_photo(source_url)
+    except httpx.HTTPStatusError as exc:
+        # Bad IPFS hash, Pinata 4xx, or transient gateway issue. Don't
+        # charge the seller for an unrenderable input — surface a clean
+        # 400 so the frontend can ask for a re-upload.
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Source image could not be fetched "
+                f"(IPFS gateway returned {exc.response.status_code})."
+            ),
+        )
 
     filename = f"enhanced_{seller.id}_{payload.image_ipfs_hash[:8]}.png"
     enhanced_hash = await ipfs_service.upload_image(enhanced_bytes, filename)
