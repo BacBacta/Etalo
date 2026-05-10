@@ -473,6 +473,33 @@ def _composite_on_white(
     return composite_bytes
 
 
+def _erode_alpha_edges(rgba_image, erosion_pixels: int = 3):
+    """Erode the alpha channel by `erosion_pixels` pixels around all
+    edges. birefnet's bg-removal leaves a soft alpha gradient at the
+    product/background boundary ; those alpha-blended pixels carry
+    color from BOTH the product AND the original backdrop. When we
+    composite on a new backdrop, the contaminated edge reveals as a
+    color cast — particularly nasty on white products photographed
+    against warm/colored surfaces (the FOHERB-on-wood case).
+
+    Stripping a few pixels from the alpha edge removes the contaminated
+    zone entirely. The product silhouette becomes ~3px smaller but on
+    a 2048×2048 canvas with a product spanning ~1500px, that's <0.2 %
+    — imperceptible.
+
+    Implemented via Pillow's MinFilter on the alpha band, which shrinks
+    bright (=opaque) regions by N pixels. RGB channels untouched.
+    """
+    from PIL import Image, ImageFilter
+
+    if erosion_pixels < 1:
+        return rgba_image
+    r, g, b, a = rgba_image.split()
+    kernel_size = erosion_pixels * 2 + 1
+    a_eroded = a.filter(ImageFilter.MinFilter(size=kernel_size))
+    return Image.merge("RGBA", (r, g, b, a_eroded))
+
+
 def _composite_square(
     transparent_bytes: bytes,
     preset: dict | None = None,
@@ -488,8 +515,8 @@ def _composite_square(
     seller's original phone shot.
 
     `preset` (default = the "other" preset) decides the backdrop color,
-    auto-correct strength, and the margin around the product. See
-    ENHANCE_PRESETS for the per-category tuning.
+    auto-correct strength, the margin around the product, and whether
+    to erode the alpha edge to kill birefnet edge-bleed casts.
     """
     from PIL import Image
 
@@ -498,6 +525,13 @@ def _composite_square(
 
     out_dim = ENHANCE_OUTPUT_DIM
     src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
+
+    # Strip the contaminated alpha-blended edge pixels BEFORE color
+    # correction so autocontrast / saturation operate on clean product
+    # pixels only. Always-on (3 px) — the cost is sub-millisecond and
+    # the benefit is universal (no light/dark product gives bleed-free
+    # edges out of birefnet).
+    src = _erode_alpha_edges(src, erosion_pixels=3)
     src = _auto_correct_rgba(src, preset)
 
     bbox = src.getbbox()
