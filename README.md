@@ -43,7 +43,7 @@ Per ADR-035 the predecessor `packages/miniapp/` (Vite) is deprecated — a singl
            │          │                         │
            ▼          ▼                         ▼
         Postgres   Pinata IPFS             Celo Sepolia L2
-        (Supabase)  (images + metadata)    EtaloEscrow + Reputation
+        (Fly Postgres)  (images + metadata)    EtaloEscrow + Reputation
         + Alembic                          + Dispute + Credits
                                            (on-chain source of truth)
 ```
@@ -77,7 +77,7 @@ etalo/
 
 - Node.js 20+, pnpm (or npm)
 - Python 3.13+
-- PostgreSQL 15+ (or Supabase account)
+- PostgreSQL 15+ via `docker compose up -d postgres` (recommended) or local install (prod uses Fly Postgres, attached automatically — see `packages/backend/fly.toml`)
 - ngrok (for exposing dev servers to the MiniPay WebView, reserved free-tier subdomain recommended)
 - MiniPay app on Android with testnet enabled (for device QA)
 

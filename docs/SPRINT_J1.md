@@ -28,7 +28,7 @@ Before writing any code, ensure:
 - Node.js 20 or higher installed
 - pnpm or npm installed
 - Python 3.11 or higher installed
-- PostgreSQL 15 or higher running locally (or Supabase/Neon account)
+- PostgreSQL 15 or higher running locally (`docker compose up -d postgres` from repo root; prod uses Fly Postgres `etalo-db`)
 - Docker Desktop installed and running
 - Git configured
 - Celo wallet with small amount of testnet CELO (from https://faucet.celo.org)

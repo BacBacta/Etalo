@@ -68,7 +68,7 @@ Buyer opens dispute
 | Service | Provider | Purpose |
 |---|---|---|
 | Blockchain | Celo L2 (OP Stack) | Smart contracts, USDT payments |
-| Database | Supabase (PostgreSQL) | User data, orders, products |
+| Database | Fly Postgres (prod) / Docker Postgres 16 (local dev) | User data, orders, products |
 | Cache | Upstash (Redis) | Sessions, rate limiting |
 | IPFS | Pinata | Product images, metadata |
 | Notifications | Twilio | WhatsApp order updates |
