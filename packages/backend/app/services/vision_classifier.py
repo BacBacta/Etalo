@@ -209,7 +209,11 @@ def adapt_preset_with_insights(
     - dominant_tone="dark" → backdrop becomes warmer cream (255, 250, 240)
       so the dark product pops against light bg
     - dominant_tone="light" → backdrop becomes neutral light gray
-      (235, 235, 235) so the light product still has contrast
+      (235, 235, 235) so the light product still has contrast, AND
+      `neutralize_cast=True` so `_auto_correct_rgba` runs the White
+      Patch white-balance step + caps saturation at 0.95 (kills the
+      pink/orange casts that birefnet edge bleeding can leave on
+      near-white products — observed live on the FOHERB device)
     - has_visible_text=True → halve the sharpening percent (avoid halos
       on brand text)
     - compactness="small" → bump the margin to 0.10 so a tiny earring
@@ -226,6 +230,7 @@ def adapt_preset_with_insights(
         adapted["backdrop"] = (255, 250, 240)  # warmer cream for dark products
     elif tone == "light":
         adapted["backdrop"] = (235, 235, 235)  # light gray for light products
+        adapted["neutralize_cast"] = True
 
     if insights.get("has_visible_text"):
         adapted["sharpen_percent"] = max(

@@ -516,23 +516,75 @@ def _composite_square(
     canvas = Image.new("RGB", (out_dim, out_dim), backdrop)
     paste_x = (out_dim - new_w) // 2
     paste_y = (out_dim - new_h) // 2
+
+    # Soft elliptical ground shadow under the product BEFORE pasting it,
+    # so the product naturally overlaps the top of the shadow (no double-
+    # shadow with any storefront-card CSS box-shadow). Anchored at the
+    # product's bottom edge, ~85 % of product width, blurred heavily.
+    _paste_ground_shadow(canvas, new_w, new_h, paste_x, paste_y, out_dim)
+
     canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
 
     out_buf = BytesIO()
     canvas.save(out_buf, format="PNG", optimize=True)
     composite_bytes = out_buf.getvalue()
     logger.info(
-        "Composite enhance : src=%dx%d (cropped) → %dx%d bg=%s margin=%.0f%% (scale=%.3f) → %d KB",
+        "Composite enhance : src=%dx%d (cropped) → %dx%d bg=%s margin=%.0f%% neutralize=%s (scale=%.3f) → %d KB",
         src_w,
         src_h,
         out_dim,
         out_dim,
         backdrop,
         margin * 100,
+        preset.get("neutralize_cast", False),
         scale,
         len(composite_bytes) // 1024,
     )
     return composite_bytes
+
+
+def _paste_ground_shadow(canvas, prod_w, prod_h, paste_x, paste_y, canvas_dim):
+    """Paste a soft elliptical ground shadow centered horizontally on
+    the product, anchored at the product's bottom edge. Composited with
+    a heavy gaussian blur so the shadow softens into the backdrop
+    naturally — grounds the product so it doesn't read as floating /
+    detoured from a Photoshop layer.
+
+    Width = 85 % of the product's pasted width.
+    Height = 2.5 % of the canvas dimension.
+    Vertical anchor : 60 % of the shadow height SITS BEHIND the product
+    (overlap), 40 % spreads below — gives a contact-shadow look.
+    Opacity 70/255 (~28 %) before blur ; blur radius 1.2 % of canvas
+    softens it across ~25 px on the 2048×2048 canvas.
+    """
+    from PIL import Image, ImageDraw, ImageFilter
+
+    shadow_w = int(prod_w * 0.85)
+    shadow_h = max(8, int(canvas_dim * 0.025))
+
+    shadow_left = paste_x + (prod_w - shadow_w) // 2
+    # Anchor : product bottom edge sits at 60 % of the way down the
+    # shadow ellipse, so the ellipse extends 40 % below the product.
+    shadow_top = paste_y + prod_h - int(shadow_h * 0.6)
+
+    shadow_layer = Image.new("RGBA", canvas.size, (0, 0, 0, 0))
+    draw = ImageDraw.Draw(shadow_layer)
+    draw.ellipse(
+        [
+            shadow_left,
+            shadow_top,
+            shadow_left + shadow_w,
+            shadow_top + shadow_h,
+        ],
+        fill=(0, 0, 0, 70),
+    )
+
+    blur_radius = max(8, int(canvas_dim * 0.012))
+    shadow_blurred = shadow_layer.filter(
+        ImageFilter.GaussianBlur(radius=blur_radius)
+    )
+
+    canvas.paste(shadow_blurred, (0, 0), shadow_blurred)
 
 
 async def enhance_product_photo(
@@ -786,12 +838,52 @@ async def enhance_product_photo_variants(
     return list(variants), 1
 
 
+def _apply_white_patch_balance(rgb):
+    """White Patch white-balance algorithm — finds the brightest value
+    per channel and rescales all three so they reach the same target.
+    Effective at killing warm/cool color casts on near-white products
+    where the seller's phone camera or indoor lighting tinted the
+    natural white toward yellow/pink/blue.
+
+    Pure Pillow (no numpy dep) via per-channel LUTs. Scale factors are
+    clamped to [0.92, 1.15] to prevent over-correction on photos where
+    the brightest pixel is intentionally colored (e.g. a backlit blue
+    LED display we don't want neutralized).
+    """
+    from PIL import Image, ImageStat
+
+    stat = ImageStat.Stat(rgb)
+    extrema = rgb.getextrema()
+    max_r = max(1, extrema[0][1])
+    max_g = max(1, extrema[1][1])
+    max_b = max(1, extrema[2][1])
+
+    target = max(max_r, max_g, max_b)
+    scale_r = max(0.92, min(1.15, target / max_r))
+    scale_g = max(0.92, min(1.15, target / max_g))
+    scale_b = max(0.92, min(1.15, target / max_b))
+
+    lut_r = [min(255, int(i * scale_r)) for i in range(256)]
+    lut_g = [min(255, int(i * scale_g)) for i in range(256)]
+    lut_b = [min(255, int(i * scale_b)) for i in range(256)]
+
+    r, g, b = rgb.split()
+    return Image.merge(
+        "RGB",
+        (r.point(lut_r), g.point(lut_g), b.point(lut_b)),
+    )
+
+
 def _auto_correct_rgba(src, preset: dict | None = None):
-    """Auto-correct an RGBA image's color channels (white balance via
-    autocontrast, saturation boost, light sharpening). The alpha
-    channel is preserved untouched. The saturation + sharpen parameters
-    come from the preset so a Beauty product gets a vibrant boost while
-    a Home product stays color-faithful."""
+    """Auto-correct an RGBA image's color channels (autocontrast,
+    optional white-balance correction for light products, saturation
+    boost, light sharpening). The alpha channel is preserved untouched.
+
+    `preset["neutralize_cast"]=True` (typically set for products with
+    `dominant_tone="light"` where any color cast is highly visible) :
+    apply White Patch white-balance BEFORE the saturation step + clamp
+    saturation to ≤0.95 so the cast doesn't get amplified.
+    """
     from PIL import Image, ImageEnhance, ImageFilter, ImageOps
 
     if preset is None:
@@ -799,11 +891,17 @@ def _auto_correct_rgba(src, preset: dict | None = None):
 
     r, g, b, a = src.split()
     rgb = Image.merge("RGB", (r, g, b))
-    # cutoff=1 = clip the brightest/darkest 1 % to anchor white/black.
-    # Stays the same across presets — it's a generic indoor-shot fix
-    # that doesn't bias the product's signature colors.
     rgb = ImageOps.autocontrast(rgb, cutoff=1)
-    rgb = ImageEnhance.Color(rgb).enhance(preset.get("saturation", 1.10))
+
+    neutralize = preset.get("neutralize_cast", False)
+    if neutralize:
+        rgb = _apply_white_patch_balance(rgb)
+
+    sat = preset.get("saturation", 1.10)
+    if neutralize:
+        sat = min(sat, 0.95)
+    rgb = ImageEnhance.Color(rgb).enhance(sat)
+
     rgb = rgb.filter(
         ImageFilter.UnsharpMask(
             radius=preset.get("sharpen_radius", 1),
