@@ -261,25 +261,17 @@ def _composite_on_white(
 ) -> bytes:
     """Pillow-only sync helper : take a transparent PNG, auto-correct
     its color channels, scale it to fit the template slot with a
-    margin, paste a soft drop shadow then the product centered on
-    a pure white canvas. Wrapped via `asyncio.to_thread` so it
-    doesn't block the event loop.
+    margin, paste the product centered on a pure white canvas.
+    Wrapped via `asyncio.to_thread` so it doesn't block the event
+    loop.
 
     Output canvas is `COMPOSITE_OUTPUT_SCALE`× the template slot
     dimensions so the browser downscale at render time preserves
     source photo detail.
 
-    Steps :
-      1. Auto-correct (autocontrast + saturation + unsharp mask) on
-         the product's RGB channels — birefnet's alpha mask already
-         isolated the product, so the correction only affects pixels
-         the buyer will actually see (no risk of pulling a yellow
-         indoor cast through a transparent background).
-      2. Scale (downscale only ; never upscale tiny source photos
-         beyond their native resolution).
-      3. Drop-shadow under product (blur + offset down) — soft
-         "ground shadow" rather than a flat halo.
-      4. Paste the corrected product on top.
+    Drop shadow is delegated to the template's CSS `box-shadow` on
+    `.product-image` — baking a Pillow shadow under the product on
+    top of the CSS one stacked into a muddy double-shadow.
     """
     from PIL import Image
 
@@ -293,7 +285,14 @@ def _composite_on_white(
 
     target_w = int(out_w * (1 - 2 * ISOLATE_MARGIN))
     target_h = int(out_h * (1 - 2 * ISOLATE_MARGIN))
-    scale = min(target_w / src_w, target_h / src_h, 1.0)
+    # Fit-to-target with Lanczos in both directions. Capping upscale at
+    # 4x guards against accidental thumbnails (e.g. 200px sources)
+    # ballooning to soup. Typical phone photos (1500-3000px) end up
+    # upscaled <2x, which Lanczos handles cleanly on a transparent-bg
+    # subject. Without this, sources smaller than `slot * 3 * 0.9`
+    # stayed at native resolution on the 3x canvas and rendered as a
+    # tiny product floating in white space (regression from dc3513a).
+    scale = min(target_w / src_w, target_h / src_h, 4.0)
     new_w = max(1, int(src_w * scale))
     new_h = max(1, int(src_h * scale))
     resized = src.resize((new_w, new_h), Image.LANCZOS) if scale != 1.0 else src
@@ -302,8 +301,6 @@ def _composite_on_white(
     paste_x = (out_w - new_w) // 2
     paste_y = (out_h - new_h) // 2
 
-    _paste_drop_shadow(canvas, resized, paste_x, paste_y, out_h)
-    # Product on top of its own shadow.
     canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
 
     out_buf = BytesIO()
@@ -336,41 +333,15 @@ def _auto_correct_rgba(src):
     # logos when the source is already well-exposed.
     rgb = ImageOps.autocontrast(rgb, cutoff=1)
     rgb = ImageEnhance.Color(rgb).enhance(1.10)
+    # Mild sharpening only. percent=60 was creating visible halos on
+    # birefnet's already-clean cutout edges (the alpha mask gives a
+    # hard product/transparent boundary, and unsharp mask amplifies
+    # any pixel-level transition into a bright/dark fringe).
     rgb = rgb.filter(
-        ImageFilter.UnsharpMask(radius=2, percent=60, threshold=3)
+        ImageFilter.UnsharpMask(radius=1, percent=25, threshold=4)
     )
     r2, g2, b2 = rgb.split()
     return Image.merge("RGBA", (r2, g2, b2, a))
-
-
-def _paste_drop_shadow(canvas, product_rgba, paste_x, paste_y, canvas_h):
-    """Paste a soft "ground shadow" under the product. The shadow is
-    the product's alpha mask blurred + dimmed + offset down so most
-    of the visible darkness lands BELOW the product silhouette,
-    approximating a Zalando-style studio shadow rather than a flat
-    halo around the subject."""
-    from PIL import Image, ImageFilter
-
-    alpha = product_rgba.split()[3]
-    # Blur radius scales with canvas size — 2 % of canvas height gives
-    # a natural softness across all template sizes (40-55 px on the
-    # 3× canvases used today).
-    blur_radius = max(12, int(canvas_h * 0.020))
-    blurred = alpha.filter(ImageFilter.GaussianBlur(radius=blur_radius))
-    # 30 % opacity — soft enough to hint at depth without darkening
-    # the white backdrop.
-    dimmed = blurred.point(lambda p: int(p * 0.30))
-    # Dark gray (not pure black) — feels softer and avoids tinting
-    # transparent edges of the blur into hard black fringes.
-    shadow_fill = Image.new("RGB", product_rgba.size, (60, 60, 60))
-    # Offset 4 % of canvas height down → shadow extends below the
-    # product's contact line, mimicking a top-down studio light.
-    shadow_offset_y = int(canvas_h * 0.04)
-    canvas.paste(
-        shadow_fill,
-        (paste_x, paste_y + shadow_offset_y),
-        mask=dimmed,
-    )
 
 
 async def generate_marketing_image(
