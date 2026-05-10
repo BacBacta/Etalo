@@ -894,23 +894,30 @@ def _neutralize_warm_white_casts(rgb):
     synthetic and live images : kills cast on white surfaces while
     preserving LED displays, dark control panels, and brand text.
 
-    ~1.7 s on a 2048×2048 image (per-pixel Python loop, no numpy
-    dep). Acceptable on a ~10 s pipeline (~+17 % wall time).
+    Numpy-vectorized — ~0.1 s on a 2048×2048 image (16x faster than
+    the per-pixel Python loop variant we tried first, which timed out
+    Fly's HTTP proxy when used in 3-variant pipelines on slow days).
     """
+    import numpy as np
     from PIL import Image
 
-    hsv = rgb.convert("HSV")
-    pixels = list(hsv.getdata())
-    new_pixels = []
-    for h, s, v in pixels:
-        is_warm = h < 35 or h > 220
-        if is_warm and v > 170 and 5 < s < 110:
-            new_pixels.append((h, int(s * 0.15), v))
-        else:
-            new_pixels.append((h, s, v))
-    new_hsv = Image.new("HSV", hsv.size)
-    new_hsv.putdata(new_pixels)
-    return new_hsv.convert("RGB")
+    hsv_arr = np.array(rgb.convert("HSV"), dtype=np.uint8)
+    h = hsv_arr[:, :, 0]
+    s = hsv_arr[:, :, 1]
+    v = hsv_arr[:, :, 2]
+
+    is_warm = (h < 35) | (h > 220)
+    is_bright = v > 170
+    is_cast_sat = (s > 5) & (s < 110)
+    mask = is_warm & is_bright & is_cast_sat
+
+    new_s = np.where(
+        mask,
+        (s.astype(np.float32) * 0.15).astype(np.uint8),
+        s,
+    )
+    hsv_arr[:, :, 1] = new_s
+    return Image.fromarray(hsv_arr, mode="HSV").convert("RGB")
 
 
 def _apply_white_patch_balance(rgb):

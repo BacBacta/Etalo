@@ -31,6 +31,12 @@ jinja2>=3.1,<4.0
 # QR code rendering for marketing templates (data: URL embedded in HTML).
 # `qrcode[pil]` pulls Pillow as the imaging backend.
 qrcode[pil]>=8,<9
+# numpy — vectorized HSV pixel ops for the V1 enhance pipeline's
+# selective desaturation step (kills warm color casts on white
+# product surfaces, ADR-049). 16x faster than the pure-Pillow
+# per-pixel loop alternative which timed out Fly's HTTP proxy on
+# 3-variant generations.
+numpy>=1.26,<3.0
 
 # Anthropic SDK for Claude API caption generation (Sprint J7 Block 4).
 # Pre-1.0 — pin within minor range to avoid surprise breaks.
