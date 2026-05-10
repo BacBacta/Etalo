@@ -24,8 +24,8 @@ from app.models.seller_credits_ledger import SellerCreditsLedger
 
 logger = logging.getLogger(__name__)
 
-WELCOME_BONUS_CREDITS = 10
-MONTHLY_FREE_CREDITS = 5
+WELCOME_BONUS_CREDITS = 3   # was 10 — V1 pivot ADR-049
+MONTHLY_FREE_CREDITS = 0    # was 5 — V1 pivot ADR-049 (retired)
 
 
 class InsufficientCreditsError(Exception):
@@ -80,33 +80,12 @@ async def grant_welcome_bonus_if_first(
 async def ensure_monthly_free_granted(
     seller_id: UUID, db: AsyncSession
 ) -> int:
-    """Grant the MONTHLY_FREE_CREDITS-credit free pack at most once per
-    calendar UTC month. Returns the number of credits granted
-    (MONTHLY_FREE_CREDITS or 0)."""
-    now = datetime.now(timezone.utc)
-    month_start = datetime(now.year, now.month, 1, tzinfo=timezone.utc)
-
-    existing = await db.scalar(
-        select(SellerCreditsLedger.id)
-        .where(
-            SellerCreditsLedger.seller_id == seller_id,
-            SellerCreditsLedger.source == "monthly_free",
-            SellerCreditsLedger.created_at >= month_start,
-        )
-        .limit(1)
-    )
-    if existing is not None:
-        return 0
-
-    db.add(
-        SellerCreditsLedger(
-            seller_id=seller_id,
-            credits_delta=MONTHLY_FREE_CREDITS,
-            source="monthly_free",
-        )
-    )
-    await db.commit()
-    return MONTHLY_FREE_CREDITS
+    """Retired by ADR-049 V1 pivot — kept as a no-op for backwards
+    compatibility with existing call sites (credits balance route +
+    consume_credits). Returns 0 unconditionally so downstream callers
+    don't change. Re-enable in V1.5+ if retention data justifies it.
+    """
+    return 0
 
 
 async def consume_credits(

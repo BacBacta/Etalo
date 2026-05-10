@@ -28,11 +28,17 @@ from app.models.user import User
 from app.services import credit_service
 from app.services.credit_service import (
     InsufficientCreditsError,
+    MONTHLY_FREE_CREDITS,
+    WELCOME_BONUS_CREDITS,
     consume_credits,
     ensure_monthly_free_granted,
     get_balance,
     grant_welcome_bonus_if_first,
 )
+
+# ADR-049 V1 pivot : welcome 10 → 3, monthly 5 → 0. Tests reference
+# the live constants so they stay green if the values move again.
+_INITIAL_BALANCE = WELCOME_BONUS_CREDITS + MONTHLY_FREE_CREDITS
 from app.services.indexer_handlers import handle_credits_purchased
 
 
@@ -130,8 +136,8 @@ async def test_balance_grants_welcome_and_monthly_on_first_call(
     )
     assert resp.status_code == 200, resp.text
     data = resp.json()
-    # Welcome bonus (10) + monthly free (5) = 15
-    assert data["balance"] == 15
+    # Welcome bonus (V1 pivot ADR-049: 3) + monthly free (0)
+    assert data["balance"] == _INITIAL_BALANCE
     assert data["wallet_address"] == credits_seed["wallet"]
 
 
@@ -145,8 +151,8 @@ async def test_balance_idempotent_on_second_call(
     r1 = await client.get("/api/v1/sellers/me/credits/balance", headers=headers)
     r2 = await client.get("/api/v1/sellers/me/credits/balance", headers=headers)
     assert r1.status_code == 200 and r2.status_code == 200
-    assert r1.json()["balance"] == 15
-    assert r2.json()["balance"] == 15
+    assert r1.json()["balance"] == _INITIAL_BALANCE
+    assert r2.json()["balance"] == _INITIAL_BALANCE
 
 
 # ============================================================
@@ -238,13 +244,13 @@ async def test_consume_decrements_balance(
     db: AsyncSession, credits_seed: dict
 ):
     seller_id = uuid.UUID(credits_seed["seller_id"])
-    # Bootstrap: welcome (10) — monthly_free will fire inside consume.
+    # Bootstrap: welcome bonus only (monthly_free is now no-op per ADR-049).
     await grant_welcome_bonus_if_first(seller_id, db)
 
     new_balance = await consume_credits(seller_id, db, amount=1)
-    # 10 (welcome) + 5 (monthly free fired by consume) - 1 = 14
-    assert new_balance == 14
-    assert await get_balance(seller_id, db) == 14
+    # WELCOME_BONUS_CREDITS - 1
+    assert new_balance == WELCOME_BONUS_CREDITS - 1
+    assert await get_balance(seller_id, db) == WELCOME_BONUS_CREDITS - 1
 
     consumption_rows = (
         await db.scalars(
@@ -263,11 +269,11 @@ async def test_consume_raises_insufficient_when_balance_zero(
     db: AsyncSession, credits_seed: dict
 ):
     seller_id = uuid.UUID(credits_seed["seller_id"])
-    # No grants — but consume_credits will fire monthly_free (5). To
-    # actually hit the InsufficientCreditsError we must consume past
-    # the monthly free first.
-    await consume_credits(seller_id, db, amount=1)  # 5 -> 4
-    await consume_credits(seller_id, db, amount=4)  # 4 -> 0
+    # ADR-049 V1 pivot : monthly_free is no-op. Grant welcome bonus
+    # explicitly (consume_credits doesn't trigger it on its own) then
+    # drain it to reach the InsufficientCreditsError path.
+    await grant_welcome_bonus_if_first(seller_id, db)
+    await consume_credits(seller_id, db, amount=WELCOME_BONUS_CREDITS)
     assert await get_balance(seller_id, db) == 0
 
     with pytest.raises(InsufficientCreditsError) as exc_info:
@@ -284,7 +290,7 @@ async def test_consume_raises_insufficient_when_balance_zero(
             )
         )
     ).all()
-    assert len(rows) == 2  # only the two successful consumes
+    assert len(rows) == 1  # only the single successful consume
 
 
 # ============================================================
@@ -326,8 +332,9 @@ async def test_generate_image_consumes_credit_and_persists(
 
     seller_id = uuid.UUID(credits_seed["seller_id"])
 
-    # Balance went from 15 (welcome+monthly) to 14
-    assert await get_balance(seller_id, db) == 14
+    # Balance went from WELCOME_BONUS_CREDITS to WELCOME_BONUS_CREDITS - 1
+    # (monthly_free is no-op per ADR-049)
+    assert await get_balance(seller_id, db) == WELCOME_BONUS_CREDITS - 1
 
     # MarketingImage row exists
     images = (
@@ -364,17 +371,17 @@ async def test_generate_image_returns_402_when_no_credits(
     credits_seed: dict,
     db: AsyncSession,
 ):
-    """Drain the seller's lazy grants (welcome 10 + monthly 5 = 15) by
-    seeding a -15 ledger entry, then ask for an image — must 402 before
-    any render runs."""
+    """Drain the seller's welcome bonus (V1 pivot ADR-049: 3) by
+    seeding an offsetting ledger entry, then ask for an image — must
+    402 before any render runs."""
     seller_id = uuid.UUID(credits_seed["seller_id"])
     # Force lazy grants to fire so the 0-balance path is real
     await grant_welcome_bonus_if_first(seller_id, db)
-    await ensure_monthly_free_granted(seller_id, db)
+    await ensure_monthly_free_granted(seller_id, db)  # no-op since pivot
     db.add(
         SellerCreditsLedger(
             seller_id=seller_id,
-            credits_delta=-15,
+            credits_delta=-WELCOME_BONUS_CREDITS,
             source="image_consumption",
         )
     )
@@ -412,7 +419,7 @@ async def test_history_returns_paginated_entries(
     client: AsyncClient, credits_seed: dict
 ):
     headers = {"X-Wallet-Address": credits_seed["wallet"]}
-    # Trigger welcome + monthly grants
+    # Trigger welcome grant only (monthly_free is no-op per ADR-049)
     await client.get("/api/v1/sellers/me/credits/balance", headers=headers)
 
     resp = await client.get(
@@ -421,7 +428,7 @@ async def test_history_returns_paginated_entries(
     )
     assert resp.status_code == 200
     data = resp.json()
-    assert data["total"] == 2  # welcome + monthly
+    assert data["total"] == 1  # welcome only (monthly retired ADR-049)
     sources = {e["source"] for e in data["entries"]}
-    assert sources == {"welcome_bonus", "monthly_free"}
+    assert sources == {"welcome_bonus"}
     assert all(e["credits_delta"] > 0 for e in data["entries"])

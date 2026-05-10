@@ -23,6 +23,13 @@ class Product(Base):
     metadata_ipfs_hash: Mapped[str | None] = mapped_column(String(100))
     image_ipfs_hashes: Mapped[list[str] | None] = mapped_column(ARRAY(String(100)))
     category: Mapped[str | None] = mapped_column(String(50))
+    # Set when the seller spends 1 credit on the "Enhance photo" button in
+    # the add-product flow (ADR-049). NULL = the photo is the seller's
+    # original phone shot. The IPFS hash stored in image_ipfs_hashes[0]
+    # already points at the enhanced output when this is non-null.
+    enhanced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 

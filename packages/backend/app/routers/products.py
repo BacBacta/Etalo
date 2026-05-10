@@ -303,3 +303,117 @@ async def delete_product(
     product.status = "deleted"
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ============================================================
+# ADR-049 — Photo enhancement (V1 pivot)
+# ============================================================
+
+from datetime import datetime, timezone
+
+from app.services import credit_service
+from app.services.asset_generator import enhance_product_photo
+from app.services.credit_service import InsufficientCreditsError
+from app.services.ipfs import build_ipfs_url, ipfs_service
+
+
+@router.post("/{product_id}/enhance-photo")
+async def enhance_photo_endpoint(
+    product_id: UUID,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> dict:
+    """ADR-049 V1 — Atomically enhance the product's hero photo: check
+    credits → birefnet bg-remove → composite white square 2048×2048 →
+    pin to IPFS → consume 1 credit → update product → return.
+
+    Idempotent on (product_id, source_image_ipfs_hash) — re-clicking
+    against the same source returns the existing enhanced URL without
+    charging another credit. Re-uploading a different source counts
+    as a new enhancement.
+
+    402 Payment Required if balance < 1 credit.
+    404 if product not found / not owned by the authenticated seller.
+    """
+    product = await db.scalar(
+        select(Product).where(
+            Product.id == product_id,
+            Product.seller_id == seller.id,
+            Product.status != "deleted",
+        )
+    )
+    if product is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found or not owned by you",
+        )
+    if not product.image_ipfs_hashes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Product has no photo to enhance — upload one first",
+        )
+
+    source_hash = product.image_ipfs_hashes[0]
+
+    # Idempotency : if the current hero photo was already enhanced from
+    # this exact source, return without charging again. The seller already
+    # paid for this work.
+    if product.enhanced_at is not None:
+        return {
+            "enhanced_image_ipfs_hash": source_hash,
+            "enhanced_image_url": build_ipfs_url(source_hash),
+            "credits_consumed": 0,
+            "credits_remaining": await credit_service.get_balance(
+                seller.id, db
+            ),
+            "already_enhanced": True,
+        }
+
+    # Pre-flight credits gate — refuse early so the seller doesn't pay
+    # ~10s of render time on a request that will fail anyway. Welcome
+    # bonus is granted lazily here too if first action.
+    await credit_service.grant_welcome_bonus_if_first(seller.id, db)
+    balance = await credit_service.get_balance(seller.id, db)
+    if balance < 1:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=(
+                "Insufficient credits. Purchase more credits via "
+                "EtaloCredits.purchaseCredits to enhance product photos."
+            ),
+        )
+
+    source_url = build_ipfs_url(source_hash)
+    enhanced_bytes = await enhance_product_photo(source_url)
+
+    filename = f"enhanced_{product.id}_{source_hash[:8]}.png"
+    enhanced_hash = await ipfs_service.upload_image(enhanced_bytes, filename)
+
+    try:
+        new_balance = await credit_service.consume_credits(
+            seller_id=seller.id, db=db, amount=1, image_id=None
+        )
+    except InsufficientCreditsError:
+        # Race : balance fell to 0 between pre-flight and now. Not
+        # charging the seller is the right call ; they get the
+        # enhanced photo for free this time but we won't update the
+        # product so a re-click will retry the credit check cleanly.
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Insufficient credits — please buy more credits.",
+        )
+
+    # Replace the hero photo with the enhanced one. The original isn't
+    # kept — sellers consistently want the polished output, and Pinata
+    # never deletes the original (still resolvable via its hash).
+    product.image_ipfs_hashes = [enhanced_hash, *product.image_ipfs_hashes[1:]]
+    product.enhanced_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {
+        "enhanced_image_ipfs_hash": enhanced_hash,
+        "enhanced_image_url": build_ipfs_url(enhanced_hash),
+        "credits_consumed": 1,
+        "credits_remaining": new_balance,
+        "already_enhanced": False,
+    }

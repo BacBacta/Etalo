@@ -113,6 +113,12 @@ COMPOSITE_OUTPUT_SCALE = 2
 # keeps the JPEG payload around 200 KB so fal upload is sub-second.
 MAX_SOURCE_DIM_FOR_ISOLATION = 1536
 
+# ADR-049 V1 enhance-photo flow uses a fixed square 2048×2048 output
+# instead of per-template slot dimensions — the enhanced photo becomes
+# the product's hero image (Product.image_ipfs_hashes[0]) and a square
+# format is universal across the boutique grid + storefront detail view.
+ENHANCE_OUTPUT_DIM = 2048
+
 
 class AssetGenerationResult(TypedDict):
     ipfs_hash: str
@@ -392,6 +398,106 @@ def _composite_on_white(
         len(composite_bytes) // 1024,
     )
     return composite_bytes
+
+
+def _composite_square(transparent_bytes: bytes) -> bytes:
+    """ADR-049 V1 enhance flow : take a transparent PNG and paste it
+    centered on a fixed pure-white square 2048×2048 canvas. No template
+    chrome, no per-platform slot dimensions — the output is the seller's
+    new product hero photo, used universally across the boutique grid +
+    storefront detail view.
+
+    Same auto-correct (autocontrast + saturation + unsharp) as the
+    template path because birefnet's cutout sometimes carries a slight
+    indoor color cast through. Same scale-to-fit-with-margin policy
+    (5% margin, Lanczos, cap upscale at 4x to guard thumbnails).
+    """
+    from PIL import Image
+
+    out_dim = ENHANCE_OUTPUT_DIM
+    src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
+    src = _auto_correct_rgba(src)
+    src_w, src_h = src.size
+
+    target = int(out_dim * (1 - 2 * ISOLATE_MARGIN))
+    scale = min(target / src_w, target / src_h, 4.0)
+    new_w = max(1, int(src_w * scale))
+    new_h = max(1, int(src_h * scale))
+    resized = src.resize((new_w, new_h), Image.LANCZOS) if scale != 1.0 else src
+
+    canvas = Image.new("RGB", (out_dim, out_dim), (255, 255, 255))
+    paste_x = (out_dim - new_w) // 2
+    paste_y = (out_dim - new_h) // 2
+    canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
+
+    out_buf = BytesIO()
+    canvas.save(out_buf, format="PNG", optimize=True)
+    composite_bytes = out_buf.getvalue()
+    logger.info(
+        "Composite enhance : src=%dx%d → %dx%d (scale=%.3f) → %d KB",
+        src_w,
+        src_h,
+        out_dim,
+        out_dim,
+        scale,
+        len(composite_bytes) // 1024,
+    )
+    return composite_bytes
+
+
+async def enhance_product_photo(image_url: str) -> bytes:
+    """ADR-049 V1 — bg-remove the seller's product photo via fal.ai
+    birefnet/v2 and composite on a square 2048×2048 white canvas.
+    Returns the final PNG bytes, ready to pin to IPFS and use as the
+    product's hero image (Product.image_ipfs_hashes[0]).
+
+    Reuses the proven `_render_via_clean_isolate` resize + birefnet
+    upload + transparent download pipeline, then drops the per-template
+    composite path in favor of `_composite_square`. No Playwright, no
+    HTML chrome, no caption — pure photo enhancement.
+    """
+    import fal_client
+
+    logger.info("Enhance call : start")
+
+    t = time.monotonic()
+    async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
+        resp = await client.get(image_url)
+        resp.raise_for_status()
+        src_bytes = resp.content
+    resized_bytes = await asyncio.to_thread(_resize_for_isolation, src_bytes)
+    fal_url = await fal_client.upload_async(
+        resized_bytes, content_type="image/jpeg"
+    )
+    logger.info(
+        "step.resize: %d KB → %d KB in %.2fs",
+        len(src_bytes) // 1024,
+        len(resized_bytes) // 1024,
+        time.monotonic() - t,
+    )
+
+    t = time.monotonic()
+    handler = await fal_client.subscribe_async(
+        REMBG_MODEL_ID,
+        arguments={"image_url": fal_url},
+    )
+    image = handler.get("image")
+    if not image or "url" not in image:
+        raise RuntimeError(
+            f"birefnet returned no image (handler keys={list(handler.keys())})"
+        )
+    transparent_url = image["url"]
+
+    async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
+        resp = await client.get(transparent_url)
+        resp.raise_for_status()
+        transparent_bytes = resp.content
+    logger.info("step.birefnet: %.2fs", time.monotonic() - t)
+
+    t = time.monotonic()
+    composite = await asyncio.to_thread(_composite_square, transparent_bytes)
+    logger.info("step.composite: %.2fs", time.monotonic() - t)
+    return composite
 
 
 def _auto_correct_rgba(src):
