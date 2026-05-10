@@ -29,6 +29,8 @@ import {
 } from "@/lib/categories";
 import {
   createProduct,
+  enhanceImage,
+  InsufficientCreditsForEnhanceError,
   ProductSlugConflictError,
   updateProduct,
   type ProductCreate,
@@ -101,6 +103,12 @@ export function ProductFormDialog({
   const [category, setCategory] = useState<CategoryCode>("other");
   const [submitting, setSubmitting] = useState(false);
   const [errors, setErrors] = useState<FieldErrors>({});
+  // ADR-049 — track which IPFS hash was AI-enhanced so we can show a
+  // "✨ Enhanced" badge + disable the button. Reset whenever the dialog
+  // re-opens. Stores the post-enhance hash; if it matches imageHashes[0]
+  // the badge shows.
+  const [enhancedHash, setEnhancedHash] = useState<string | null>(null);
+  const [enhancing, setEnhancing] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -138,7 +146,41 @@ export function ProductFormDialog({
       setCategory("other");
     }
     setErrors({});
+    setEnhancedHash(null);
+    setEnhancing(false);
   }, [open, mode, initialProduct]);
+
+  const heroHash = imageHashes[0] ?? null;
+  const heroIsEnhanced = heroHash !== null && heroHash === enhancedHash;
+  const canEnhance = heroHash !== null && !heroIsEnhanced && !enhancing;
+
+  const handleEnhance = async () => {
+    if (!heroHash) return;
+    setEnhancing(true);
+    try {
+      const result = await enhanceImage(walletAddress, heroHash);
+      // Replace the hero photo (image_ipfs_hashes[0]) with the
+      // enhanced one. Keep the rest of the gallery untouched.
+      setImageHashes((prev) => [
+        result.enhanced_image_ipfs_hash,
+        ...prev.slice(1),
+      ]);
+      setEnhancedHash(result.enhanced_image_ipfs_hash);
+      toast.success(
+        `Photo enhanced · ${result.credits_remaining} credits left`,
+      );
+    } catch (err) {
+      if (err instanceof InsufficientCreditsForEnhanceError) {
+        toast.error("Not enough credits to enhance. Buy more from your dashboard.");
+      } else {
+        toast.error(
+          err instanceof Error ? err.message : "Photo enhancement failed",
+        );
+      }
+    } finally {
+      setEnhancing(false);
+    }
+  };
 
   const handleTitleChange = (next: string) => {
     setTitle(next);
@@ -363,6 +405,40 @@ export function ProductFormDialog({
               onChange={setImageHashes}
             />
           </FormField>
+
+          {/* ADR-049 — V1 photo enhancement. Visible only after the
+              seller uploads at least one image. Click runs birefnet
+              bg-removal + composite on a 2048×2048 white square and
+              swaps imageHashes[0] for the enhanced version. Charges 1
+              credit immediately (no preview-then-confirm step). */}
+          {heroHash ? (
+            <div className="rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-celo-light/20 dark:bg-celo-dark-elevated">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-base font-medium text-celo-dark dark:text-celo-light">
+                    {heroIsEnhanced
+                      ? "✨ Photo enhanced"
+                      : "Make this photo look pro"}
+                  </p>
+                  <p className="text-sm text-neutral-500 dark:text-celo-light/60">
+                    {heroIsEnhanced
+                      ? "Background removed, white studio backdrop applied."
+                      : "AI removes the background and gives you a clean white-studio shot."}
+                  </p>
+                </div>
+                {!heroIsEnhanced ? (
+                  <Button
+                    type="button"
+                    onClick={handleEnhance}
+                    disabled={!canEnhance}
+                    className="min-h-[44px] shrink-0"
+                  >
+                    {enhancing ? "Enhancing…" : "Enhance · 1 credit"}
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">
             <Button

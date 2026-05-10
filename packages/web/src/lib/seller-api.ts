@@ -249,6 +249,54 @@ export async function uploadImage(
   return (await res.json()) as IpfsUploadResponse;
 }
 
+// ADR-049 — V1 photo enhancement. POST /products/enhance-image takes
+// the IPFS hash of a freshly-uploaded raw photo and returns a new IPFS
+// hash for the AI-cleaned version (birefnet bg removal + composite on
+// 2048×2048 white square). Charges 1 credit; throws
+// InsufficientCreditsForEnhanceError on 402 so the caller can surface
+// a "Buy more credits" CTA.
+export interface EnhanceImageResponse {
+  enhanced_image_ipfs_hash: string;
+  enhanced_image_url: string;
+  credits_consumed: number;
+  credits_remaining: number;
+}
+
+export class InsufficientCreditsForEnhanceError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "InsufficientCreditsForEnhanceError";
+  }
+}
+
+export async function enhanceImage(
+  walletAddress: string,
+  imageIpfsHash: string,
+): Promise<EnhanceImageResponse> {
+  const res = await fetchApi("/products/enhance-image", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Wallet-Address": walletAddress,
+    },
+    body: JSON.stringify({ image_ipfs_hash: imageIpfsHash }),
+  });
+  if (res.status === 402) {
+    let detail = "Insufficient credits to enhance photo";
+    try {
+      const body = await res.json();
+      if (typeof body?.detail === "string") detail = body.detail;
+    } catch {
+      // body wasn't JSON — fall through with default
+    }
+    throw new InsufficientCreditsForEnhanceError(detail);
+  }
+  if (!res.ok) {
+    throw new Error(`Enhance failed: ${res.status}`);
+  }
+  return (await res.json()) as EnhanceImageResponse;
+}
+
 // Owner-side product list (Étape 8.4) — surfaces ALL statuses (incl.
 // draft + paused). The public boutique listing filters status='active'.
 export async function fetchMyProducts(

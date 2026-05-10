@@ -417,3 +417,68 @@ async def enhance_photo_endpoint(
         "credits_remaining": new_balance,
         "already_enhanced": False,
     }
+
+
+from pydantic import BaseModel, Field
+
+
+class EnhanceImageRequest(BaseModel):
+    image_ipfs_hash: str = Field(..., min_length=10, max_length=100)
+
+
+@router.post("/enhance-image")
+async def enhance_image_endpoint(
+    payload: EnhanceImageRequest,
+    seller: Annotated[SellerProfile, Depends(require_seller_auth)],
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> dict:
+    """ADR-049 V1 — Standalone photo enhancement that doesn't require
+    a product to exist yet (the create-product flow uploads the photo
+    first, enhances it, then submits the form). Atomically check
+    credits → birefnet bg-remove → composite white square 2048×2048 →
+    pin to IPFS → consume 1 credit → return.
+
+    The seller-side state (which IPFS hash to save with the product)
+    is the frontend's responsibility — it slots the returned enhanced
+    hash into image_ipfs_hashes before calling createProduct /
+    updateProduct. No backend product mutation here.
+
+    402 Payment Required if balance < 1 credit. The frontend should
+    surface a "Buy more credits" affordance and disable the button.
+    """
+    await credit_service.grant_welcome_bonus_if_first(seller.id, db)
+    balance = await credit_service.get_balance(seller.id, db)
+    if balance < 1:
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail=(
+                "Insufficient credits. Purchase more credits via "
+                "EtaloCredits.purchaseCredits to enhance product photos."
+            ),
+        )
+
+    source_url = build_ipfs_url(payload.image_ipfs_hash)
+    enhanced_bytes = await enhance_product_photo(source_url)
+
+    filename = f"enhanced_{seller.id}_{payload.image_ipfs_hash[:8]}.png"
+    enhanced_hash = await ipfs_service.upload_image(enhanced_bytes, filename)
+
+    try:
+        new_balance = await credit_service.consume_credits(
+            seller_id=seller.id, db=db, amount=1, image_id=None
+        )
+    except InsufficientCreditsError:
+        # Race : balance fell to 0 between pre-flight and consume.
+        # The seller gets the enhanced photo for free this time —
+        # next call will fail clean.
+        raise HTTPException(
+            status_code=status.HTTP_402_PAYMENT_REQUIRED,
+            detail="Insufficient credits — please buy more credits.",
+        )
+
+    return {
+        "enhanced_image_ipfs_hash": enhanced_hash,
+        "enhanced_image_url": build_ipfs_url(enhanced_hash),
+        "credits_consumed": 1,
+        "credits_remaining": new_balance,
+    }
