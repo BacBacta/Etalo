@@ -107,9 +107,10 @@ COMPOSITE_OUTPUT_SCALE = 2
 # Max longest-side of the seller's source photo before we send it to
 # birefnet. Phone shots are routinely 12+ MP (3000x4000) which makes
 # birefnet ~3× slower than necessary, balloons the transparent PNG it
-# returns, and slows Pillow's downstream resize. 2048 is plenty for
-# clean segmentation of a centered product on a plain background.
-MAX_SOURCE_DIM_FOR_ISOLATION = 2048
+# returns, and slows Pillow's downstream resize. 1536 is plenty for
+# clean segmentation of a centered product on a plain background, and
+# keeps the JPEG payload around 200 KB so fal upload is sub-second.
+MAX_SOURCE_DIM_FOR_ISOLATION = 1536
 
 
 class AssetGenerationResult(TypedDict):
@@ -226,10 +227,17 @@ def _resize_for_isolation(src_bytes: bytes) -> bytes:
     transparent PNG download afterwards. Q=92 is visually lossless on
     a centered product. RGBA/P sources are flattened — JPEG can't carry
     alpha and we don't need it pre-segmentation.
+
+    `exif_transpose` is non-negotiable : phone photos almost always carry
+    an EXIF Orientation tag (typically 6 = rotate 90° CW for portraits)
+    and Pillow doesn't apply it on `Image.open`. Skipping this once
+    shipped a regression where every portrait product came back from
+    birefnet rotated to landscape (vacuum lying on its side).
     """
-    from PIL import Image
+    from PIL import Image, ImageOps
 
     im = Image.open(BytesIO(src_bytes))
+    im = ImageOps.exif_transpose(im)
     if im.mode in ("RGBA", "LA", "P"):
         im = im.convert("RGB")
     w, h = im.size
@@ -247,14 +255,19 @@ async def _render_via_clean_isolate(
 ) -> bytes:
     """Surgical bg-removal pipeline (ADR-048).
 
-    1. Download the seller's photo and downscale to <=2048px on its
-       longest side before sending to fal.ai — see `_resize_for_isolation`
-       for why (12 MP phone shots make every step ~3× slower).
-    2. Send the resized image as a data: URL to fal.ai birefnet/v2 — a
+    1. Download the seller's photo, fix EXIF orientation, and downscale
+       to <=1536px on its longest side before sending to fal.ai — see
+       `_resize_for_isolation` for why (12 MP phone shots make every
+       step ~3× slower).
+    2. Upload the resized JPEG via `fal_client.upload_async` (returns a
+       short fal storage URL) and pass that URL to birefnet/v2 — a
        segmentation model that returns the product on a transparent
        canvas without modifying the product itself (preserves brand
        text, logos, colors, textures pixel-near-perfect, unlike
        generative restagers like Flux Kontext that smooth the same).
+       Inline data: URLs work but were observed to make birefnet ~4×
+       slower (42s vs 11s for the same image) — fal seems to re-upload
+       to its storage internally before queueing, doubling the round-trip.
     3. Composite the transparent product on a pure white canvas
        sized to the template's image slot, with a 5 % margin so the
        subject doesn't crowd the slot's rounded-corner border.
@@ -274,12 +287,11 @@ async def _render_via_clean_isolate(
         resp.raise_for_status()
         src_bytes = resp.content
     resized_bytes = await asyncio.to_thread(_resize_for_isolation, src_bytes)
-    src_data_url = (
-        f"data:image/jpeg;base64,"
-        f"{base64.b64encode(resized_bytes).decode('ascii')}"
+    fal_url = await fal_client.upload_async(
+        resized_bytes, content_type="image/jpeg"
     )
     logger.info(
-        "step.resize: %d KB → %d KB in %.2fs",
+        "step.resize: %d KB → %d KB in %.2fs (uploaded to fal storage)",
         len(src_bytes) // 1024,
         len(resized_bytes) // 1024,
         time.monotonic() - t,
@@ -288,7 +300,7 @@ async def _render_via_clean_isolate(
     t = time.monotonic()
     handler = await fal_client.subscribe_async(
         REMBG_MODEL_ID,
-        arguments={"image_url": src_data_url},
+        arguments={"image_url": fal_url},
     )
     image = handler.get("image")
     if not image or "url" not in image:
