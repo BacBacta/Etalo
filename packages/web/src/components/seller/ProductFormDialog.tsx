@@ -513,7 +513,7 @@ function EnhanceSection({
         </p>
         <p className="mb-3 text-sm text-neutral-500 dark:text-celo-light/60">
           1 credit was used to generate the enhanced version. Choosing
-          "Keep original" doesn't refund the credit.
+          &quot;Keep original&quot; doesn&apos;t refund the credit.
         </p>
         <div className="grid grid-cols-2 gap-3">
           <figure className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20">
