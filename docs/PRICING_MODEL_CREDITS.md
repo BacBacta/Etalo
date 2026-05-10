@@ -1,64 +1,66 @@
 # Etalo Pricing Model — Asset Generator Credits
 
-**Version** : 1.0  
-**Date** : 23 avril 2026  
-**Auteur** : Mike (Etalo)  
+**Version** : 2.0 (V1 launch pivot per ADR-049)
+**Date** : 23 avril 2026 (v1.0) · 2026-05-10 (v2.0 pivot)
+**Auteur** : Mike (Etalo)
 **Statut** : Spécification économique — source de vérité pour le développement asset generator
+
+> **v2.0 changes (ADR-049)** : Pivot V1 — 1 crédit ne génère plus un
+> pack de 5 images marketing. Il finance maintenant **un enhancement
+> de photo produit** dans le flow d'add-product. Welcome bonus passe
+> de 10 à 3 crédits ; monthly free retiré. Le pack 5 templates +
+> captions reste dans le code pour V1.5+.
 
 ---
 
 ## 1. Résumé exécutif
 
-Etalo monétise son asset generator (génération automatique de contenu marketing pour les produits vendeurs) via un système de crédits. Le modèle est **simple, prévisible, sans abonnement**, conçu pour les vendeurs africains avec des revenus irréguliers qui préfèrent le pay-as-you-go.
+Etalo monétise son asset generator (amélioration AI des photos produits) via un système de crédits. Le modèle est **simple, prévisible, sans abonnement**, conçu pour les vendeurs africains avec des revenus irréguliers qui préfèrent le pay-as-you-go.
 
 ### 1.1 Principe de base
 
-- 1 crédit = 1 pack de contenu marketing généré pour 1 produit
-- Mix de crédits gratuits et payants
-- Pas de tiers, pas de subscription tiers complexes
+- 1 crédit = 1 photo produit transformée en photo studio pro
+- Crédits welcome gratuits, le reste payant à la demande
+- Pas de tiers, pas de subscription
 - Transparence totale sur la consommation
 
 ### 1.2 Objectif économique
 
-Atteindre la rentabilité à partir de **200 vendeurs actifs mensuels** générant au moins 2 packs payants par mois en moyenne. Marge estimée 96%+ par crédit payé.
+Atteindre la rentabilité à partir de **200 vendeurs actifs mensuels** convertissant en moyenne 2 enhancements payants par mois. Marge unitaire ~99 % (coût compute ~$0.001 par enhancement, revenu $0.075).
 
 ---
 
 ## 2. Définition d'un crédit
 
-### 2.1 Ce qu'un crédit achète
+### 2.1 Ce qu'un crédit achète (V1)
 
-Un crédit consommé génère pour un produit donné :
+Un crédit consommé déclenche, pour une photo produit uploadée :
 
-- **5 images optimisées** pour différents formats sociaux :
-  - Instagram feed (1:1)
-  - Instagram story (9:16)
-  - WhatsApp status (9:16)
-  - TikTok vertical (9:16)
-  - Facebook post (1.91:1)
+- **Suppression du background** via fal.ai birefnet/v2 — préserve le produit pixel-near-perfect (texte, logos, couleurs intacts)
+- **Composition propre** sur fond blanc studio carré 2048×2048
+- **Pinning IPFS** de la photo enhanced
+- **Remplacement automatique** de la photo originale dans le produit (avec tracé `Product.enhanced_at`)
+- Idempotence : si la même photo est ré-soumise pour le même produit, pas de double charge
 
-- **Captions multilingues** adaptées à chaque plateforme :
-  - Anglais
-  - Français
-  - Pidgin nigerian
-  - Swahili
+### 2.2 Ce qu'un crédit n'achète pas (V1)
 
-- **Hashtags recommandés** par plateforme et par pays cible
+Reporté V1.5+ :
+- Pack 5 templates marketing (IG square / IG story / WA status / TikTok / FB feed)
+- Captions multilingues (en, sw, pidgin, fr)
+- Hashtags recommandés par pays
+- Short links trackables avec analytics
 
-- **Call-to-action** avec lien direct vers la fiche produit Etalo
-
-### 2.2 Ce qu'un crédit n'achète pas
-
-- Génération de vidéos (prévu V2)
-- Animations ou GIFs (prévu V2)
-- Contenu long-form (articles de blog, emails)
-- Planning et scheduling automatique (prévu V2)
+Reporté V2 :
+- Génération de vidéos / GIFs
+- Contenu long-form (articles, emails)
+- Planning / scheduling automatique
+- Multi-product bulk processing
 
 ### 2.3 Limite par crédit
 
-- Un crédit = un produit. Pour 10 produits, il faut 10 crédits.
-- Régénération pour un même produit = nouveau crédit consommé.
-- Les variations ou retouches mineures ne consomment pas de crédit.
+- Un crédit = un enhancement = une photo produit. Pour polir 10 produits, il faut 10 crédits.
+- Re-enhancement de la même photo originale (même IPFS hash) sur le même produit = **gratuit** (idempotence backend).
+- Re-enhancement avec une nouvelle photo originale = nouveau crédit consommé.
 
 ---
 
@@ -66,56 +68,52 @@ Un crédit consommé génère pour un produit donné :
 
 ### 3.1 Crédits gratuits mensuels
 
-- **5 crédits par mois** à tous les vendeurs actifs
-- Renouvellement automatique le 1er du mois
-- **Non cumulables** : les crédits gratuits non utilisés expirent à la fin du mois
-- Utilisables sur tous les produits listés
+**V1 : aucun.** Le monthly free pack a été retiré (ADR-049) pour
+simplifier le modèle et éviter de subventionner les vendeurs dormants.
+Reviendra peut-être en V1.5+ si retention data le justifie.
 
 ### 3.2 Bonus bienvenue
 
-- **10 crédits bonus** à l'inscription
-- Lifetime : ne se renouvellent pas
-- Utilisables dès l'inscription sans attendre le début du mois
-- Expiration : 6 mois après l'inscription si non consommés
+- **3 crédits bonus** à l'inscription du seller (= 3 enhancements gratuits)
+- Granté lazy à la première lecture de balance / première action credit-aware
+- Idempotent : un seller ne peut pas re-recevoir le welcome bonus
+- Pas d'expiration définie en V1
 
 ### 3.3 Crédits payants
 
-- **0.15 USDT par crédit** (prix unitaire)
-- **Minimum 5 crédits par achat** (0.75 USDT minimum)
+- **0.15 USDT par crédit** (prix unitaire, immutable smart contract ADR-014)
+- **Minimum 1 crédit par achat** (le smart contract n'impose pas de minimum, le frontend peut suggérer des packs)
 - Crédits achetés **n'expirent jamais**
 - Utilisables sans limite temporelle
 
-### 3.4 Paliers d'achat recommandés
+### 3.4 Paliers d'achat recommandés (V1 pivot)
 
-Pas de discount officiel en V1 (simplicité), mais paliers d'achat courants :
+Pas de discount officiel en V1, mais paliers d'achat courants pour le nouveau modèle "1 crédit = 1 enhancement" :
 
 | Quantité | Prix USDT | Usage typique |
 |---|---|---|
-| 5 crédits | 0.75 | Test, 1 petit lot de produits |
-| 20 crédits | 3.00 | Un mois d'activité moyenne |
-| 50 crédits | 7.50 | Un mois d'activité soutenue |
-| 100 crédits | 15.00 | Vendeur pro, réserve 2-3 mois |
+| 5 crédits | 0.75 | Test étendu, 5 produits polis |
+| 10 crédits | 1.50 | Un mois d'activité catalogue moyen |
+| 25 crédits | 3.75 | Vendeur actif, mise à jour catalogue |
+| 50 crédits | 7.50 | Vendeur pro, réserve 2-3 mois |
 
 ---
 
 ## 4. Règles de consommation
 
-### 4.1 Ordre de priorité
+### 4.1 Ordre de priorité (V1 pivot)
 
-Quand un vendeur consomme un crédit, le système pioche dans cet ordre :
-
-1. **Crédits gratuits du mois** (épuisés en premier pour éviter expiration)
-2. **Bonus bienvenue** (avant expiration 6 mois)
-3. **Crédits achetés** (en dernier, puisque jamais expirés)
+V1 simplifié : **un seul ledger** (`SellerCreditsLedger`). Toute action `consume_credits()` débite la balance globale (somme de tous les `credits_delta`). Pas de buckets séparés ni d'ordre prioritaire — l'historique est rejouable depuis les rows ledger pour distinguer welcome/purchase/consumption a posteriori.
 
 ### 4.2 Exemple de consommation
 
-Un vendeur a : 3 crédits gratuits (octobre), 7 crédits bonus, 12 crédits achetés.
+Un vendeur tout frais inscrit (V1) :
 
-- Il génère du contenu pour 5 produits : 
-  - 3 crédits gratuits consommés
-  - 2 crédits bonus consommés
-  - Reste : 5 bonus + 12 achetés = 17 crédits disponibles
+- **t=0** : welcome bonus granté → balance = 3
+- **t+1h** : ajoute Produit A, click "Enhance · 1 credit" → balance = 2
+- **t+2h** : ajoute Produit B, click "Enhance · 1 credit" → balance = 1
+- **t+3h** : ajoute Produit C, click "Enhance · 1 credit" → balance = 0
+- **t+4h** : ajoute Produit D, click "Enhance" → 402 Insufficient credits → modal "Buy 5 credits for 0.75 USDT"
 
 ### 4.3 Tracking on-chain vs off-chain
 

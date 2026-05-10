@@ -2840,3 +2840,155 @@ displacing the default rembg path.
 - Live test outputs (pre-switch) : 4 iterations on Dreame H12 vacuum
   showed persistent text-loss + shadow-halo regressions across
   prompt rewrites and inference-step bumps.
+
+---
+
+## ADR-049 — Pivot : Marketing image generation → product photo enhancement (V1 scope)
+
+**Status :** Accepted · 2026-05-10
+
+### Context
+
+ADR-047 / ADR-048 stood up a "marketing pack" feature : 5 templates
+(IG square, IG story, WhatsApp status, TikTok, Facebook feed), each
+rendered with platform-specific chrome (header, price, CTA, QR) and
+a captioned post text via Claude. Sellers picked a product, picked a
+template, picked a caption language, and got back a marketing image
++ caption to share on socials.
+
+Live testing (Sprint J7+ on Sepolia, then post-J11.7 with real
+sellers) surfaced three issues that compound :
+
+- **Time-to-first-value too high.** A new seller has to (a) onboard,
+  (b) add a product, (c) navigate to a separate Marketing tab,
+  (d) understand the 5-template choice, (e) wait 30-60s per render.
+  The "wow" moment is buried 3 clicks deep and behind a wall of
+  options.
+- **5-template fan-out is premature.** Most sellers need ONE
+  professional-looking product photo, not 5 platform variants. The
+  true gap vs. their phone shot is "I don't know how to make this
+  look like a real ecom listing" — not "I don't have time to render
+  5 social formats from one product".
+- **Generative chrome competes with the product photo.** Sellers
+  download the polished images and post them, but the Etalo branding
+  in-image makes it feel ad-y. Some prefer to grab the *cleaned
+  product photo* and write their own caption.
+
+The 5-template feature works (post-Sprint J7) but solves the wrong
+problem for V1 launch.
+
+### Decision
+
+V1 marketing scope reduces to **one feature** : photo enhancement
+inside the add-product flow.
+
+1. New endpoint `POST /api/v1/products/{id}/enhance-photo`. Atomic :
+   check credits → run birefnet bg-removal → composite on white
+   square 2048×2048 → pin to IPFS → consume 1 credit → update
+   `Product.image_ipfs_hashes` to point at the enhanced version →
+   return the new URL. Idempotent on `(product_id, source_hash)`
+   so a double-click doesn't double-charge.
+2. AddProductForm gets an "Enhance photo · 1 credit" button after
+   the photo upload. User clicks → backend runs the pipeline → the
+   form's photo preview swaps to the enhanced version. User can
+   still hit "Save product" with the original if they don't like
+   the result.
+3. `WELCOME_BONUS_CREDITS` drops from 10 to 3 (= 3 free
+   enhancements). `MONTHLY_FREE_CREDITS` drops from 5 to 0.
+   `ensure_monthly_free_granted` becomes a no-op kept only for
+   call-site backwards compatibility.
+4. The MarketingTab UI (5-template flow) is hidden behind the
+   `NEXT_PUBLIC_ENABLE_MARKETING_TAB` feature flag (default `false`
+   in V1). The route + components stay in the repo for V1.5+
+   reactivation.
+5. The 5 HTML templates, short-link table + endpoint, and the
+   platform-aware caption generator stay in the codebase but are
+   not called by V1 surfaces. They'll be reused when V1.5 brings
+   the marketing pack back as a paid premium feature.
+
+### Pricing impact
+
+| | Before (ADR-048 era) | After (this ADR) |
+|---|---|---|
+| What 1 credit buys | 1 marketing image (1 of 5 templates) | 1 product photo enhancement |
+| Welcome bonus | 10 credits = 10 images | 3 credits = 3 enhancements |
+| Monthly free | 5 credits | none |
+| Per-image $ | $0.15 | $0.075 (revenue/image stays the same)* |
+| Compute cost | ~$0.001 (birefnet) | ~$0.001 (birefnet) |
+| Margin | ~99 % | ~99 % |
+
+*because 1 enhancement = 1 cleaned photo and the cleaned photo is
+the seller's product hero — the seller perceives the value as
+"professional product photo for $0.075", not "1 of 5 marketing
+formats for $0.15".
+
+The smart contract `USDT_PER_CREDIT = 150_000` is unchanged
+(immutable per ADR-014). Pricing pivots are purely off-chain
+(constants in `credit_service.py` + ledger semantics).
+
+### Consequences
+
+- **Time-to-value drops dramatically.** First-time seller adds
+  product → polishes photo → sees the result in <10 s — that's the
+  "wow" moment. No tab-hunting, no template choice paralysis.
+- **Onboarding generosity halved on paper, but value perception up.**
+  3 enhancements covers a seller's typical first 1-3 product
+  uploads, which is exactly when they want to look pro. Sellers
+  exceeding 3 products in the trial are by definition power users
+  who'll convert to paid.
+- **Surface area shrinks.** No template selection UX, no caption
+  language pick, no platform-specific CTA copy, no short-link
+  click-tracking dashboard. All of those features still exist in
+  the codebase but are dormant until V1.5+.
+- **Existing seller balances are untouched.** Welcome bonus reduction
+  (10 → 3) only applies prospectively — sellers who already received
+  10 credits keep them. The migration is constant change, not data
+  migration.
+- **The ADR-048 pipeline (birefnet + composite + Pillow) is the V1
+  workhorse.** Playwright-rendered HTML templates and Claude-driven
+  captions are now V1.5+ scope. The composite output is a uniform
+  square 2048×2048 (no per-template slot dimensions).
+
+### Alternatives considered
+
+- **Keep the 5-template marketing pack as the V1 default and price
+  it more aggressively.** Rejected — the time-to-value problem
+  isn't a pricing problem, it's a UX problem. No price adjustment
+  fixes "this is too many clicks for a new seller".
+- **Offer both feature surfaces simultaneously (enhance + 5-pack).**
+  Rejected for V1 — doubles the test surface, doubles the docs,
+  doubles the QA, and dilutes the "what does Etalo's asset feature
+  do" pitch. V1.5+ can layer the 5-pack back on top once the
+  enhancement flow is proven.
+- **Photo enhancement as a standalone tab (separate from add-product).**
+  Rejected — same time-to-value problem as the 5-template flow.
+  The whole point of the pivot is contextual integration into the
+  natural seller workflow.
+
+### Migration notes (deploy day)
+
+- Feature flag `NEXT_PUBLIC_ENABLE_MARKETING_TAB=false` set in
+  Vercel env. Change to `true` to revert the UI exposure for
+  testing or V1.5 phased rollout.
+- `WELCOME_BONUS_CREDITS = 3` constant change in
+  `credit_service.py`. Existing sellers untouched (welcome bonus
+  is granted-once on first balance read, idempotent).
+- Migration : `Product.enhanced_at: DateTime | null` added (purely
+  additive, downgrade safe).
+- The MarketingTab route + components stay mounted but unreachable
+  via nav. A direct URL hit still renders — acceptable since V1
+  doesn't link to it anywhere.
+
+### References
+
+- ADR-014 (asset generator pillar 3 of V1 Boutique — supersedes
+  the "5 templates per credit" interpretation)
+- ADR-037 (hybrid credits system)
+- ADR-047, ADR-048 (marketing pack lineage — both stay in the
+  codebase but unused in V1)
+- `docs/PRICING_MODEL_CREDITS.md` (updated to reflect 1 credit =
+  1 enhancement, welcome 3, monthly 0)
+- `packages/backend/app/services/asset_generator.py` (the
+  birefnet+composite helper is the V1 workhorse)
+- `packages/web/src/components/seller/AddProductForm.tsx` (where
+  the new "Enhance photo · 1 credit" button lands)

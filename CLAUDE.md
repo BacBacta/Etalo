@@ -124,8 +124,11 @@ addresses retained in `docs/DEPLOYMENTS_HISTORY.md` and
 - Cross-border release flow, 14-day cross-border deadline, and seller
   stake (ADR-018 / ADR-019 cross clause / ADR-020 / ADR-021) →
   **DEFERRED V2** by ADR-041.
-- Credits (ADR-014): 0.15 USDT/credit, 5 free/month, 10 welcome bonus,
-  no subscription (see `docs/PRICING_MODEL_CREDITS.md`).
+- Credits (ADR-014 + ADR-049 V1 pivot): 0.15 USDT/credit, **1 credit =
+  1 product photo enhancement**, **welcome 3 credits**, **no monthly
+  free**, no subscription (see `docs/PRICING_MODEL_CREDITS.md` v2.0).
+  The 5-template marketing pack is deferred V1.5+ — code stays in repo
+  but UI hidden behind `NEXT_PUBLIC_ENABLE_MARKETING_TAB=false`.
 
 ## Developer
 
@@ -197,7 +200,38 @@ Reportés à manuel post-merge :
 V1.5+ déférés : popularity sort, MiniPay phone auto-detection,
 comprehensive seller onboarding.
 
-**Branche en cours : `feat/seller-orders-pick-list-deadline`**
+**Sprint en cours (2026-05-10) : J12-pre — pivot asset generator
+(ADR-049)**
+
+Pivot stratégique du marketing image generator avant J12 mainnet :
+on enterre les 5 templates marketing (IG square / IG story / WA
+status / TikTok / FB feed) pour V1 et on transforme la feature en
+**photo enhancement intégré au flow add-product**. Justification
+complète dans ADR-049 (time-to-value, scope creep, UX friction).
+
+Livrables V1 pivot :
+- Backend : nouvel endpoint `POST /api/v1/products/{id}/enhance-photo`
+  (atomique : check credits → birefnet bg-removal → composite white
+  square 2048×2048 → pin IPFS → consume 1 credit → update product →
+  return). Idempotent sur (product_id, source_hash).
+- Backend : `WELCOME_BONUS_CREDITS = 3` (au lieu de 10),
+  `MONTHLY_FREE_CREDITS = 0`, `ensure_monthly_free_granted` no-op.
+- Frontend : `AddProductForm` — bouton "Enhance photo · 1 credit"
+  après upload photo, click → loading → preview enhanced → save
+  product avec photo enhanced.
+- Frontend : `MarketingTab` cachée derrière feature flag
+  `NEXT_PUBLIC_ENABLE_MARKETING_TAB=false` (default V1).
+- Migration : `Product.enhanced_at: DateTime | null` (additive,
+  downgrade safe).
+- Docs : ADR-049 + PRICING_MODEL_CREDITS v2.0 + ce fichier.
+
+Code dormant V1.5+ (committé mais non exposé en V1) :
+- 5 templates HTML (asset_templates/*.html)
+- caption_generator avec CTAs platform-aware
+- short_links system + `/r/{code}` endpoint
+- MarketingTab UI complète
+
+Sprint précédent (mergé) : `feat/seller-orders-pick-list-deadline`
 — refonte UX du dashboard vendeur orders au-dessus de PR #25.
 Scope, post J11.7 follow-up (commit 2026-05-07) :
 
@@ -265,6 +299,9 @@ CLAUDE.md is updated.
 
 Most-load-bearing recent ADRs for V1 scope:
 
+- **ADR-049 (asset gen pivot — 5-template marketing pack → product
+  photo enhancement in add-product flow, welcome 3, monthly 0)** —
+  drives the Economics line + Current sprint section.
 - ADR-041 (V1 scope restriction — intra-only, 4-market big bang,
   single 1.8% rate, stake retired) — drives this file's Economics +
   Critical rules + Target markets sections.
