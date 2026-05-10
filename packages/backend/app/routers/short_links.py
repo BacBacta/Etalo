@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.dependencies import get_async_db
+from app.database import get_async_db
 from app.services.short_link_service import resolve_and_count
 
 router = APIRouter(prefix="/r", tags=["short-links"])
