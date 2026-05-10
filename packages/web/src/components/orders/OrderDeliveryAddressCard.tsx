@@ -34,6 +34,12 @@ const WHATSAPP_ANCHOR_CLASSES = [
 ].join(" ");
 
 export interface DeliveryAddressSnapshot {
+  // ADR-050 V1 fields — present on snapshots written via the
+  // /delivery-address-inline endpoint.
+  recipient_name?: string | null;
+  area?: string | null;
+  // J11.7 fields — present on all snapshots (including legacy
+  // pre-ADR-050 ones written via the address-book reference endpoint).
   phone_number?: string | null;
   country?: string | null;
   city?: string | null;
@@ -94,6 +100,25 @@ export function OrderDeliveryAddressCard({
         </h3>
       </header>
       <dl className="space-y-1 text-sm text-neutral-800">
+        {/* recipient_name (ADR-050) — top of the card, bold, the seller
+            uses this exact string on the courier label. Pre-ADR-050
+            snapshots that don't carry the field surface a fallback
+            line below pointing at the WhatsApp button. */}
+        {snapshot.recipient_name ? (
+          <div className="mb-1">
+            <dt className="sr-only">Recipient</dt>
+            <dd
+              data-testid="order-delivery-recipient"
+              className="text-base font-semibold text-neutral-900"
+            >
+              {snapshot.recipient_name}
+            </dd>
+          </div>
+        ) : (
+          <div className="mb-1 rounded-md bg-amber-50 p-2 text-sm text-amber-900">
+            Recipient name not provided — coordinate via WhatsApp below.
+          </div>
+        )}
         {snapshot.city || snapshot.country ? (
           <div>
             <dt className="sr-only">City and country</dt>
@@ -110,6 +135,20 @@ export function OrderDeliveryAddressCard({
           <div>
             <dt className="sr-only">Region</dt>
             <dd data-testid="order-delivery-region">{snapshot.region}</dd>
+          </div>
+        ) : null}
+        {/* area (ADR-050) — neighborhood/estate, sits between region
+            and the free-form address_line so the seller can scan
+            "city → area → details" in reading order. */}
+        {snapshot.area ? (
+          <div>
+            <dt className="text-neutral-500">Area</dt>
+            <dd
+              data-testid="order-delivery-area"
+              className="break-words"
+            >
+              {snapshot.area}
+            </dd>
           </div>
         ) : null}
         {snapshot.address_line ? (

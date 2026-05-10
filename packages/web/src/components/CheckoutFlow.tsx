@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { parseUnits } from "viem";
 import { useAccount, useChainId } from "wagmi";
 
@@ -12,8 +12,11 @@ import {
   CheckoutDeliveryAddressStep,
   isCheckoutAddressReady,
 } from "@/components/checkout/CheckoutDeliveryAddressStep";
+import {
+  EMPTY_INLINE_DELIVERY_FORM,
+  type InlineDeliveryAddressData,
+} from "@/components/checkout/InlineDeliveryAddressForm";
 import { Button } from "@/components/ui/button";
-import { useAddresses } from "@/hooks/useAddresses";
 import { useBuyerCountry } from "@/hooks/useBuyerCountry";
 import { useCheckoutBalanceGate } from "@/hooks/useCheckoutBalanceGate";
 import { useSequentialCheckout } from "@/hooks/useSequentialCheckout";
@@ -31,30 +34,23 @@ interface Props {
 export function CheckoutFlow({ cart, token }: Props) {
   const { address: wallet } = useAccount();
   const walletStr = wallet?.toLowerCase() ?? "";
-  const [selectedAddressId, setSelectedAddressId] = useState<string | null>(
-    null,
-  );
-
-  // Resolve the picked address to read its country for the FE
-  // cross-border guard. Already cached via useAddresses inside the
-  // step ; this hook reuses the same query to avoid a second fetch.
-  const addressesQuery = useAddresses({ wallet: walletStr });
-  const selectedAddress = useMemo(() => {
-    const items = addressesQuery.data?.items ?? [];
-    return items.find((a) => a.id === selectedAddressId) ?? null;
-  }, [addressesQuery.data, selectedAddressId]);
+  // ADR-050 — buyer types address inline at checkout. Form data lives
+  // here in the parent ; the InlineDeliveryAddressForm is fully
+  // controlled. Snapshot persistence happens post-fund via
+  // setOrderDeliverySnapshotInline (see useSequentialCheckout).
+  const [deliveryFormData, setDeliveryFormData] =
+    useState<InlineDeliveryAddressData>(EMPTY_INLINE_DELIVERY_FORM);
 
   const buyerCountryQuery = useBuyerCountry({ wallet: walletStr });
   const buyerCountry = buyerCountryQuery.data?.country ?? null;
 
   const addressReady = isCheckoutAddressReady({
-    selectedId: selectedAddressId,
-    selectedCountry: selectedAddress?.country,
+    formData: deliveryFormData,
     expectedCountry: buyerCountry,
   });
 
   const { state, start, cancel } = useSequentialCheckout(cart, {
-    deliveryAddressId: selectedAddressId,
+    deliveryFormData: addressReady ? deliveryFormData : null,
   });
   const chainId = useChainId();
 
@@ -112,8 +108,8 @@ export function CheckoutFlow({ cart, token }: Props) {
             <div className="mb-4">
               <CheckoutDeliveryAddressStep
                 wallet={walletStr}
-                selectedId={selectedAddressId}
-                onSelectedChange={setSelectedAddressId}
+                value={deliveryFormData}
+                onChange={setDeliveryFormData}
                 expectedCountry={buyerCountry}
               />
             </div>
@@ -130,7 +126,7 @@ export function CheckoutFlow({ cart, token }: Props) {
             >
               {addressReady
                 ? "Start checkout"
-                : "Pick a delivery address to continue"}
+                : "Fill the delivery address to continue"}
             </Button>
           )}
         </div>

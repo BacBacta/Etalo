@@ -1,35 +1,33 @@
 /**
- * Vitest specs for CheckoutDeliveryAddressStep — Sprint J11.7 Block 7
- * (ADR-044 + ADR-045).
+ * Vitest specs for CheckoutDeliveryAddressStep — ADR-050 (inline
+ * checkout pivot, supersedes the J11.7 picker tests).
+ *
+ * Covers :
+ * - inline form renders required fields
+ * - readiness gate (isCheckoutAddressReady) accepts a fully-filled
+ *   form and rejects a partially-filled one
+ * - country mismatch surface (V1 intra-Africa scope, ADR-045)
+ *
+ * The J11.7 picker tests were dropped because the picker no longer
+ * exists in the V1 surface (kept in repo behind feature flag, not
+ * rendered by the checkout). Address-book CRUD is exercised by its
+ * own AddressBookPage tests when ENABLE_ADDRESS_BOOK is true.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   CheckoutDeliveryAddressStep,
   isCheckoutAddressReady,
 } from "@/components/checkout/CheckoutDeliveryAddressStep";
-import type { DeliveryAddress } from "@/lib/addresses/api";
+import {
+  EMPTY_INLINE_DELIVERY_FORM,
+  type InlineDeliveryAddressData,
+} from "@/components/checkout/InlineDeliveryAddressForm";
 import type { UserMe } from "@/lib/buyer-country";
 
-const fetchAddressesMock = vi.fn();
 const fetchMyUserMock = vi.fn();
-const updateMyUserMock = vi.fn();
-const createAddressMock = vi.fn();
-const updateAddressMock = vi.fn();
-
-vi.mock("@/lib/addresses/api", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/addresses/api")>(
-    "@/lib/addresses/api",
-  );
-  return {
-    ...actual,
-    fetchAddresses: (...args: unknown[]) => fetchAddressesMock(...args),
-    createAddress: (...args: unknown[]) => createAddressMock(...args),
-    updateAddress: (...args: unknown[]) => updateAddressMock(...args),
-  };
-});
 
 vi.mock("@/lib/buyer-country", async () => {
   const actual = await vi.importActual<typeof import("@/lib/buyer-country")>(
@@ -38,219 +36,136 @@ vi.mock("@/lib/buyer-country", async () => {
   return {
     ...actual,
     fetchMyUser: (...args: unknown[]) => fetchMyUserMock(...args),
-    updateMyUser: (...args: unknown[]) => updateMyUserMock(...args),
   };
 });
 
-vi.mock("sonner", () => ({
-  toast: { success: vi.fn(), error: vi.fn() },
-}));
-
 const TEST_WALLET = "0xabc1234567890abcdef1234567890abcdef12345";
 
-const NGA_ADDR: DeliveryAddress = {
-  id: "addr-nga",
-  phone_number: "+2348012345678",
-  country: "NGA",
-  city: "Lagos",
-  region: "Lagos State",
-  address_line: "12 Allen Avenue",
-  landmark: null,
-  notes: null,
-  is_default: true,
-  created_at: "2026-05-01T00:00:00Z",
-  updated_at: "2026-05-01T00:00:00Z",
-};
-
-const GHA_ADDR: DeliveryAddress = {
-  ...NGA_ADDR,
-  id: "addr-gha",
-  country: "GHA",
-  city: "Accra",
-  region: "Greater Accra",
-  is_default: false,
-};
-
-const NGA_USER: UserMe = {
-  id: "u-1",
-  wallet_address: TEST_WALLET,
-  country: "NGA",
-  language: "en",
-  has_seller_profile: false,
-  created_at: "2026-05-01T00:00:00Z",
-};
-
-function makeWrapper() {
-  const client = new QueryClient({
-    defaultOptions: { queries: { gcTime: 0, retry: false } },
-  });
-  function Wrapper({ children }: { children: React.ReactNode }) {
-    return (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    );
-  }
-  return Wrapper;
+function makeUserMe(country: string | null = "NGA"): UserMe {
+  return {
+    id: "00000000-0000-0000-0000-000000000001",
+    wallet_address: TEST_WALLET,
+    country,
+    language: "en",
+    has_seller_profile: false,
+    created_at: "2026-05-10T00:00:00Z",
+  };
 }
 
-describe("CheckoutDeliveryAddressStep", () => {
-  beforeEach(() => {
-    fetchAddressesMock.mockReset();
-    fetchMyUserMock.mockReset();
-    fetchMyUserMock.mockResolvedValue(NGA_USER);
+function renderWithQueryClient(node: React.ReactNode) {
+  const qc = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false, staleTime: Infinity, gcTime: Infinity },
+    },
   });
+  return render(
+    <QueryClientProvider client={qc}>{node}</QueryClientProvider>,
+  );
+}
 
-  afterEach(() => {
-    vi.clearAllMocks();
-  });
+const VALID_FORM: InlineDeliveryAddressData = {
+  recipient_name: "Adaeze Okafor",
+  phone_number: "+234 80 1234 5678",
+  country: "NGA",
+  region: "Lagos State",
+  city: "Lagos",
+  area: "Lekki Phase 1",
+  address_line: "Plot 12B, off Adeola Odeku Street",
+  landmark: "Behind the blue gate",
+  notes: "",
+};
 
-  it("renders empty state when buyer has no addresses", async () => {
-    fetchAddressesMock.mockResolvedValue({ items: [], count: 0 });
-    const Wrapper = makeWrapper();
-    render(
-      <Wrapper>
-        <CheckoutDeliveryAddressStep
-          wallet={TEST_WALLET}
-          selectedId={null}
-          onSelectedChange={vi.fn()}
-        />
-      </Wrapper>,
+beforeEach(() => {
+  fetchMyUserMock.mockReset();
+  fetchMyUserMock.mockResolvedValue(makeUserMe("NGA"));
+  if (typeof window !== "undefined") {
+    window.sessionStorage.clear();
+  }
+});
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+describe("CheckoutDeliveryAddressStep — inline form (ADR-050)", () => {
+  it("renders the inline delivery form with the recipient_name input", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <CheckoutDeliveryAddressStep
+        wallet={TEST_WALLET}
+        value={EMPTY_INLINE_DELIVERY_FORM}
+        onChange={onChange}
+      />,
     );
-    await waitFor(() => {
-      expect(screen.getByTestId("checkout-delivery-empty")).toBeDefined();
-    });
-    expect(screen.getByTestId("checkout-add-address")).toBeDefined();
-  });
-
-  it("renders the address selector when at least one address exists", async () => {
-    fetchAddressesMock.mockResolvedValue({
-      items: [NGA_ADDR],
-      count: 1,
-    });
-    const onSelectedChange = vi.fn();
-    const Wrapper = makeWrapper();
-    render(
-      <Wrapper>
-        <CheckoutDeliveryAddressStep
-          wallet={TEST_WALLET}
-          selectedId={null}
-          onSelectedChange={onSelectedChange}
-        />
-      </Wrapper>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("address-selector-list")).toBeDefined();
-    });
-    // Auto-pick default on first load
-    await waitFor(() => {
-      expect(onSelectedChange).toHaveBeenCalledWith(NGA_ADDR.id);
-    });
-  });
-
-  it("flags country mismatch when picked address country !== buyer country", async () => {
-    fetchAddressesMock.mockResolvedValue({
-      items: [NGA_ADDR, GHA_ADDR],
-      count: 2,
-    });
-    const Wrapper = makeWrapper();
-    render(
-      <Wrapper>
-        <CheckoutDeliveryAddressStep
-          wallet={TEST_WALLET}
-          selectedId={GHA_ADDR.id}
-          onSelectedChange={vi.fn()}
-          expectedCountry="NGA"
-        />
-      </Wrapper>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("checkout-country-mismatch")).toBeDefined();
-    });
+    expect(screen.getByTestId("checkout-delivery-step")).toBeInTheDocument();
+    expect(screen.getByTestId("inline-delivery-form")).toBeInTheDocument();
     expect(
-      screen.getByText(/seller delivers only in Nigeria/),
-    ).toBeDefined();
+      screen.getByTestId("inline-delivery-recipient-name"),
+    ).toBeInTheDocument();
+    expect(screen.getByTestId("inline-delivery-area")).toBeInTheDocument();
   });
 
-  it("does NOT flag mismatch when address country matches buyer country", async () => {
-    fetchAddressesMock.mockResolvedValue({
-      items: [NGA_ADDR],
-      count: 1,
-    });
-    const Wrapper = makeWrapper();
-    render(
-      <Wrapper>
-        <CheckoutDeliveryAddressStep
-          wallet={TEST_WALLET}
-          selectedId={NGA_ADDR.id}
-          onSelectedChange={vi.fn()}
-          expectedCountry="NGA"
-        />
-      </Wrapper>,
+  it("calls onChange when the recipient name is edited", () => {
+    const onChange = vi.fn();
+    renderWithQueryClient(
+      <CheckoutDeliveryAddressStep
+        wallet={TEST_WALLET}
+        value={EMPTY_INLINE_DELIVERY_FORM}
+        onChange={onChange}
+      />,
     );
-    await waitFor(() => {
-      expect(screen.getByTestId("address-selector-list")).toBeDefined();
-    });
-    expect(screen.queryByTestId("checkout-country-mismatch")).toBeNull();
-  });
-
-  it("opens the add-address modal when clicking the Add CTA", async () => {
-    fetchAddressesMock.mockResolvedValue({ items: [], count: 0 });
-    const Wrapper = makeWrapper();
-    render(
-      <Wrapper>
-        <CheckoutDeliveryAddressStep
-          wallet={TEST_WALLET}
-          selectedId={null}
-          onSelectedChange={vi.fn()}
-        />
-      </Wrapper>,
-    );
-    await waitFor(() => {
-      expect(screen.getByTestId("checkout-add-address")).toBeDefined();
-    });
-    fireEvent.click(screen.getByTestId("checkout-add-address"));
-    // Modal opens with the form fields
-    await waitFor(() => {
-      expect(screen.getByTestId("addr-phone")).toBeDefined();
+    const input = screen.getByTestId(
+      "inline-delivery-recipient-name",
+    ) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "Adaeze" } });
+    expect(onChange).toHaveBeenCalledWith({
+      ...EMPTY_INLINE_DELIVERY_FORM,
+      recipient_name: "Adaeze",
     });
   });
 });
 
-describe("isCheckoutAddressReady", () => {
-  it("returns false when no address is selected", () => {
+describe("isCheckoutAddressReady — inline form readiness", () => {
+  it("returns false on empty form", () => {
     expect(
       isCheckoutAddressReady({
-        selectedId: null,
-        selectedCountry: null,
+        formData: EMPTY_INLINE_DELIVERY_FORM,
         expectedCountry: "NGA",
       }),
     ).toBe(false);
   });
 
-  it("returns true when an address is picked and countries match", () => {
+  it("returns true on fully-filled form matching expected country", () => {
     expect(
       isCheckoutAddressReady({
-        selectedId: "x",
-        selectedCountry: "NGA",
+        formData: VALID_FORM,
         expectedCountry: "NGA",
       }),
     ).toBe(true);
   });
 
-  it("returns false on country mismatch", () => {
+  it("returns false when country mismatches expected country", () => {
     expect(
       isCheckoutAddressReady({
-        selectedId: "x",
-        selectedCountry: "GHA",
+        formData: { ...VALID_FORM, country: "KEN" },
         expectedCountry: "NGA",
       }),
     ).toBe(false);
   });
 
-  it("returns true when expectedCountry is unknown (no guard)", () => {
+  it("returns false when a required field is whitespace-only", () => {
     expect(
       isCheckoutAddressReady({
-        selectedId: "x",
-        selectedCountry: "NGA",
+        formData: { ...VALID_FORM, recipient_name: "   " },
+        expectedCountry: "NGA",
+      }),
+    ).toBe(false);
+  });
+
+  it("returns true when expectedCountry is null (no guard)", () => {
+    expect(
+      isCheckoutAddressReady({
+        formData: VALID_FORM,
         expectedCountry: null,
       }),
     ).toBe(true);

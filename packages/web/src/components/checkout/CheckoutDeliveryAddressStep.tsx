@@ -1,156 +1,89 @@
 /**
- * CheckoutDeliveryAddressStep — Sprint J11.7 Block 7 (ADR-044 + ADR-045).
+ * CheckoutDeliveryAddressStep — ADR-050 (V1 inline checkout pivot,
+ * supersedes the J11.7 picker pattern).
  *
- * Pre-flight delivery address picker for the checkout idle phase.
- * Surfaces the buyer's saved address book ; if empty, prompts them
- * to add one inline. Validates the picked address country matches
- * the buyer's registered country (defense-in-depth even though the
- * backend cart-token issuance already enforced this in Block 3 ;
- * a clear FE error message beats a generic 422 from a stale token).
+ * Renders an inline delivery-address form on the checkout page itself
+ * — no detour to /profile/addresses, no modal. The buyer types the
+ * address fresh each checkout (or pre-fills from sessionStorage via
+ * the InlineDeliveryAddressForm's "Use last delivery" button).
+ *
+ * The submitted address is later snapshotted into
+ * `Order.delivery_address_snapshot` JSONB by useSequentialCheckout
+ * post-fund via setOrderDeliverySnapshotInline.
+ *
+ * The J11.7 AddressSelectorList + AddressFormModal pieces stay in
+ * the codebase (used by the dormant /profile/addresses route, hidden
+ * behind NEXT_PUBLIC_ENABLE_ADDRESS_BOOK feature flag).
  */
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect } from "react";
 
-import { AddressFormModal } from "@/components/addresses/AddressFormModal";
-import { AddressSelectorList } from "@/components/addresses/AddressSelectorList";
-import { Button } from "@/components/ui/button";
-import { useAddresses } from "@/hooks/useAddresses";
+import {
+  InlineDeliveryAddressForm,
+  isInlineDeliveryFormReady,
+  type InlineDeliveryAddressData,
+} from "@/components/checkout/InlineDeliveryAddressForm";
 import { useBuyerCountry } from "@/hooks/useBuyerCountry";
-import type { DeliveryAddress } from "@/lib/addresses/api";
-import { countryName } from "@/lib/country";
 
 interface Props {
   wallet: string;
-  selectedId: string | null;
-  onSelectedChange: (id: string | null) => void;
-  /** Optional country guard ; when provided, the selected address must
+  value: InlineDeliveryAddressData;
+  onChange: (value: InlineDeliveryAddressData) => void;
+  /** Optional country guard ; when provided, the picked country must
    *  match. Pass the buyer's country (from useBuyerCountry) — V1 intra
-   *  scope means seller country == buyer country == address country. */
+   *  scope means seller country == buyer country == address country
+   *  (ADR-045). */
   expectedCountry?: string | null;
 }
 
 export function CheckoutDeliveryAddressStep({
   wallet,
-  selectedId,
-  onSelectedChange,
+  value,
+  onChange,
   expectedCountry,
 }: Props) {
-  const addresses = useAddresses({ wallet });
   const buyerCountryQuery = useBuyerCountry({ wallet });
-  const items = useMemo(() => addresses.data?.items ?? [], [addresses.data]);
-  const [modalOpen, setModalOpen] = useState(false);
-
-  // Auto-pick default on first load if nothing picked yet.
-  useEffect(() => {
-    if (selectedId !== null) return;
-    if (items.length === 0) return;
-    const def = items.find((a) => a.is_default) ?? items[0];
-    onSelectedChange(def.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, selectedId]);
-
-  const selected: DeliveryAddress | null = useMemo(() => {
-    if (selectedId === null) return null;
-    return items.find((a) => a.id === selectedId) ?? null;
-  }, [items, selectedId]);
-
-  const buyerCountry =
+  const defaultCountry =
     expectedCountry ?? buyerCountryQuery.data?.country ?? null;
-  const countryMismatch =
-    selected !== null &&
-    buyerCountry !== null &&
-    selected.country !== buyerCountry;
+
+  // Pre-fill country from buyer profile on first mount if the form is
+  // empty AND no sessionStorage entry exists. The form's own
+  // useEffect handles the sessionStorage path ; here we only act when
+  // the form's country is still empty AFTER its own initialization.
+  useEffect(() => {
+    if (!defaultCountry) return;
+    if (value.country) return;
+    onChange({ ...value, country: defaultCountry });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [defaultCountry]);
 
   return (
     <section
       data-testid="checkout-delivery-step"
       className="rounded-md border border-neutral-200 bg-neutral-50 p-4"
     >
-      <header className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-base font-medium">Delivery address</h2>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => setModalOpen(true)}
-          data-testid="checkout-add-address"
-          className="min-h-[44px]"
-        >
-          {items.length === 0 ? "Add address" : "Add new"}
-        </Button>
-      </header>
-
-      {addresses.isLoading ? (
-        <p
-          className="text-sm text-neutral-600"
-          data-testid="checkout-delivery-loading"
-        >
-          Loading saved addresses…
-        </p>
-      ) : addresses.isError ? (
-        <p
-          role="alert"
-          className="text-sm text-red-700"
-          data-testid="checkout-delivery-error"
-        >
-          Could not load your addresses. Add a new one to continue.
-        </p>
-      ) : items.length === 0 ? (
-        <div
-          data-testid="checkout-delivery-empty"
-          className="rounded-md bg-white p-3 text-sm text-neutral-700"
-        >
-          No saved addresses. Add one to continue checkout.
-        </div>
-      ) : (
-        <AddressSelectorList
-          addresses={items}
-          selectedId={selectedId}
-          onSelect={onSelectedChange}
-        />
-      )}
-
-      {countryMismatch ? (
-        <p
-          role="alert"
-          data-testid="checkout-country-mismatch"
-          className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900"
-        >
-          This seller delivers only in {countryName(buyerCountry)}. Pick or
-          add a {countryName(buyerCountry)} address to continue.
-        </p>
-      ) : null}
-
-      <AddressFormModal
-        open={modalOpen}
-        onOpenChange={setModalOpen}
-        wallet={wallet}
-        onSaved={(addr) => onSelectedChange(addr.id)}
+      <InlineDeliveryAddressForm
+        value={value}
+        onChange={onChange}
+        defaultCountry={defaultCountry}
+        expectedCountry={expectedCountry}
       />
     </section>
   );
 }
 
 /**
- * Helper for parents to know whether the picker's current state is
- * fundable (selected + country matches).
+ * Helper for parents to know whether the inline form is fundable.
+ * Mirrors the older `isCheckoutAddressReady` API so the CheckoutFlow
+ * gate code path stays simple.
  */
 export function isCheckoutAddressReady({
-  selectedId,
-  selectedCountry,
+  formData,
   expectedCountry,
 }: {
-  selectedId: string | null;
-  selectedCountry: string | null | undefined;
+  formData: InlineDeliveryAddressData;
   expectedCountry: string | null | undefined;
 }): boolean {
-  if (!selectedId) return false;
-  if (
-    expectedCountry &&
-    selectedCountry &&
-    selectedCountry !== expectedCountry
-  ) {
-    return false;
-  }
-  return true;
+  return isInlineDeliveryFormReady(formData, expectedCountry);
 }

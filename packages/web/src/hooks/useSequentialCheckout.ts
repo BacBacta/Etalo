@@ -12,7 +12,11 @@ import {
   classifyError,
   parseOrderIdFromLog,
 } from "@/lib/checkout-orchestration";
-import { setOrderDeliverySnapshot } from "@/lib/orders/snapshot-api";
+import {
+  persistInlineDeliveryToSession,
+  type InlineDeliveryAddressData,
+} from "@/components/checkout/InlineDeliveryAddressForm";
+import { setOrderDeliverySnapshotInline } from "@/lib/orders/snapshot-api";
 
 // MiniPay rejects EIP-1559 (CLAUDE.md rule 3). Every writeContract below
 // passes `type: "legacy" as const` inline so wagmi v2's strict generic
@@ -77,16 +81,20 @@ function expandItemPrices(
 }
 
 export interface UseSequentialCheckoutArgs {
-  /** Required pre-flight selection — checkout idle phase blocks until
-   *  the buyer picks a delivery address. The id is sent to the backend
-   *  PATCH endpoint after each successful fund so the order carries an
-   *  immutable snapshot of the address. */
-  deliveryAddressId: string | null;
+  /** ADR-050 — buyer fills the delivery form inline at checkout. The
+   *  full address is sent to the backend `/delivery-address-inline`
+   *  PATCH endpoint after each successful fund so the order carries
+   *  an immutable snapshot. Pass `null` until the form is fully
+   *  filled (parent enforces via `isCheckoutAddressReady`).
+   */
+  deliveryFormData: InlineDeliveryAddressData | null;
 }
 
 export function useSequentialCheckout(
   cart: ResolvedCart,
-  { deliveryAddressId }: UseSequentialCheckoutArgs = { deliveryAddressId: null },
+  { deliveryFormData }: UseSequentialCheckoutArgs = {
+    deliveryFormData: null,
+  },
 ) {
   const { address: buyer } = useAccount();
   const { data: walletClient } = useWalletClient();
@@ -279,19 +287,21 @@ export function useSequentialCheckout(
             throw new Error("Fund transaction reverted.");
           }
 
-          // Snapshot the picked delivery address into the freshly-funded
-          // order (ADR-044, J11.7 Block 7). Best-effort : a failure here
-          // does NOT mark the seller as error — the on-chain tx already
-          // succeeded and the snapshot can be re-set from the order
-          // detail page later. We still log to the console for ops
-          // visibility.
-          if (deliveryAddressId && orderId !== undefined && buyer) {
+          // Snapshot the inline-typed delivery address into the freshly-
+          // funded order (ADR-050). Best-effort : a failure here does NOT
+          // mark the seller as error — the on-chain tx already succeeded
+          // and the snapshot can be re-set from the order detail page
+          // later. We still log to the console for ops visibility. On
+          // success, persist the form to sessionStorage so the buyer
+          // doesn't retype if they checkout twice in the same session.
+          if (deliveryFormData && orderId !== undefined && buyer) {
             try {
-              await setOrderDeliverySnapshot({
+              await setOrderDeliverySnapshotInline({
                 walletAddress: buyer,
                 onchainOrderId: orderId,
-                addressId: deliveryAddressId,
+                ...deliveryFormData,
               });
+              persistInlineDeliveryToSession(deliveryFormData);
             } catch (snapErr) {
               // eslint-disable-next-line no-console
               console.warn(
@@ -325,7 +335,7 @@ export function useSequentialCheckout(
     buyer,
     publicClient,
     cart,
-    deliveryAddressId,
+    deliveryFormData,
     updateSeller,
     finalizePhase,
     markRemainingCanceled,
