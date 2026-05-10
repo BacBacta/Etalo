@@ -231,6 +231,40 @@ Code dormant V1.5+ (committé mais non exposé en V1) :
 - short_links system + `/r/{code}` endpoint
 - MarketingTab UI complète
 
+**Sprint enchaîné (2026-05-10) : J12-pre — pivot inline delivery
+checkout (ADR-050, supersedes ADR-044)**
+
+L'address-book pattern J11.7 (carnet d'adresses à `/profile/addresses`)
+introduit trop de friction pour des acheteurs occasionnels africains
+(3 context-switches avant paiement). De plus, `recipient_name` manquait
+au modèle `delivery_addresses` — les couriers africains refusent les
+colis sans nom destinataire.
+
+Pivot V1 : **form de delivery address inline au checkout**, snapshot
+direct dans `Order.delivery_address_snapshot` JSONB, pas de
+`delivery_addresses` row créée. Adapté contexte africain : recipient_name
++ area (neighborhood/estate) en plus des fields J11.7, labels région
+dynamiques par pays (State NGA / County KEN / Region GHA).
+
+Livrables V1 pivot inline checkout :
+- Backend : `PATCH /api/v1/orders/by-onchain-id/{id}/delivery-address-inline`
+  acceptant le snapshot complet en body (vs `address_id` reference de
+  J11.7). Validation : recipient_name + area required, country in
+  {NGA, GHA, KEN}.
+- Frontend : `InlineDeliveryAddressForm.tsx` (nouveau), refactor de
+  `CheckoutDeliveryAddressStep.tsx` (remplace AddressSelectorList +
+  AddressFormModal), `OrderDeliveryAddressCard.tsx` mise à jour pour
+  render recipient_name + area + null-safe sur snapshots legacy.
+- Frontend : `/profile/addresses` cachée derrière feature flag
+  `NEXT_PUBLIC_ENABLE_ADDRESS_BOOK=false` (default V1).
+- sessionStorage pre-fill du last-used inline (pas de backend storage).
+- Pas de migration DB — JSONB accepte les nouvelles clés.
+
+Code dormant V1.5+ :
+- AddressBookPage + AddressFormModal + AddressSelectorList
+- `delivery_addresses` table (rows existantes preserved, no new rows)
+- `/api/v1/me/addresses` CRUD endpoints
+
 Sprint précédent (mergé) : `feat/seller-orders-pick-list-deadline`
 — refonte UX du dashboard vendeur orders au-dessus de PR #25.
 Scope, post J11.7 follow-up (commit 2026-05-07) :

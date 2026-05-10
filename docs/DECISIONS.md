@@ -2992,3 +2992,162 @@ The smart contract `USDT_PER_CREDIT = 150_000` is unchanged
   birefnet+composite helper is the V1 workhorse)
 - `packages/web/src/components/seller/AddProductForm.tsx` (where
   the new "Enhance photo · 1 credit" button lands)
+
+---
+
+## ADR-050 — Inline delivery-address capture at checkout (supersedes ADR-044 address-book pattern)
+
+**Status :** Accepted · 2026-05-10
+
+### Context
+
+ADR-044 / Sprint J11.7 shipped a structured delivery-address feature
+using an **address-book pattern** : buyers manage addresses in a
+dedicated `/profile/addresses` route, and the checkout flow renders an
+`AddressSelectorList` over the saved entries with an "Add new" modal
+fallback. Once the on-chain `fundOrder` succeeds, the picked address
+is snapshotted into `Order.delivery_address_snapshot` (JSONB) so the
+seller has an immutable shipping target.
+
+That flow was modeled on Amazon / Shein where buyers shop repeatedly
+and benefit from a saved address book. Two issues surface against the
+Etalo target user :
+
+- **First-purchase friction.** A new buyer hitting the checkout for
+  the first time has to navigate to `/profile/addresses`, fill a form,
+  return to the cart — three context switches before they can pay.
+  The MiniPay launch UX should be paste-checkout-pay, not
+  paste-checkout-pause-fill-resume.
+- **Wrong fit for occasional buyers.** Most early-V1 buyers will hit
+  Etalo through a single seller's WhatsApp share, buy once, and may
+  not return for weeks. The address-book persistence is overhead they
+  never benefit from.
+- **`recipient_name` was missing.** ADR-044's `delivery_addresses`
+  schema captured phone / country / city / region / address_line /
+  landmark / notes — but no recipient name. African couriers refuse
+  packages without a named recipient on the label, so the seller had
+  the address but not enough to actually ship.
+
+### Decision
+
+Pivot to **inline delivery-address capture at the checkout page**,
+with the address typed fresh each checkout (or pre-filled from the
+buyer's last order via `sessionStorage`). The `delivery_addresses`
+table stops being the source of truth ; `Order.delivery_address_snapshot`
+JSONB is the only shipping data sellers ever read.
+
+1. **New backend endpoint** `PATCH /api/v1/orders/by-onchain-id/{id}/
+   delivery-address-inline` accepting the full address as a JSON body
+   instead of an `address_id` reference. Validates required fields
+   (recipient_name, phone_number, country, region, city, area,
+   address_line) + country in {NGA, GHA, KEN}. Writes directly to
+   the snapshot column without creating a `delivery_addresses` row.
+2. **Address book UI hidden behind feature flag**
+   `NEXT_PUBLIC_ENABLE_ADDRESS_BOOK` (default `false` in V1, same
+   pattern as ADR-049's `NEXT_PUBLIC_ENABLE_MARKETING_TAB`).
+   `/profile/addresses` route + `AddressBookPage` + the older
+   address-book CRUD endpoints stay in the repo for a possible
+   V1.5+ reactivation but do not render in V1 nav.
+3. **`CheckoutDeliveryAddressStep` refactored** to render an
+   `InlineDeliveryAddressForm` instead of `AddressSelectorList +
+   AddressFormModal`. The form includes the missing `recipient_name`
+   plus a new `area` (neighborhood / estate) field, both required.
+4. **Per-country dynamic UI labels** : "State" (NGA), "County" (KEN),
+   "Region" (GHA) for the same `region` field — no schema change,
+   just frontend `REGION_LABEL_BY_COUNTRY` map.
+5. **`sessionStorage` last-used pre-fill** : persists the last
+   submitted form for the duration of the browser session. A
+   "Use last delivery address" button restores it. No backend
+   storage — the buyer's data leaves nothing behind on the server
+   except the order snapshot.
+6. **`OrderDeliveryAddressCard` updated** to render the new
+   `recipient_name` (bold, top of card) and `area` (between city and
+   address_line). Existing snapshots without these fields display a
+   "Recipient name not provided — coordinate via WhatsApp" notice.
+
+### Snapshot JSON schema (post-ADR-050)
+
+```json
+{
+  "recipient_name": "string",      // NEW required
+  "phone_number": "string",         // existing
+  "country": "string",              // existing (NGA/GHA/KEN)
+  "region": "string",               // existing — UI label varies per country
+  "city": "string",                 // existing
+  "area": "string",                 // NEW required (neighborhood / estate)
+  "address_line": "string",         // existing (free-form, encourages landmarks)
+  "landmark": "string | null",      // existing optional
+  "notes": "string | null"          // existing optional (delivery instructions)
+}
+```
+
+`Order.delivery_address_snapshot` JSONB column stores this verbatim.
+Migration of existing pre-ADR-050 snapshots is **null-safe** : the
+frontend tolerates missing `recipient_name` / `area` keys and renders
+the WhatsApp coordination prompt instead of crashing.
+
+### Consequences
+
+- **Time-to-purchase drops dramatically.** First-time buyers go from
+  cart → fill 8 fields inline → fund tx → done. No tab-hopping, no
+  modal, no navigation away.
+- **Shipping operations unblocked.** Sellers see a recipient name
+  (label requirement) + area (delivery district) in addition to the
+  J11.7 fields. WhatsApp deeplink remains the primary post-fund
+  coordination channel.
+- **Address book route deprecated, not deleted.** Same ADR-049 pattern
+  — code stays in repo, UI hidden behind feature flag, V1.5+ can
+  reactivate as a power-user feature once the inline flow is proven.
+- **DB surface area shrinks.** No new `delivery_addresses` rows
+  created from checkouts ; the table only contains pre-ADR-050 legacy
+  rows. Eventually deletable in a V1.5+ cleanup migration.
+- **Privacy posture improves.** No persistent server-side address
+  data per buyer — only what's bound to the specific order they paid
+  for. Lower data-protection surface for compliance.
+
+### Alternatives considered
+
+- **Hybrid (keep address book + add inline form).** Rejected for V1 —
+  doubles the surface area we test, doubles the docs, dilutes the
+  "what does Etalo ask buyers to do at checkout" pitch. V1.5+ can
+  layer the address book back on top.
+- **Inline form that ALSO writes to `delivery_addresses` so future
+  checkouts pre-fill from server.** Rejected for V1 — the
+  `sessionStorage` pre-fill is enough for the within-session UX, and
+  adding server-side persistence brings back the address-book schema
+  + privacy concerns we're trying to drop.
+- **Mandatory address-book usage with a redirect from checkout.**
+  Rejected — that's the J11.7 status quo, which is exactly what we're
+  pivoting away from.
+
+### Migration notes (deploy day)
+
+- Feature flag `NEXT_PUBLIC_ENABLE_ADDRESS_BOOK=false` set in Vercel
+  env. Change to `true` to revert UI exposure for testing or V1.5
+  phased rollout.
+- No DB migration required — `Order.delivery_address_snapshot` JSONB
+  already accepts arbitrary keys. New keys (`recipient_name`, `area`)
+  appear in new snapshots ; old snapshots stay valid (frontend
+  null-safe).
+- The old address-book endpoints (`GET/POST/PATCH/DELETE
+  /api/v1/me/addresses`) remain mounted but unused by V1 UI. Direct
+  `curl` access still works for V1.5 reactivation testing.
+- `OrderDeliveryAddressCard` post-deploy renders pre-ADR-050 snapshots
+  with the WhatsApp coordination prompt where `recipient_name` is
+  missing. Sellers handle these legacy orders via WhatsApp until they
+  age out.
+
+### References
+
+- ADR-044 (address-book pattern, **superseded** by this ADR for V1)
+- ADR-045 (geo filters / cross-border block — unchanged, still
+  enforced at cart-token time)
+- ADR-049 (feature-flag pattern reused — `NEXT_PUBLIC_ENABLE_*`)
+- `packages/backend/app/routers/orders.py` (new
+  `/delivery-address-inline` endpoint)
+- `packages/web/src/components/checkout/CheckoutDeliveryAddressStep.tsx`
+  (refactored from picker to inline form)
+- `packages/web/src/components/checkout/InlineDeliveryAddressForm.tsx`
+  (new — the form itself)
+- `packages/web/src/components/orders/OrderDeliveryAddressCard.tsx`
+  (renders `recipient_name` + `area` with null-safe fallbacks)
