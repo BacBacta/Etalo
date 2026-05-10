@@ -32,6 +32,7 @@ import base64
 import hashlib
 import logging
 import sys
+import time
 from io import BytesIO
 from pathlib import Path
 from typing import Literal, TypedDict
@@ -94,14 +95,21 @@ REMBG_TIMEOUT_SECONDS = 60.0
 # isn't flush against the rounded-corner border of the template.
 ISOLATE_MARGIN = 0.05
 
-# Composite output is 3× the template slot dimensions. Playwright /
-# browser downscales it to the slot at render time, which preserves
-# source photo detail far better than letting Pillow downscale a
-# multi-megapixel phone shot directly to 920x920 (Lanczos was
-# blurring fine details on a Dreame vacuum live test). PNG of a
-# product on a mostly-white canvas compresses well, so the data:
-# URL stays under a few hundred KB even at 3×.
-COMPOSITE_OUTPUT_SCALE = 3
+# Composite output is 2× the template slot dimensions. The browser
+# downscales it to the slot at render time, which preserves source
+# photo detail far better than letting Pillow downscale a multi-
+# megapixel phone shot directly to 920x920 (Lanczos blurred fine
+# details on a Dreame vacuum live test). 2× is the sweet spot for
+# retina displays — 3× was blowing the data URL to 1.5 MB and Playwright
+# spent ~25s parsing it before rendering.
+COMPOSITE_OUTPUT_SCALE = 2
+
+# Max longest-side of the seller's source photo before we send it to
+# birefnet. Phone shots are routinely 12+ MP (3000x4000) which makes
+# birefnet ~3× slower than necessary, balloons the transparent PNG it
+# returns, and slows Pillow's downstream resize. 2048 is plenty for
+# clean segmentation of a centered product on a plain background.
+MAX_SOURCE_DIM_FOR_ISOLATION = 2048
 
 
 class AssetGenerationResult(TypedDict):
@@ -210,21 +218,47 @@ async def _pin_with_dev_fallback(content: bytes, filename: str) -> str:
     return await ipfs_service.upload_image(content, filename)
 
 
+def _resize_for_isolation(src_bytes: bytes) -> bytes:
+    """Downscale the seller's photo to MAX_SOURCE_DIM_FOR_ISOLATION on
+    its longest side and re-encode as JPEG. Phone photos are routinely
+    12+ MP; birefnet doesn't need that to segment a product cleanly,
+    and the smaller payload speeds up upload + processing + the
+    transparent PNG download afterwards. Q=92 is visually lossless on
+    a centered product. RGBA/P sources are flattened — JPEG can't carry
+    alpha and we don't need it pre-segmentation.
+    """
+    from PIL import Image
+
+    im = Image.open(BytesIO(src_bytes))
+    if im.mode in ("RGBA", "LA", "P"):
+        im = im.convert("RGB")
+    w, h = im.size
+    if max(w, h) > MAX_SOURCE_DIM_FOR_ISOLATION:
+        scale = MAX_SOURCE_DIM_FOR_ISOLATION / max(w, h)
+        im = im.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+    buf = BytesIO()
+    im.save(buf, format="JPEG", quality=92, optimize=True)
+    return buf.getvalue()
+
+
 async def _render_via_clean_isolate(
     image_url: str,
     template: TemplateKey,
 ) -> bytes:
     """Surgical bg-removal pipeline (ADR-048).
 
-    1. Send the seller's product photo to fal.ai birefnet/v2 — a
+    1. Download the seller's photo and downscale to <=2048px on its
+       longest side before sending to fal.ai — see `_resize_for_isolation`
+       for why (12 MP phone shots make every step ~3× slower).
+    2. Send the resized image as a data: URL to fal.ai birefnet/v2 — a
        segmentation model that returns the product on a transparent
-       canvas without modifying the product itself (key : preserves
-       brand text, logos, colors, textures pixel-near-perfect, unlike
+       canvas without modifying the product itself (preserves brand
+       text, logos, colors, textures pixel-near-perfect, unlike
        generative restagers like Flux Kontext that smooth the same).
-    2. Composite the transparent product on a pure white canvas
+    3. Composite the transparent product on a pure white canvas
        sized to the template's image slot, with a 5 % margin so the
        subject doesn't crowd the slot's rounded-corner border.
-    3. Return the white PNG as bytes ; the caller drops it into the
+    4. Return the white PNG as bytes ; the caller drops it into the
        Playwright HTML template via a base64 data: URL.
 
     Cost : ~$0.001 per call (vs $0.04-0.045 for Flux Kontext).
@@ -234,9 +268,27 @@ async def _render_via_clean_isolate(
 
     logger.info("Clean-isolate call : template=%s", template)
 
+    t = time.monotonic()
+    async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
+        resp = await client.get(image_url)
+        resp.raise_for_status()
+        src_bytes = resp.content
+    resized_bytes = await asyncio.to_thread(_resize_for_isolation, src_bytes)
+    src_data_url = (
+        f"data:image/jpeg;base64,"
+        f"{base64.b64encode(resized_bytes).decode('ascii')}"
+    )
+    logger.info(
+        "step.resize: %d KB → %d KB in %.2fs",
+        len(src_bytes) // 1024,
+        len(resized_bytes) // 1024,
+        time.monotonic() - t,
+    )
+
+    t = time.monotonic()
     handler = await fal_client.subscribe_async(
         REMBG_MODEL_ID,
-        arguments={"image_url": image_url},
+        arguments={"image_url": src_data_url},
     )
     image = handler.get("image")
     if not image or "url" not in image:
@@ -249,10 +301,14 @@ async def _render_via_clean_isolate(
         resp = await client.get(transparent_url)
         resp.raise_for_status()
         transparent_bytes = resp.content
+    logger.info("step.birefnet: %.2fs", time.monotonic() - t)
 
-    return await asyncio.to_thread(
+    t = time.monotonic()
+    composite = await asyncio.to_thread(
         _composite_on_white, transparent_bytes, template
     )
+    logger.info("step.composite: %.2fs", time.monotonic() - t)
+    return composite
 
 
 def _composite_on_white(
@@ -344,6 +400,31 @@ def _auto_correct_rgba(src):
     return Image.merge("RGBA", (r2, g2, b2, a))
 
 
+async def _generate_caption_safe(
+    product: Product,
+    seller_handle: str,
+    caption_lang: CaptionLang,
+) -> str:
+    """generate_caption + the title/price fallback in one place so it
+    can run as an asyncio task in parallel with image rendering."""
+    try:
+        return await generate_caption(
+            title=product.title,
+            price_usdt=f"{product.price_usdt:.2f}",
+            description=product.description,
+            seller_handle=seller_handle,
+            country=product.seller.user.country or "AFR",
+            lang=caption_lang,
+        )
+    except CaptionGenerationError as exc:
+        logger.warning(
+            "Caption generation failed for product %s — falling back: %s",
+            product.id,
+            exc,
+        )
+        return f"{product.title} — {product.price_usdt} USDT @{seller_handle}"
+
+
 async def generate_marketing_image(
     product_id: UUID,
     template: TemplateKey,
@@ -353,12 +434,16 @@ async def generate_marketing_image(
     """Generate a marketing image + caption for a seller's product.
 
     Pipeline:
-    1. Fetch product + seller (eager-load chain for shop_handle + image)
-    2. Build template vars (product image gateway URL, title, price,
-       handle, QR data URL pointing at the public boutique product page)
-    3. Render template HTML through Playwright -> PNG bytes
-    4. Pin PNG to IPFS (Pinata) — falls back to QmDev... stub locally
-    5. Caption is stubbed — Block 4 wires Claude API
+    1. Fetch product + seller (eager-load chain for shop_handle + image).
+    2. Kick off caption gen as an asyncio task — it has no dependency
+       on the image pipeline and runs in parallel with the rendering
+       work below (~2-3 s saved on the wall clock).
+    3. Clean-isolate via fal.ai birefnet/v2 → composite on white.
+    4. Render the template HTML with the cleaned product as a base64
+       data: URL (Playwright).
+    5. Pin the final PNG to IPFS (Pinata) — falls back to QmDev... stub
+       locally.
+    6. Await the caption task and return.
     """
     stmt = (
         select(Product)
@@ -376,6 +461,11 @@ async def generate_marketing_image(
     )
     seller_handle = product.seller.shop_handle.lower()
 
+    overall_start = time.monotonic()
+    caption_task = asyncio.create_task(
+        _generate_caption_safe(product, seller_handle, caption_lang)
+    )
+
     # ADR-048 clean-isolate pipeline :
     #   1. fal.ai birefnet/v2 removes the bg from the seller's photo
     #      (transparent PNG, product preserved 100 % — text, logos,
@@ -392,8 +482,12 @@ async def generate_marketing_image(
     image_for_template = primary_image_url
     if settings.fal_key:
         try:
+            t = time.monotonic()
             isolated_png_bytes = await _render_via_clean_isolate(
                 primary_image_url, template
+            )
+            logger.info(
+                "step.clean_isolate_total: %.2fs", time.monotonic() - t
             )
             # data: URL keeps the round-trip in-process. Playwright
             # honors data: schemes natively.
@@ -406,32 +500,27 @@ async def generate_marketing_image(
                 product.id,
             )
 
+    t = time.monotonic()
     png_bytes = await _render_template_to_png(
         template,
         _build_template_vars(product, image_for_template, seller_handle),
     )
+    logger.info("step.playwright: %.2fs", time.monotonic() - t)
 
+    t = time.monotonic()
     filename = f"marketing_{product.id}_{template}_{caption_lang}.png"
     ipfs_hash = await _pin_with_dev_fallback(png_bytes, filename)
+    logger.info("step.pinata: %.2fs", time.monotonic() - t)
 
-    try:
-        caption = await generate_caption(
-            title=product.title,
-            price_usdt=f"{product.price_usdt:.2f}",
-            description=product.description,
-            seller_handle=seller_handle,
-            country=product.seller.user.country or "AFR",
-            lang=caption_lang,
-        )
-    except CaptionGenerationError as exc:
-        logger.warning(
-            "Caption generation failed for product %s — falling back: %s",
-            product.id,
-            exc,
-        )
-        caption = (
-            f"{product.title} — {product.price_usdt} USDT @{seller_handle}"
-        )
+    t = time.monotonic()
+    caption = await caption_task
+    logger.info("step.caption_wait: %.2fs", time.monotonic() - t)
+
+    logger.info(
+        "generate_marketing_image total: %.2fs (template=%s)",
+        time.monotonic() - overall_start,
+        template,
+    )
 
     return AssetGenerationResult(
         ipfs_hash=ipfs_hash,
