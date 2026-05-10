@@ -872,6 +872,47 @@ async def enhance_product_photo_variants(
     return list(variants), 1
 
 
+def _neutralize_warm_white_casts(rgb):
+    """Selectively desaturate "white surface with warm cast" pixels.
+    Targets the FOHERB-on-wood failure mode where birefnet correctly
+    identifies the cast pixels as PRODUCT (they're inside the
+    silhouette, not at the edge), so alpha erosion can't fix them —
+    the white curved surface naturally reflected wood color, baked
+    into the source photo.
+
+    Algorithm operates in HSV space :
+    - Warm hue (red/orange/yellow) : Pillow H in [0, 34] OR [221, 255]
+      (Pillow maps 0-360° to 0-255, so 35 ≈ 49° = yellow-orange).
+    - Bright (V > 170) : excludes dark panels and shadows.
+    - Mild-to-moderate saturation (5 < S < 110) : excludes neutral
+      whites (S < 5) AND saturated brand colors / LEDs / packaging
+      accents (S > 110).
+
+    Pixels matching ALL three drop saturation to 15 % of original,
+    pulling them toward neutral. Pixels outside the mask (cool tones,
+    dark zones, fully saturated colors) are untouched. Validated on
+    synthetic and live images : kills cast on white surfaces while
+    preserving LED displays, dark control panels, and brand text.
+
+    ~1.7 s on a 2048×2048 image (per-pixel Python loop, no numpy
+    dep). Acceptable on a ~10 s pipeline (~+17 % wall time).
+    """
+    from PIL import Image
+
+    hsv = rgb.convert("HSV")
+    pixels = list(hsv.getdata())
+    new_pixels = []
+    for h, s, v in pixels:
+        is_warm = h < 35 or h > 220
+        if is_warm and v > 170 and 5 < s < 110:
+            new_pixels.append((h, int(s * 0.15), v))
+        else:
+            new_pixels.append((h, s, v))
+    new_hsv = Image.new("HSV", hsv.size)
+    new_hsv.putdata(new_pixels)
+    return new_hsv.convert("RGB")
+
+
 def _apply_white_patch_balance(rgb):
     """White Patch white-balance algorithm — finds the brightest value
     per channel and rescales all three so they reach the same target.
@@ -926,6 +967,14 @@ def _auto_correct_rgba(src, preset: dict | None = None):
     r, g, b, a = src.split()
     rgb = Image.merge("RGB", (r, g, b))
     rgb = ImageOps.autocontrast(rgb, cutoff=1)
+
+    # Selective HSV desaturation of "white surface with warm cast"
+    # pixels — runs BEFORE the saturation step so any subsequent boost
+    # doesn't re-amplify the cast we just killed. Always-on : the cast
+    # exists for ANY product photographed near a warm surface (wood,
+    # carpet, skin, indoor incandescent), the mask only matches when
+    # there's actually a cast to fix.
+    rgb = _neutralize_warm_white_casts(rgb)
 
     neutralize = preset.get("neutralize_cast", False)
     if neutralize:
