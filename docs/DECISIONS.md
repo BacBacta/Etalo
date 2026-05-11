@@ -3151,3 +3151,143 @@ the WhatsApp coordination prompt instead of crashing.
   (new — the form itself)
 - `packages/web/src/components/orders/OrderDeliveryAddressCard.tsx`
   (renders `recipient_name` + `area` with null-safe fallbacks)
+
+---
+
+## ADR-051 — V1 funnel surface scope reduction (post-ADR-049 asset gen pivot)
+
+**Status :** Accepted · 2026-05-10
+
+### Context
+
+ADR-035 (April 2026) consolidated Etalo into a single Next.js app at
+`etalo.app` serving two surfaces : a **public funnel** (landing,
+seller boutiques, product detail pages, OG previews) and the **Mini
+App** (marketplace, cart, checkout, dashboard). The funnel's primary
+business case at the time was catching social-media inbound from
+sellers' AI-generated marketing assets — the 5-template marketing
+pack scoped in ADR-047 / ADR-048.
+
+ADR-049 (2026-05-10) deferred that 5-template marketing pack to
+V1.5+. The V1 asset generator now only does product photo enhancement
+(birefnet bg-removal + composite, integrated into the add-product
+flow). No marketing assets get generated, no short links get embedded
+in social-media posts.
+
+That removes **80 % of the funnel's V1 acquisition rationale**. What
+remains is :
+
+- **Manual seller sharing** : sellers still copy-paste
+  `etalo.app/myshop` into WhatsApp / IG bios. Critical V1 use case —
+  this IS how early-V1 sellers will share without an asset generator.
+- **OG link previews** : WhatsApp / IG / Telegram crawl shared URLs
+  for the preview card. Without rich OG, the share looks amateur.
+- **MiniPay Discover review** : the MiniPay submission team tests
+  the registered URL from their internal browsers. The URL must
+  render something coherent.
+- **Diaspora desktop browsing** : V2 scope, not V1.
+- **SEO Google long-term** : slow ramp, marginal V1 value.
+
+A frontend-surface audit (2026-05-10) confirmed the current
+implementation is already lean : public routes are 114-120 kB First
+Load (well under the 280 kB strict cap), `/[handle]` / `/[handle]/[slug]`
+have zero wallet imports, OG image routes are present and complete,
+and `/marketplace` is already MiniPay-gated client-side. The one
+unnecessary cost is the root layout wrapping every route in
+`WagmiProvider` + `CartHydrationGate` — about 12-18 kB of provider
+overhead leaking into the public funnel pages even though they
+don't use the wallet.
+
+### Decision
+
+Reduce the V1 funnel surface to the **minimum viable for manual
+sharing + OG previews + MiniPay submission review**. Strip the
+provider overhead that leaks from the Mini App surface into the
+public surface. Defer "marketplace public browse" expectations to
+V2 (currently already MiniPay-only ; nothing to change there).
+
+Concretely :
+
+1. **Route groups** — split `app/` into `(public)` and `(app)` :
+   - `(public)/` wraps : `/`, `/[handle]`, `/[handle]/[slug]`,
+     `/legal/*`, OG image routes. Layout = SSR-friendly, no wallet
+     providers, no cart hydration. Pure presentation.
+   - `(app)/` wraps : `/marketplace`, `/checkout`, `/orders/*`,
+     `/seller/dashboard`, `/profile/*`. Layout = wraps WagmiProvider
+     + CartHydrationGate. The Mini App stack lives here only.
+2. **CTA tightening** — public pages now show a primary "Open in
+   MiniPay" CTA that's the dominant action (since browse-in-Chrome
+   is no longer the goal). Existing page content kept ; CTA tone
+   shifts from "browse" to "open in MiniPay to buy".
+3. **No deletion of the funnel** — `/[handle]` and `/[handle]/[slug]`
+   stay, just lighter (no wallet code in their bundle). Manual
+   sharing keeps working.
+4. **OG image routes stay strong** — they're the carrier for the
+   share preview cards on WhatsApp / IG ; no slim-down.
+5. **MiniPay deeplink** — when a public visitor lands on a product
+   page and does have MiniPay installed, attempt a smart deeplink
+   (`window.location` redirect) so the experience converges into
+   the Mini App without a manual step.
+
+ADR-035's "two surfaces" architecture stays. This ADR only narrows
+the scope of the funnel surface and tightens its bundle isolation.
+
+### Consequences
+
+- **Public route bundles drop ~12-18 kB each** (wagmi + viem + cart
+  store overhead removed from the (public) layout). First Load on
+  `/`, `/[handle]`, `/[handle]/[slug]` should land near 100 kB.
+- **Cart drawer is no longer reachable from public surface** —
+  acceptable because the cart is a Mini App feature anyway. Public
+  visitors who want to buy must go through the "Open in MiniPay" CTA.
+- **No code deletion** — slim-down is structural (route groups +
+  layout split), not deletion. Re-expanding the funnel surface in
+  V1.5 (when marketing pack returns) is just moving a route group.
+- **Manual seller sharing keeps working** — the primary residual
+  acquisition path. WhatsApp link previews stay rich.
+- **MiniPay submission risk drops** — public URL still renders a
+  coherent boutique / product page for review.
+- **No new feature flag needed** — this is a structural refactor,
+  not a toggle.
+
+### Alternatives considered
+
+- **Pure Mini App only (drop funnel entirely).** Rejected — breaks
+  manual seller sharing (the primary residual acquisition path)
+  and risks MiniPay submission review. Loses OG previews. Saves
+  more bundle but kills critical V1 use cases.
+- **Status quo (ADR-035 unchanged).** Rejected — the wallet provider
+  overhead on public pages is dead weight given the asset gen
+  deferral. Free win to fix.
+- **Server-side MiniPay detection + redirect.** Rejected — adds an
+  HTTP round-trip on every public visit + breaks SSR/SEO
+  predictability. Client-side detect with progressive enhancement
+  (current pattern) is better.
+- **Add a "preview card only" minimal page.** Rejected — current
+  `/[handle]/[slug]` is already lean enough (120 kB) ; the gain
+  vs. risk of a UX regression isn't worth a separate code path.
+
+### Migration notes
+
+- Route group migration is mechanical : move existing `app/page.tsx`
+  to `app/(public)/page.tsx`, etc. No URL changes, no breaking
+  changes for shared links.
+- `app/(app)/layout.tsx` becomes the new home of `WagmiProvider`,
+  `CartHydrationGate`, and any other Mini App-only providers.
+- `app/(public)/layout.tsx` is minimal — just html/body + global
+  CSS + analytics if any. No state machinery.
+- Bundle expectations to verify post-migration via Vercel build
+  output : `/` should drop from 117 → ~100 kB ; `/[handle]` from
+  114 → ~98 kB ; `/[handle]/[slug]` from 120 → ~104 kB.
+
+### References
+
+- ADR-035 (single Next.js app, two surfaces — this ADR narrows the
+  funnel surface scope)
+- ADR-049 (asset generator pivot that removed the 5-template
+  marketing pack and thereby the funnel's primary acquisition
+  rationale)
+- `packages/web/src/app/` (route group migration target)
+- `packages/web/src/lib/minipay-detect.ts` (4-signal detection
+  helper, unchanged)
+- SPRINT_J11_7_CLOSURE.md bundle table (baseline measurements)
