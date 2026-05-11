@@ -1,22 +1,26 @@
 /**
- * OpenBoutiqueCTA — web-surface "Open my boutique" CTA.
+ * OpenBoutiqueCTA — web-surface "Open in MiniPay" CTA (ADR-051 V1
+ * funnel scope).
  *
- * Mirrors the HomeMiniPay seller CTA visually but routes web visitors
- * (no MiniPay) to a modal explaining MiniPay is required to manage a
- * boutique, with Get-MiniPay store fallbacks. Sellers reading on
- * desktop scan the QR-equivalent flow via the store links — no QR
- * here because the seller flow needs a wallet, which only exists in
- * the MiniPay app context (no point QR-launching a checkout token).
+ * Promoted from secondary to PRIMARY — post-ADR-049 (asset gen
+ * deferral) the marketing pack-driven inbound is gone, so the public
+ * funnel's job is to convert browse-on-web visitors into MiniPay
+ * users. This is THE primary CTA on the landing.
  *
- * Inside MiniPay, HomeRouter swaps to HomeMiniPay before this surface
- * mounts, so this component never renders for MiniPay users — the
- * modal contents focus solely on the web → install funnel.
+ * Behavior :
+ * - Click on web (no MiniPay context) → modal with Get MiniPay store
+ *   links (Play / App Store). Sellers AND buyers go through the same
+ *   path — install MiniPay first, then the next visit to etalo.app
+ *   inside MiniPay routes to /marketplace via HomeRouter.
+ * - Click in MiniPay (shouldn't happen — HomeRouter redirects MiniPay
+ *   visitors to /marketplace before this CTA renders) — opens the
+ *   same modal, harmless fallback.
  */
 "use client";
 
 import { useState } from "react";
 
-import { SECONDARY_CTA_CLASSES } from "@/components/home-cta-styles";
+import { PRIMARY_CTA_CLASSES } from "@/components/home-cta-styles";
 import {
   Dialog,
   DialogContent,
@@ -38,19 +42,20 @@ export function OpenBoutiqueCTA() {
         type="button"
         onClick={() => setOpen(true)}
         data-testid="landing-open-boutique"
-        className={SECONDARY_CTA_CLASSES}
+        className={PRIMARY_CTA_CLASSES}
       >
-        Open my boutique
+        Open in MiniPay
       </button>
 
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Open your boutique in MiniPay</DialogTitle>
+            <DialogTitle>Open Etalo in MiniPay</DialogTitle>
             <DialogDescription>
-              MiniPay handles your wallet, payments, and seller orders.
-              Install MiniPay to start your digital stall — Etalo opens
-              automatically inside the app.
+              Etalo runs inside MiniPay — your wallet, payments, and
+              orders all live there. Install MiniPay (free) and open
+              etalo.app from inside the app to browse the marketplace
+              and pay with USDT escrow.
             </DialogDescription>
           </DialogHeader>
 

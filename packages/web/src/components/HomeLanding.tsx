@@ -1,5 +1,5 @@
 import { FeaturedSellers } from "@/components/FeaturedSellers";
-import { PRIMARY_CTA_CLASSES } from "@/components/home-cta-styles";
+import { SECONDARY_CTA_CLASSES } from "@/components/home-cta-styles";
 import { OpenBoutiqueCTA } from "@/components/OpenBoutiqueCTA";
 import {
   CardDescriptionV4,
@@ -43,19 +43,28 @@ export function HomeLanding({ featuredSellers }: Props) {
               Welcome to Etalo
             </h1>
             <p className="mx-auto max-w-md font-sans text-body text-celo-dark/60 dark:text-celo-light/60">
-              Your digital stall, open 24/7. Pick a path to get started.
+              The non-custodial marketplace for African sellers. Pay in USDT,
+              get buyer protection, no middleman.
+            </p>
+            <p className="mx-auto max-w-md text-sm text-celo-dark/50 dark:text-celo-light/50">
+              Open Etalo from MiniPay to browse, buy, and sell.
             </p>
           </div>
 
+          {/* ADR-051 — primary CTA points at MiniPay (the actual
+              transactional surface) ; the secondary anchor still
+              scrolls down to the featured sellers preview so visitors
+              not yet on MiniPay can sample what's inside before
+              installing. */}
           <div className="flex w-full flex-col items-center gap-3 sm:flex-row sm:justify-center sm:gap-4">
+            <OpenBoutiqueCTA />
             <a
               href="#featured-sellers"
               data-testid="landing-browse-marketplace"
-              className={PRIMARY_CTA_CLASSES}
+              className={SECONDARY_CTA_CLASSES}
             >
-              Browse marketplace
+              See featured sellers
             </a>
-            <OpenBoutiqueCTA />
           </div>
         </div>
       </section>
