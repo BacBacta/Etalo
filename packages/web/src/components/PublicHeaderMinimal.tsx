@@ -1,11 +1,16 @@
 /**
- * PublicHeaderMinimal — ADR-051 (V1 funnel surface scope reduction).
+ * PublicHeaderMinimal — ADR-052 multi-wallet header.
  *
- * Lightweight header for the (public) route group : no wallet
- * (`wagmi.useAccount`), no cart (CartTrigger / CartDrawer). Just the
- * Etalo brand + theme toggle. Keeping the cart/wallet imports out of
- * this component is what lets the (public) layout shed ~12-18 kB
- * vs. the full PublicHeader used by the (app) route group.
+ * Header for the (public) route group : Etalo brand, theme toggle,
+ * AND a wallet connect control (ADR-052). The (public) layout now
+ * carries WagmiProvider so we can host ConnectWalletButton here ;
+ * inside MiniPay it auto-connects silently, on Chrome it shows
+ * "Connect wallet" or "Get MiniPay" depending on whether an
+ * injected provider exists.
+ *
+ * The wallet code that the ADR-051 lightweight header was avoiding
+ * now ships as part of the public surface — accepted trade-off per
+ * ADR-052 (full feature parity in Chrome).
  */
 "use client";
 
@@ -14,6 +19,7 @@ import { useTheme } from "next-themes";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { ButtonV4 } from "@/components/ui/v4/Button";
 
 const EtaloLogo = () => (
@@ -58,6 +64,7 @@ export function PublicHeaderMinimal() {
           </span>
         </Link>
         <div className="flex items-center gap-2">
+          <ConnectWalletButton />
           <ButtonV4
             variant="ghost"
             size="md"
