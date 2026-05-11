@@ -3291,3 +3291,170 @@ the scope of the funnel surface and tightens its bundle isolation.
 - `packages/web/src/lib/minipay-detect.ts` (4-signal detection
   helper, unchanged)
 - SPRINT_J11_7_CLOSURE.md bundle table (baseline measurements)
+
+---
+
+## ADR-052 — Multi-wallet support : Etalo accepts any Celo signer (refines ADR-035 + ADR-051)
+
+**Status :** Accepted · 2026-05-10
+
+### Context
+
+ADR-035 + ADR-051 positioned Etalo as a Mini App with a thin public
+funnel — the assumption was that buy-side transactions ALWAYS happen
+inside MiniPay (the only wallet that auto-injects on the relevant
+Opera browser). The public surface was lean by design : marketplace
+browse, cart, checkout, dashboard were all MiniPay-only routes.
+
+Live UX testing (2026-05-10) surfaced a strategic tension :
+
+- The visual delta between "Chrome opens the landing" and "MiniPay
+  opens the marketplace" feels jarring. Sellers sharing
+  `etalo.app/myshop` on WhatsApp send buyers to one experience ;
+  buyers who already have MiniPay see a different one.
+- Diaspora targeting (V2 scope per CLAUDE.md) needs desktop-friendly
+  checkout — a Cameroonian abroad wants to buy and ship to family
+  in Lagos. Without desktop wallet support, the diaspora flow
+  requires a phone with MiniPay installed, which doesn't fit the
+  diaspora purchase pattern.
+- Etalo's smart contracts (EtaloEscrow, EtaloCredits, etc.) don't
+  care about the wallet client — they validate `msg.sender` and
+  USDT approvals. The MiniPay-exclusive posture is a frontend
+  choice, not a contract constraint.
+
+An audit of `lib/wagmi-config.ts` confirmed the wagmi setup ALREADY
+ships with `injected()` as a fallback connector after the MiniPay
+connector. Desktop users with MetaMask / Rabby / any injected
+provider can technically already connect — there is just no UI to
+trigger the connection because the entire flow was gated on
+`detectMiniPay()`.
+
+### Decision
+
+Open the marketplace browse + checkout + dashboard surfaces to any
+Celo-compatible wallet, with MiniPay remaining the preferred path
+inside the MiniPay WebView. Etalo is repositioned as
+**"the Celo marketplace optimized for MiniPay"**, not **"the MiniPay
+marketplace"**.
+
+Concretely :
+
+1. **Visual UI uniformed across contexts** — the marketplace browse
+   that used to render only inside MiniPay now renders on Chrome
+   too (replaces the J11.7 / ADR-051 HomeLanding "Welcome" page on
+   the home route). Buyer browse experience is identical whether
+   accessed via Chrome, mobile Safari, or MiniPay WebView.
+2. **Wallet connection bifurcated by context** —
+   - In MiniPay WebView : auto-connect via `minipayConnector` (no
+     UI prompt, existing behavior).
+   - Anywhere else : explicit `ConnectWalletButton` in the public
+     header that triggers the `injected()` connector. Users with
+     no injected wallet get a hint to install Valora / MetaMask /
+     MiniPay.
+3. **WalletConnect deferred to Phase 2** — adds ~40-60 kB to the
+   bundle for the WalletConnect modal chain. Phase 1 (this ADR)
+   ships injected-only support, which covers MetaMask / Rabby /
+   Valora extension / any browser-injected wallet. Phase 2 layers
+   WalletConnect for mobile wallets via QR pairing once the
+   injected-only UX is validated.
+4. **ADR-051 route group isolation partially reverted** — `(public)`
+   layout now wraps `WagmiProvider` + `CartHydrationGate` again
+   because the public surface uses the cart + wallet hooks. The
+   bundle penalty (12-18 kB per public route) is accepted in
+   exchange for full feature parity. Bundle caps remain unchanged
+   (280 kB strict cap stays comfortable).
+5. **Routes stay structurally split** — `(public)` group still
+   exists, but the page rendered at `/` is now the marketplace
+   browse instead of the landing welcome. `/[handle]` /
+   `/[handle]/[slug]` / `/legal/*` are unchanged. `(app)` group
+   stays as the home of `marketplace`, `checkout`, `seller/dashboard`,
+   `orders/*`, `profile/*` — but those routes are now accessible
+   from Chrome too (with the `ConnectWalletButton` driving auth).
+6. **`detectMiniPay()` no longer gates rendering** — it stays as a
+   utility for context-aware UX (e.g. skip the "Connect Wallet"
+   button inside MiniPay since auto-connect handles it). No more
+   redirect-to-/ for non-MiniPay users on `/marketplace`,
+   `/checkout`, etc.
+
+### Consequences
+
+- **Acquisition unlocked** — sellers sharing `etalo.app/myshop` on
+  WhatsApp / IG / TikTok send buyers to a functional marketplace,
+  not a landing page. Same UX whether opened in Chrome or MiniPay.
+- **Diaspora targeting accessible** — V2 scope diaspora users can
+  buy from desktop today with MetaMask + Celo Sepolia. No need to
+  wait for V2 to start onboarding diaspora.
+- **Bundle weight grows** — public routes from ~100 kB (ADR-051) to
+  ~130 kB (wallet providers back in scope). Well under the 280 kB
+  strict cap.
+- **MiniPay UX unchanged** — inside MiniPay, the experience is
+  identical : auto-connect, marketplace, cart, checkout. No
+  regression. MiniPay Discover submission stays clean.
+- **Wallet provider matrix grows** — Phase 1 supports any injected
+  wallet (MetaMask, Rabby, Valora extension, Frame, etc.). Phase 2
+  layers WalletConnect for mobile wallets that don't have browser
+  extensions (Trust, Rainbow mobile, Valora mobile via QR).
+- **Positioning shift documented** — Etalo is no longer
+  "MiniPay-exclusive". The brand still emphasizes the MiniPay
+  experience but accepts that V1 sellers will share to non-MiniPay
+  audiences.
+
+### Alternatives considered
+
+- **Keep ADR-051 split** (revert this ADR). Rejected because the
+  visual jarring between Chrome landing and MiniPay marketplace
+  hurts conversion on every WhatsApp share link from now until
+  V1.5+ asset gen brings dedicated marketing pages back. ADR-051
+  was correct given ADR-049's marketing pack deferral, but it
+  optimized for the wrong constraint.
+- **RainbowKit / Web3Modal for the connect button.** Rejected for
+  Phase 1 — adds 40-80 kB of dependency for a UX win that's
+  marginal vs a custom 1-button injected-connector trigger. Phase
+  2 can adopt RainbowKit if we want a polished multi-wallet picker.
+- **WalletConnect from day one.** Rejected for Phase 1 — covers
+  a smaller user subset (mobile wallets without extensions) than
+  injected, costs 40-60 kB. Phase 2 once injected is validated.
+- **Force MiniPay UI on Chrome via UA spoof.** Rejected — buttons
+  that look like they work but fail is worse UX than a clean
+  "Connect Wallet" path.
+
+### Migration notes
+
+- `app/(public)/page.tsx` swap : render `MarketplaceBrowse` (shared
+  component) instead of `HomeLanding`. The HomeLanding component
+  stays in the repo for V1.5+ reactivation (when marketing pack
+  returns and we need a dedicated landing-for-asset-share again).
+- `Providers.tsx` : no change ; it already wraps both contexts.
+- Route group `(app)` layout stops gating on `detectMiniPay()` —
+  routes inside still work in MiniPay (auto-connect) and accept
+  desktop connections via the connect button.
+- `ConnectWalletButton.tsx` is the only new component (~80 lines).
+- No backend changes — order creation, snapshot endpoints, credits
+  contract calls all work with any wallet that holds USDT on Celo.
+
+### Phase 2 plan (deferred)
+
+When V1 has validated traction with injected-only :
+
+- Add `walletConnect()` connector to wagmi config.
+- Add a polished `ConnectWalletModal` (RainbowKit or custom).
+- Lazy-load the WalletConnect chain so MiniPay users never download
+  it.
+- Test mobile-wallet pairing flow (Trust, Rainbow, Valora mobile).
+- Likely 1 day of focused work + QA.
+
+### References
+
+- ADR-035 (single Next.js app, dual surfaces — preserved
+  architecturally, but the dual-surface UX delta is collapsed by
+  this ADR)
+- ADR-051 (funnel surface scope reduction — partially superseded :
+  the wallet provider isolation from `(public)` is reverted)
+- `packages/web/src/lib/wagmi-config.ts` (already includes
+  `injected()` as fallback ; no config change needed Phase 1)
+- `packages/web/src/lib/minipay-connector.ts` (priority connector,
+  unchanged)
+- `packages/web/src/components/Providers.tsx` (wraps everything,
+  unchanged)
+- `packages/web/src/components/ConnectWalletButton.tsx` (NEW Phase
+  1 — triggers `useConnect({ connector: injected() })`)
