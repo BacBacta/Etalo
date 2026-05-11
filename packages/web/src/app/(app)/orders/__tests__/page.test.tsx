@@ -9,7 +9,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import OrdersPage from "@/app/orders/page";
+import OrdersPage from "@/app/(app)/orders/page";
 import type { OrderResponse } from "@/lib/orders/state";
 
 const useMinipayMock = vi.hoisted(() => vi.fn());

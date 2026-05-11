@@ -1,7 +1,7 @@
 import { Suspense } from "react";
 
-import { DashboardSkeleton } from "@/app/seller/dashboard/DashboardSkeleton";
-import { SellerDashboardInner } from "@/app/seller/dashboard/SellerDashboardInner";
+import { DashboardSkeleton } from "@/app/(app)/seller/dashboard/DashboardSkeleton";
+import { SellerDashboardInner } from "@/app/(app)/seller/dashboard/SellerDashboardInner";
 
 export default function SellerDashboardPage() {
   return (

@@ -8,7 +8,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import OrderDetailPage from "@/app/orders/[id]/page";
+import OrderDetailPage from "@/app/(app)/orders/[id]/page";
 import { BuyerOrderNotFoundError } from "@/lib/orders/api";
 import type { OrderResponse } from "@/lib/orders/state";
 

@@ -17,7 +17,7 @@ import {
   PULL_TO_REFRESH_THRESHOLD_PX,
   PULL_VISUAL_CAP_PX,
   shouldTriggerRefreshOnRelease,
-} from "@/app/marketplace/pull-to-refresh";
+} from "@/app/(app)/marketplace/pull-to-refresh";
 import { CountryPromptBanner } from "@/components/CountryPromptBanner";
 import { MarketplaceGrid } from "@/components/MarketplaceGrid";
 import {

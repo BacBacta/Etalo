@@ -1,11 +1,19 @@
+/**
+ * Root layout — ADR-051 (V1 funnel surface scope reduction).
+ *
+ * Holds the bare minimum that needs to wrap EVERY route :
+ * - `<html>` / `<body>` with the typography font + base theme classes
+ * - `<SkipLink>` for keyboard nav (WCAG 2.4.1)
+ * - `<ToasterV4>` for app-wide sonner toast positioning
+ *
+ * Everything else (providers, header, footer, page transition) lives
+ * in the route-group layouts so the public funnel pages don't pull in
+ * wagmi / cart-store. See `(public)/layout.tsx` and `(app)/layout.tsx`.
+ */
 import type { Metadata } from "next";
 import localFont from "next/font/local";
 
 import "./globals.css";
-import { Footer } from "@/components/Footer";
-import { PageTransition } from "@/components/PageTransition";
-import { Providers } from "@/components/Providers";
-import { PublicHeader } from "@/components/PublicHeader";
 import { SkipLink } from "@/components/SkipLink";
 import { ToasterV4 } from "@/components/ui/v4/Toast";
 
@@ -48,19 +56,10 @@ export default function RootLayout({
   return (
     <html lang="en" className={switzer.variable} suppressHydrationWarning>
       <body className="min-h-screen bg-celo-light text-celo-dark antialiased dark:bg-celo-dark-bg dark:text-celo-light">
-        {/*
-          J10-V5 Phase 5 Angle E sub-block E.1.a — WCAG 2.4.1 Bypass
-          Blocks (Level A). Keyboard users can Tab once, hit Enter,
-          and skip past the PublicHeader nav directly to the page's
-          <main id="main"> element.
-        */}
+        {/* WCAG 2.4.1 Bypass Blocks — keyboard users skip to <main>. */}
         <SkipLink />
-        <Providers>
-          <PublicHeader />
-          <PageTransition>{children}</PageTransition>
-          <Footer />
-          <ToasterV4 position="bottom-center" />
-        </Providers>
+        {children}
+        <ToasterV4 position="bottom-center" />
       </body>
     </html>
   );

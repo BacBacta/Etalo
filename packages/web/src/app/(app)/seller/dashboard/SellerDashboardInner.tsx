@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
-import { DashboardSkeleton } from "@/app/seller/dashboard/DashboardSkeleton";
+import { DashboardSkeleton } from "@/app/(app)/seller/dashboard/DashboardSkeleton";
 import { MarketingTab } from "@/components/seller/MarketingTab";
 import { OnboardingWizard } from "@/components/seller/OnboardingWizard";
 import { OrdersTab } from "@/components/seller/OrdersTab";

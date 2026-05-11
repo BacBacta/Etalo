@@ -14,11 +14,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import MarketplacePage from "@/app/marketplace/page";
+import MarketplacePage from "@/app/(app)/marketplace/page";
 import {
   PULL_TO_REFRESH_THRESHOLD_PX,
   shouldTriggerRefreshOnRelease,
-} from "@/app/marketplace/pull-to-refresh";
+} from "@/app/(app)/marketplace/pull-to-refresh";
 import type { MarketplaceListResponse } from "@/lib/api";
 
 const useMarketplaceProductsMock = vi.fn();
