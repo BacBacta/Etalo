@@ -9,6 +9,7 @@ import { useAccount } from "wagmi";
 
 import { CartDrawer } from "@/components/CartDrawer";
 import { CartTrigger } from "@/components/CartTrigger";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { ButtonV4 } from "@/components/ui/v4/Button";
 import { cn } from "@/lib/utils";
 
@@ -68,7 +69,7 @@ export function PublicHeader() {
       <header className="sticky top-0 z-40 border-b border-celo-dark/[8%] bg-celo-light/80 backdrop-blur dark:border-celo-light/[8%] dark:bg-celo-dark-bg/80">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-3">
           <Link
-            href="/"
+            href="/marketplace"
             className="inline-flex items-center gap-2"
             aria-label="Etalo home"
           >
@@ -122,6 +123,11 @@ export function PublicHeader() {
               </Link>
             )}
             <CartTrigger onClick={() => setCartOpen(true)} />
+            {/* ADR-052 — wallet connect control. Auto-hides inside
+                MiniPay (the minipayConnector reconnects silently), shows
+                "Connect wallet" on Chrome/desktop with an injected
+                provider, "Get MiniPay" on devices without one. */}
+            <ConnectWalletButton />
           </div>
         </div>
       </header>

@@ -54,7 +54,7 @@ export function PublicHeaderMinimal() {
     <header className="sticky top-0 z-40 border-b border-celo-dark/[8%] bg-celo-light/80 backdrop-blur dark:border-celo-light/[8%] dark:bg-celo-dark-bg/80">
       <div className="mx-auto flex max-w-3xl items-center justify-between gap-2 px-4 py-3">
         <Link
-          href="/"
+          href="/marketplace"
           className="inline-flex items-center gap-2"
           aria-label="Etalo home"
         >
