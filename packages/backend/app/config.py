@@ -30,6 +30,10 @@ class Settings(BaseSettings):
 
     # CORS
     cors_origins: str = "http://localhost:3000,http://localhost:5173"
+    # Regex pattern matching additional allowed origins (Vercel preview /
+    # deployment-specific URLs like `etalo-<hash>-bactas-projects.vercel.app`).
+    # Empty string disables regex matching ; main.py treats "" as None.
+    cors_origin_regex: str = r"^https://etalo(-[a-z0-9-]+)?\.vercel\.app$"
 
     # Environment
     environment: str = "development"

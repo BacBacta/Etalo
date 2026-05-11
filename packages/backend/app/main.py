@@ -106,10 +106,14 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS
+    # CORS — allow explicit origins + a regex for Vercel preview /
+    # deployment-specific URLs (`etalo-<hash>-bactas-projects.vercel.app`).
+    # Without the regex, only the production alias `etalo.vercel.app` is
+    # accepted and every preview deploy is blocked by the browser.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origin_list,
+        allow_origin_regex=settings.cors_origin_regex or None,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
