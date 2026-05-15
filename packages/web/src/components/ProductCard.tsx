@@ -27,7 +27,7 @@ export function ProductCard({ product, handle, sellerShopName }: Props) {
           href={`/${handle}/${product.slug}`}
           className="block min-h-[44px] focus:outline-none focus:ring-2 focus:ring-celo-forest focus:ring-offset-2"
         >
-          <div className="relative aspect-square bg-neutral-100">
+          <div className="relative aspect-square bg-neutral-100 dark:bg-celo-dark-elevated">
             {product.primary_image_url ? (
               <Image
                 src={product.primary_image_url}
@@ -37,7 +37,7 @@ export function ProductCard({ product, handle, sellerShopName }: Props) {
                 className="object-cover"
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-neutral-400">
+              <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-celo-light/50">
                 No image
               </div>
             )}
@@ -48,10 +48,12 @@ export function ProductCard({ product, handle, sellerShopName }: Props) {
             ) : null}
           </div>
           <div className="p-3">
-            <h3 className="line-clamp-2 text-base font-medium">
+            <h3 className="line-clamp-2 text-base font-medium text-celo-dark dark:text-celo-light">
               {product.title}
             </h3>
-            <p className="mt-1 text-base font-semibold tabular-nums">{price} USDT</p>
+            <p className="mt-1 text-base font-semibold tabular-nums text-celo-dark dark:text-celo-light">
+              {price} USDT
+            </p>
           </div>
         </Link>
       </CardV4>

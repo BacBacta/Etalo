@@ -36,11 +36,13 @@ export function CheckoutErrorView({
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow">
-        <h1 className="mb-3 text-xl font-semibold">{title}</h1>
+      <div className="w-full max-w-md rounded-lg bg-white p-6 shadow dark:bg-celo-dark-elevated dark:shadow-none dark:ring-1 dark:ring-celo-light/10">
+        <h1 className="mb-3 text-xl font-semibold text-celo-dark dark:text-celo-light">
+          {title}
+        </h1>
 
         {globalError ? (
-          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-base text-red-800">
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-base text-red-800 dark:border-red-900/50 dark:bg-red-900/30 dark:text-red-200">
             {globalError}
           </div>
         ) : null}
@@ -59,11 +61,11 @@ export function CheckoutErrorView({
         <div className="space-y-2">
           <Link
             href="/"
-            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-md border border-neutral-300 px-6 text-base font-medium hover:bg-neutral-50"
+            className="inline-flex min-h-[44px] w-full items-center justify-center rounded-md border border-neutral-300 px-6 text-base font-medium text-celo-dark hover:bg-neutral-50 dark:border-celo-light/20 dark:text-celo-light dark:hover:bg-celo-dark-bg"
           >
             Back to Etalo
           </Link>
-          <p className="text-center text-sm text-neutral-500">
+          <p className="text-center text-sm text-neutral-500 dark:text-celo-light/60">
             Funded orders are protected by escrow and auto-refund if items
             don&apos;t ship.
           </p>

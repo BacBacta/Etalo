@@ -158,8 +158,8 @@ export function CartDrawer({ open, onOpenChange }: Props) {
           dragSnapToOrigin
           onDragEnd={handleDragEnd}
         >
-          <div className="border-b border-neutral-200 px-4 py-4">
-            <SheetV4Title className="text-lg">
+          <div className="border-b border-neutral-200 px-4 py-4 dark:border-celo-light/10">
+            <SheetV4Title className="text-lg text-celo-dark dark:text-celo-light">
               {itemCount > 0 ? `Your cart (${itemCount})` : "Your cart"}
             </SheetV4Title>
             <SheetV4Description className="sr-only">
@@ -169,10 +169,10 @@ export function CartDrawer({ open, onOpenChange }: Props) {
 
           {sellerCount === 0 ? (
             <div className="flex flex-1 flex-col items-center justify-center px-4 py-8 text-center">
-              <p className="mb-2 text-base text-neutral-700">
+              <p className="mb-2 text-base text-neutral-700 dark:text-celo-light/80">
                 Your cart is empty
               </p>
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-neutral-500 dark:text-celo-light/60">
                 Browse Etalo shops and add items to start a cart.
               </p>
             </div>
@@ -181,17 +181,17 @@ export function CartDrawer({ open, onOpenChange }: Props) {
               {sellerGroups.map((group) => (
                 <div
                   key={group.sellerHandle}
-                  className="border-b border-neutral-200 px-4 py-4"
+                  className="border-b border-neutral-200 px-4 py-4 dark:border-celo-light/10"
                 >
                   <div className="mb-3 flex items-baseline justify-between">
                     <Link
                       href={`/${group.sellerHandle}`}
                       onClick={closeDrawer}
-                      className="text-base font-semibold underline"
+                      className="text-base font-semibold text-celo-dark underline dark:text-celo-light"
                     >
                       {group.sellerShopName}
                     </Link>
-                    <span className="text-sm text-neutral-600 tabular-nums">
+                    <span className="text-sm text-neutral-600 tabular-nums dark:text-celo-light/70">
                       {group.subtotalUsdt.toFixed(2)} USDT
                     </span>
                   </div>
@@ -210,10 +210,12 @@ export function CartDrawer({ open, onOpenChange }: Props) {
           )}
 
           {sellerCount > 0 ? (
-            <div className="mt-auto flex flex-col gap-3 border-t border-neutral-200 px-4 py-4">
+            <div className="mt-auto flex flex-col gap-3 border-t border-neutral-200 px-4 py-4 dark:border-celo-light/10">
               <div className="flex w-full items-center justify-between">
-                <span className="text-base font-semibold">Total</span>
-                <span className="text-base font-semibold">
+                <span className="text-base font-semibold text-celo-dark dark:text-celo-light">
+                  Total
+                </span>
+                <span className="text-base font-semibold text-celo-dark dark:text-celo-light">
                   <AnimatedNumber
                     value={totalUsdt}
                     decimals={2}

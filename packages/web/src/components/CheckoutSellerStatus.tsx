@@ -38,23 +38,25 @@ function StatusIcon({ status }: { status: SellerExecution["status"] }) {
 export function CheckoutSellerStatus({ seller, isCurrent, chainId }: Props) {
   const isActive = isCurrent && (seller.status === "creating" || seller.status === "funding");
   const wrapperClass = isActive
-    ? "rounded-md border border-blue-300 bg-blue-50 p-3"
-    : "rounded-md border border-neutral-200 p-3";
+    ? "rounded-md border border-blue-300 bg-blue-50 p-3 dark:border-blue-700 dark:bg-blue-900/20"
+    : "rounded-md border border-neutral-200 p-3 dark:border-celo-light/20";
 
   return (
     <div className={wrapperClass}>
       <div className="flex items-center gap-3">
         <StatusIcon status={seller.status} />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-medium">
+          <p className="truncate text-base font-medium text-celo-dark dark:text-celo-light">
             {seller.sellerShopName}
           </p>
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-neutral-600 dark:text-celo-light/70">
             {STATUS_LABEL[seller.status]}
             {seller.orderId !== undefined ? ` · order #${seller.orderId.toString()}` : ""}
           </p>
           {seller.error ? (
-            <p className="mt-1 text-sm text-red-700">{seller.error}</p>
+            <p className="mt-1 text-sm text-red-700 dark:text-red-300">
+              {seller.error}
+            </p>
           ) : null}
         </div>
       </div>
@@ -66,7 +68,7 @@ export function CheckoutSellerStatus({ seller, isCurrent, chainId }: Props) {
               href={buildExplorerUrl(seller.createTxHash, chainId)}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-700 underline"
+              className="text-blue-700 underline dark:text-blue-300"
             >
               create {shortHash(seller.createTxHash)}
             </a>
@@ -76,7 +78,7 @@ export function CheckoutSellerStatus({ seller, isCurrent, chainId }: Props) {
               href={buildExplorerUrl(seller.fundTxHash, chainId)}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-blue-700 underline"
+              className="text-blue-700 underline dark:text-blue-300"
             >
               fund {shortHash(seller.fundTxHash)}
             </a>

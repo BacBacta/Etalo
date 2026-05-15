@@ -71,9 +71,9 @@ function PickListRow({ sku }: { sku: AggregatedSku }) {
   return (
     <li
       data-testid="pick-list-row"
-      className="flex items-start gap-3 rounded-md border border-neutral-200 p-3"
+      className="flex items-start gap-3 rounded-md border border-neutral-200 p-3 dark:border-celo-light/10"
     >
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-neutral-100">
+      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-neutral-100 dark:bg-celo-dark-elevated">
         {imageUrl ? (
           // Plain <img> avoids next/image domain config for a 48 px
           // thumbnail — bundle/perf cost is negligible at this size.
@@ -86,21 +86,21 @@ function PickListRow({ sku }: { sku: AggregatedSku }) {
           />
         ) : (
           <Package
-            className="h-6 w-6 text-neutral-400"
+            className="h-6 w-6 text-neutral-400 dark:text-celo-light/40"
             aria-hidden
           />
         )}
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="truncate text-base font-medium text-neutral-900">
+          <span className="truncate text-base font-medium text-neutral-900 dark:text-celo-light">
             {sku.title}
           </span>
-          <span className="flex-shrink-0 text-base font-semibold tabular-nums text-neutral-900">
+          <span className="flex-shrink-0 text-base font-semibold tabular-nums text-neutral-900 dark:text-celo-light">
             × {sku.totalQty}
           </span>
         </div>
-        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-neutral-600 tabular-nums">
+        <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-neutral-600 tabular-nums dark:text-celo-light/70">
           <span>{orderLabel}</span>
           {sku.earliestUrgency && sku.earliestMsRemaining !== null ? (
             <span

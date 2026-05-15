@@ -81,7 +81,7 @@ export function ProductPicker({ selected, onSelect }: Props) {
           const p = products.find((x) => x.id === e.target.value);
           if (p) onSelect(p);
         }}
-        className="min-h-[44px] w-full rounded-md border border-neutral-300 p-2 text-base"
+        className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light"
         data-testid="product-picker-select"
       >
         <option value="">— Choose a product —</option>

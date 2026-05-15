@@ -10,7 +10,7 @@ interface Props {
 export function BoutiqueHeader({ seller }: Props) {
   const country = countryName(seller.country);
   return (
-    <header className="border-b border-neutral-200 px-4 py-6">
+    <header className="border-b border-neutral-200 px-4 py-6 dark:border-celo-light/10">
       <div className="mx-auto flex max-w-3xl items-center gap-4">
         {seller.logo_url ? (
           <Image
@@ -22,13 +22,15 @@ export function BoutiqueHeader({ seller }: Props) {
             className="h-16 w-16 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-200 text-base font-semibold text-neutral-700">
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-neutral-200 text-base font-semibold text-neutral-700 dark:bg-celo-dark-elevated dark:text-celo-light/80">
             {seller.shop_name.charAt(0).toUpperCase()}
           </div>
         )}
         <div>
-          <h1 className="text-xl font-semibold">{seller.shop_name}</h1>
-          <p className="text-sm text-neutral-600">
+          <h1 className="text-xl font-semibold text-celo-dark dark:text-celo-light">
+            {seller.shop_name}
+          </h1>
+          <p className="text-sm text-neutral-600 dark:text-celo-light/70">
             @{seller.shop_handle}
             {country ? ` · ${country}` : null}
           </p>

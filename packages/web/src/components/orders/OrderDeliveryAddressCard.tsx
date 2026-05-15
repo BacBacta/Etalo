@@ -75,7 +75,7 @@ export function OrderDeliveryAddressCard({
     return (
       <section
         data-testid="order-delivery-empty"
-        className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600"
+        className="rounded-md border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-600 dark:border-celo-light/10 dark:bg-celo-dark-bg dark:text-celo-light/70"
       >
         Delivery address will appear once the buyer funds the order.
       </section>
@@ -92,30 +92,26 @@ export function OrderDeliveryAddressCard({
     <section
       data-testid="order-delivery-card"
       aria-label="Delivery address"
-      className="rounded-md border border-neutral-200 bg-white p-4"
+      className="rounded-md border border-neutral-200 bg-white p-4 dark:border-celo-light/10 dark:bg-celo-dark-elevated"
     >
       <header className="mb-2 flex items-center justify-between gap-2">
-        <h3 className="text-base font-medium text-neutral-900">
+        <h3 className="text-base font-medium text-neutral-900 dark:text-celo-light">
           Delivery address
         </h3>
       </header>
-      <dl className="space-y-1 text-sm text-neutral-800">
-        {/* recipient_name (ADR-050) — top of the card, bold, the seller
-            uses this exact string on the courier label. Pre-ADR-050
-            snapshots that don't carry the field surface a fallback
-            line below pointing at the WhatsApp button. */}
+      <dl className="space-y-1 text-sm text-neutral-800 dark:text-celo-light/80">
         {snapshot.recipient_name ? (
           <div className="mb-1">
             <dt className="sr-only">Recipient</dt>
             <dd
               data-testid="order-delivery-recipient"
-              className="text-base font-semibold text-neutral-900"
+              className="text-base font-semibold text-neutral-900 dark:text-celo-light"
             >
               {snapshot.recipient_name}
             </dd>
           </div>
         ) : (
-          <div className="mb-1 rounded-md bg-amber-50 p-2 text-sm text-amber-900">
+          <div className="mb-1 rounded-md bg-amber-50 p-2 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-200">
             Recipient name not provided — coordinate via WhatsApp below.
           </div>
         )}
@@ -142,7 +138,7 @@ export function OrderDeliveryAddressCard({
             "city → area → details" in reading order. */}
         {snapshot.area ? (
           <div>
-            <dt className="text-neutral-500">Area</dt>
+            <dt className="text-neutral-500 dark:text-celo-light/60">Area</dt>
             <dd
               data-testid="order-delivery-area"
               className="break-words"

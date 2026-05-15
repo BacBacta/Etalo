@@ -90,16 +90,18 @@ export function CheckoutFlow({ cart, token }: Props) {
     const txCount = sellerCount === 1 ? "up to 3" : `up to ${1 + sellerCount * 2}`;
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-lg bg-white p-6 shadow">
-          <h1 className="mb-4 text-xl font-semibold">Confirm checkout</h1>
+        <div className="w-full max-w-md rounded-lg bg-white p-6 shadow dark:bg-celo-dark-elevated dark:shadow-none dark:ring-1 dark:ring-celo-light/10">
+          <h1 className="mb-4 text-xl font-semibold text-celo-dark dark:text-celo-light">
+            Confirm checkout
+          </h1>
           <div className="mb-6 space-y-3">
-            <p className="text-base">
+            <p className="text-base text-celo-dark dark:text-celo-light">
               {sellerCount} {sellerLabel} · {itemCount} items
             </p>
-            <p className="text-base font-semibold tabular-nums">
+            <p className="text-base font-semibold tabular-nums text-celo-dark dark:text-celo-light">
               Total: {cart.total_usdt} USDT
             </p>
-            <p className="text-sm text-neutral-600">
+            <p className="text-sm text-neutral-600 dark:text-celo-light/70">
               You will sign {txCount} transactions (one USDT approval if
               needed, then create + fund per seller).
             </p>
@@ -142,7 +144,7 @@ export function CheckoutFlow({ cart, token }: Props) {
               className="flex flex-col items-stretch gap-3"
               data-testid="checkout-connect-prompt"
             >
-              <p className="text-sm text-neutral-700">
+              <p className="text-sm text-neutral-700 dark:text-celo-light/70">
                 Connect a wallet to enter your delivery address and pay
                 with USDT escrow.
               </p>
@@ -176,11 +178,13 @@ export function CheckoutFlow({ cart, token }: Props) {
   // Phases: 'allowance' | 'executing' — show progress.
   return (
     <main id="main" className="min-h-screen p-4">
-      <div className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow">
-        <h1 className="mb-4 text-xl font-semibold">Processing checkout</h1>
+      <div className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow dark:bg-celo-dark-elevated dark:shadow-none dark:ring-1 dark:ring-celo-light/10">
+        <h1 className="mb-4 text-xl font-semibold text-celo-dark dark:text-celo-light">
+          Processing checkout
+        </h1>
 
         {state.phase === "allowance" ? (
-          <div className="mb-4 rounded-md bg-blue-50 p-3 text-base text-blue-900">
+          <div className="mb-4 rounded-md bg-blue-50 p-3 text-base text-blue-900 dark:bg-blue-900/30 dark:text-blue-100">
             Approving USDT spending… (one-time per cart total)
           </div>
         ) : null}
