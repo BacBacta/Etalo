@@ -205,7 +205,13 @@ export function SellerDashboardInner() {
   if (isMiniPay === null) {
     return <DashboardSkeleton />;
   }
-  if (isMiniPay === false) return null;
+  // Phase A P0-3 CLS fix : when the visitor isn't in MiniPay we
+  // `router.replace("/")` from the effect above, but until the
+  // navigation commits the previous DashboardSkeleton would unmount
+  // and the page would collapse to 0 height — Lighthouse measured
+  // this as CLS = 0.284 (fail). Keep the skeleton mounted across
+  // the redirect window so the layout stays stable.
+  if (isMiniPay === false) return <DashboardSkeleton />;
 
   if (loading) {
     return <DashboardSkeleton />;
