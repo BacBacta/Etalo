@@ -253,6 +253,111 @@ nécessite probablement 2j à elle seule (Recharts + audit complet).
 
 ---
 
+# Phase A+B P0 — Résultats post-fix (2026-05-15 commits `95b9633` + `8e0d149`)
+
+Tous les 6 P0 du Phase A+B ont été traités. Re-mesure objective avant
+de passer en Phase C smoke manuel.
+
+## Backend latency burst — `/marketplace/products` 50 concurrent
+
+| Stat | Avant (`shared-cpu-1x`, pool 10+20) | Après (`shared-cpu-2x`, pool 25+50) | Δ |
+|------|--------------------------------------|--------------------------------------|---|
+| Count succès | 40 / 50 (10 timeouts) | **50 / 50 (0 timeout)** ✅ | +25 % |
+| min | 582 ms | 544 ms | -7 % |
+| p50 | 879 ms | 1 098 ms | +25 % |
+| p95 | **130 982 ms** | **1 288 ms** | **-99.0 % (101× faster)** ✅✅ |
+| p99 | 131 091 ms | 1 322 ms | -99.0 % |
+| max | 131 091 ms | 1 322 ms | -99.0 % |
+| mean | 36 702 ms | 1 055 ms | -97 % |
+
+🎉 **Backend issue résolu.** Les 10 timeouts disparaissent. p50
+augmente légèrement (effet de la queue désormais distribuée plus
+équitablement vs des timeouts qui faussent le median) mais p95/p99/max
+sont massivement améliorés. La queue ABSORBE les 50 concurrents au
+lieu d'en perdre 10.
+
+## Lighthouse mobile — 7 routes, before/after
+
+| Route | Perf (avant→après) | LCP ms | TBT ms | CLS | TTI ms |
+|-------|----|----|----|----|----|
+| `/` (chooser)          | 43 → 44 (+1) | 6 259 → 6 335 | 1 508 → 1 419 | 0.111 → 0.111 | 5 738 → 5 823 |
+| `/marketplace`         | 41 → 41 (=) | 8 468 → 8 632 | 2 332 → 1 908 (-18 %) | 0.001 → 0.001 | 7 879 → 7 995 |
+| `/[handle]` (boutique) | 47 → 49 (+2) | 4 549 → 4 452 | 2 452 → 2 721 | 0.001 → 0.001 | 22 774 → 22 813 |
+| `/[handle]/[slug]` (product) | 40 → **52** (+12) | **14 027 → 4 401 (-69 %)** | 1 450 → 1 445 | 0.001 | 6 711 → 11 757 |
+| `/checkout`            | 40 → 43 (+3) | 8 125 → 7 925 | 2 299 → **1 656** (-28 %) | 0.001 | 8 073 → 7 833 |
+| `/orders/[id]`         | 61 → 59 (-2) | 3 062 → 3 425 | 1 957 → 1 582 (-19 %) | 0.001 | 6 977 → 7 062 |
+| `/seller/dashboard`    | **27 → 37 (+10)** | 9 306 → 8 923 | 2 170 → 2 352 | **0.284 → 0.111 (-61 %)** ✅ | 8 591 → 8 435 |
+
+## Bundle First Load JS — before/after
+
+| Route | Avant | Après | Δ | Status |
+|-------|-------|-------|---|--------|
+| `/seller/dashboard` | **276 kB** ❌ | **148 kB** ✅ | **-128 kB (-46 %)** | sous le cap 150 kB |
+| `/checkout` | 228 kB | 228 kB | = | toujours dépasse cap |
+| `/orders/[id]` | 223 kB | 224 kB | +1 (claim refund button) | toujours dépasse cap |
+| `/marketplace` | 151 kB | 152 kB | +1 | au cap |
+| `/profile/addresses` | 144 kB | 145 kB | +1 | sous cap |
+| `/[handle]/[slug]` | 121 kB | 122 kB | +1 | sous cap |
+| `/[handle]` | 114 kB | 114 kB | = | sous cap |
+| `/orders` | 125 kB | 126 kB | +1 | sous cap |
+| `/` | 99.8 kB | 100 kB | = | sous cap |
+
+## Bilan P0 (6/6 traités) ✅
+
+| # | P0 | Statut | Métrique |
+|---|----|--------|----------|
+| P0-1 | Backend timeout 10/50 burst concurrent | ✅ | p95 -99 %, 0 timeouts |
+| P0-2 | `/seller/dashboard` 276 kB First Load JS | ✅ | 148 kB (-46 %), perf 27→37 |
+| P0-3 | CLS 0.284 sur `/seller/dashboard` | ✅ | 0.111 (-61 %, sous le seuil "Needs Improvement" 0.25) |
+| B1 | OrdersTab tabs sans keyboard nav | ✅ | ARIA APG keyboard pattern + 44 px + dark + focus-visible |
+| B2 | LoadingShell `bg-white` sans dark | ✅ | one-line `dark:bg-celo-dark-elevated` |
+| B3 | ConfirmDelivery + ClaimRefund spam-click | ✅ | useRef gate, applique aussi au retry |
+
+## Ce qu'il reste à attaquer (P1 + P2, ~3 jours)
+
+### P1 — visible regressions encore présentes
+
+- **`/seller/dashboard` LCP 8.9 s** — la page rend des skeletons puis
+  les KpiTile arrivent. Le LCP est probablement le KpiTile, qui est
+  vide tant que l'analytics fetch n'est pas arrivé. Fix : SSR-prefetch
+  l'analytics summary (mais bloqué par ADR-036 auth client-side, voir
+  DashboardSkeleton.tsx commentaires).
+- **`/marketplace` LCP 8.6 s** — image hero ou primary product image
+  sans `priority`. Fix : marquer la 1re image MarketplaceProductCard
+  avec `priority` + `fetchPriority="high"`.
+- **`/checkout` 228 kB toujours au-dessus du cap** — audit Phosphor +
+  CountrySelector + checkout-errors classifier.
+- **`/orders/[id]` 224 kB** — même profile.
+- **CLS 0.111 sur `/` chooser** — probablement le footer ou le
+  PageTransition qui shift après hydration. Petit chantier.
+- **TBT > 1 500 ms sur 4 routes** — symptôme JS-lourd, à traiter avec
+  les bundles cap.
+
+### P2 — polish (50 issues du Phase B, regroupables par classe)
+
+- **Dark mode mass-fix sur ~25 fichiers** (3-4h scriptables)
+- **Touch targets <44px** : 6 instances (1h)
+- **Focus visibility** : 5 `focus:` → `focus-visible:` (30 min)
+- **Tx state disabled + UserRejectedRequestError mapping** sur 3
+  boutons (1h)
+
+## Verdict mainnet
+
+**Recommandation actuelle : pas encore prêt mainnet.**
+
+Le backend ✅ et les CLS ✅ sont fixed. Mais :
+- Perf score moyen 47 (vs cible 90+) — encore ~1.5 jours pour
+  remonter via LCP fixes + bundle cap pour checkout/orders/[id]
+- Phase C smoke fonctionnel **non fait** — besoin de tester end-to-end
+  cart → checkout → fund → ship → release → claim refund avec un wallet
+  réel sur Sepolia AVANT mainnet
+
+**Prochain bloc recommandé** : (a) Phase C checklist livrable +
+exécution manuelle 1h-2h de ton côté, OU (b) attaque P1 LCP / bundle
+checkout + orders pour pousser perf score 47 → 60+ avant Phase C.
+
+---
+
 # Phase B — Audit UX/a11y statique route par route
 
 **Méthode :** 4 sub-agents Explore lancés en parallèle, lecture de
