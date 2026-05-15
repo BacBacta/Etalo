@@ -29,13 +29,19 @@ vi.mock("next-themes", () => ({
   useTheme: () => ({ theme: "light", setTheme: vi.fn() }),
 }));
 
-// CartDrawer / CartTrigger are heavy via wagmi/cart-store — stub to
-// keep the spec scoped to PublicHeader's own structure.
+// CartDrawer / CartTrigger / ConnectWalletButton are heavy via
+// wagmi/cart-store — stub to keep the spec scoped to PublicHeader's
+// own structure.
 vi.mock("@/components/CartDrawer", () => ({
   CartDrawer: () => null,
 }));
 vi.mock("@/components/CartTrigger", () => ({
   CartTrigger: () => <button type="button" data-testid="cart-trigger" />,
+}));
+vi.mock("@/components/ConnectWalletButton", () => ({
+  ConnectWalletButton: () => (
+    <button type="button" data-testid="connect-wallet-stub" />
+  ),
 }));
 
 afterEach(() => {

@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { ProductAddToCartButton } from "@/components/ProductAddToCartButton";
+import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { ShareButtons } from "@/components/ShareButtons";
 import { fetchPublicProduct } from "@/lib/api";
 import { displayUsdtFromDecimalString } from "@/lib/usdt";
@@ -149,20 +150,10 @@ export default async function ProductPage({ params }: PageProps) {
           </div>
         </header>
 
-        {product.image_urls.length > 0 ? (
-          <div className="overflow-hidden rounded-lg bg-neutral-100">
-            <Image
-              src={product.image_urls[0]}
-              alt={product.title}
-              width={800}
-              height={800}
-              sizes="(max-width: 640px) 100vw, 800px"
-              className="w-full object-cover"
-            />
-          </div>
-        ) : (
-          <div className="aspect-square rounded-lg bg-neutral-100" />
-        )}
+        <ProductImageGallery
+          images={product.image_urls}
+          alt={product.title}
+        />
 
         <div className="flex flex-col gap-2">
           <h1 className="text-2xl font-semibold">{product.title}</h1>

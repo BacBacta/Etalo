@@ -3458,3 +3458,77 @@ When V1 has validated traction with injected-only :
   unchanged)
 - `packages/web/src/components/ConnectWalletButton.tsx` (NEW Phase
   1 — triggers `useConnect({ connector: injected() })`)
+
+## ADR-053 — Chooser-first landing on `/` (refines ADR-052)
+
+**Status :** Accepted (2026-05-15)
+**Author :** Mike (Etalo) + assistant
+**Supersedes :** ADR-052's auto-redirect-from-`/`-to-`/marketplace`
+behaviour (multi-wallet support kept intact).
+
+### Context
+
+ADR-052 introduced "uniform UX everywhere" by making `HomeRouter`
+(`/` route) auto-redirect every visitor (Chrome and MiniPay) to
+`/marketplace`. The Etalo logo was simultaneously rewired to
+`href="/marketplace"` so the redirect chain was invisible.
+
+In live use this removed the only entry point to the seller side of
+the app : there was no longer any UI surface that asked "Browse
+marketplace OR Open my boutique". Sellers landed on the buyer
+marketplace and had to know that `/seller/dashboard` exists by
+URL — unworkable for the audience we're targeting (informal sellers
+discovering the app from a WhatsApp share).
+
+### Decision
+
+`/` renders the existing `HomeMiniPay` chooser (two CTAs : "Browse
+marketplace" → `/marketplace`, "Open my boutique" →
+`/seller/dashboard`) for every visitor (Chrome and MiniPay). The
+auto-redirect to `/marketplace` is removed. The Etalo logo in both
+`PublicHeader` and `PublicHeaderMinimal` returns to `href="/"` so
+clicking the logo from anywhere brings the user back to the choice
+screen.
+
+The MiniPay first-open onboarding overlay (`etalo-onboarded`
+localStorage flag, Welcome screen with single CTA) still fires once
+per device before the chooser appears.
+
+ADR-052's multi-wallet support (`ConnectWalletButton`,
+`PublicProviders` with `WagmiProvider` + `CartHydrationGate`,
+`(public)` and `(app)` route groups sharing the same wallet stack)
+is preserved — both chooser CTAs lead into routes that connect a
+wallet on demand.
+
+### Consequences
+
+**Positive :**
+- Sellers have a discoverable path back to `/seller/dashboard`
+  without knowing the URL.
+- The logo behaves like every other web app (click logo → home /
+  hub view) instead of "click logo → buyer marketplace".
+- Onboarding pattern simplifies : the overlay's CTA no longer
+  navigates away ; it just dismisses to reveal the chooser
+  underneath.
+
+**Negative :**
+- One extra tap before reaching `/marketplace` for Chrome
+  visitors who arrived via direct link to `/`. Acceptable —
+  marketplace is also reachable from product/boutique deep
+  links + the explicit CTA on the chooser.
+- ADR-052's "uniform UX everywhere" claim is now narrower : the
+  marketplace browse UX is uniform once you reach it, but `/`
+  itself is a chooser, not the marketplace.
+
+### References
+
+- ADR-052 (multi-wallet support — preserved ; only the
+  auto-redirect-to-marketplace is reverted)
+- ADR-051 (funnel surface scope reduction — chooser pattern
+  fits the reduced V1 funnel)
+- `packages/web/src/components/HomeRouter.tsx` (rewritten —
+  renders `HomeMiniPay`, no router.replace)
+- `packages/web/src/components/HomeMiniPay.tsx` (chooser UI
+  reused as-is from J10-V5 Block 4c)
+- `packages/web/src/components/PublicHeader.tsx` +
+  `PublicHeaderMinimal.tsx` (logo `href` → `/`)
