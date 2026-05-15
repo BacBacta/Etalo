@@ -7,6 +7,7 @@ import { useAccount, useChainId } from "wagmi";
 import { CheckoutErrorView } from "@/components/CheckoutErrorView";
 import { CheckoutSellerStatus } from "@/components/CheckoutSellerStatus";
 import { CheckoutSuccessView } from "@/components/CheckoutSuccessView";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { InsufficientBalanceCTA } from "@/components/checkout/InsufficientBalanceCTA";
 import {
   CheckoutDeliveryAddressStep,
@@ -105,29 +106,48 @@ export function CheckoutFlow({ cart, token }: Props) {
           </div>
 
           {walletStr ? (
-            <div className="mb-4">
-              <CheckoutDeliveryAddressStep
-                wallet={walletStr}
-                value={deliveryFormData}
-                onChange={setDeliveryFormData}
-                expectedCountry={buyerCountry}
-              />
-            </div>
-          ) : null}
+            <>
+              <div className="mb-4">
+                <CheckoutDeliveryAddressStep
+                  wallet={walletStr}
+                  value={deliveryFormData}
+                  onChange={setDeliveryFormData}
+                  expectedCountry={buyerCountry}
+                />
+              </div>
 
-          {balanceGate.hasInsufficient ? (
-            <InsufficientBalanceCTA deficitRaw={balanceGate.deficitRaw} />
+              {balanceGate.hasInsufficient ? (
+                <InsufficientBalanceCTA deficitRaw={balanceGate.deficitRaw} />
+              ) : (
+                <Button
+                  className="min-h-[44px] w-full text-base"
+                  onClick={start}
+                  disabled={balanceGate.isLoading || !addressReady}
+                  data-testid="checkout-start"
+                >
+                  {addressReady
+                    ? "Start checkout"
+                    : "Fill the delivery address to continue"}
+                </Button>
+              )}
+            </>
           ) : (
-            <Button
-              className="min-h-[44px] w-full text-base"
-              onClick={start}
-              disabled={balanceGate.isLoading || !addressReady}
-              data-testid="checkout-start"
+            // ADR-053 — no wallet detected (Chrome without injected
+            // provider, or MiniPay still spinning up its connector).
+            // Surface the ConnectWalletButton instead of a disabled
+            // Start-checkout the user can't do anything with. The
+            // button auto-shows "Connect wallet" if MetaMask/Trust
+            // is injected, "Get MiniPay" otherwise.
+            <div
+              className="flex flex-col items-stretch gap-3"
+              data-testid="checkout-connect-prompt"
             >
-              {addressReady
-                ? "Start checkout"
-                : "Fill the delivery address to continue"}
-            </Button>
+              <p className="text-sm text-neutral-700">
+                Connect a wallet to enter your delivery address and pay
+                with USDT escrow.
+              </p>
+              <ConnectWalletButton />
+            </div>
           )}
         </div>
       </div>

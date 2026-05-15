@@ -32,9 +32,27 @@ vi.mock("@/hooks/useCheckoutBalanceGate", () => ({
 
 const TEST_BUYER = "0xabc1234567890abcdef1234567890abcdef12345";
 
+const useAccountMock = vi.hoisted(() =>
+  vi.fn<() => { address: string | undefined; isConnected: boolean }>(() => ({
+    address: "0xabc1234567890abcdef1234567890abcdef12345",
+    isConnected: true,
+  })),
+);
+
 vi.mock("wagmi", () => ({
   useChainId: () => 11142220,
-  useAccount: () => ({ address: TEST_BUYER, isConnected: true }),
+  useAccount: useAccountMock,
+}));
+
+// ConnectWalletButton (rendered when no wallet) pulls in wagmi connect
+// hooks + a phosphor icon — stub to keep the spec scoped to
+// CheckoutFlow's own structure.
+vi.mock("@/components/ConnectWalletButton", () => ({
+  ConnectWalletButton: () => (
+    <button type="button" data-testid="connect-wallet-stub">
+      Connect wallet
+    </button>
+  ),
 }));
 
 // J11.7 Block 7 — CheckoutFlow now reads buyer addresses + country to
@@ -145,6 +163,10 @@ beforeEach(() => {
     start: vi.fn(),
     cancel: vi.fn(),
   });
+  useAccountMock.mockReturnValue({
+    address: TEST_BUYER,
+    isConnected: true,
+  });
 });
 
 describe("CheckoutFlow — phase=idle balance gate wiring", () => {
@@ -224,5 +246,33 @@ describe("CheckoutFlow — phase=idle balance gate wiring", () => {
     expect(balanceGateMock).toHaveBeenCalled();
     // total_usdt = "10.00" → parseUnits with 6 decimals = 10_000_000n
     expect(balanceGateMock).toHaveBeenCalledWith(10_000_000n);
+  });
+});
+
+describe("CheckoutFlow — phase=idle no-wallet prompt (ADR-053)", () => {
+  it("renders the connect-wallet prompt instead of the address step + Start button", () => {
+    useAccountMock.mockReturnValue({ address: undefined, isConnected: false });
+    balanceGateMock.mockReturnValue({
+      isLoading: false,
+      balanceRaw: undefined,
+      requiredRaw: 10_000_000n,
+      hasInsufficient: false,
+      deficitRaw: 0n,
+    });
+
+    render(<CheckoutFlow cart={minimalCart} token="test-token" />);
+
+    expect(
+      screen.getByTestId("checkout-connect-prompt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("connect-wallet-stub"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Start checkout/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Fill the delivery address/i }),
+    ).not.toBeInTheDocument();
   });
 });

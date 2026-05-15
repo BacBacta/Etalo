@@ -1,6 +1,5 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -12,23 +11,13 @@ import {
   resolveCartToken,
   type ResolvedCart,
 } from "@/lib/checkout";
-import { detectMiniPay } from "@/lib/minipay-detect";
 
-// J10-V5 Phase 5 Angle F sub-block F.2 — OpenInMiniPayModal imports
-// qrcode.react (~10-15 KB) used ONLY for non-MiniPay browsers (cold
-// path — most users come from MiniPay WebView and skip directly to
-// CheckoutFlow). Dynamic-load the modal so the qrcode.react chunk
-// stays out of the /checkout main bundle for the dominant MiniPay
-// path. Mirror sub-block 6.3 MilestoneDialogV5 lazy pattern (commit
-// 3872411). loading: () => null because the modal is conditionally
-// rendered, no fallback shape needed during the chunk fetch window.
-const OpenInMiniPayModal = dynamic(
-  () =>
-    import("@/components/OpenInMiniPayModal").then(
-      (mod) => mod.OpenInMiniPayModal,
-    ),
-  { ssr: false, loading: () => null },
-);
+// ADR-052/053 — the previous `!isMiniPay → OpenInMiniPayModal` gate
+// is removed. Chrome users with an injected wallet (MetaMask, Trust,
+// Rabby, …) checkout via the same `CheckoutFlow` ; users without any
+// wallet see the "Connect wallet / Get MiniPay" prompt rendered by
+// `CheckoutFlow` itself. `OpenInMiniPayModal` remains in the repo for
+// a future share-via-QR flow but is not on the live checkout path.
 
 // J10-V5 Phase 5 Angle B sub-block B.2 — skeleton structure mirrors
 // the real CheckoutFlow layout (h1 title + 3 item rows + total +
@@ -59,12 +48,6 @@ function CheckoutPageInner() {
   const token = params.get("token");
   const [resolvedCart, setResolvedCart] = useState<ResolvedCart | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    setIsMiniPay(detectMiniPay());
-  }, []);
 
   useEffect(() => {
     if (!token) {
@@ -107,12 +90,8 @@ function CheckoutPageInner() {
     );
   }
 
-  if (!resolvedCart || isMiniPay === null) {
+  if (!resolvedCart) {
     return <LoadingShell />;
-  }
-
-  if (!isMiniPay) {
-    return <OpenInMiniPayModal token={token!} cart={resolvedCart} />;
   }
 
   return <CheckoutFlow cart={resolvedCart} token={token!} />;
