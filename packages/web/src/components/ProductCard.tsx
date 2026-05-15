@@ -9,9 +9,18 @@ interface Props {
   product: BoutiquePublic["products"][number];
   handle: string;
   sellerShopName: string;
+  /** When true, the underlying Next/Image renders with `priority` so the
+   *  first card image (above-the-fold LCP candidate) loads eagerly with
+   *  fetchpriority=high. */
+  priority?: boolean;
 }
 
-export function ProductCard({ product, handle, sellerShopName }: Props) {
+export function ProductCard({
+  product,
+  handle,
+  sellerShopName,
+  priority = false,
+}: Props) {
   const isOutOfStock = product.stock <= 0;
   const price = Number(product.price_usdt).toFixed(2);
   return (
@@ -35,6 +44,7 @@ export function ProductCard({ product, handle, sellerShopName }: Props) {
                 fill
                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 className="object-cover"
+                priority={priority}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-celo-light/50">

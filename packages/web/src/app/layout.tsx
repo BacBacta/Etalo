@@ -55,6 +55,17 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en" className={switzer.variable} suppressHydrationWarning>
+      <head>
+        {/* LCP optimization (Phase A P1) — every product image we render
+            comes from Pinata IPFS gateway. The DNS + TLS handshake adds
+            150-400 ms to the LCP on first paint ; preconnect kicks it
+            off in parallel with the HTML parse so the first image
+            request reuses an open connection. dns-prefetch as a
+            fallback for browsers that ignore preconnect or rate-limit
+            it. */}
+        <link rel="preconnect" href="https://gateway.pinata.cloud" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://gateway.pinata.cloud" />
+      </head>
       <body className="min-h-screen bg-celo-light text-celo-dark antialiased dark:bg-celo-dark-bg dark:text-celo-light">
         {/* WCAG 2.4.1 Bypass Blocks — keyboard users skip to <main>. */}
         <SkipLink />

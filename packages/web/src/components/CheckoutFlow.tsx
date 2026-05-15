@@ -1,14 +1,33 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import { parseUnits } from "viem";
 import { useAccount, useChainId } from "wagmi";
 
-import { CheckoutErrorView } from "@/components/CheckoutErrorView";
 import { CheckoutSellerStatus } from "@/components/CheckoutSellerStatus";
-import { CheckoutSuccessView } from "@/components/CheckoutSuccessView";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { InsufficientBalanceCTA } from "@/components/checkout/InsufficientBalanceCTA";
+
+// Phase A P1 (2026-05-15) — Success + Error views are unreachable on
+// initial page render (only mounted after the buyer signs ≥ 1 tx,
+// which always pivots out of the idle phase). Dynamic-import them to
+// shave their static-render cost (Phosphor icons + tx hash + explorer
+// URL helpers) off the /checkout eager bundle. ssr:false because they
+// only fire client-side post-tx ; loading: () => null because the
+// parent already controls the visibility.
+const CheckoutErrorView = dynamic(
+  () =>
+    import("@/components/CheckoutErrorView").then((m) => m.CheckoutErrorView),
+  { ssr: false, loading: () => null },
+);
+const CheckoutSuccessView = dynamic(
+  () =>
+    import("@/components/CheckoutSuccessView").then(
+      (m) => m.CheckoutSuccessView,
+    ),
+  { ssr: false, loading: () => null },
+);
 import {
   CheckoutDeliveryAddressStep,
   isCheckoutAddressReady,

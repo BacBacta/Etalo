@@ -13,11 +13,15 @@ interface Props {
 export function MarketplaceGrid({ products, hideSellerCountry }: Props) {
   return (
     <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-      {products.map((product) => (
+      {products.map((product, idx) => (
         <MarketplaceProductCard
           key={product.id}
           product={product}
           hideSellerCountry={hideSellerCountry}
+          // LCP optimization (Phase A P1) — first card image is the
+          // marketplace LCP element. priority=true skips Next.js'
+          // default lazy-loading + sets fetchpriority=high on the img.
+          priority={idx === 0}
         />
       ))}
     </div>

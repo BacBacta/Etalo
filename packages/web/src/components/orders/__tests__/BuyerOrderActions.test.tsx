@@ -130,7 +130,12 @@ describe("BuyerOrderActions", () => {
       />,
     );
 
-    expect(screen.getByTestId("confirm-delivery-button")).toBeInTheDocument();
+    // ConfirmDeliveryButton + ClaimRefundButton are now also dynamic-
+    // imported (Phase A P1 bundle reduction) — switch to findByTestId
+    // so the assertion waits for the chunk.
+    expect(
+      await screen.findByTestId("confirm-delivery-button"),
+    ).toBeInTheDocument();
     expect(await screen.findByTestId("open-dispute-trigger")).toBeInTheDocument();
   });
 

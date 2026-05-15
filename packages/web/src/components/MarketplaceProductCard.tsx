@@ -13,6 +13,10 @@ interface Props {
    *  country (UX rule 5). Default false (All countries view shows
    *  the country tag for context). */
   hideSellerCountry?: boolean;
+  /** LCP optimization — when true, the underlying Next/Image renders
+   *  with `priority` so the first card image (above-the-fold LCP
+   *  candidate) loads eagerly with fetchpriority=high. */
+  priority?: boolean;
 }
 
 // Marketplace endpoint omits stock to keep the listing payload light;
@@ -24,6 +28,7 @@ const ASSUMED_STOCK = 999;
 export function MarketplaceProductCard({
   product,
   hideSellerCountry = false,
+  priority = false,
 }: Props) {
   const country = countryName(product.seller_country);
   const sellerLine =
@@ -56,6 +61,7 @@ export function MarketplaceProductCard({
                 fill
                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
                 className="object-cover"
+                priority={priority}
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
