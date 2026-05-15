@@ -18,6 +18,7 @@
 import dynamic from "next/dynamic";
 
 import { BlockscoutLinkButton } from "@/components/orders/BlockscoutLinkButton";
+import { ClaimRefundButton } from "@/components/orders/ClaimRefundButton";
 import { ConfirmDeliveryButton } from "@/components/orders/ConfirmDeliveryButton";
 import { WhatsAppShareButton } from "@/components/orders/WhatsAppShareButton";
 import {
@@ -86,6 +87,9 @@ export function BuyerOrderActions({ order, className }: BuyerOrderActionsProps) 
           itemId={BigInt(disputableItem.onchain_item_id)}
           itemLabel={itemLabel(disputableItem)}
         />
+      )}
+      {actions.canClaimRefund && (
+        <ClaimRefundButton orderId={BigInt(order.onchain_order_id)} />
       )}
       <div className="flex flex-wrap gap-2">
         <WhatsAppShareButton order={order} />

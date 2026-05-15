@@ -306,6 +306,42 @@ async def handle_order_completed(
     order.global_status = OrderStatus.COMPLETED
 
 
+async def handle_auto_refund_inactive(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """AutoRefundInactive(orderId, refundedAt).
+
+    Emitted when `EtaloEscrow.triggerAutoRefundIfInactive(orderId)`
+    succeeds (ADR-019 7-day intra / 14-day cross-border seller-inactivity
+    window). Flips the order + every item to Refunded so the seller
+    dashboard stops surfacing it and the buyer's `/orders/[id]` reflects
+    the on-chain truth. Idempotent : if the order is already Refunded
+    (re-org replay), no-op.
+    """
+    order_id = event["args"]["orderId"]
+    order = await _get_order_by_onchain_id(db, order_id)
+    if order is None:
+        return
+    if order.global_status == OrderStatus.REFUNDED:
+        return
+    order.global_status = OrderStatus.REFUNDED
+
+    # Mirror item-level refund so per-item queries stay consistent. The
+    # contract refunds the entire order's totalAmount, so every non-
+    # terminal item flips. Items already Released / Disputed / Refunded
+    # would have prevented the on-chain call from succeeding (see ADR-031
+    # + AUTO_REFUND requires Funded order status), so a blanket pass is
+    # safe.
+    item_ids = await db.scalars(
+        select(OrderItem.id).where(OrderItem.order_id == order.id)
+    )
+    for item_id in item_ids.all():
+        item = await db.get(OrderItem, item_id)
+        if item is None:
+            continue
+        item.status = ItemStatus.REFUNDED
+
+
 async def handle_item_disputed(
     event: Any, db: AsyncSession, services: dict[str, Any]
 ) -> None:
@@ -549,6 +585,7 @@ HANDLERS: dict[tuple[str, str], HandlerType] = {
     ("EtaloEscrow", "PartialReleaseTriggered"): handle_partial_release_triggered,
     ("EtaloEscrow", "ItemReleased"): handle_item_released,
     ("EtaloEscrow", "OrderCompleted"): handle_order_completed,
+    ("EtaloEscrow", "AutoRefundInactive"): handle_auto_refund_inactive,
     ("EtaloEscrow", "ItemDisputed"): handle_item_disputed,
     ("EtaloDispute", "DisputeOpened"): handle_dispute_opened,
     ("EtaloDispute", "MediatorAssigned"): handle_mediator_assigned,

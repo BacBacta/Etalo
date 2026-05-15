@@ -42,6 +42,7 @@ logging.basicConfig(
 )
 
 from app.database import get_async_session_factory
+from app.services.auto_refund_keeper import build_keeper
 from app.services.celo import CeloService
 from app.services.indexer import Indexer
 
@@ -75,6 +76,32 @@ async def lifespan(app: FastAPI):
     else:
         app.state.indexer = None
 
+    # ADR-019 auto-refund keeper. Returns None when disabled (no
+    # relayer key set or `auto_refund_keeper_enabled = false`) ; the
+    # contract function is permissionless so buyers can still self-claim
+    # via the /orders/[id] UI.
+    keeper = build_keeper(
+        celo=app.state.celo_service,
+        session_factory=get_async_session_factory(),
+    )
+    keeper_task: asyncio.Task | None = None
+    if keeper is not None:
+        app.state.auto_refund_keeper = keeper
+        keeper_task = asyncio.create_task(
+            keeper.run(), name="auto-refund-keeper"
+        )
+
+        def _log_keeper_exception(task: asyncio.Task) -> None:
+            if task.cancelled():
+                return
+            exc = task.exception()
+            if exc is not None:
+                logger.error("Auto-refund keeper crashed: %r", exc)
+
+        keeper_task.add_done_callback(_log_keeper_exception)
+    else:
+        app.state.auto_refund_keeper = None
+
     yield
 
     # Shutdown
@@ -85,6 +112,13 @@ async def lifespan(app: FastAPI):
         except asyncio.TimeoutError:
             logger.warning("Indexer did not stop within 10s; cancelling")
             indexer_task.cancel()
+    if keeper_task is not None and app.state.auto_refund_keeper is not None:
+        app.state.auto_refund_keeper.stop()
+        try:
+            await asyncio.wait_for(keeper_task, timeout=10)
+        except asyncio.TimeoutError:
+            logger.warning("Auto-refund keeper did not stop within 10s; cancelling")
+            keeper_task.cancel()
 
 
 def get_celo_service(request) -> CeloService:

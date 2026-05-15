@@ -9,7 +9,7 @@
  * test does not need wagmi or QueryClient providers.
  */
 import { render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { BuyerOrderActions } from "@/components/orders/BuyerOrderActions";
 import type {
@@ -19,6 +19,7 @@ import type {
 
 const useConfirmDeliveryMock = vi.hoisted(() => vi.fn());
 const useOpenDisputeMock = vi.hoisted(() => vi.fn());
+const useClaimRefundMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/hooks/useConfirmDelivery", () => ({
   useConfirmDelivery: useConfirmDeliveryMock,
@@ -26,10 +27,14 @@ vi.mock("@/hooks/useConfirmDelivery", () => ({
 vi.mock("@/hooks/useOpenDispute", () => ({
   useOpenDispute: useOpenDisputeMock,
 }));
+vi.mock("@/hooks/useClaimRefund", () => ({
+  useClaimRefund: useClaimRefundMock,
+}));
 
 afterEach(() => {
   useConfirmDeliveryMock.mockReset();
   useOpenDisputeMock.mockReset();
+  useClaimRefundMock.mockReset();
 });
 
 function makeItem(overrides: Partial<OrderItemResponse> = {}): OrderItemResponse {
@@ -75,6 +80,15 @@ function makeOrder(overrides: Partial<OrderResponse> = {}): OrderResponse {
 }
 
 const idle = { state: { phase: "idle" }, run: vi.fn(), reset: vi.fn() };
+
+beforeEach(() => {
+  // Default every hook to idle so any conditionally-rendered button
+  // (e.g. ClaimRefundButton when canClaimRefund=true) doesn't crash on
+  // a missing return value.
+  useConfirmDeliveryMock.mockReturnValue(idle);
+  useOpenDisputeMock.mockReturnValue(idle);
+  useClaimRefundMock.mockReturnValue(idle);
+});
 
 describe("BuyerOrderActions", () => {
   it("renders share + Blockscout always", () => {

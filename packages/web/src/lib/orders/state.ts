@@ -66,7 +66,20 @@ export interface EligibleActions {
   /** Anyone (permissionless) can trigger auto-release once the timer
    *  has elapsed for a shipped item. Surfaced to buyer for visibility. */
   canTriggerAutoRelease: boolean;
+  /** Buyer can claim auto-refund (ADR-019) when the seller hasn't
+   *  shipped within the inactivity deadline (7d intra / 14d cross).
+   *  The contract function is permissionless ; the keeper does it
+   *  automatically post-deadline, the UI button is the trustless
+   *  fallback. Disabled when any item is `Disputed` (the contract
+   *  reverts in that case — ADR-031). */
+  canClaimRefund: boolean;
 }
+
+// ADR-019. Cross-border (14d) deferred V2 (ADR-041) but the contract
+// still encodes both windows ; keep them aligned with the on-chain
+// constants `AUTO_REFUND_INACTIVE_INTRA` / `_CROSS`.
+const SELLER_INACTIVITY_INTRA_MS = 7 * 24 * 60 * 60 * 1000;
+const SELLER_INACTIVITY_CROSS_MS = 14 * 24 * 60 * 60 * 1000;
 
 const COMPLETED_ITEM_STATUSES: ReadonlySet<ItemStatus> = new Set<ItemStatus>([
   "Released",
@@ -185,6 +198,7 @@ export function getEligibleActions(
       canOpenDispute: false,
       canCancel: false,
       canTriggerAutoRelease: false,
+      canClaimRefund: false,
     };
   }
 
@@ -221,10 +235,33 @@ export function getEligibleActions(
     return new Date(group.majority_release_at).getTime() <= now.getTime();
   });
 
+  // ADR-019 buyer-side claim. The on-chain contract requires the order
+  // to still be in `Funded` (no shipment group created), `funded_at`
+  // older than the inactivity window, and zero items in `Disputed`.
+  // Mirror those checks UI-side so the button hides when the call
+  // would revert.
+  const isCrossBorder = Boolean(
+    (order as unknown as { is_cross_border?: boolean }).is_cross_border,
+  );
+  const inactivityWindow = isCrossBorder
+    ? SELLER_INACTIVITY_CROSS_MS
+    : SELLER_INACTIVITY_INTRA_MS;
+  const fundedAtMs = order.funded_at
+    ? new Date(order.funded_at).getTime()
+    : null;
+  const pastDeadline =
+    order.global_status === "Funded" &&
+    fundedAtMs !== null &&
+    !Number.isNaN(fundedAtMs) &&
+    now.getTime() > fundedAtMs + inactivityWindow;
+  const hasDisputedItem = items.some((i) => i.status === "Disputed");
+  const canClaimRefund = pastDeadline && !hasDisputedItem;
+
   return {
     canConfirmDelivery: hasShippedOrArrivedItem && !isTerminal,
     canOpenDispute: isPostFund && !isTerminal && hasDisputableItem,
     canCancel: order.global_status === "Created",
     canTriggerAutoRelease,
+    canClaimRefund,
   };
 }

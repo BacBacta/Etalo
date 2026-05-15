@@ -45,6 +45,13 @@ vi.mock("@/hooks/useOpenDispute", () => ({
     reset: vi.fn(),
   }),
 }));
+vi.mock("@/hooks/useClaimRefund", () => ({
+  useClaimRefund: () => ({
+    state: { phase: "idle" },
+    run: vi.fn(),
+    reset: vi.fn(),
+  }),
+}));
 
 afterEach(() => {
   useParamsMock.mockReset();

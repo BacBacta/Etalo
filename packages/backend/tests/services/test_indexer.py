@@ -33,7 +33,9 @@ def _reset_indexer_start_block(monkeypatch):
     yield
 from app.models.enums import OrderStatus, StakeTier
 from app.services.indexer import Indexer
+from app.models.enums import ItemStatus
 from app.services.indexer_handlers import (
+    handle_auto_refund_inactive,
     handle_order_funded,
     handle_order_recorded,
     handle_stake_slashed,
@@ -336,3 +338,83 @@ async def test_handle_order_recorded_creates_reputation_row():
     assert rep.orders_completed == 1
     assert rep.total_volume_usdt == 70_000_000
     assert rep.first_order_at is not None
+
+
+# ============================================================
+# AutoRefundInactive (ADR-019 Block 1)
+# ============================================================
+@pytest.mark.asyncio
+async def test_handle_auto_refund_inactive_flips_order_and_items_to_refunded():
+    fake_order = MagicMock()
+    fake_order.id = "order-uuid"
+    fake_order.global_status = OrderStatus.FUNDED
+
+    fake_item_a = MagicMock(status=ItemStatus.PENDING)
+    fake_item_b = MagicMock(status=ItemStatus.PENDING)
+
+    class _Session(FakeAsyncSession):
+        async def execute(self, stmt):
+            # `_get_order_by_onchain_id` queries via execute → scalar_one_or_none.
+            # `handle_auto_refund_inactive` then calls scalars(...).all() for items.
+            class _Result:
+                def scalar_one_or_none(self_):  # noqa: ARG002
+                    return fake_order
+
+            return _Result()
+
+        async def scalars(self, stmt):  # noqa: ARG002
+            class _Scalars:
+                def all(self_):  # noqa: ARG002
+                    return ["item-a-id", "item-b-id"]
+
+            return _Scalars()
+
+        async def get(self, model, pk):  # noqa: ARG002
+            return {"item-a-id": fake_item_a, "item-b-id": fake_item_b}[pk]
+
+    session = _Session()
+    event = {"args": {"orderId": 42, "refundedAt": 1700001000}}
+    await handle_auto_refund_inactive(event, session, {})
+
+    assert fake_order.global_status == OrderStatus.REFUNDED
+    assert fake_item_a.status == ItemStatus.REFUNDED
+    assert fake_item_b.status == ItemStatus.REFUNDED
+
+
+@pytest.mark.asyncio
+async def test_handle_auto_refund_inactive_is_idempotent_when_already_refunded():
+    fake_order = MagicMock()
+    fake_order.global_status = OrderStatus.REFUNDED
+
+    class _Session(FakeAsyncSession):
+        async def execute(self, stmt):  # noqa: ARG002
+            class _Result:
+                def scalar_one_or_none(self_):  # noqa: ARG002
+                    return fake_order
+
+            return _Result()
+
+    session = _Session()
+    await handle_auto_refund_inactive(
+        {"args": {"orderId": 1, "refundedAt": 0}}, session, {}
+    )
+    # Must remain Refunded (no flip to anything else).
+    assert fake_order.global_status == OrderStatus.REFUNDED
+
+
+@pytest.mark.asyncio
+async def test_handle_auto_refund_inactive_no_op_when_order_missing():
+    """Indexer can replay events for orders we never saw — must not raise."""
+
+    class _Session(FakeAsyncSession):
+        async def execute(self, stmt):  # noqa: ARG002
+            class _Result:
+                def scalar_one_or_none(self_):  # noqa: ARG002
+                    return None
+
+            return _Result()
+
+    session = _Session()
+    await handle_auto_refund_inactive(
+        {"args": {"orderId": 999, "refundedAt": 0}}, session, {}
+    )  # No assertion — the test passes if no exception is raised.

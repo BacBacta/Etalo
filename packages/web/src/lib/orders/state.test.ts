@@ -398,6 +398,7 @@ describe("getEligibleActions (seller)", () => {
       canOpenDispute: false,
       canCancel: false,
       canTriggerAutoRelease: false,
+      canClaimRefund: false,
     });
   });
 });

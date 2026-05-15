@@ -126,6 +126,22 @@ class Settings(BaseSettings):
     # CLI invocations of the FastAPI app.
     indexer_enabled: bool = True
 
+    # ADR-019 auto-refund keeper (Block 2). Hex private key (with or
+    # without 0x prefix) of a wallet funded with CELO ; used to call
+    # `EtaloEscrow.triggerAutoRefundIfInactive(orderId)` for orders that
+    # crossed the seller-inactivity deadline. When empty the keeper
+    # logs a warning at startup and stays disabled — the contract
+    # function is permissionless so buyers can still self-claim via the
+    # /orders/[id] UI button.
+    relayer_private_key: str = ""
+    # Polling interval in hours. Default 6h is enough — the deadline is
+    # 7 days, so even with one missed cycle the worst-case extra delay
+    # is 12h. Set 0.05 (~3 min) in dev for fast iteration.
+    auto_refund_keeper_interval_hours: float = 6.0
+    # Master switch — keeper task is created only when both this is
+    # true AND `relayer_private_key` is non-empty.
+    auto_refund_keeper_enabled: bool = True
+
     # Legacy V1 fields (kept for the V1 stub in app/services/celo.py;
     # removed in Block 4).
     escrow_contract_address: str = ""
