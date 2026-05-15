@@ -14,7 +14,11 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import MarketplacePage from "@/app/(app)/marketplace/page";
+// Phase A P1 (2026-05-15) : page.tsx is now an async server component
+// (SSR data injection via prefetchInfiniteQuery + HydrationBoundary).
+// The interactive logic lives in MarketplaceClient.tsx — these specs
+// target it directly so we can render synchronously in jsdom.
+import MarketplacePage from "@/app/(app)/marketplace/MarketplaceClient";
 import {
   PULL_TO_REFRESH_THRESHOLD_PX,
   shouldTriggerRefreshOnRelease,
