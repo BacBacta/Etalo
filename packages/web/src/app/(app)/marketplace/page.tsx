@@ -82,18 +82,15 @@ export default async function MarketplacePage({ searchParams }: PageProps) {
   });
   // Best-effort prefetch — if the backend is down or slow the client
   // will refetch on mount. We never block the page render on this.
-  // Log to Vercel logs so we can debug whether the prefetch is firing
-  // + landing in the cache as expected.
-  const queryKey = [
-    ...MARKETPLACE_PRODUCTS_QUERY_KEY,
-    country ?? "all",
-    q ?? "",
-    category ?? "all",
-    sort ?? "newest",
-  ];
   try {
     await queryClient.prefetchInfiniteQuery({
-      queryKey,
+      queryKey: [
+        ...MARKETPLACE_PRODUCTS_QUERY_KEY,
+        country ?? "all",
+        q ?? "",
+        category ?? "all",
+        sort ?? "newest",
+      ],
       queryFn: () =>
         fetchMarketplaceProducts({
           cursor: null,
@@ -105,17 +102,10 @@ export default async function MarketplacePage({ searchParams }: PageProps) {
         }),
       initialPageParam: null as string | null,
     });
-    const cached = queryClient.getQueryData(queryKey) as
-      | { pages?: { products?: unknown[] }[] }
-      | undefined;
-    const productCount = cached?.pages?.[0]?.products?.length ?? 0;
-    // eslint-disable-next-line no-console
-    console.log(
-      `[marketplace SSR] prefetch ok — products=${productCount} key=${JSON.stringify(queryKey)}`,
-    );
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error(`[marketplace SSR] prefetch failed:`, err);
+  } catch {
+    // Silent fallback — let the client retry. The `/marketplace`
+    // backend has its own Cache-Control so this rarely costs more
+    // than a CDN hit.
   }
 
   return (
