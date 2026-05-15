@@ -6,7 +6,17 @@ import dynamic from "next/dynamic";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
-import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
+// Phase A P0-2 — MarkGroupShippedDialog lazy-loaded (only opens when
+// the seller taps "Mark shipped" on a card). Drops ~10-15 kB from the
+// dashboard eager bundle alongside the other two dialogs in
+// ProductsTab.
+const MarkGroupShippedDialog = dynamic(
+  () =>
+    import("@/components/seller/MarkGroupShippedDialog").then(
+      (m) => m.MarkGroupShippedDialog,
+    ),
+  { ssr: false, loading: () => null },
+);
 import { PickListView } from "@/components/seller/PickListView";
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
@@ -188,21 +198,37 @@ export function OrdersTab({ address }: Props) {
       {/* View toggle — orders (per-buyer) vs pick list (per-SKU).
           Pick list aggregates open orders so a seller fulfilling 5 of
           the same SKU sees `× 5` instead of 5 separate cards. */}
+      {/* ARIA tabs pattern (W3C APG) — `←`/`→` switch tabs, Home/End
+          jump to first/last. tabIndex=0 on the active tab, -1 on the
+          others so focus moves with the selection (single-stop pattern). */}
       <div
         role="tablist"
         aria-label="Orders view"
-        className="inline-flex rounded-md border border-neutral-200 p-1"
+        className="inline-flex rounded-md border border-neutral-200 p-1 dark:border-celo-light/20"
         data-testid="orders-view-toggle"
+        onKeyDown={(e) => {
+          if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+            e.preventDefault();
+            setView(view === "orders" ? "pick-list" : "orders");
+          } else if (e.key === "Home") {
+            e.preventDefault();
+            setView("orders");
+          } else if (e.key === "End") {
+            e.preventDefault();
+            setView("pick-list");
+          }
+        }}
       >
         <button
           type="button"
           role="tab"
           aria-selected={view === "orders" ? "true" : "false"}
+          tabIndex={view === "orders" ? 0 : -1}
           onClick={() => setView("orders")}
-          className={`min-h-[40px] rounded px-3 text-sm font-medium ${
+          className={`min-h-[44px] rounded px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest ${
             view === "orders"
-              ? "bg-neutral-900 text-white"
-              : "text-neutral-700 hover:bg-neutral-100"
+              ? "bg-neutral-900 text-white dark:bg-celo-light dark:text-celo-dark"
+              : "text-neutral-700 hover:bg-neutral-100 dark:text-celo-light/70 dark:hover:bg-celo-dark-elevated"
           }`}
         >
           Orders
@@ -211,11 +237,12 @@ export function OrdersTab({ address }: Props) {
           type="button"
           role="tab"
           aria-selected={view === "pick-list" ? "true" : "false"}
+          tabIndex={view === "pick-list" ? 0 : -1}
           onClick={() => setView("pick-list")}
-          className={`min-h-[40px] rounded px-3 text-sm font-medium ${
+          className={`min-h-[44px] rounded px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest ${
             view === "pick-list"
-              ? "bg-neutral-900 text-white"
-              : "text-neutral-700 hover:bg-neutral-100"
+              ? "bg-neutral-900 text-white dark:bg-celo-light dark:text-celo-dark"
+              : "text-neutral-700 hover:bg-neutral-100 dark:text-celo-light/70 dark:hover:bg-celo-dark-elevated"
           }`}
         >
           <Package className="mr-1 inline h-4 w-4" aria-hidden />

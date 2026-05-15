@@ -26,7 +26,7 @@ import {
 function LoadingShell() {
   return (
     <main id="main" className="min-h-screen p-4">
-      <div className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow">
+      <div className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow dark:bg-celo-dark-elevated dark:shadow-none dark:ring-1 dark:ring-celo-light/10">
         <SkeletonV5 variant="text" className="mb-4 h-6 w-40" />
         <div className="mb-4 flex flex-col gap-3">
           <SkeletonV5 variant="row" />

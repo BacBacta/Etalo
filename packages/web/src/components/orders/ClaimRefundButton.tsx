@@ -11,6 +11,7 @@
 "use client";
 
 import { ArrowCounterClockwise, CheckCircle, Spinner, Warning } from "@phosphor-icons/react";
+import { useRef } from "react";
 
 import { useClaimRefund } from "@/hooks/useClaimRefund";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,17 @@ const PRIMARY_CLASSES =
 
 export function ClaimRefundButton({ orderId, className }: ClaimRefundButtonProps) {
   const { state, run, reset } = useClaimRefund();
+  const inFlight = useRef(false);
+  const triggerRun = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      reset();
+      await run({ orderId });
+    } finally {
+      inFlight.current = false;
+    }
+  };
 
   if (state.phase === "preparing" || state.phase === "confirming") {
     return (
@@ -86,10 +98,7 @@ export function ClaimRefundButton({ orderId, className }: ClaimRefundButtonProps
         </div>
         <button
           type="button"
-          onClick={() => {
-            reset();
-            void run({ orderId });
-          }}
+          onClick={() => void triggerRun()}
           className={PRIMARY_CLASSES}
         >
           Try again
@@ -108,7 +117,7 @@ export function ClaimRefundButton({ orderId, className }: ClaimRefundButtonProps
         type="button"
         data-testid="claim-refund-button"
         data-order-id={String(orderId)}
-        onClick={() => void run({ orderId })}
+        onClick={() => void triggerRun()}
         className={PRIMARY_CLASSES}
       >
         <ArrowCounterClockwise size={16} weight="regular" aria-hidden="true" />

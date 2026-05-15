@@ -5,13 +5,43 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
 
+import dynamic from "next/dynamic";
+
 import { DashboardSkeleton } from "@/app/(app)/seller/dashboard/DashboardSkeleton";
-import { MarketingTab } from "@/components/seller/MarketingTab";
-import { OnboardingWizard } from "@/components/seller/OnboardingWizard";
-import { OrdersTab } from "@/components/seller/OrdersTab";
 import { OverviewTab } from "@/components/seller/OverviewTab";
-import { ProductsTab } from "@/components/seller/ProductsTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
+
+// Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
+// First Load JS was 276 kB (perf score 27). Three of these imports
+// (OnboardingWizard, MarketingTab, OrdersTab, ProductsTab) only render
+// based on tab selection or seller-not-found state — perfect lazy
+// candidates. Overview + Profile stay eager because Overview is the
+// default landing tab and Profile is the second-priority tab (Mike's
+// audit J10-V5 Phase 5 Track 2 fix #2). Loading fallback null because
+// the parent Suspense / DashboardSkeleton already covers first paint
+// and tab switches are user-initiated.
+const OnboardingWizard = dynamic(
+  () =>
+    import("@/components/seller/OnboardingWizard").then(
+      (m) => m.OnboardingWizard,
+    ),
+  { ssr: false, loading: () => null },
+);
+const ProductsTab = dynamic(
+  () =>
+    import("@/components/seller/ProductsTab").then((m) => m.ProductsTab),
+  { ssr: false, loading: () => null },
+);
+const OrdersTab = dynamic(
+  () =>
+    import("@/components/seller/OrdersTab").then((m) => m.OrdersTab),
+  { ssr: false, loading: () => null },
+);
+const MarketingTab = dynamic(
+  () =>
+    import("@/components/seller/MarketingTab").then((m) => m.MarketingTab),
+  { ssr: false, loading: () => null },
+);
 import {
   TabsV4Content,
   TabsV4List,

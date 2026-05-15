@@ -55,6 +55,15 @@ primary_region = "jnb"
     path = "/api/v1/health"
 
 [[vm]]
-  size = "shared-cpu-1x"
-  memory = "1gb"
-  cpus = 1
+  # Bumped from shared-cpu-1x → shared-cpu-2x (Phase A P0-1, 2026-05-15).
+  # The 1×CPU instance saturated under burst load (50 concurrent GETs
+  # → p95 = 131s, 10 timeouts) because a single shared CPU can't time-
+  # slice the Python async event loop fast enough for that many parallel
+  # connections. 2× CPU + 2 GB RAM is the cheapest step up that gives
+  # real concurrency without breaking the V2 single-instance invariant
+  # (indexer + auto_refund_keeper still run exactly once in this lone
+  # process — moving to gunicorn workers would multi-instance them and
+  # cause double-spend on refunds + double-write on indexer events).
+  size = "shared-cpu-2x"
+  memory = "2gb"
+  cpus = 2

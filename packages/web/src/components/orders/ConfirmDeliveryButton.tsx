@@ -15,6 +15,7 @@
 "use client";
 
 import { CheckCircle, Spinner, Warning } from "@phosphor-icons/react";
+import { useRef } from "react";
 
 import { useConfirmDelivery } from "@/hooks/useConfirmDelivery";
 import { cn } from "@/lib/utils";
@@ -45,6 +46,22 @@ export function ConfirmDeliveryButton({
   className,
 }: ConfirmDeliveryButtonProps) {
   const { state, run, reset } = useConfirmDelivery();
+  // Spam-click guard : React batches the state update from `run()` into
+  // the next render, so two synchronous click events can both pass the
+  // phase=idle check before the first re-render commits → two
+  // walletClient.writeContract calls → two MetaMask popups. The ref
+  // gate stays current within the same tick.
+  const inFlight = useRef(false);
+  const triggerRun = async () => {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    try {
+      reset();
+      await run({ orderId, itemId });
+    } finally {
+      inFlight.current = false;
+    }
+  };
 
   if (state.phase === "preparing" || state.phase === "confirming") {
     return (
@@ -100,10 +117,7 @@ export function ConfirmDeliveryButton({
         </div>
         <button
           type="button"
-          onClick={() => {
-            reset();
-            void run({ orderId, itemId });
-          }}
+          onClick={() => void triggerRun()}
           className={PRIMARY_CLASSES}
         >
           Try again
@@ -117,7 +131,7 @@ export function ConfirmDeliveryButton({
       type="button"
       data-testid="confirm-delivery-button"
       data-item-id={String(itemId)}
-      onClick={() => void run({ orderId, itemId })}
+      onClick={() => void triggerRun()}
       className={cn(PRIMARY_CLASSES, className)}
     >
       Confirm delivery for {itemLabel}

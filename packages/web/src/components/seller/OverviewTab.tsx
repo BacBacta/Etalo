@@ -246,16 +246,27 @@ export function OverviewTab({ address }: Props) {
         )}
       </CardV4>
 
-      <div>
+      {/* CLS fix : the recent-orders block was 3 skeleton rows while
+          DashboardSkeleton expected 5 (~70 px each = ~140 px shift on
+          first paint). The empty state was a single <p> (~24 px) which
+          would also collapse the section. Both branches now reserve at
+          least 5 rows of vertical space (matches DashboardSkeleton's 5
+          row placeholders) so the layout stays put through every state
+          transition. */}
+      <div className="min-h-[360px]">
         <h2 className="mb-3 text-lg font-semibold">Recent orders</h2>
         {recent === null ? (
-          <div className="space-y-3" data-testid="overview-skeleton">
-            <SkeletonV5 variant="row" />
-            <SkeletonV5 variant="row" />
-            <SkeletonV5 variant="row" />
+          <div className="space-y-2" data-testid="overview-skeleton">
+            <SkeletonV5 variant="card" className="h-14" />
+            <SkeletonV5 variant="card" className="h-14" />
+            <SkeletonV5 variant="card" className="h-14" />
+            <SkeletonV5 variant="card" className="h-14" />
+            <SkeletonV5 variant="card" className="h-14" />
           </div>
         ) : recent.orders.length === 0 ? (
-          <p className="text-base text-neutral-600">No orders yet.</p>
+          <p className="text-base text-neutral-600 dark:text-celo-light/70">
+            No orders yet.
+          </p>
         ) : (
           <ul className="space-y-2">
             {recent.orders.slice(0, 5).map((o) => (
@@ -296,6 +307,10 @@ interface KpiTileProps {
 }
 
 function KpiTile({ label, subText, value, loading, error }: KpiTileProps) {
+  // CLS fix : lock min-height to 96 px (= `h-24` of DashboardSkeleton) so
+  // the tile dimensions stay constant whether subText is present or not,
+  // and whether loading or resolved. Eliminates the CLS that pushed
+  // /seller/dashboard's CLS to 0.284 (Lighthouse fail).
   return (
     <CardV4
       variant="default"
@@ -303,6 +318,7 @@ function KpiTile({ label, subText, value, loading, error }: KpiTileProps) {
       interactive={false}
       data-testid="overview-kpi-tile"
       data-label={label}
+      className="min-h-[96px]"
     >
       <p className="text-sm text-celo-dark/60 dark:text-celo-light/60">
         {label}

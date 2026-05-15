@@ -2,10 +2,30 @@
 
 import { ImageSquare, PencilSimple, Plus, Trash } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
+import dynamic from "next/dynamic";
 import { useCallback, useMemo, useState } from "react";
 
-import { DeleteProductDialog } from "@/components/seller/DeleteProductDialog";
-import { ProductFormDialog } from "@/components/seller/ProductFormDialog";
+// Phase A P0-2 (2026-05-15) — both dialogs lazy-loaded so the seller
+// dashboard's eager bundle (was 276 kB First Load JS, perf score 27)
+// drops below 200 kB. ProductFormDialog drags in image upload + photo
+// enhance + Pinata + vision Claude wiring (~80-100 kB) ; the seller
+// only opens it when adding/editing — pure cold path. DeleteProductDialog
+// is smaller but same logic. `loading: () => null` because the dialog
+// only mounts when its `open` prop flips to true ; no perceived delay.
+const ProductFormDialog = dynamic(
+  () =>
+    import("@/components/seller/ProductFormDialog").then(
+      (m) => m.ProductFormDialog,
+    ),
+  { ssr: false, loading: () => null },
+);
+const DeleteProductDialog = dynamic(
+  () =>
+    import("@/components/seller/DeleteProductDialog").then(
+      (m) => m.DeleteProductDialog,
+    ),
+  { ssr: false, loading: () => null },
+);
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";

@@ -85,8 +85,15 @@ def get_async_engine() -> AsyncEngine:
         _async_engine = create_async_engine(
             _normalized_db_url(),
             pool_pre_ping=True,
-            pool_size=10,
-            max_overflow=20,
+            # Phase A P0-1 (2026-05-15) : bumped from 10+20 to 25+50
+            # after a 50-concurrent-GET burst showed p95 = 131s with
+            # 10 timeouts. The marketplace endpoint is async-pure (no
+            # web3 sync calls in the hot path) so DB-pool exhaustion
+            # was the prime suspect. Combined with the shared-cpu-2x
+            # bump in fly.toml, total async capacity ≈ 75 in-flight
+            # queries — comfortable headroom for V1 launch volumes.
+            pool_size=25,
+            max_overflow=50,
             # psycopg3 caches prepared statements per connection by name
             # (`_pg3_N`). Across SQLAlchemy sessions reusing the same
             # connection from the pool, collisions surface as
