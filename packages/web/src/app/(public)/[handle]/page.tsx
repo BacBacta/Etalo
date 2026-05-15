@@ -71,6 +71,16 @@ export default async function BoutiquePage({ params }: Props) {
   if (!data) notFound();
 
   const url = `${BASE_URL}/${data.seller.shop_handle}`;
+  // LCP optimization (Phase A P1) — the first product card image is
+  // the LCP element on this route. `priority` on the Next/Image
+  // already lifts it out of lazy-load, but emitting an explicit
+  // `<link rel="preload">` from the server pushes the request even
+  // earlier in the discovery order — the preload scanner picks it
+  // up from the HTML before React + Next/Image hydrate. Combined
+  // with the root layout's preconnect to Pinata, this should shave
+  // the residual 0.5-1 s above the "Good" Web Vitals threshold.
+  const firstImageUrl = data.products[0]?.primary_image_url;
+
   // Schema.org Store markup. addressCountry accepts ISO-2 or ISO-3;
   // backend stores ISO-3 so we pass it through verbatim.
   const jsonLd = {
@@ -89,6 +99,14 @@ export default async function BoutiquePage({ params }: Props) {
 
   return (
     <>
+      {firstImageUrl ? (
+        <link
+          rel="preload"
+          as="image"
+          href={firstImageUrl}
+          fetchPriority="high"
+        />
+      ) : null}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
