@@ -27,6 +27,11 @@ import {
   isValidCountryCode,
 } from "@/components/CountrySelector";
 
+// Schema-shape preserved for backend compatibility ; `region`,
+// `landmark` and `notes` are kept in the type but dropped from the UI
+// form (always sent as empty / undefined post-simplification). They
+// remain optional on the backend (`DeliveryAddressInlineRequest`) for
+// the address-book V1.5+ flow.
 export interface InlineDeliveryAddressData {
   recipient_name: string;
   phone_number: string;
@@ -53,14 +58,6 @@ const EMPTY_FORM: InlineDeliveryAddressData = {
 
 const SESSION_STORAGE_KEY = "etalo.checkout.delivery.last";
 
-// Per-country UI labels for the same `region` field — schema stays
-// generic, the seller sees a label that matches their mental model.
-const REGION_LABEL_BY_COUNTRY: Record<string, string> = {
-  NGA: "State",
-  KEN: "County",
-  GHA: "Region",
-};
-
 // Per-country phone placeholder hints — free-text input but a country-
 // specific example reduces format mistakes.
 const PHONE_PLACEHOLDER_BY_COUNTRY: Record<string, string> = {
@@ -70,10 +67,26 @@ const PHONE_PLACEHOLDER_BY_COUNTRY: Record<string, string> = {
 };
 
 const ADDRESS_PLACEHOLDER_BY_COUNTRY: Record<string, string> = {
-  NGA: "Plot 12B, off Adeola Odeku Street, Block C",
-  KEN: "Karen Plains Apartments, House 7, Ngong Road",
-  GHA: "No. 14, East Legon Road, near A&C Mall",
+  NGA: "Plot 12B, off Adeola Odeku Street — landmark: blue gate",
+  KEN: "Karen Plains Apartments, House 7 — landmark: opposite Karen mall",
+  GHA: "No. 14, East Legon Road — landmark: near A&C Mall",
 };
+
+// Shared input classes — explicit text color so dark-mode parents
+// don't bleed a light text color onto our white inputs (the bug fix
+// for the "I can't see what I'm typing" report). 16 px text avoids
+// iOS Safari's auto-zoom-on-focus.
+const INPUT_CLASSES =
+  "min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base " +
+  "text-celo-dark placeholder:text-neutral-400 " +
+  "dark:border-celo-light/20 dark:bg-celo-dark-surface dark:text-celo-light dark:placeholder:text-celo-light/40 " +
+  "focus:outline-none focus:ring-2 focus:ring-celo-forest";
+
+const TEXTAREA_CLASSES =
+  "w-full rounded-md border border-neutral-300 bg-white p-2 text-base " +
+  "text-celo-dark placeholder:text-neutral-400 " +
+  "dark:border-celo-light/20 dark:bg-celo-dark-surface dark:text-celo-light dark:placeholder:text-celo-light/40 " +
+  "focus:outline-none focus:ring-2 focus:ring-celo-forest";
 
 interface Props {
   value: InlineDeliveryAddressData;
@@ -125,13 +138,11 @@ export function InlineDeliveryAddressForm({
     }
   };
 
-  const regionLabel =
-    REGION_LABEL_BY_COUNTRY[value.country] ?? "Region";
   const phonePlaceholder =
     PHONE_PLACEHOLDER_BY_COUNTRY[value.country] ?? "+234 80 1234 5678";
   const addressPlaceholder =
     ADDRESS_PLACEHOLDER_BY_COUNTRY[value.country] ??
-    "Plot 12B, off Adeola Odeku Street";
+    "Plot 12B, off Adeola Odeku Street — landmark: blue gate";
 
   const countryMismatch =
     expectedCountry !== undefined &&
@@ -142,7 +153,7 @@ export function InlineDeliveryAddressForm({
   return (
     <div
       data-testid="inline-delivery-form"
-      className="rounded-md border border-neutral-200 bg-white p-4"
+      className="rounded-md border border-neutral-200 bg-white p-4 text-celo-dark dark:border-celo-light/10 dark:bg-celo-dark-bg dark:text-celo-light"
     >
       <header className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-base font-medium">Delivery address</h2>
@@ -163,7 +174,7 @@ export function InlineDeliveryAddressForm({
         <Field
           label="Recipient name"
           required
-          hint="Full name as on ID — courier checks the label."
+          hint="Full name on the package label."
         >
           <input
             type="text"
@@ -176,15 +187,11 @@ export function InlineDeliveryAddressForm({
             minLength={2}
             maxLength={100}
             required
-            className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
+            className={INPUT_CLASSES}
           />
         </Field>
 
-        <Field
-          label="Country"
-          required
-          hint="V1 intra-Africa scope : Nigeria, Ghana, Kenya."
-        >
+        <Field label="Country" required>
           <CountrySelector
             value={
               isValidCountryCode(value.country)
@@ -198,7 +205,7 @@ export function InlineDeliveryAddressForm({
         <Field
           label="Phone number"
           required
-          hint="Include + and country code. Courier calls / WhatsApps this number."
+          hint="Include + and country code — courier calls / WhatsApps this."
         >
           <input
             type="tel"
@@ -211,35 +218,12 @@ export function InlineDeliveryAddressForm({
             minLength={5}
             maxLength={20}
             required
-            className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
+            className={INPUT_CLASSES}
           />
         </Field>
 
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field label={regionLabel} required>
-            <input
-              type="text"
-              data-testid="inline-delivery-region"
-              value={value.region}
-              onChange={(e) =>
-                onChange({ ...value, region: e.target.value })
-              }
-              placeholder={
-                value.country === "NGA"
-                  ? "Lagos State"
-                  : value.country === "KEN"
-                    ? "Nairobi County"
-                    : value.country === "GHA"
-                      ? "Greater Accra"
-                      : ""
-              }
-              maxLength={100}
-              required
-              className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
-            />
-          </Field>
-
-          <Field label="City / Town" required>
+          <Field label="City" required>
             <input
               type="text"
               data-testid="inline-delivery-city"
@@ -258,42 +242,42 @@ export function InlineDeliveryAddressForm({
               }
               maxLength={100}
               required
-              className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
+              className={INPUT_CLASSES}
+            />
+          </Field>
+
+          <Field
+            label="Area / Neighborhood"
+            required
+            hint="Estate, suburb, district."
+          >
+            <input
+              type="text"
+              data-testid="inline-delivery-area"
+              value={value.area}
+              onChange={(e) =>
+                onChange({ ...value, area: e.target.value })
+              }
+              placeholder={
+                value.country === "NGA"
+                  ? "Lekki Phase 1"
+                  : value.country === "KEN"
+                    ? "Karen"
+                    : value.country === "GHA"
+                      ? "East Legon"
+                      : ""
+              }
+              maxLength={100}
+              required
+              className={INPUT_CLASSES}
             />
           </Field>
         </div>
 
         <Field
-          label="Area / Neighborhood"
-          required
-          hint="Estate, suburb, district — courier asks for this first."
-        >
-          <input
-            type="text"
-            data-testid="inline-delivery-area"
-            value={value.area}
-            onChange={(e) =>
-              onChange({ ...value, area: e.target.value })
-            }
-            placeholder={
-              value.country === "NGA"
-                ? "Lekki Phase 1"
-                : value.country === "KEN"
-                  ? "Karen"
-                  : value.country === "GHA"
-                    ? "East Legon"
-                    : ""
-            }
-            maxLength={100}
-            required
-            className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
-          />
-        </Field>
-
-        <Field
           label="Address details"
           required
-          hint="Building, plot, street — include landmarks if no formal address."
+          hint="Building, street, landmarks if no formal address."
         >
           <textarea
             data-testid="inline-delivery-address-line"
@@ -306,41 +290,7 @@ export function InlineDeliveryAddressForm({
             minLength={3}
             maxLength={500}
             required
-            className="w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
-          />
-        </Field>
-
-        <Field
-          label="Landmark"
-          hint="Optional — easy reference for the courier."
-        >
-          <input
-            type="text"
-            data-testid="inline-delivery-landmark"
-            value={value.landmark}
-            onChange={(e) =>
-              onChange({ ...value, landmark: e.target.value })
-            }
-            placeholder="Behind the blue gate, opposite the bakery"
-            maxLength={200}
-            className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
-          />
-        </Field>
-
-        <Field
-          label="Delivery notes"
-          hint="Optional — gate code, preferred time, anything special."
-        >
-          <textarea
-            data-testid="inline-delivery-notes"
-            value={value.notes}
-            onChange={(e) =>
-              onChange({ ...value, notes: e.target.value })
-            }
-            placeholder="Call when 5 minutes away. Gate code 4520."
-            rows={2}
-            maxLength={500}
-            className="w-full rounded-md border border-neutral-300 bg-white p-2 text-base"
+            className={TEXTAREA_CLASSES}
           />
         </Field>
       </div>
@@ -349,7 +299,7 @@ export function InlineDeliveryAddressForm({
         <p
           role="alert"
           data-testid="inline-delivery-country-mismatch"
-          className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900"
+          className="mt-3 rounded-md bg-amber-50 p-3 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-200"
         >
           This seller only delivers within{" "}
           {expectedCountry === "NGA"
@@ -366,7 +316,10 @@ export function InlineDeliveryAddressForm({
   );
 }
 
-/** Returns true when ALL required fields are non-empty after trim. */
+/** Returns true when ALL required fields are non-empty after trim.
+ *  Post simplification : `region`, `landmark`, `notes` no longer
+ *  collected from the UI ; they remain on the type for backend schema
+ *  parity but are never gated against. */
 export function isInlineDeliveryFormReady(
   value: InlineDeliveryAddressData,
   expectedCountry?: string | null,
@@ -374,7 +327,6 @@ export function isInlineDeliveryFormReady(
   if (!value.recipient_name.trim()) return false;
   if (!value.phone_number.trim()) return false;
   if (!value.country) return false;
-  if (!value.region.trim()) return false;
   if (!value.city.trim()) return false;
   if (!value.area.trim()) return false;
   if (!value.address_line.trim()) return false;

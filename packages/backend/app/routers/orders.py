@@ -66,7 +66,11 @@ class DeliveryAddressInlineRequest(BaseModel):
     recipient_name: str = Field(..., min_length=2, max_length=100)
     phone_number: str = Field(..., min_length=5, max_length=20)
     country: str = Field(..., min_length=3, max_length=3)
-    region: str = Field(..., min_length=1, max_length=100)
+    # `region` was required pre-simplification ; the inline checkout
+    # form no longer collects it (couriers route by City + Area in
+    # the V1 markets) so the field is now optional. Address-book
+    # V1.5+ flow may still populate it.
+    region: str | None = Field(default=None, max_length=100)
     city: str = Field(..., min_length=1, max_length=100)
     area: str = Field(..., min_length=1, max_length=100)
     address_line: str = Field(..., min_length=3, max_length=500)
@@ -86,7 +90,6 @@ class DeliveryAddressInlineRequest(BaseModel):
     @field_validator(
         "recipient_name",
         "phone_number",
-        "region",
         "city",
         "area",
         "address_line",
