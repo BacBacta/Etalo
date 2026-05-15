@@ -68,7 +68,18 @@ export default async function MarketplacePage({ searchParams }: PageProps) {
     rawSort === "price_asc" || rawSort === "price_desc" ? rawSort : null;
   const q = rawQ.length > 0 ? rawQ : null;
 
-  const queryClient = new QueryClient();
+  // TanStack Query v5 defaults skip dehydrating queries with the
+  // server's default staleTime of 0 — they're considered "stale at
+  // birth" and excluded from the dehydrated state, which would make
+  // the prefetch a no-op (the client useQuery would still hit the
+  // network on mount). Set staleTime to mirror the client hook's
+  // 30 s so the query is "fresh" at dehydration time and survives
+  // the round-trip to the client cache.
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { staleTime: 30_000 },
+    },
+  });
   // Best-effort prefetch — if the backend is down or slow the client
   // will refetch on mount. We never block the page render on this.
   try {
