@@ -14,6 +14,14 @@
  * Onboarding overlay still shows on the first MiniPay open per device
  * (`etalo-onboarded` localStorage flag) before the chooser appears.
  *
+ * Phase A P1 (2026-05-15) — the previous version returned a blank
+ * `<div className="min-h-screen" />` until `mounted=true`, adding
+ * 200-500 ms of empty paint before HomeMiniPay rendered. Since
+ * HomeMiniPay is server-safe (no `window` reads, no localStorage),
+ * we now render it SSR-first ; the onboarding overlay is layered ON
+ * TOP after the post-mount detect runs. Net : LCP element appears at
+ * first paint instead of after hydration.
+ *
  * `featuredSellers` is kept on the signature for backwards compat with
  * the page wrapper that prefetches them ; ignored by the chooser path.
  */
@@ -37,7 +45,6 @@ const LEGACY_MODE_PREFERENCE_KEY = "etalo-mode-preference";
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function HomeRouter({ featuredSellers }: Props = {}) {
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -50,7 +57,6 @@ export function HomeRouter({ featuredSellers }: Props = {}) {
     if (inMiniPay && !onboarded) {
       setShowOnboarding(true);
     }
-    setMounted(true);
   }, []);
 
   const handleOnboarded = () => {
@@ -60,27 +66,17 @@ export function HomeRouter({ featuredSellers }: Props = {}) {
     setShowOnboarding(false);
   };
 
-  if (!mounted) {
-    return <div className="min-h-screen" aria-hidden="true" />;
-  }
-
-  if (showOnboarding) {
-    return (
-      <>
+  return (
+    <>
+      <HomeMiniPay />
+      {showOnboarding ? (
         <OnboardingScreenV5
           title="Welcome to Etalo"
           description="Browse boutiques across Africa and pay with USDT escrow — your funds stay locked until you receive your order."
           ctaLabel="Get started"
           onCtaClick={handleOnboarded}
         />
-        <DebugMiniPayOverlay />
-      </>
-    );
-  }
-
-  return (
-    <>
-      <HomeMiniPay />
+      ) : null}
       <DebugMiniPayOverlay />
     </>
   );

@@ -65,7 +65,7 @@ export function AddToCartIcon({
       type="button"
       onClick={handleClick}
       disabled={disabled}
-      className={`absolute ${POSITION_CLASSES[position]} inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900/90 text-white shadow-md backdrop-blur-sm hover:bg-neutral-900 focus:outline-none focus:ring-2 focus:ring-neutral-900 focus:ring-offset-2 disabled:opacity-40`}
+      className={`absolute ${POSITION_CLASSES[position]} inline-flex h-11 w-11 items-center justify-center rounded-full bg-neutral-900/90 text-white shadow-md backdrop-blur-sm hover:bg-neutral-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 disabled:opacity-40 dark:bg-celo-light/90 dark:text-celo-dark dark:hover:bg-celo-light dark:focus-visible:ring-celo-light dark:focus-visible:ring-offset-celo-dark-bg`}
       aria-label={disabled ? `${title} out of stock` : `Add ${title} to cart`}
     >
       <Plus className="h-5 w-5" />

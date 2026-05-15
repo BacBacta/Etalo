@@ -499,7 +499,7 @@ function MarketplacePageInner() {
                 type="button"
                 onClick={handleBannerDismiss}
                 data-testid="country-prompt-dismiss"
-                className="mt-2 text-sm text-neutral-500 underline-offset-2 hover:underline"
+                className="mt-2 inline-flex min-h-[44px] items-center px-2 text-sm text-neutral-500 underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:text-celo-light/70"
               >
                 Not now
               </button>

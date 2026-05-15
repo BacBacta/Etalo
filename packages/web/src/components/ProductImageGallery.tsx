@@ -100,7 +100,7 @@ export function ProductImageGallery({ images, alt }: Props) {
         onClick={() => scrollToIndex(activeIndex - 1)}
         disabled={!canPrev}
         aria-label="Previous photo"
-        className="absolute left-2 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-celo-light/80 text-celo-dark shadow-sm backdrop-blur transition-opacity hover:bg-celo-light disabled:pointer-events-none disabled:opacity-0 dark:bg-celo-dark-bg/80 dark:text-celo-light dark:hover:bg-celo-dark-bg"
+        className="absolute left-2 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-celo-light/80 text-celo-dark shadow-sm backdrop-blur transition-opacity hover:bg-celo-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest disabled:pointer-events-none disabled:opacity-0 dark:bg-celo-dark-bg/80 dark:text-celo-light dark:hover:bg-celo-dark-bg"
       >
         <CaretLeft className="h-5 w-5" weight="bold" aria-hidden="true" />
       </button>
@@ -109,12 +109,13 @@ export function ProductImageGallery({ images, alt }: Props) {
         onClick={() => scrollToIndex(activeIndex + 1)}
         disabled={!canNext}
         aria-label="Next photo"
-        className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-celo-light/80 text-celo-dark shadow-sm backdrop-blur transition-opacity hover:bg-celo-light disabled:pointer-events-none disabled:opacity-0 dark:bg-celo-dark-bg/80 dark:text-celo-light dark:hover:bg-celo-dark-bg"
+        className="absolute right-2 top-1/2 -translate-y-1/2 inline-flex h-11 w-11 items-center justify-center rounded-full bg-celo-light/80 text-celo-dark shadow-sm backdrop-blur transition-opacity hover:bg-celo-light focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest disabled:pointer-events-none disabled:opacity-0 dark:bg-celo-dark-bg/80 dark:text-celo-light dark:hover:bg-celo-dark-bg"
       >
         <CaretRight className="h-5 w-5" weight="bold" aria-hidden="true" />
       </button>
 
-      {/* Dot pagination */}
+      {/* Dot pagination — wrapped in a 44 px touch row so each dot
+          remains tap-reachable on mobile despite the visual size. */}
       <div className="mt-3 flex items-center justify-center gap-2">
         {images.map((_, idx) => (
           <button
@@ -123,12 +124,19 @@ export function ProductImageGallery({ images, alt }: Props) {
             onClick={() => scrollToIndex(idx)}
             aria-label={`Go to photo ${idx + 1}`}
             aria-current={idx === activeIndex ? "true" : undefined}
-            className={
-              idx === activeIndex
-                ? "h-2 w-6 rounded-full bg-celo-dark transition-all dark:bg-celo-light"
-                : "h-2 w-2 rounded-full bg-celo-dark/30 transition-all dark:bg-celo-light/30"
-            }
-          />
+            className={`relative inline-flex h-11 w-6 items-center justify-center focus-visible:outline-none ${
+              idx === activeIndex ? "" : ""
+            }`}
+          >
+            <span
+              aria-hidden="true"
+              className={
+                idx === activeIndex
+                  ? "h-2 w-6 rounded-full bg-celo-dark transition-all peer-focus-visible:ring-2 dark:bg-celo-light"
+                  : "h-2 w-2 rounded-full bg-celo-dark/30 transition-all dark:bg-celo-light/30"
+              }
+            />
+          </button>
         ))}
       </div>
     </div>

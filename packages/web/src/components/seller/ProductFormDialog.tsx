@@ -328,6 +328,7 @@ export function ProductFormDialog({
               onChange={(e) => handleTitleChange(e.target.value)}
               minLength={TITLE_MIN_LENGTH}
               maxLength={200}
+              required
               className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light"
             />
           </FormField>
@@ -375,6 +376,7 @@ export function ProductFormDialog({
                 placeholder="10.00"
                 value={priceUsdt}
                 onChange={(e) => setPriceUsdt(e.target.value)}
+                required
                 className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark placeholder:text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:placeholder:text-neutral-500"
               />
             </FormField>
@@ -386,6 +388,7 @@ export function ProductFormDialog({
                 placeholder="10"
                 value={stock}
                 onChange={(e) => setStock(e.target.value)}
+                required
                 className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark placeholder:text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light dark:placeholder:text-neutral-500"
               />
             </FormField>

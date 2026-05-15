@@ -374,7 +374,7 @@ function TopProductRow({ product }: TopProductRowProps) {
         />
       ) : (
         <div
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-xs text-celo-dark/40 dark:bg-celo-dark-elevated dark:text-celo-light/40"
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md bg-neutral-100 text-sm text-celo-dark/40 dark:bg-celo-dark-elevated dark:text-celo-light/40"
           data-testid="overview-top-product-no-image"
           aria-label="No image available"
         >
