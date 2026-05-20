@@ -574,6 +574,63 @@ Phase C smoke end-to-end.
 
 ---
 
+# Infra TODO mainnet J12 (à exécuter le jour du deploy)
+
+Items reportés volontairement sur testnet pour limiter les coûts ;
+**à exécuter avant ou pendant le J12 mainnet deploy**.
+
+## 🔴 OBLIGATOIRE — Bump Postgres VM 256MB → 1024MB
+
+**Contexte :** la machine Postgres `etalo-db` (id `48ed047c210d48`,
+size `shared-cpu-1x:256MB`) a OOM-killed **2 fois en 5 jours** sur
+testnet (2026-05-15 21:08 + 2026-05-20 06:10), forçant 2 restarts
+manuels. Symptôme : API renvoie 500 → frontend affiche "Something
+went wrong / We couldn't load this page".
+
+Cause exacte (logs Fly DB) :
+```
+INFO Process appears to have been OOM killed!
+Out of memory: Killed process
+Health check for your postgres vm has failed. Your instance has
+hit resource limits. Upgrading your instance / volume size or
+reducing your usage might help.
+```
+
+**Action mainnet :**
+```bash
+fly machine update 48ed047c210d48 --vm-memory 1024 -a etalo-db
+```
+
+- Coût : +3 USD/mois (~$2 → ~$5)
+- Downtime : ~1 min (volume persiste, 0 data loss)
+- À faire AVANT d'annoncer mainnet (sinon premier user = première
+  OOM = première mauvaise impression)
+
+## 🟡 Recommandé — Audit relayer wallet keeper
+
+Adresse keeper auto-refund : `0xFBF50A1c8b8c7735dCFbEb40bB3413aE21918AdB`
+- Vérifier solde CELO ≥ 1 CELO avant J12 (chaque refund coûte ~$0.0001)
+- Sinon `auto_refund_keeper.refund_failed` boucle
+- Backup : le bouton "Claim refund" buyer-side reste trustless fallback
+
+## 🟡 Recommandé — Audit ENFORCE_JWT_AUTH
+
+`packages/backend/fly.toml` : `ENFORCE_JWT_AUTH = "false"` actuellement.
+ADR-034 dit "MUST flip back to true before mainnet J12". Décision
+J12 = laisser false jusqu'à SIWE migration (V1.5+) OU faire la
+migration maintenant. À trancher dans le sprint J12 plan.
+
+## 🟢 Optionnel — Resilience marketplace SSR
+
+Le `dehydrate(queryClient)` dans `(app)/marketplace/page.tsx` n'est
+pas wrapped en try/catch. Si le backend renvoie 500 pendant le SSR
+prefetch (cas OOM Postgres ci-dessus), le silent catch sur
+`prefetchInfiniteQuery` empêche le throw, mais une race rare pourrait
+faire crash le dehydrate. Pas observé en pratique mais à hardener
+post-mainnet si on voit "Server Components render error" dans Sentry.
+
+---
+
 # Phase B — Audit UX/a11y statique route par route
 
 **Méthode :** 4 sub-agents Explore lancés en parallèle, lecture de
