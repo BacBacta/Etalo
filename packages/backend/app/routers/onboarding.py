@@ -31,7 +31,11 @@ def complete_onboarding(
 ) -> OnboardingCompleteResponse:
     """
     Atomic onboarding: create the User (if missing), the SellerProfile,
-    and the first Product in a single transaction.
+    and (optionally) the first Product in a single transaction.
+
+    `first_product` is optional — sellers can publish their boutique
+    identity first and stock products later. When absent, only the
+    User/SellerProfile rows are created.
 
     Rejects with 409 when the wallet already has a seller profile, or
     when the requested handle is taken by another seller.
@@ -78,26 +82,30 @@ def complete_onboarding(
         db.add(profile)
         db.flush()
 
-        # No siblings exist yet (seller is brand-new), so the first
-        # product's slug cannot collide with anything in this seller's
-        # namespace. Pass empty `existing` — collisions only matter
-        # for the 2nd+ product, handled by future product-create flows.
-        product_slug = build_unique_slug(body.first_product.title, set())
-        product = Product(
-            seller_id=profile.id,
-            title=body.first_product.title,
-            slug=product_slug,
-            description=body.first_product.description,
-            price_usdt=body.first_product.price_usdt,
-            stock=body.first_product.stock,
-            status="active",
-            image_ipfs_hashes=body.first_product.photo_ipfs_hashes,
-        )
-        db.add(product)
+        product: Product | None = None
+        if body.first_product is not None:
+            # No siblings exist yet (seller is brand-new), so the first
+            # product's slug cannot collide with anything in this
+            # seller's namespace. Pass empty `existing` — collisions
+            # only matter for the 2nd+ product, handled by the regular
+            # product-create flow.
+            product_slug = build_unique_slug(body.first_product.title, set())
+            product = Product(
+                seller_id=profile.id,
+                title=body.first_product.title,
+                slug=product_slug,
+                description=body.first_product.description,
+                price_usdt=body.first_product.price_usdt,
+                stock=body.first_product.stock,
+                status="active",
+                image_ipfs_hashes=body.first_product.photo_ipfs_hashes,
+            )
+            db.add(product)
 
         db.commit()
         db.refresh(profile)
-        db.refresh(product)
+        if product is not None:
+            db.refresh(product)
     except HTTPException:
         db.rollback()
         raise
@@ -109,5 +117,9 @@ def complete_onboarding(
     profile_response.country = user.country
     return OnboardingCompleteResponse(
         profile=profile_response,
-        first_product=OnboardingCompleteProduct.model_validate(product),
+        first_product=(
+            OnboardingCompleteProduct.model_validate(product)
+            if product is not None
+            else None
+        ),
     )

@@ -32,7 +32,11 @@ class OnboardingProductInput(BaseModel):
 
 class OnboardingCompleteRequest(BaseModel):
     profile: OnboardingProfileInput
-    first_product: OnboardingProductInput
+    # `first_product` is now optional so a seller can spin up the boutique
+    # shell (identity + logo + socials) and add products later — matches
+    # the "open the stall first, stock the shelves after" UX preferred by
+    # informal sellers (CLAUDE.md target user).
+    first_product: OnboardingProductInput | None = None
 
 
 class OnboardingCompleteProduct(BaseModel):
@@ -47,4 +51,4 @@ class OnboardingCompleteProduct(BaseModel):
 
 class OnboardingCompleteResponse(BaseModel):
     profile: SellerProfilePublic
-    first_product: OnboardingCompleteProduct
+    first_product: OnboardingCompleteProduct | None = None

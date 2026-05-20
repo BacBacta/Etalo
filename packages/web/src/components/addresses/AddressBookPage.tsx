@@ -28,7 +28,8 @@ import type { DeliveryAddress } from "@/lib/addresses/api";
 
 export function AddressBookPage() {
   const { address: wallet } = useAccount();
-  const { isConnected, isConnecting, isInMinipay } = useMinipay();
+  const { isConnected, isConnecting, isInMinipay, connectFailed, retry } =
+    useMinipay();
   const walletStr = wallet?.toLowerCase();
   const query = useAddresses({
     wallet: walletStr,
@@ -41,7 +42,28 @@ export function AddressBookPage() {
   const [modalOpen, setModalOpen] = useState(false);
 
   // Connection states aligned with MiniPay best practices (CLAUDE.md
-  // rule 7) — same pattern as /orders.
+  // rule 7) — same pattern as /orders. `connectFailed` short-circuits
+  // the "Connecting…" spinner once the hook's 8 s watchdog elapses,
+  // so the user gets a Retry CTA instead of an endless loading
+  // surface (production bug, May 2026).
+  if (connectFailed) {
+    return (
+      <main id="main" className="min-h-screen">
+        <div className="mx-auto max-w-md p-8 text-center">
+          <p className="mb-4 text-base text-celo-dark dark:text-celo-light">
+            Couldn&apos;t connect to MiniPay.
+          </p>
+          <button
+            type="button"
+            onClick={retry}
+            className="min-h-[44px] px-4 text-base underline"
+          >
+            Retry
+          </button>
+        </div>
+      </main>
+    );
+  }
   if (isConnecting) {
     return (
       <main id="main" className="min-h-screen">

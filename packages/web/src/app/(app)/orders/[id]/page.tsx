@@ -53,8 +53,28 @@ export default function OrderDetailPage() {
 }
 
 function BuyerOrderDetailInner({ orderId }: { orderId: string | undefined }) {
-  const { isInMinipay, isConnected, isConnecting } = useMinipay();
+  const { isInMinipay, isConnected, isConnecting, connectFailed, retry } =
+    useMinipay();
   const { address } = useAccount();
+
+  if (connectFailed) {
+    return (
+      <div
+        role="alert"
+        className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-center text-base dark:border-celo-dark-surface dark:bg-celo-dark-bg"
+        data-testid="order-detail-connect-failed"
+      >
+        <p className="mb-3">Couldn&apos;t connect to MiniPay.</p>
+        <button
+          type="button"
+          onClick={retry}
+          className="min-h-[44px] px-4 text-base underline"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   if (isConnecting) {
     return <OrdersLoadingState />;
