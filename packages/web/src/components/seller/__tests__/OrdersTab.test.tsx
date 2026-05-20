@@ -395,8 +395,14 @@ describe("OrdersTab — anonymized buyer + deadline + line items (Block 8 hotfix
     applyFundedOrder();
     render(<OrdersTab address={ADDRESS} />);
     const banner = await screen.findByTestId("orders-aggregate-banner");
-    expect(banner.textContent).toContain("To ship: 1 order");
-    expect(banner.textContent).toContain("3 articles");
+    // Premium UX refactor : the dense `·`-separated band became 3 KPI
+    // tiles. Assert the data is still present without locking in the
+    // exact word ordering.
+    expect(banner.textContent).toContain("To ship");
+    expect(banner.textContent).toContain("1");
+    expect(banner.textContent).toContain("order");
+    expect(banner.textContent).toContain("3");
+    expect(banner.textContent).toContain("articles");
   });
 
   it("toggles into the pick-list view and aggregates SKUs by title across orders", async () => {

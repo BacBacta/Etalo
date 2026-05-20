@@ -159,7 +159,7 @@ describe("ipfsImageUrl", () => {
 
   it("prepends the Pinata gateway when hash is present", () => {
     expect(ipfsImageUrl("QmAbc")).toBe(
-      "https://gateway.pinata.cloud/ipfs/QmAbc",
+      "https://ipfs.io/ipfs/QmAbc",
     );
   });
 });

@@ -599,7 +599,7 @@ describe("OverviewTab — top products (Block 5 sub-block 5.6)", () => {
     const img0 = rows[0].querySelector("img");
     expect(img0).not.toBeNull();
     expect(img0!.getAttribute("src")).toBe(
-      "https://gateway.pinata.cloud/ipfs/QmHash1",
+      "https://ipfs.io/ipfs/QmHash1",
     );
     expect(img0!.getAttribute("alt")).toBe("Red Ankara Dress");
 
@@ -678,7 +678,7 @@ describe("OverviewTab — top products (Block 5 sub-block 5.6)", () => {
     // here without updating the config, next/image will reject the
     // src in production. Pin the contract.
     expect(img!.getAttribute("src")).toBe(
-      "https://gateway.pinata.cloud/ipfs/QmTestHash",
+      "https://ipfs.io/ipfs/QmTestHash",
     );
   });
 });

@@ -1,8 +1,9 @@
 "use client";
 
-import { Package, Truck } from "@phosphor-icons/react";
+import { Clock, Copy, MapPin, Package, Truck } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
+import { toast } from "sonner";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
@@ -28,15 +29,12 @@ import {
 } from "@/hooks/useSellerOrders";
 import { fireMilestone } from "@/lib/confetti/milestones";
 import { formatRowDate } from "@/lib/format";
-import {
-  type SellerOrderItem,
-} from "@/lib/seller-api";
+import { type SellerOrderItem } from "@/lib/seller-api";
 import {
   buyerLabel,
   deadlineInfo,
   ipfsImageUrl,
   isShippable,
-  statusBadgeClass,
   summarizeOrders,
   type DeadlineUrgency,
 } from "@/lib/sellerOrderHelpers";
@@ -47,11 +45,6 @@ import { formatRawUsdt } from "@/lib/usdt";
 // (guarded by useMilestoneOnce) AND only on the 0 → 1+ orders
 // transition, so eager-loading its DialogV4 + ButtonV4 dependency
 // chain (Radix + motion) for every dashboard mount is wasted weight.
-// Static import busted the 280 kB strict First Load trigger by 1 kB
-// on the first run of 6.3 ; lazy-loading reclaims the bundle budget.
-// loading: () => null because the dialog renders into a Radix Portal
-// that is invisible until `open` flips, so no fallback shape is
-// required during the chunk fetch window.
 const MilestoneDialogV5 = dynamic(
   () =>
     import("@/components/ui/v5/MilestoneDialog").then((mod) => ({
@@ -76,11 +69,37 @@ const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "Refunded", label: "Refunded" },
 ];
 
-const URGENCY_DEADLINE_CLASSES: Record<DeadlineUrgency, string> = {
-  expired: "bg-rose-100 text-rose-800",
-  urgent: "bg-rose-100 text-rose-800",
-  warn: "bg-amber-100 text-amber-800",
-  safe: "bg-emerald-50 text-emerald-700",
+// Status → dot color (Shopify pattern). Pre-fund / created = neutral,
+// shippable orange (action needed), shipped blue (in transit),
+// completed green, disputed red.
+const STATUS_DOT_CLASSES: Record<string, string> = {
+  Created: "bg-neutral-400",
+  Funded: "bg-amber-500",
+  PartiallyShipped: "bg-blue-500",
+  AllShipped: "bg-blue-500",
+  PartiallyDelivered: "bg-blue-600",
+  Completed: "bg-emerald-500",
+  Disputed: "bg-rose-500",
+  Refunded: "bg-neutral-500",
+};
+
+// Per-urgency left-border + deadline-strip palette. The 4 px left
+// border on each card lets the seller scan a long list and prioritize
+// in one sweep (Shopify / Linear / Robinhood pattern).
+const URGENCY_BORDER_CLASSES: Record<DeadlineUrgency, string> = {
+  expired: "border-l-rose-500 dark:border-l-rose-400",
+  urgent: "border-l-rose-500 dark:border-l-rose-400",
+  warn: "border-l-amber-500 dark:border-l-amber-400",
+  safe: "border-l-emerald-500 dark:border-l-emerald-400",
+};
+
+const URGENCY_STRIP_CLASSES: Record<DeadlineUrgency, string> = {
+  expired:
+    "bg-rose-50 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
+  urgent:
+    "bg-rose-50 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
+  warn: "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
+  safe: "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
 };
 
 type ViewMode = "orders" | "pick-list";
@@ -105,26 +124,14 @@ export function OrdersTab({ address }: Props) {
     : (ordersQuery.data ?? null);
 
   // Centralized invalidation point used after a successful
-  // markShipped mutation. Hits every (address, page, pageSize,
-  // status) combo cached so the Overview tab's recent-orders strip
-  // also picks up the change.
+  // markShipped mutation.
   const refetch = useCallback(() => {
     void queryClient.invalidateQueries({
       queryKey: SELLER_ORDERS_QUERY_KEY,
     });
   }, [queryClient]);
 
-  // J10-V5 Block 7 — first-sale milestone. Track previous orders.length
-  // and fire confetti when transition is 0 → ≥1 within the same mount.
-  // Initial null → ≥1 (refetch lands with orders already present from a
-  // past purchase) is NOT a first-sale event for this session, so the
-  // ref stays null until the first refetch resolves.
-  //
-  // Block 6 sub-block 6.3 extension : same trigger ALSO opens the
-  // celebratory MilestoneDialogV5, gated by the cross-session one-shot
-  // guard (useMilestoneOnce). Confetti continues to fire independently
-  // — additive, not a replacement. Pattern : Robinhood transaction
-  // success — confetti behind, dialog focal-point at the same moment.
+  // J10-V5 Block 7 — first-sale milestone confetti + dialog.
   const prevOrdersCountRef = useRef<number | null>(null);
   const { shouldShow: showFirstSaleDialog, markShown: markFirstSaleShown } =
     useMilestoneOnce("first-sale");
@@ -136,9 +143,6 @@ export function OrdersTab({ address }: Props) {
     const prev = prevOrdersCountRef.current;
     if (prev === 0 && count > 0) {
       fireMilestone("first-sale");
-      // Dialog open is gated by the persistent one-shot guard so a
-      // seller who has already seen the celebration on a previous
-      // device session doesn't get it re-fired.
       if (showFirstSaleDialog) {
         setMilestoneOpen(true);
       }
@@ -157,54 +161,53 @@ export function OrdersTab({ address }: Props) {
   );
 
   return (
-    <div className="space-y-4">
-      {/* Aggregate banner — sticky context bar above the list/pick view.
-          Always rendered when there's at least one shippable order so
-          the seller's "what to ship next" pressure is visible without
-          scrolling. */}
+    <div className="space-y-5">
+      {/* KPI tiles — replace the previous dense amber band. 3 metrics
+          at a glance : open orders to ship, total items pending,
+          next-deadline countdown (urgency-colored). */}
       {aggregate && aggregate.shippableOrderCount > 0 ? (
         <div
           data-testid="orders-aggregate-banner"
-          className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 tabular-nums"
+          className="grid grid-cols-3 gap-2 sm:gap-3"
         >
-          <span className="font-medium">
-            To ship: {aggregate.shippableOrderCount}{" "}
-            {aggregate.shippableOrderCount === 1 ? "order" : "orders"}
-          </span>
-          <span aria-hidden>·</span>
-          <span>
-            {aggregate.totalItemsToShip}{" "}
-            {aggregate.totalItemsToShip === 1 ? "article" : "articles"}
-          </span>
-          {aggregate.earliestDeadline ? (
-            <>
-              <span aria-hidden>·</span>
-              <span
-                data-testid="orders-aggregate-deadline"
-                data-urgency={aggregate.earliestDeadline.urgency}
-              >
-                next deadline{" "}
-                <span className="font-semibold">
-                  {aggregate.earliestDeadline.urgency === "expired"
-                    ? "past due"
-                    : aggregate.earliestDeadline.label}
-                </span>
-              </span>
-            </>
-          ) : null}
+          <KpiTile
+            label="To ship"
+            value={String(aggregate.shippableOrderCount)}
+            sub={
+              aggregate.shippableOrderCount === 1 ? "order" : "orders"
+            }
+            icon={<Package className="h-4 w-4" weight="regular" />}
+          />
+          <KpiTile
+            label="Items"
+            value={String(aggregate.totalItemsToShip)}
+            sub={
+              aggregate.totalItemsToShip === 1 ? "article" : "articles"
+            }
+            icon={<Truck className="h-4 w-4" weight="regular" />}
+          />
+          <KpiTile
+            label="Next deadline"
+            value={
+              aggregate.earliestDeadline
+                ? aggregate.earliestDeadline.urgency === "expired"
+                  ? "Past due"
+                  : aggregate.earliestDeadline.label
+                : "—"
+            }
+            sub={aggregate.earliestDeadline ? "remaining" : ""}
+            urgency={aggregate.earliestDeadline?.urgency}
+            testId="orders-aggregate-deadline"
+            icon={<Clock className="h-4 w-4" weight="regular" />}
+          />
         </div>
       ) : null}
 
-      {/* View toggle — orders (per-buyer) vs pick list (per-SKU).
-          Pick list aggregates open orders so a seller fulfilling 5 of
-          the same SKU sees `× 5` instead of 5 separate cards. */}
-      {/* ARIA tabs pattern (W3C APG) — `←`/`→` switch tabs, Home/End
-          jump to first/last. tabIndex=0 on the active tab, -1 on the
-          others so focus moves with the selection (single-stop pattern). */}
+      {/* View toggle — orders (per-buyer) vs pick list (per-SKU). */}
       <div
         role="tablist"
         aria-label="Orders view"
-        className="inline-flex rounded-md border border-neutral-200 p-1 dark:border-celo-light/20"
+        className="inline-flex rounded-full border border-neutral-200 bg-neutral-50 p-1 dark:border-celo-light/15 dark:bg-celo-dark-elevated"
         data-testid="orders-view-toggle"
         onKeyDown={(e) => {
           if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
@@ -225,10 +228,10 @@ export function OrdersTab({ address }: Props) {
           aria-selected={view === "orders" ? "true" : "false"}
           tabIndex={view === "orders" ? 0 : -1}
           onClick={() => setView("orders")}
-          className={`min-h-[44px] rounded px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest ${
+          className={`inline-flex min-h-[44px] items-center rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest ${
             view === "orders"
-              ? "bg-neutral-900 text-white dark:bg-celo-light dark:text-celo-dark"
-              : "text-neutral-700 hover:bg-neutral-100 dark:text-celo-light/70 dark:hover:bg-celo-dark-elevated"
+              ? "bg-celo-dark text-celo-light shadow-sm dark:bg-celo-light dark:text-celo-dark"
+              : "text-neutral-700 hover:text-celo-dark dark:text-celo-light/70 dark:hover:text-celo-light"
           }`}
         >
           Orders
@@ -239,27 +242,30 @@ export function OrdersTab({ address }: Props) {
           aria-selected={view === "pick-list" ? "true" : "false"}
           tabIndex={view === "pick-list" ? 0 : -1}
           onClick={() => setView("pick-list")}
-          className={`min-h-[44px] rounded px-3 text-sm font-medium focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest ${
+          className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-full px-4 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest ${
             view === "pick-list"
-              ? "bg-neutral-900 text-white dark:bg-celo-light dark:text-celo-dark"
-              : "text-neutral-700 hover:bg-neutral-100 dark:text-celo-light/70 dark:hover:bg-celo-dark-elevated"
+              ? "bg-celo-dark text-celo-light shadow-sm dark:bg-celo-light dark:text-celo-dark"
+              : "text-neutral-700 hover:text-celo-dark dark:text-celo-light/70 dark:hover:text-celo-light"
           }`}
         >
-          <Package className="mr-1 inline h-4 w-4" aria-hidden />
+          <Package className="h-4 w-4" aria-hidden />
           Pick list
         </button>
       </div>
 
       {view === "orders" ? (
-        <div className="flex items-center gap-3">
-          <label htmlFor="status-filter" className="text-base">
+        <div className="flex items-center gap-2">
+          <label
+            htmlFor="status-filter"
+            className="text-sm text-neutral-600 dark:text-celo-light/70"
+          >
             Filter:
           </label>
           <select
             id="status-filter"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="min-h-[44px] rounded-md border border-neutral-300 p-2 text-base"
+            className="min-h-[44px] flex-1 rounded-md border border-neutral-300 bg-white px-3 text-base text-celo-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light sm:flex-none"
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -271,19 +277,16 @@ export function OrdersTab({ address }: Props) {
       ) : null}
 
       {data === null ? (
-        <div
-          className="space-y-3"
-          data-testid="orders-skeleton"
-        >
-          <SkeletonV5 variant="row" />
-          <SkeletonV5 variant="row" />
-          <SkeletonV5 variant="row" />
+        <div className="space-y-3" data-testid="orders-skeleton">
+          <SkeletonV5 variant="card" className="h-32" />
+          <SkeletonV5 variant="card" className="h-32" />
+          <SkeletonV5 variant="card" className="h-32" />
         </div>
       ) : view === "pick-list" ? (
         <PickListView orders={data.orders} />
       ) : data.orders.length === 0 ? (
         statusFilter ? (
-          <p className="text-base text-neutral-600">
+          <p className="text-base text-neutral-600 dark:text-celo-light/70">
             No orders with status &ldquo;{statusFilter}&rdquo;.
           </p>
         ) : (
@@ -294,7 +297,7 @@ export function OrdersTab({ address }: Props) {
           />
         )
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-3">
           {data.orders.map((o) => (
             <OrderRow
               key={o.id}
@@ -311,7 +314,7 @@ export function OrdersTab({ address }: Props) {
       )}
 
       {data && view === "orders" && totalNum !== null && data.orders.length < totalNum ? (
-        <p className="text-sm text-neutral-500 tabular-nums">
+        <p className="text-sm text-neutral-500 tabular-nums dark:text-celo-light/60">
           Showing {data.orders.length} of {totalNum} — pagination coming.
         </p>
       ) : null}
@@ -341,6 +344,46 @@ export function OrdersTab({ address }: Props) {
   );
 }
 
+interface KpiTileProps {
+  label: string;
+  value: string;
+  sub?: string;
+  icon: React.ReactNode;
+  urgency?: DeadlineUrgency;
+  testId?: string;
+}
+
+function KpiTile({ label, value, sub, icon, urgency, testId }: KpiTileProps) {
+  const urgencyText =
+    urgency === "expired" || urgency === "urgent"
+      ? "text-rose-700 dark:text-rose-300"
+      : urgency === "warn"
+        ? "text-amber-700 dark:text-amber-300"
+        : urgency === "safe"
+          ? "text-emerald-700 dark:text-emerald-300"
+          : "text-celo-dark dark:text-celo-light";
+  return (
+    <div
+      data-testid={testId}
+      data-urgency={urgency}
+      className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-celo-light/10 dark:bg-celo-dark-elevated"
+    >
+      <div className="mb-1 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-celo-light/60">
+        {icon}
+        <span>{label}</span>
+      </div>
+      <div className={`text-xl font-semibold tabular-nums ${urgencyText}`}>
+        {value}
+      </div>
+      {sub ? (
+        <div className="mt-0.5 text-sm text-neutral-500 dark:text-celo-light/50">
+          {sub}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 interface OrderRowProps {
   order: SellerOrderItem;
   onShipClick: () => void;
@@ -351,70 +394,139 @@ function OrderRow({ order, onShipClick }: OrderRowProps) {
   const dl = deadlineInfo(order.funded_at, order.global_status);
   const buyer = buyerLabel(order.delivery_address_snapshot, order.onchain_order_id);
   const lineItems = order.line_items ?? [];
+  const snapshot = order.delivery_address_snapshot ?? null;
+
+  // 4 px left border keyed to urgency lets sellers scan a long list and
+  // pick what to ship next without reading every label. Falls back to
+  // a neutral border for orders without an active deadline (Created /
+  // Completed / Disputed / Refunded).
+  const borderColor = dl
+    ? URGENCY_BORDER_CLASSES[dl.urgency]
+    : "border-l-neutral-200 dark:border-l-celo-light/10";
+
+  const statusDotColor =
+    STATUS_DOT_CLASSES[order.global_status] ?? "bg-neutral-400";
+
+  const handleCopyAddress = () => {
+    if (!snapshot) return;
+    const lines = [
+      snapshot.recipient_name,
+      snapshot.address_line,
+      snapshot.area,
+      [snapshot.city, snapshot.region].filter(Boolean).join(", "),
+      snapshot.country,
+    ]
+      .filter(Boolean)
+      .join("\n");
+    void navigator.clipboard
+      .writeText(lines)
+      .then(() => toast.success("Address copied"))
+      .catch(() => toast.error("Couldn't copy"));
+  };
 
   return (
-    <li className="rounded-md border border-neutral-200 p-3">
-      <div className="mb-1 flex items-center justify-between gap-2">
-        <span className="text-base font-medium tabular-nums">
-          Order #{order.onchain_order_id}
+    <li
+      className={`overflow-hidden rounded-xl border border-neutral-200 border-l-4 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated ${borderColor}`}
+    >
+      {/* Header strip : order id + status + amount. Distinct visual
+          band so the list reads like a feed of cards, not a flat
+          stack of paragraphs. */}
+      <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3 dark:border-celo-light/10">
+        <div className="flex items-center gap-2 min-w-0">
+          <span
+            aria-hidden
+            className={`inline-block h-2 w-2 rounded-full ${statusDotColor}`}
+          />
+          <span
+            data-testid="order-row-status"
+            className="text-sm font-medium text-celo-dark dark:text-celo-light"
+          >
+            {order.global_status}
+          </span>
+          <span
+            aria-hidden
+            className="text-neutral-300 dark:text-celo-light/30"
+          >
+            ·
+          </span>
+          <span className="truncate text-sm tabular-nums text-neutral-500 dark:text-celo-light/60">
+            #{order.onchain_order_id}
+          </span>
+        </div>
+        <span className="flex-shrink-0 text-base font-semibold tabular-nums text-celo-dark dark:text-celo-light">
+          {formatRawUsdt(order.total_amount_usdt)} USDT
         </span>
-        <span
-          data-testid="order-row-status"
-          className={`rounded px-2 py-1 text-sm ${statusBadgeClass(order.global_status)}`}
-        >
-          {order.global_status}
-        </span>
-      </div>
-      <div className="text-sm text-neutral-600 tabular-nums">
-        {buyer} · {formatRawUsdt(order.total_amount_usdt)} USDT ·{" "}
-        {formatRowDate(order.created_at_chain)} · {order.item_count}{" "}
-        {order.item_count === 1 ? "item" : "items"}
       </div>
 
-      {/* Deadline countdown — only renders for shippable orders with a
-          fund timestamp. Codes urgency via color so the seller can scan
-          the list and prioritize without reading every label. */}
+      {/* Body : buyer + date + item count, more compact than the previous
+          dense one-line `·`-separated string. Two visible rows now :
+          a primary "buyer" line and a small meta line. */}
+      <div className="px-4 pt-3">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <BuyerAvatar label={buyer} />
+            <span className="truncate text-base font-medium text-celo-dark dark:text-celo-light">
+              {buyer}
+            </span>
+          </div>
+          <span className="flex-shrink-0 text-sm text-neutral-500 tabular-nums dark:text-celo-light/60">
+            {formatRowDate(order.created_at_chain)}
+          </span>
+        </div>
+        <div className="mt-0.5 text-sm text-neutral-500 dark:text-celo-light/60">
+          {order.item_count} {order.item_count === 1 ? "item" : "items"}
+        </div>
+      </div>
+
+      {/* Deadline strip — full-width band, color-coded urgency. Only
+          for shippable orders past funding. */}
       {dl ? (
         <div
           data-testid="order-row-deadline"
           data-urgency={dl.urgency}
-          className={`mt-2 inline-flex items-center rounded px-2 py-1 text-sm font-medium ${URGENCY_DEADLINE_CLASSES[dl.urgency]}`}
+          className={`mt-3 flex items-center gap-2 px-4 py-2 text-sm font-medium ${URGENCY_STRIP_CLASSES[dl.urgency]}`}
         >
-          {dl.urgency === "expired"
-            ? "Past auto-refund deadline"
-            : `Ship in ${dl.label} or order auto-refunds`}
+          <Clock className="h-4 w-4 flex-shrink-0" weight="regular" />
+          <span>
+            {dl.urgency === "expired"
+              ? "Past auto-refund deadline — funds may return to buyer"
+              : `Ship within ${dl.label} or order auto-refunds`}
+          </span>
         </div>
       ) : null}
 
-      {/* Line items — what to pull from shelves. Fallback row appears
-          when product_ids is null (legacy / pre-product-snapshot orders). */}
+      {/* Line items — 40 px thumbnails with breathing room. qty pill
+          right-aligned. */}
       {lineItems.length > 0 ? (
         <ul
-          className="mt-3 space-y-1.5"
+          className="mx-4 mt-3 space-y-2 border-t border-neutral-100 pt-3 dark:border-celo-light/10"
           data-testid="order-row-line-items"
         >
           {lineItems.map((item, idx) => (
             <li
               key={`${order.id}-${idx}`}
-              className="flex items-center gap-2 text-sm text-neutral-800"
+              className="flex items-center gap-3"
             >
               {item.image_ipfs_hash ? (
-                // Plain <img> — 28 px thumbnail, see PickListRow note.
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={ipfsImageUrl(item.image_ipfs_hash) ?? ""}
                   alt=""
-                  className="h-7 w-7 flex-shrink-0 rounded object-cover"
+                  className="h-10 w-10 flex-shrink-0 rounded-md object-cover"
                   loading="lazy"
                 />
               ) : (
-                <Package
-                  className="h-5 w-5 flex-shrink-0 text-neutral-400"
-                  aria-hidden
-                />
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-neutral-100 dark:bg-celo-dark-bg">
+                  <Package
+                    className="h-5 w-5 text-neutral-400 dark:text-celo-light/40"
+                    aria-hidden
+                  />
+                </div>
               )}
-              <span className="flex-1 truncate">{item.title}</span>
-              <span className="flex-shrink-0 font-medium tabular-nums">
+              <span className="flex-1 truncate text-sm text-celo-dark dark:text-celo-light">
+                {item.title}
+              </span>
+              <span className="flex-shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-sm font-medium tabular-nums text-celo-dark dark:bg-celo-dark-bg dark:text-celo-light">
                 × {item.qty}
               </span>
             </li>
@@ -422,34 +534,63 @@ function OrderRow({ order, onShipClick }: OrderRowProps) {
         </ul>
       ) : null}
 
-      {/* Mark shipped is the action this row exists to enable when
-          status is Funded / PartiallyShipped — promoted to primary
-          variant + positioned ABOVE the delivery card so the CTA is
-          the first action a thumb reaches for. */}
-      {canShip ? (
-        <div className="mt-3">
+      {/* Action zone — primary CTA + secondary actions. Separated from
+          the data zone by spacing + alignment so the seller's eye
+          lands here when scanning a row top-to-bottom. */}
+      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
+        {canShip ? (
           <Button
             type="button"
             variant="default"
             onClick={onShipClick}
-            className="min-h-[44px] text-base"
+            className="min-h-[44px] flex-1 text-base sm:flex-none"
           >
             <Truck className="mr-2 h-4 w-4" />
             Mark shipped
           </Button>
+        ) : null}
+        {snapshot ? (
+          <button
+            type="button"
+            onClick={handleCopyAddress}
+            aria-label="Copy delivery address"
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-celo-dark hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/20 dark:text-celo-light dark:hover:bg-celo-dark-bg"
+          >
+            <Copy className="h-4 w-4" weight="regular" />
+            Copy address
+          </button>
+        ) : null}
+      </div>
+
+      {/* Delivery card — folded into the row when snapshot present. */}
+      {snapshot ? (
+        <div className="px-4 pb-4">
+          <div className="mb-1.5 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-celo-light/60">
+            <MapPin className="h-4 w-4" weight="regular" />
+            <span>Ship to</span>
+          </div>
+          <OrderDeliveryAddressCard
+            snapshot={snapshot}
+            orderId={order.onchain_order_id}
+            hideWhenEmpty
+          />
         </div>
       ) : null}
-
-      {/* Delivery snapshot — shown only when the buyer has funded
-          (snapshot non-null). Pre-fund orders skip the entire card so
-          the list stays scannable when many orders are still Created. */}
-      <div className="mt-3">
-        <OrderDeliveryAddressCard
-          snapshot={order.delivery_address_snapshot ?? null}
-          orderId={order.onchain_order_id}
-          hideWhenEmpty
-        />
-      </div>
     </li>
+  );
+}
+
+// Compact avatar : first letter of buyer label, monogram-style. Cheap
+// alternative to a real photo since we never display the buyer's wallet
+// or any PII to the seller (CLAUDE.md rule #5 + ADR-043).
+function BuyerAvatar({ label }: { label: string }) {
+  const initial = (label.match(/[A-Za-z0-9]/)?.[0] ?? "?").toUpperCase();
+  return (
+    <span
+      aria-hidden
+      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-celo-forest-soft text-sm font-semibold text-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-light"
+    >
+      {initial}
+    </span>
   );
 }

@@ -43,10 +43,12 @@ export type StakeTier = components["schemas"]["StakeTier"];
 // Both extensions are local until `pnpm gen:api` re-runs post-merge ;
 // intersections become no-ops once the regen lands.
 type DeliveryAddressSnapshotJson = {
+  recipient_name?: string | null;
   phone_number?: string | null;
   country?: string | null;
   city?: string | null;
   region?: string | null;
+  area?: string | null;
   address_line?: string | null;
   landmark?: string | null;
   notes?: string | null;

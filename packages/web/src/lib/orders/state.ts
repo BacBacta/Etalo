@@ -32,11 +32,17 @@ export type ShipmentStatus = components["schemas"]["ShipmentStatus"];
 // added to OrderResponse server-side at Block 7 (the field stores the
 // address picked at checkout). The api.gen.ts regen post-merge will
 // replace this intersection with a no-op.
+//
+// ADR-050 (inline checkout pivot) added `recipient_name` + `area`.
+// Both optional for backwards compat with pre-ADR-050 orders that
+// don't carry them.
 export type DeliveryAddressSnapshotJson = {
+  recipient_name?: string | null;
   phone_number?: string | null;
   country?: string | null;
   city?: string | null;
   region?: string | null;
+  area?: string | null;
   address_line?: string | null;
   landmark?: string | null;
   notes?: string | null;
