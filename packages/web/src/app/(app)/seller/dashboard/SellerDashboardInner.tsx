@@ -78,10 +78,9 @@ type TabKey = (typeof VALID_TABS)[number];
 export function SellerDashboardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { address } = useAccount();
+  const { address, isConnected, status: accountStatus } = useAccount();
   const queryClient = useQueryClient();
 
-  const { isConnected } = useAccount();
   const [profile, setProfile] = useState<SellerProfilePublic | null>(null);
   const [error, setError] = useState<"not_found" | "fetch_failed" | null>(
     null,
@@ -198,7 +197,19 @@ export function SellerDashboardInner() {
   // ADR-052/053 — Chrome users with a wallet can access the dashboard.
   // When the visitor is NOT connected we show a Connect-wallet prompt
   // inside the dashboard shell instead of bouncing them back to `/`.
-  // This unblocks the "Open my boutique" CTA on the chooser.
+  //
+  // Hydration race fix : wagmi's `useAccount()` returns `isConnected=false`
+  // briefly while it rehydrates the session from storage on first mount
+  // (status === 'reconnecting' or 'connecting'). Without this gate the
+  // user would see a 100-300 ms flash of the "Connect wallet" prompt
+  // before the dashboard renders — feels like the page "didn't open"
+  // because they're already looking at it before the real state lands.
+  // We keep the skeleton mounted through both reconnecting AND
+  // connecting states.
+  if (accountStatus === "reconnecting" || accountStatus === "connecting") {
+    return <DashboardSkeleton />;
+  }
+
   if (!isConnected || !address) {
     return (
       <StatusShell>
