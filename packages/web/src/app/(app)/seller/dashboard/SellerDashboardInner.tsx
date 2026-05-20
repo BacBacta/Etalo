@@ -8,6 +8,7 @@ import { useAccount } from "wagmi";
 import dynamic from "next/dynamic";
 
 import { DashboardSkeleton } from "@/app/(app)/seller/dashboard/DashboardSkeleton";
+import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 
@@ -50,7 +51,6 @@ import {
 } from "@/components/ui/v4/Tabs";
 import { MY_PRODUCTS_QUERY_KEY } from "@/hooks/useMyProducts";
 import { SELLER_ORDERS_QUERY_KEY } from "@/hooks/useSellerOrders";
-import { detectMiniPay } from "@/lib/minipay-detect";
 import {
   fetchMyProducts,
   fetchMyProfile,
@@ -81,31 +81,31 @@ export function SellerDashboardInner() {
   const { address } = useAccount();
   const queryClient = useQueryClient();
 
-  const [isMiniPay, setIsMiniPay] = useState<boolean | null>(null);
+  const { isConnected } = useAccount();
   const [profile, setProfile] = useState<SellerProfilePublic | null>(null);
   const [error, setError] = useState<"not_found" | "fetch_failed" | null>(
     null,
   );
   const [loading, setLoading] = useState(true);
 
-  // 1) MiniPay gating — same pattern as /marketplace, via the shared
-  // detectMiniPay() helper (Pattern D : env override + canonical flag
-  // + UA fallback for Mini App Test mode).
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const detected = detectMiniPay();
-    setIsMiniPay(detected);
-    if (!detected) router.replace("/");
-  }, [router]);
+  // ADR-052/053 — dashboard access is gated on wallet connection, NOT
+  // on MiniPay context. The previous `detectMiniPay() || router.replace("/")`
+  // gate bounced Chrome users back to the chooser and broke the
+  // "Open my boutique" CTA. Now : if the visitor has a connected
+  // wallet (MiniPay auto or Chrome via ConnectWalletButton), they
+  // see their dashboard. Otherwise we show a Connect-wallet prompt.
 
-  // 2) Identity fetch (/sellers/me). Block 5 sub-block 5.4 dropped the
+  // Identity fetch (/sellers/me). Block 5 sub-block 5.4 dropped the
   // parallel `fetchSellerOnchainProfile` call — its only consumers were
   // StakeTab (retired in 5.1) and OverviewTab's stake StatCards (also
   // retired in 5.1). The dashboard's KPI surface now sources its
   // numbers from useAnalyticsSummary (sub-block 5.3) directly inside
   // OverviewTab, so the parent only needs the off-chain identity row.
   useEffect(() => {
-    if (isMiniPay !== true || !address) return;
+    if (!isConnected || !address) {
+      setLoading(false);
+      return;
+    }
     let cancelled = false;
     setLoading(true);
     fetchMyProfile(address)
@@ -128,7 +128,7 @@ export function SellerDashboardInner() {
     return () => {
       cancelled = true;
     };
-  }, [isMiniPay, address]);
+  }, [isConnected, address]);
 
   // Pre-warm every tab's data cache as soon as we know the wallet, in
   // parallel with the seller-profile fetch above. The user reported
@@ -141,7 +141,7 @@ export function SellerDashboardInner() {
   // exactly (useMyProducts / useSellerOrders) ; otherwise the cache
   // entries are orphans and the consumer still fires.
   useEffect(() => {
-    if (isMiniPay !== true || !address) return;
+    if (!isConnected || !address) return;
     void queryClient.prefetchQuery({
       queryKey: [...MY_PRODUCTS_QUERY_KEY, address, false],
       queryFn: () => fetchMyProducts(address, false),
@@ -159,7 +159,7 @@ export function SellerDashboardInner() {
       queryFn: () => fetchSellerOrders(address, 1, 5, undefined),
       staleTime: 30_000,
     });
-  }, [isMiniPay, address, queryClient]);
+  }, [isConnected, address, queryClient]);
 
   const requestedTab = searchParams.get("tab");
   const safeTab: TabKey =
@@ -195,23 +195,28 @@ export function SellerDashboardInner() {
     });
   }, [safeTab]);
 
-  // J10-V5 Phase 5 polish #7 — both pre-render gates (MiniPay
-  // detection + profile fetch) now share the DashboardSkeleton so the
-  // user sees the page structure on first paint instead of two
-  // successive "Loading…" text flashes. The MiniPay detection branch
-  // resolves in <50 ms typically, but the skeleton stays consistent
-  // with the longer profile-fetch branch — no jarring "text →
-  // skeleton → real" sequence.
-  if (isMiniPay === null) {
-    return <DashboardSkeleton />;
+  // ADR-052/053 — Chrome users with a wallet can access the dashboard.
+  // When the visitor is NOT connected we show a Connect-wallet prompt
+  // inside the dashboard shell instead of bouncing them back to `/`.
+  // This unblocks the "Open my boutique" CTA on the chooser.
+  if (!isConnected || !address) {
+    return (
+      <StatusShell>
+        <div className="mx-auto max-w-md py-12 text-center">
+          <h2 className="mb-3 text-xl font-semibold text-celo-dark dark:text-celo-light">
+            Connect your wallet to open your boutique
+          </h2>
+          <p className="mb-4 text-base text-neutral-700 dark:text-celo-light/70">
+            Your seller dashboard is tied to the wallet that owns the
+            shop — connect to see your products, orders, and revenue.
+          </p>
+          <div className="flex justify-center">
+            <ConnectWalletButton />
+          </div>
+        </div>
+      </StatusShell>
+    );
   }
-  // Phase A P0-3 CLS fix : when the visitor isn't in MiniPay we
-  // `router.replace("/")` from the effect above, but until the
-  // navigation commits the previous DashboardSkeleton would unmount
-  // and the page would collapse to 0 height — Lighthouse measured
-  // this as CLS = 0.284 (fail). Keep the skeleton mounted across
-  // the redirect window so the layout stays stable.
-  if (isMiniPay === false) return <DashboardSkeleton />;
 
   if (loading) {
     return <DashboardSkeleton />;
