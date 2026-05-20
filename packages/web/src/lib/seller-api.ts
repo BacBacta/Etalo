@@ -93,6 +93,77 @@ export class SellerNotFoundError extends Error {
   }
 }
 
+export class ShopHandleTakenError extends Error {
+  constructor() {
+    super("Shop handle is already taken.");
+    this.name = "ShopHandleTakenError";
+  }
+}
+
+export class WalletAlreadyHasShopError extends Error {
+  constructor() {
+    super("This wallet already has a seller profile.");
+    this.name = "WalletAlreadyHasShopError";
+  }
+}
+
+// === POST /onboarding/complete — create the boutique shell ===
+// `first_product` is intentionally omitted from the input type : the
+// "create boutique without product" flow is the V1 default. Future
+// product-on-onboard variants can extend the payload type without
+// breaking this helper.
+export type CreateShopInput = {
+  shop_handle: string;
+  shop_name: string;
+  country: string;
+  description?: string | null;
+  logo_ipfs_hash?: string | null;
+  language?: string;
+};
+
+export async function createSellerProfile(
+  walletAddress: string,
+  input: CreateShopInput,
+): Promise<SellerProfilePublic> {
+  const res = await fetchApi("/onboarding/complete", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Wallet-Address": walletAddress,
+    },
+    body: JSON.stringify({
+      profile: {
+        shop_handle: input.shop_handle,
+        shop_name: input.shop_name,
+        country: input.country,
+        language: input.language ?? "en",
+        description: input.description ?? null,
+        logo_ipfs_hash: input.logo_ipfs_hash ?? null,
+      },
+    }),
+  });
+  if (res.status === 409) {
+    // The backend uses the same 409 for both collisions. Disambiguate
+    // by the detail string so the form can target the right field.
+    let detail = "";
+    try {
+      const body = (await res.json()) as { detail?: string };
+      detail = body.detail ?? "";
+    } catch {
+      // ignore
+    }
+    if (detail.toLowerCase().includes("handle")) {
+      throw new ShopHandleTakenError();
+    }
+    throw new WalletAlreadyHasShopError();
+  }
+  if (!res.ok) {
+    throw new Error(`Shop creation failed: ${res.status}`);
+  }
+  const data = (await res.json()) as { profile: SellerProfilePublic };
+  return data.profile;
+}
+
 // === /sellers/me — owner identity (X-Wallet-Address required) ===
 export async function fetchMyProfile(
   walletAddress: string,

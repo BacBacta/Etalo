@@ -9,25 +9,19 @@ import dynamic from "next/dynamic";
 
 import { DashboardSkeleton } from "@/app/(app)/seller/dashboard/DashboardSkeleton";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
+import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
 // First Load JS was 276 kB (perf score 27). Three of these imports
-// (OnboardingWizard, MarketingTab, OrdersTab, ProductsTab) only render
-// based on tab selection or seller-not-found state — perfect lazy
-// candidates. Overview + Profile stay eager because Overview is the
-// default landing tab and Profile is the second-priority tab (Mike's
-// audit J10-V5 Phase 5 Track 2 fix #2). Loading fallback null because
-// the parent Suspense / DashboardSkeleton already covers first paint
-// and tab switches are user-initiated.
-const OnboardingWizard = dynamic(
-  () =>
-    import("@/components/seller/OnboardingWizard").then(
-      (m) => m.OnboardingWizard,
-    ),
-  { ssr: false, loading: () => null },
-);
+// (MarketingTab, OrdersTab, ProductsTab) only render based on tab
+// selection — perfect lazy candidates. Overview + Profile stay eager
+// because Overview is the default landing tab and Profile is the
+// second-priority tab (Mike's audit J10-V5 Phase 5 Track 2 fix #2).
+// Loading fallback null because the parent Suspense /
+// DashboardSkeleton already covers first paint and tab switches are
+// user-initiated.
 const ProductsTab = dynamic(
   () =>
     import("@/components/seller/ProductsTab").then((m) => m.ProductsTab),
@@ -88,11 +82,9 @@ export function SellerDashboardInner() {
   const [loading, setLoading] = useState(true);
 
   // ADR-052/053 — dashboard access is gated on wallet connection, NOT
-  // on MiniPay context. The previous `detectMiniPay() || router.replace("/")`
-  // gate bounced Chrome users back to the chooser and broke the
-  // "Open my boutique" CTA. Now : if the visitor has a connected
-  // wallet (MiniPay auto or Chrome via ConnectWalletButton), they
-  // see their dashboard. Otherwise we show a Connect-wallet prompt.
+  // on MiniPay context. Chrome users with a connected wallet see their
+  // dashboard ; otherwise we show a Connect-wallet prompt inside the
+  // dashboard shell instead of bouncing them back to `/`.
 
   // Identity fetch (/sellers/me). Block 5 sub-block 5.4 dropped the
   // parallel `fetchSellerOnchainProfile` call — its only consumers were
@@ -234,16 +226,22 @@ export function SellerDashboardInner() {
   }
 
   if (error === "not_found" && address) {
+    // Self-service shop creation. Single-page premium wizard — the
+    // boutique can ship with zero products (backend `first_product` is
+    // optional on `/onboarding/complete`). On success we drop the
+    // freshly-created profile into local state and clear the error —
+    // the same render path then falls through to the regular dashboard
+    // below, no page reload required.
     return (
-      <StatusShell>
-        <OnboardingWizard
+      <main id="main" className="min-h-screen">
+        <CreateShopForm
           walletAddress={address}
-          onSuccess={(response) => {
-            setProfile(response.profile);
+          onCreated={(created) => {
+            setProfile(created);
             setError(null);
           }}
         />
-      </StatusShell>
+      </main>
     );
   }
 
