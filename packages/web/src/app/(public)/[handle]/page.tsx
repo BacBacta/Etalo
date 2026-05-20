@@ -11,7 +11,7 @@ interface Props {
 }
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  process.env.NEXT_PUBLIC_BASE_URL || "https://etalo.xyz";
 
 function normalize(raw: string): string {
   // Next.js dynamic params arrive URL-encoded ("%40chioma" for "@chioma"),

@@ -148,7 +148,7 @@ export function OnboardingStepBoutique({
           Shop handle
         </label>
         <div className="flex items-center gap-2">
-          <span className="text-base text-neutral-500 dark:text-celo-light/60">etalo.app/</span>
+          <span className="text-base text-neutral-500 dark:text-celo-light/60">etalo.xyz/</span>
           <input
             id="shop-handle"
             type="text"

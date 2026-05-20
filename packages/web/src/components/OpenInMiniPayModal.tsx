@@ -11,7 +11,7 @@ interface Props {
 }
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL ?? "http://localhost:3000";
+  process.env.NEXT_PUBLIC_BASE_URL || "https://etalo.xyz";
 
 const PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=com.opera.mini.native";

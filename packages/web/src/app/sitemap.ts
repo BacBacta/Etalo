@@ -11,7 +11,7 @@ interface SitemapData {
 export const revalidate = 3600;
 
 const BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL ?? "https://etalo.app";
+  process.env.NEXT_PUBLIC_BASE_URL ?? "https://etalo.xyz";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   let data: SitemapData = { sellers: [], products: [] };

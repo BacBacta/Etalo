@@ -67,10 +67,10 @@ function socialsEqual(a: SocialsForm, b: SocialsForm): boolean {
 }
 
 // Used in the boutique URL preview card. NEXT_PUBLIC_BASE_URL falls
-// back to the production alias so the seller never sees a localhost
-// link by accident during dev.
+// back to the production alias (etalo.xyz) so the seller never sees
+// a localhost link by accident during dev.
 const BOUTIQUE_BASE_URL =
-  process.env.NEXT_PUBLIC_BASE_URL || "https://etalo.vercel.app";
+  process.env.NEXT_PUBLIC_BASE_URL || "https://etalo.xyz";
 
 const DESCRIPTION_MAX = 500;
 
