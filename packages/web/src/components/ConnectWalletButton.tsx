@@ -32,6 +32,12 @@ import { detectMiniPay } from "@/lib/minipay-detect";
 
 const MINIPAY_DOWNLOAD_URL = "https://www.opera.com/products/minipay";
 
+// Build-time inlined so we can show in the debug panel whether the
+// WalletConnect env var was visible at next build (Vercel re-deploys
+// don't always pick up new env vars without "redeploy without cache").
+const WC_PROJECT_ID_AT_BUILD =
+  process.env.NEXT_PUBLIC_WC_PROJECT_ID || "";
+
 function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
@@ -47,6 +53,7 @@ export function ConnectWalletButton() {
   const [hasInjected, setHasInjected] = useState(false);
   const [inMiniPay, setInMiniPay] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [debugMode, setDebugMode] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -54,8 +61,51 @@ export function ConnectWalletButton() {
     if (typeof window !== "undefined") {
       const eth = (window as Window & { ethereum?: unknown }).ethereum;
       setHasInjected(Boolean(eth));
+      // `?debug=wallet` query string flips the on-page diagnostic
+      // panel so we can remotely inspect the env-var + connector state
+      // on the user's actual device, instead of fishing through a
+      // tiny mobile DevTools.
+      const params = new URLSearchParams(window.location.search);
+      setDebugMode(params.get("debug") === "wallet");
     }
   }, []);
+
+  // Diagnostic panel — only renders when `?debug=wallet` is in the URL.
+  // Tree-shake-friendly : the panel JSX is short and shared across
+  // every render branch, no big payload regardless of debug state.
+  if (debugMode && mounted) {
+    return (
+      <pre
+        data-testid="wallet-debug-panel"
+        className="overflow-auto whitespace-pre-wrap break-all rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
+      >
+        {JSON.stringify(
+          {
+            wc_project_id_seen_at_build: Boolean(WC_PROJECT_ID_AT_BUILD),
+            wc_project_id_prefix:
+              WC_PROJECT_ID_AT_BUILD.slice(0, 4) || "(empty)",
+            wc_project_id_length: WC_PROJECT_ID_AT_BUILD.length,
+            connector_count: connectors.length,
+            connector_ids: connectors.map((c) => ({
+              id: c.id,
+              type: c.type,
+              name: c.name,
+            })),
+            hasInjected,
+            inMiniPay,
+            isConnected,
+            address: address ? shortAddress(address) : null,
+            ua:
+              typeof navigator !== "undefined"
+                ? navigator.userAgent.slice(0, 80)
+                : "?",
+          },
+          null,
+          2,
+        )}
+      </pre>
+    );
+  }
 
   // Inside MiniPay, the minipayConnector auto-connects via wagmi's
   // reconnect logic ; render nothing until that resolves, then nothing
