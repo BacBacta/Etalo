@@ -383,9 +383,10 @@ describe("OverviewTab — revenue trend ChartLineV5 (Block 5 sub-block 5.5)", ()
         address={ADDRESS}
       />,
     );
-    expect(
-      screen.getByText(/Revenue trend \(last 7 days\)/i),
-    ).toBeInTheDocument();
+    // Premium UX refactor : the heading was split into "Revenue trend"
+    // + a "Last 7 days" subtitle for visual hierarchy.
+    expect(screen.getByText(/Revenue trend/i)).toBeInTheDocument();
+    expect(screen.getByText(/Last 7 days/i)).toBeInTheDocument();
     expect(
       screen.getByTestId("overview-revenue-chart-skeleton"),
     ).toBeInTheDocument();
@@ -421,7 +422,7 @@ describe("OverviewTab — revenue trend ChartLineV5 (Block 5 sub-block 5.5)", ()
     );
     const chart = screen.getByTestId("chart-line-mock");
     expect(chart).toHaveAttribute("data-point-count", "7");
-    expect(chart).toHaveAttribute("data-height", "200");
+    expect(chart).toHaveAttribute("data-height", "220");
     // Each point's label must come from the en-US UTC formatter, not
     // the system locale (sub-block 5.4 lesson : Mike's box is fr_FR
     // which would otherwise emit "26 avr." instead of "Apr 26").
