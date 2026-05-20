@@ -32,7 +32,7 @@ primary_region = "jnb"
   # those existing endpoints keep working. MUST flip back to "true"
   # before mainnet J12 once JWT (or the on-chain-events migration) ships.
   ENFORCE_JWT_AUTH = "false"
-  CORS_ORIGINS = "https://etalo.app,https://www.etalo.app,https://etalo.vercel.app"
+  CORS_ORIGINS = "https://etalo.app,https://www.etalo.app,https://etalo.vercel.app,https://etalo.xyz,https://www.etalo.xyz"
   FRONTEND_BASE_URL = "https://etalo.vercel.app"
   INDEXER_ENABLED = "true"
   AUTO_RELEASE_DAYS = "3"
