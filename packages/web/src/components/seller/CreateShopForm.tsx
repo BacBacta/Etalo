@@ -31,7 +31,7 @@ import {
   CountrySelector,
   type CountryCode,
 } from "@/components/CountrySelector";
-import { LogoUploader } from "@/components/seller/LogoUploader";
+import { ImageUploader } from "@/components/seller/ImageUploader";
 import { Button } from "@/components/ui/button";
 import {
   createSellerProfile,
@@ -184,12 +184,24 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
               </div>
             </div>
 
-            <LogoUploader
-              value={logoIpfsHash}
-              onChange={setLogoIpfsHash}
-              walletAddress={walletAddress}
-              disabled={submitting}
-            />
+            {/* Logo upload. Reuses ImageUploader with maxImages=1 to
+                match ProfileTab's pattern — one component for product
+                photos AND for the single shop logo, less surface area
+                to maintain. */}
+            <div>
+              <span className="mb-2 block text-base font-medium text-celo-dark dark:text-celo-light">
+                Shop logo
+              </span>
+              <p className="mb-2 text-sm text-neutral-500 dark:text-celo-light/60">
+                Square image, JPEG/PNG, max 5 MB. Optional.
+              </p>
+              <ImageUploader
+                walletAddress={walletAddress}
+                maxImages={1}
+                initialIpfsHashes={logoIpfsHash ? [logoIpfsHash] : []}
+                onChange={(hashes) => setLogoIpfsHash(hashes[0] ?? null)}
+              />
+            </div>
 
             <div>
               <label
@@ -240,7 +252,9 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
                   autoCorrect="off"
                   spellCheck={false}
                   data-testid="create-shop-handle"
-                  aria-invalid={Boolean(handleValidationError || handleError)}
+                  aria-invalid={
+                    handleValidationError || handleError ? "true" : "false"
+                  }
                   aria-describedby="create-shop-handle-help"
                   className="min-h-[44px] flex-1 bg-transparent py-2 pr-3 text-base text-celo-dark outline-none placeholder:text-neutral-400 dark:text-celo-light"
                 />
