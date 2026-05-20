@@ -20,7 +20,8 @@ interface ImageState {
   errorMessage?: string;
 }
 
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+// Phase A perf — ipfs.io (~0.5s) replaces gateway.pinata.cloud (4-5s).
+const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {

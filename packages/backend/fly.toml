@@ -36,6 +36,16 @@ primary_region = "jnb"
   FRONTEND_BASE_URL = "https://etalo.vercel.app"
   INDEXER_ENABLED = "true"
   AUTO_RELEASE_DAYS = "3"
+  # Phase A perf : Pinata public gateway clocked 4-5s per IPFS fetch
+  # which compounded with Vercel /_next/image processing to push
+  # marketplace cold-cache image loads to ~10s. Protocol Labs' ipfs.io
+  # gateway returns the same CIDs in 0.5-1s (measured) — 7-30× faster
+  # depending on CID. URLs surfaced in API responses (primary_image_url,
+  # IPFS image_ipfs_hash → URL) now point to ipfs.io.
+  #
+  # Mainnet TODO : switch to Pinata Dedicated Gateway (~$20/mo) for
+  # SLA + guaranteed content availability (ipfs.io is best-effort).
+  PINATA_GATEWAY_URL = "https://ipfs.io/ipfs"
 
 [http_service]
   internal_port = 8000

@@ -39,7 +39,8 @@ import {
   type SellerProfilePublic,
 } from "@/lib/seller-api";
 
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+// Phase A perf — ipfs.io (~0.5s) replaces gateway.pinata.cloud (4-5s).
+const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 
 interface Props {
   // Kept on the signature for parity with sibling tabs (Overview,

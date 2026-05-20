@@ -17,7 +17,9 @@
 import type { DeliveryAddressSnapshot } from "@/components/orders/OrderDeliveryAddressCard";
 import { countryName } from "@/lib/country";
 
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+// Phase A perf — switched from gateway.pinata.cloud (4-5s) to ipfs.io
+// (~0.5s). Mainnet : move to a Pinata Dedicated Gateway for SLA.
+const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 
 // Per ADR-019 intra clause — funded order auto-refunds when the seller
 // stays inactive past this window.

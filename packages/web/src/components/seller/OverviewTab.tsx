@@ -14,12 +14,10 @@ import { formatChartDate, formatRowDate } from "@/lib/format";
 import { type SellerProfilePublic } from "@/lib/seller-api";
 import { displayUsdtFromHumanNumber, formatRawUsdt } from "@/lib/usdt";
 
-// Block 5 sub-block 5.6 — IPFS gateway constant. Mirrors the local
-// constant in ImageUploader.tsx (the only other current consumer) ;
-// if a 3rd consumer surfaces, promote both to lib/ipfs.ts. Phase 5
-// polish candidate. `gateway.pinata.cloud` is whitelisted in
-// next.config.mjs `images.remotePatterns` so next/image accepts it.
-const PINATA_GATEWAY = "https://gateway.pinata.cloud/ipfs/";
+// IPFS gateway constant — Phase A perf : switched gateway.pinata.cloud
+// (4-5s response time) → ipfs.io (~0.5s). Both `gateway.pinata.cloud`
+// and `ipfs.io` are whitelisted in next.config.mjs `images.remotePatterns`.
+const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 
 interface Props {
   // J7 Block 7a: Marketing stub moved to its own MarketingTab. `profile`

@@ -492,7 +492,8 @@ export function ProductFormDialog({
 // section morphs through idle → loading → preview → used without nested
 // modals (less visual noise on mobile, no double-modality with the
 // surrounding ProductFormDialog).
-const PINATA_GATEWAY_FOR_PREVIEW = "https://gateway.pinata.cloud/ipfs/";
+// Phase A perf — ipfs.io (~0.5s) replaces gateway.pinata.cloud (4-5s).
+const PINATA_GATEWAY_FOR_PREVIEW = "https://ipfs.io/ipfs/";
 
 function EnhanceSection({
   phase,

@@ -606,6 +606,30 @@ fly machine update 48ed047c210d48 --vm-memory 1024 -a etalo-db
 - À faire AVANT d'annoncer mainnet (sinon premier user = première
   OOM = première mauvaise impression)
 
+## 🟡 Recommandé — Pinata Dedicated Gateway
+
+V1 testnet utilise `ipfs.io` (Protocol Labs public gateway) parce que
+le Pinata public gateway clockait 4-5 s par fetch IPFS — inacceptable
+en marketplace browse. ipfs.io répond en 0.5-1 s, gratuit, mais sans
+SLA et avec des rate limits potentiels.
+
+**Mainnet J12 :** souscrire un **Pinata Dedicated Gateway**
+(~$20/mois) qui :
+- Garantit la disponibilité du contenu qu'on pin (vs ipfs.io
+  best-effort)
+- Pas de rate limit
+- Custom domain genre `https://etalo.mypinata.cloud/ipfs/`
+
+**Action :**
+1. Créer le Dedicated Gateway sur Pinata console
+2. Update `fly.toml` env `PINATA_GATEWAY_URL` à la nouvelle URL
+3. Update les 5 frontend constants `const PINATA_GATEWAY = ...`
+   (déjà rassemblés sous ce nom) — ou mieux, centraliser dans
+   `lib/ipfs-gateway.ts` lu depuis `process.env.NEXT_PUBLIC_IPFS_GATEWAY_URL`
+4. Update preconnect dans `app/layout.tsx`
+5. Update `next.config.mjs` `images.remotePatterns` pour whitelist
+   le nouveau hostname
+
 ## 🟡 Recommandé — Audit relayer wallet keeper
 
 Adresse keeper auto-refund : `0xFBF50A1c8b8c7735dCFbEb40bB3413aE21918AdB`
