@@ -1,5 +1,5 @@
 /**
- * ConnectWalletButton — ADR-052 Phase 1 (multi-wallet support).
+ * ConnectWalletButton — ADR-052 (multi-wallet support, Phase 1 + 2).
  *
  * Renders a wallet connect control adapted to the current context :
  *
@@ -9,17 +9,18 @@
  * - On Chrome / mobile browser with an injected wallet (MetaMask,
  *   Rabby, Valora extension, Frame) — shows "Connect wallet", click
  *   triggers `useConnect` with the `injected()` connector.
- * - On any browser WITHOUT an injected wallet — shows "Get MiniPay"
- *   linking to the MiniPay download page (the recommended path for
- *   first-time mobile buyers per Etalo positioning).
+ * - On mobile / desktop WITHOUT an injected wallet but WITH the
+ *   `walletConnect` connector registered (ADR-052 Phase 2 — gated on
+ *   NEXT_PUBLIC_WC_PROJECT_ID being set at build time) — shows
+ *   "Connect with mobile wallet" + a "Get MiniPay" secondary link.
+ *   The WC modal handles QR codes on desktop and direct deeplinks
+ *   into Valora / MetaMask Mobile / Trust on mobile.
+ * - On any browser WITHOUT injected AND without WC — shows "Get
+ *   MiniPay" linking to the MiniPay download page (the recommended
+ *   path for first-time mobile buyers per Etalo positioning).
  *
  * Once connected (any path), shows the truncated address with a
  * "Disconnect" affordance.
- *
- * WalletConnect for mobile wallets without browser extensions is
- * Phase 2 (deferred — adds ~40-60 kB bundle). Phase 1 covers the
- * MetaMask-on-desktop and Valora-extension paths which are the
- * majority of non-MiniPay buyer hardware in early V1.
  */
 "use client";
 
@@ -98,7 +99,40 @@ export function ConnectWalletButton() {
     );
   }
 
+  const walletConnectConnector = connectors.find(
+    (c) => c.id === "walletConnect" || c.type === "walletConnect",
+  );
+
   if (!hasInjected) {
+    // No browser extension wallet. If WalletConnect is configured we
+    // offer the mobile-wallet path as the primary CTA + keep "Get
+    // MiniPay" as a secondary link. Otherwise we fall back to the
+    // MiniPay install link as the only path (current production
+    // behavior pre-Phase-2).
+    if (walletConnectConnector) {
+      return (
+        <div className="flex flex-col items-center gap-3">
+          <Button
+            type="button"
+            onClick={() => connect({ connector: walletConnectConnector })}
+            disabled={isConnecting}
+            data-testid="connect-wallet-walletconnect"
+            className="min-h-[44px]"
+          >
+            {isConnecting ? "Connecting…" : "Connect with mobile wallet"}
+          </Button>
+          <a
+            href={MINIPAY_DOWNLOAD_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="connect-wallet-get-minipay"
+            className="text-sm text-celo-dark/70 underline underline-offset-4 hover:text-celo-dark dark:text-celo-light/70 dark:hover:text-celo-light"
+          >
+            Or install MiniPay
+          </a>
+        </div>
+      );
+    }
     return (
       <a
         href={MINIPAY_DOWNLOAD_URL}
