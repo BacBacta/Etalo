@@ -9,6 +9,7 @@ import {
   useState,
   type ReactElement,
 } from "react";
+import Image from "next/image";
 import { toast } from "sonner";
 
 import { ImageUploader } from "@/components/seller/ImageUploader";
@@ -527,11 +528,19 @@ function EnhanceSection({
         </p>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           <figure className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20">
-            <img
-              src={`${PINATA_GATEWAY_FOR_PREVIEW}${originalHash}`}
-              alt="Original photo"
-              className="aspect-square w-full object-cover"
-            />
+            {/* `Image fill` needs a sized relative parent — the aspect-square
+                div locks the box so the preview doesn't shift while the IPFS
+                response lands. `sizes` matches the grid : 50vw on mobile
+                (grid-cols-2), 25vw on sm+ (grid-cols-4). */}
+            <div className="relative aspect-square w-full">
+              <Image
+                src={`${PINATA_GATEWAY_FOR_PREVIEW}${originalHash}`}
+                alt="Original photo"
+                fill
+                sizes="(max-width: 640px) 50vw, 25vw"
+                className="object-cover"
+              />
+            </div>
             <figcaption className="px-2 py-1 text-center text-sm text-neutral-500">
               Original
             </figcaption>
@@ -548,11 +557,15 @@ function EnhanceSection({
               key={v.ipfs_hash}
               className="overflow-hidden rounded-md border border-neutral-200 bg-white dark:border-celo-light/20"
             >
-              <img
-                src={v.image_url}
-                alt={`${v.label} variant`}
-                className="aspect-square w-full object-cover"
-              />
+              <div className="relative aspect-square w-full">
+                <Image
+                  src={v.image_url}
+                  alt={`${v.label} variant`}
+                  fill
+                  sizes="(max-width: 640px) 50vw, 25vw"
+                  className="object-cover"
+                />
+              </div>
               <figcaption className="px-2 py-1 text-center text-sm text-neutral-500">
                 {v.label}
               </figcaption>
