@@ -42,7 +42,12 @@ class Settings(BaseSettings):
     pinata_api_key: str = ""
     pinata_api_secret: str = ""  # was pinata_secret_key — matches Pinata's own naming
     pinata_jwt: str = ""  # preferred auth; kept for future migration of IPFSService
-    pinata_gateway_url: str = "https://gateway.pinata.cloud/ipfs"
+    # Phase A perf switch — gateway.pinata.cloud was taking 4-5s in
+    # production, ipfs.io serves the same content in ~0.5s. Fly prod
+    # already overrides this via fly.toml ; aligning the default keeps
+    # local dev consistent. Mainnet V1.5+ : move to a Pinata Dedicated
+    # Gateway for SLA + bandwidth guarantees.
+    pinata_gateway_url: str = "https://ipfs.io/ipfs"
 
     # Anthropic Claude API (Sprint J7 Block 4 — caption generation).
     # When unset, asset_generator falls back to a deterministic local

@@ -23,6 +23,7 @@ import {
 import { ImageUploader } from "@/components/seller/ImageUploader";
 import { Button } from "@/components/ui/button";
 import { countryName } from "@/lib/country";
+import { IPFS_GATEWAY } from "@/lib/ipfs";
 import {
   type SellerProfilePublic,
   type SellerProfileUpdate,
@@ -364,8 +365,6 @@ interface IdentityHeaderCardProps {
   onCopyUrl: () => void;
   copied: boolean;
 }
-
-const IPFS_GATEWAY = "https://ipfs.io/ipfs/";
 
 function IdentityHeaderCard({
   shopName,

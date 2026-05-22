@@ -1,27 +1,22 @@
 """V2 Disputes router — Sprint J5 Block 6.
 
-GET endpoints for dispute state. POST endpoints append off-chain
-evidence (photos, conversation messages) — gated by EIP-191
-signature; caller must be buyer or seller of the dispute.
+GET endpoints for dispute state. The legacy EIP-191-gated POST
+endpoints (photos + messages) were removed per ADR-034 (MiniPay
+forbids signed-message auth). Their re-introduction is tracked
+under the V2 dispute UI work — see ADR-043 buyer interface scope.
 """
 from __future__ import annotations
 
 import uuid
-from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import verify_signature
 from app.database import get_async_db
 from app.models.dispute import Dispute
 from app.models.order_item import OrderItem
-from app.schemas.dispute import (
-    DisputeMessageCreate,
-    DisputePhotoCreate,
-    DisputeResponse,
-)
+from app.schemas.dispute import DisputeResponse
 
 
 router = APIRouter(prefix="/disputes", tags=["disputes"])
@@ -72,56 +67,3 @@ async def get_dispute(
     return DisputeResponse.model_validate(dispute)
 
 
-async def _load_dispute_for_writer(
-    db: AsyncSession, dispute_id: uuid.UUID, caller: str
-) -> Dispute:
-    """Load dispute + check that `caller` is the buyer or seller."""
-    result = await db.execute(select(Dispute).where(Dispute.id == dispute_id))
-    dispute = result.scalar_one_or_none()
-    if dispute is None:
-        raise HTTPException(status_code=404, detail="Dispute not found")
-    if caller != dispute.buyer_address and caller != dispute.seller_address:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only buyer or seller can append to dispute metadata",
-        )
-    return dispute
-
-
-@router.post("/{dispute_id}/photos", response_model=DisputeResponse)
-async def add_dispute_photo(
-    dispute_id: uuid.UUID,
-    body: DisputePhotoCreate,
-    db: AsyncSession = Depends(get_async_db),
-    caller: str = Depends(verify_signature),
-) -> DisputeResponse:
-    dispute = await _load_dispute_for_writer(db, dispute_id, caller)
-    photos = list(dispute.photo_ipfs_hashes or [])
-    if body.ipfs_hash not in photos:
-        photos.append(body.ipfs_hash)
-        dispute.photo_ipfs_hashes = photos
-    await db.commit()
-    await db.refresh(dispute)
-    return DisputeResponse.model_validate(dispute)
-
-
-@router.post("/{dispute_id}/messages", response_model=DisputeResponse)
-async def add_dispute_message(
-    dispute_id: uuid.UUID,
-    body: DisputeMessageCreate,
-    db: AsyncSession = Depends(get_async_db),
-    caller: str = Depends(verify_signature),
-) -> DisputeResponse:
-    dispute = await _load_dispute_for_writer(db, dispute_id, caller)
-    convo = list(dispute.conversation or [])
-    convo.append(
-        {
-            "address": caller,
-            "message": body.message,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    dispute.conversation = convo
-    await db.commit()
-    await db.refresh(dispute)
-    return DisputeResponse.model_validate(dispute)

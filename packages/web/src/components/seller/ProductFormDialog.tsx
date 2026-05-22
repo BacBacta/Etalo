@@ -14,6 +14,7 @@ import { toast } from "sonner";
 
 import { ImageUploader } from "@/components/seller/ImageUploader";
 import { Button } from "@/components/ui/button";
+import { IPFS_GATEWAY } from "@/lib/ipfs";
 import {
   Dialog,
   DialogContent,
@@ -493,9 +494,6 @@ export function ProductFormDialog({
 // section morphs through idle → loading → preview → used without nested
 // modals (less visual noise on mobile, no double-modality with the
 // surrounding ProductFormDialog).
-// Phase A perf — ipfs.io (~0.5s) replaces gateway.pinata.cloud (4-5s).
-const PINATA_GATEWAY_FOR_PREVIEW = "https://ipfs.io/ipfs/";
-
 function EnhanceSection({
   phase,
   originalHash,
@@ -534,7 +532,7 @@ function EnhanceSection({
                 (grid-cols-2), 25vw on sm+ (grid-cols-4). */}
             <div className="relative aspect-square w-full">
               <Image
-                src={`${PINATA_GATEWAY_FOR_PREVIEW}${originalHash}`}
+                src={`${IPFS_GATEWAY}${originalHash}`}
                 alt="Original photo"
                 fill
                 sizes="(max-width: 640px) 50vw, 25vw"

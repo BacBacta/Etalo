@@ -25,9 +25,8 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
-import time
 import uuid
-from collections.abc import AsyncGenerator, Callable
+from collections.abc import AsyncGenerator
 from datetime import datetime, timezone
 
 # Windows asyncio event loop fix BEFORE any sqlalchemy/psycopg async import.
@@ -36,8 +35,6 @@ if sys.platform == "win32":
 
 import pytest
 import pytest_asyncio
-from eth_account import Account
-from eth_account.messages import encode_defunct
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -71,7 +68,6 @@ from tests.e2e.fixtures_data import (
     SEED_SELLER_HANDLE,
     SEED_SELLER_SHOP_NAME,
     TEST_ADDRESS,
-    TEST_PRIVATE_KEY,
 )
 
 
@@ -337,25 +333,3 @@ async def client() -> AsyncGenerator[AsyncClient, None]:
     ) as ac:
         yield ac
 
-
-# ============================================================
-# Signer fixture — returns (address, sign_callable)
-# ============================================================
-@pytest.fixture
-def test_signer() -> tuple[str, Callable[[str, str], dict[str, str]]]:
-    """Return (test_address, sign(method, path) → headers dict)."""
-
-    def sign(method: str, path: str) -> dict[str, str]:
-        ts = int(time.time())
-        msg = f"Etalo auth: {method.upper()} {path} {ts}"
-        encoded = encode_defunct(text=msg)
-        signed = Account.sign_message(encoded, private_key=TEST_PRIVATE_KEY)
-        sig = signed.signature.hex()
-        if not sig.startswith("0x"):
-            sig = "0x" + sig
-        return {
-            "X-Etalo-Signature": sig,
-            "X-Etalo-Timestamp": str(ts),
-        }
-
-    return TEST_ADDRESS, sign

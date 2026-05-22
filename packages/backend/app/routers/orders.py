@@ -21,7 +21,6 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.auth import verify_signature
 from app.database import get_async_db
 from app.models.delivery_address import DeliveryAddress
 from app.models.enums import OrderStatus
@@ -30,7 +29,6 @@ from app.models.user import User
 from app.schemas.order import (
     OrderItemResponse,
     OrderListResponse,
-    OrderMetadataUpdate,
     OrderResponse,
     ShipmentGroupResponse,
 )
@@ -254,44 +252,6 @@ async def list_order_groups(
     if order is None:
         raise HTTPException(status_code=404, detail="Order not found")
     return [ShipmentGroupResponse.model_validate(g) for g in order.shipment_groups]
-
-
-@router.post("/{order_id}/metadata", response_model=OrderResponse)
-async def update_order_metadata(
-    order_id: uuid.UUID,
-    body: OrderMetadataUpdate,
-    db: AsyncSession = Depends(get_async_db),
-    caller: str = Depends(verify_signature),
-) -> OrderResponse:
-    """Update off-chain order metadata. Caller must be buyer or seller."""
-    result = await db.execute(
-        select(Order)
-        .where(Order.id == order_id)
-        .options(*_ORDER_LOAD_OPTIONS)
-    )
-    order = result.scalar_one_or_none()
-    if order is None:
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    if caller != order.buyer_address and caller != order.seller_address:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only buyer or seller can update order metadata",
-        )
-
-    # Partial update — only non-None fields are written.
-    if body.delivery_address is not None:
-        order.delivery_address = body.delivery_address
-    if body.tracking_number is not None:
-        order.tracking_number = body.tracking_number
-    if body.product_ids is not None:
-        order.product_ids = body.product_ids
-    if body.notes is not None:
-        order.notes = body.notes
-
-    await db.commit()
-    await db.refresh(order, attribute_names=["items", "shipment_groups"])
-    return OrderResponse.model_validate(order)
 
 
 @router.patch(

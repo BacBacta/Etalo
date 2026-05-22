@@ -1,12 +1,5 @@
-import type { WalletClient } from "viem";
-
-import { signApiRequest, type HttpMethod } from "@/lib/eip191";
 import { fetchApi } from "@/lib/fetch-api";
 import type { paths } from "@/types/api.gen";
-
-// API_PREFIX is the path-only form used to build the EIP-191-signed
-// canonical path (must match the FastAPI route path on the server).
-const API_PREFIX = "/api/v1";
 
 export interface ProductPublic {
   id: string;
@@ -60,24 +53,22 @@ export class ApiError extends Error {
   }
 }
 
-export interface Eip191AuthOptions {
-  walletClient: WalletClient;
-  method: HttpMethod;
-}
-
 type ApiOptions = RequestInit & {
   wallet?: string;
-  eip191?: Eip191AuthOptions;
 };
 
-// Generic authenticated/unauthenticated fetch wrapper for backend mutations.
-// V2 EIP-191 auth path (deprecated by ADR-034 but in use until on-chain event
-// migration); legacy `wallet` X-Wallet-Address dev shortcut.
+// Generic authenticated/unauthenticated fetch wrapper for backend
+// mutations. The EIP-191 signed-message auth path that used to live
+// here was removed alongside its lib/eip191.ts module per ADR-034
+// (MiniPay forbids signed-message auth for backend access). All
+// mutations now use the X-Wallet-Address header pattern, gated at
+// the backend by `ENFORCE_JWT_AUTH` (ADR-046, hard-flipped on
+// mainnet).
 export async function apiFetch<T>(
   path: string,
   options: ApiOptions = {},
 ): Promise<T> {
-  const { wallet, eip191, headers, ...rest } = options;
+  const { wallet, headers, ...rest } = options;
   const finalHeaders = new Headers(headers);
   const isFormData = rest.body instanceof FormData;
   if (!finalHeaders.has("Content-Type") && rest.body && !isFormData) {
@@ -85,16 +76,6 @@ export async function apiFetch<T>(
   }
   if (wallet) {
     finalHeaders.set("X-Wallet-Address", wallet);
-  }
-  if (eip191) {
-    const signedPath = `${API_PREFIX}${path}`;
-    const sig = await signApiRequest(
-      eip191.walletClient,
-      eip191.method,
-      signedPath,
-    );
-    finalHeaders.set("X-Etalo-Signature", sig["X-Etalo-Signature"]);
-    finalHeaders.set("X-Etalo-Timestamp", sig["X-Etalo-Timestamp"]);
   }
 
   const res = await fetchApi(path, { ...rest, headers: finalHeaders });

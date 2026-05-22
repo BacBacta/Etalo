@@ -20,13 +20,9 @@ import { CardV4 } from "@/components/ui/v4/Card";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { formatChartDate, formatRowDate } from "@/lib/format";
+import { IPFS_GATEWAY } from "@/lib/ipfs";
 import { type SellerProfilePublic } from "@/lib/seller-api";
 import { displayUsdtFromHumanNumber, formatRawUsdt } from "@/lib/usdt";
-
-// IPFS gateway constant — Phase A perf : switched gateway.pinata.cloud
-// (4-5s) → ipfs.io (~0.5s). Both whitelisted in next.config.mjs
-// `images.remotePatterns`.
-const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 
 // Status → dot color (same palette as OrdersTab for visual continuity).
 const STATUS_DOT: Record<string, string> = {
@@ -504,7 +500,7 @@ function TopProductRow({ product, rank }: TopProductRowProps) {
       </span>
       {product.image_ipfs_hash ? (
         <Image
-          src={`${PINATA_GATEWAY}${product.image_ipfs_hash}`}
+          src={`${IPFS_GATEWAY}${product.image_ipfs_hash}`}
           alt={product.title}
           width={56}
           height={56}

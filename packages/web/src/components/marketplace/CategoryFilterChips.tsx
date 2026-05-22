@@ -12,14 +12,14 @@
 "use client";
 
 import {
-  IconApps,
-  IconDotsCircleHorizontal,
-  IconHome,
-  IconShirt,
-  IconSparkles,
-  IconToolsKitchen2,
+  DotsThreeCircle,
+  ForkKnife,
+  House,
+  Sparkle,
+  SquaresFour,
+  TShirt,
   type Icon,
-} from "@tabler/icons-react";
+} from "@phosphor-icons/react";
 
 import {
   CATEGORY_OPTIONS,
@@ -32,20 +32,20 @@ export type CategoryFilterValue = CategoryCode | "all";
 
 const ALL_LABEL = "All categories";
 
-// Category icons — Tabler outline 2px stroke. Premium SaaS aesthetic
-// (Linear / Vercel / Notion family) ; vector glyphs that hold up
-// crisp across DPRs and follow currentColor for the chip
-// active/inactive inversion. Replaces both the previous Unicode
-// emoji prefixes (rendered as Android Noto Color Emoji — dated)
-// AND the brief Phosphor duotone iteration (too soft against the
-// hard-edge chip pills).
+// Category icons — Phosphor weight=regular outline. Vector glyphs
+// that hold up crisp across DPRs and follow currentColor for the
+// chip active/inactive inversion. Replaces the previous Tabler
+// iteration : Tabler shipped 6 icons in this single file and was
+// the only consumer of @tabler/icons-react ; consolidating on
+// Phosphor (already pinned and used in 30+ other components)
+// drops the redundant dep and saves the bundle slot.
 const CATEGORY_ICON: Record<CategoryFilterValue, Icon> = {
-  all: IconApps,
-  fashion: IconShirt,
-  beauty: IconSparkles,
-  food: IconToolsKitchen2,
-  home: IconHome,
-  other: IconDotsCircleHorizontal,
+  all: SquaresFour,
+  fashion: TShirt,
+  beauty: Sparkle,
+  food: ForkKnife,
+  home: House,
+  other: DotsThreeCircle,
 };
 
 interface Props {
@@ -113,9 +113,8 @@ export function CategoryFilterChips({
           >
             <opt.icon
               aria-hidden
-              size={18}
-              stroke={1.75}
-              className="flex-shrink-0"
+              weight="regular"
+              className="h-[18px] w-[18px] flex-shrink-0"
             />
             {opt.label}
           </button>
