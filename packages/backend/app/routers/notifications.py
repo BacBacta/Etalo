@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.notification import Notification
 from app.models.user import User
-from app.routers.sellers import get_current_wallet
+from app.dependencies.wallet_auth import get_current_wallet
 from app.schemas.notification import NotificationRead, NotificationsListResponse
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])

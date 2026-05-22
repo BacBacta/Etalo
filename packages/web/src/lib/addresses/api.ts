@@ -16,6 +16,7 @@
  * intersections).
  */
 import { fetchApi } from "@/lib/fetch-api";
+import { walletAuthHeaders as authHeaders } from "@/lib/wallet-auth";
 
 // J11.7 Block 6 — local types until pnpm gen:api re-runs post-merge.
 export type CountryCode = "NGA" | "GHA" | "KEN";
@@ -57,10 +58,6 @@ export interface DeliveryAddressUpdate {
   address_line?: string;
   landmark?: string | null;
   notes?: string | null;
-}
-
-function authHeaders(walletAddress: string): Record<string, string> {
-  return { "X-Wallet-Address": walletAddress };
 }
 
 export async function fetchAddresses(

@@ -18,6 +18,7 @@
  *   pivot.
  */
 import { fetchApi } from "@/lib/fetch-api";
+import { walletAuthHeaders } from "@/lib/wallet-auth";
 
 const MAX_RETRIES = 5;
 const INITIAL_DELAY_MS = 1_500;
@@ -60,7 +61,7 @@ async function patchSnapshot(
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        "X-Wallet-Address": walletAddress,
+        ...walletAuthHeaders(walletAddress),
       },
       body: JSON.stringify(body),
     });

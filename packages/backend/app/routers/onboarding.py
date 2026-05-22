@@ -7,7 +7,7 @@ from app.database import get_db
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
-from app.routers.sellers import get_current_wallet
+from app.dependencies.wallet_auth import get_current_wallet
 from app.services.slug import build_unique_slug
 from app.schemas.onboarding import (
     OnboardingCompleteProduct,

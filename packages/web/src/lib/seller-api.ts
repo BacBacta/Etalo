@@ -15,6 +15,7 @@
  * the `ngrok-skip-browser-warning` header for ngrok-tunnelled testing.
  */
 import { fetchApi, fetchApiFormData } from "@/lib/fetch-api";
+import { walletAuthHeaders } from "@/lib/wallet-auth";
 import type { components } from "@/types/api.gen";
 
 // J11.7 Block 4 — `country` was added to SellerProfilePublic and
@@ -129,7 +130,7 @@ export async function createSellerProfile(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify({
       profile: {
@@ -169,7 +170,7 @@ export async function fetchMyProfile(
   walletAddress: string,
 ): Promise<SellerProfilePublic | null> {
   const res = await fetchApi("/sellers/me", {
-    headers: { "X-Wallet-Address": walletAddress },
+    headers: walletAuthHeaders(walletAddress),
   });
   if (!res.ok) {
     throw new Error(`Profile fetch failed: ${res.status}`);
@@ -222,7 +223,7 @@ export async function updateSellerProfile(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify(payload),
   });
@@ -247,7 +248,7 @@ export async function createProduct(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify(payload),
   });
@@ -269,7 +270,7 @@ export async function updateProduct(
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        "X-Wallet-Address": walletAddress,
+        ...walletAuthHeaders(walletAddress),
       },
       body: JSON.stringify(payload),
     },
@@ -290,7 +291,7 @@ export async function deleteProduct(
     `/products/${encodeURIComponent(productId)}`,
     {
       method: "DELETE",
-      headers: { "X-Wallet-Address": walletAddress },
+      headers: walletAuthHeaders(walletAddress),
     },
   );
   if (res.status === 403) throw new Error("You do not own this product");
@@ -308,7 +309,7 @@ export async function uploadImage(
   formData.append("file", file);
 
   const res = await fetchApiFormData("/uploads/ipfs", formData, {
-    headers: { "X-Wallet-Address": walletAddress },
+    headers: walletAuthHeaders(walletAddress),
   });
   if (res.status === 413) {
     throw new Error("Image too large (max 5MB)");
@@ -351,7 +352,7 @@ export async function enhanceImage(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify({
       image_ipfs_hash: imageIpfsHash,
@@ -401,7 +402,7 @@ export async function enhanceImageVariants(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify({
       image_ipfs_hash: imageIpfsHash,
@@ -435,7 +436,7 @@ export async function fetchMyProducts(
   const qs = params.toString();
   const path = qs ? `/sellers/me/products?${qs}` : "/sellers/me/products";
   const res = await fetchApi(path, {
-    headers: { "X-Wallet-Address": walletAddress },
+    headers: walletAuthHeaders(walletAddress),
   });
   if (res.status === 401) throw new Error("Wallet auth required");
   if (res.status === 404) throw new SellerNotFoundError();

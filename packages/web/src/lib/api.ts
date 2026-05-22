@@ -1,4 +1,5 @@
 import { fetchApi } from "@/lib/fetch-api";
+import { WALLET_AUTH_HEADER } from "@/lib/wallet-auth";
 import type { paths } from "@/types/api.gen";
 
 export interface ProductPublic {
@@ -75,7 +76,7 @@ export async function apiFetch<T>(
     finalHeaders.set("Content-Type", "application/json");
   }
   if (wallet) {
-    finalHeaders.set("X-Wallet-Address", wallet);
+    finalHeaders.set(WALLET_AUTH_HEADER, wallet);
   }
 
   const res = await fetchApi(path, { ...rest, headers: finalHeaders });

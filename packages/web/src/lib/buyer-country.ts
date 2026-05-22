@@ -15,6 +15,7 @@
  * without changing the call sites.
  */
 import { fetchApi } from "@/lib/fetch-api";
+import { walletAuthHeaders } from "@/lib/wallet-auth";
 import type { components } from "@/types/api.gen";
 
 // J11.7 Block 5 — UserMe shapes added at the backend (real /users/me).
@@ -49,7 +50,7 @@ export type BuyerCountryUpdate = {
  */
 export async function fetchMyUser(walletAddress: string): Promise<UserMe | null> {
   const res = await fetchApi("/users/me", {
-    headers: { "X-Wallet-Address": walletAddress },
+    headers: walletAuthHeaders(walletAddress),
   });
   if (res.status === 401) {
     throw new Error("Wallet auth required");
@@ -73,7 +74,7 @@ export async function updateMyUser(
     method: "PUT",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify(payload),
   });

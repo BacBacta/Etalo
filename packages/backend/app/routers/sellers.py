@@ -8,12 +8,11 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
 
-from app.config import settings
 from app.database import get_async_db, get_db
 from app.models.enums import Country, SellerStatus, StakeTier
 from app.models.order import Order
@@ -50,31 +49,12 @@ def _get_celo_service(request: Request) -> CeloService:
     return request.app.state.celo_service
 
 
-def get_current_wallet(
-    x_wallet_address: Annotated[str | None, Header(alias="X-Wallet-Address")] = None,
-) -> str:
-    """
-    Resolve the caller's wallet address.
-
-    Development mode (settings.enforce_jwt_auth=False): trust the
-    X-Wallet-Address header. This is explicitly insecure and documented
-    in docs/DECISIONS.md. Do NOT ship with enforce_jwt_auth=False.
-
-    Production mode (settings.enforce_jwt_auth=True): refuse the header
-    and return 501 — JWT dependency is not yet wired.
-    """
-    if settings.enforce_jwt_auth:
-        raise HTTPException(
-            status_code=status.HTTP_501_NOT_IMPLEMENTED,
-            detail="JWT auth not yet wired; contact backend team.",
-        )
-    if not x_wallet_address:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="X-Wallet-Address header required (dev auth).",
-        )
-    # Normalize to lowercase; EIP-55 checksumming happens at write time.
-    return x_wallet_address.lower()
+# `get_current_wallet` moved to `app.dependencies.wallet_auth` so the
+# 10+ routers that consume it don't have to import from a sibling
+# router. Kept here as a re-export for any caller still using the old
+# path — internal modules should import from `app.dependencies.wallet_auth`
+# directly.
+from app.dependencies.wallet_auth import get_current_wallet  # noqa: E402, F401
 
 
 @router.get("/me", response_model=SellersMeResponse)

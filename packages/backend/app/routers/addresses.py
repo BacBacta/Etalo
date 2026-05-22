@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.delivery_address import DeliveryAddress
 from app.models.user import User
-from app.routers.sellers import get_current_wallet
+from app.dependencies.wallet_auth import get_current_wallet
 from app.schemas.delivery_address import (
     DeliveryAddressCreate,
     DeliveryAddressList,

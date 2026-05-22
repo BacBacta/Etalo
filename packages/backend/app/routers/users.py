@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models.enums import Country
 from app.models.user import User
-from app.routers.sellers import get_current_wallet
+from app.dependencies.wallet_auth import get_current_wallet
 from app.schemas.user import UserMeResponse, UserMeUpdate, UserMeWrapper
 
 router = APIRouter(prefix="/users", tags=["users"])

@@ -1,35 +1,23 @@
 /**
  * useOpenDispute — orchestrates the buyer's
  * `EtaloDispute.openDispute(orderId, itemId, reason)` tx.
- * J11.5 Block 4.D.
  *
- * Mirrors useConfirmDelivery's state machine (CLAUDE.md rule 8). The
- * `reason` string is sent on-chain — buyer-supplied via the dispute
- * confirmation modal. Backend ADR-042 funded-state guard rejects
- * unfunded orders, so the UI must already gate the button on
- * `isPostFund`.
+ * State machine + tx wiring delegated to `useTxWriteHook` — see the
+ * matching hooks `useConfirmDelivery` + `useClaimRefund` for the
+ * other two consumers of the same generic.
+ *
+ * NOTE : full N2 mediator UI + N3 community-vote UI are deferred
+ * V1.5+ (contracts deployed Sepolia, UI pending) — this hook only
+ * fires the initial N1 dispute trigger.
  */
-import { useCallback, useState } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { useChainId, usePublicClient, useWalletClient } from "wagmi";
+"use client";
 
 import disputeAbi from "@/abis/v2/EtaloDispute.json";
 import { BUYER_ORDER_DETAIL_QUERY_KEY } from "@/hooks/useBuyerOrderDetail";
 import {
-  classifyCheckoutError,
-  type CheckoutError,
-} from "@/lib/checkout-errors";
-import { asTxOptions } from "@/lib/tx";
-
-const TX_TIMEOUT_MS = 90_000;
-const TX_CONFIRMATIONS = 1;
-
-export type OpenDisputeState =
-  | { phase: "idle" }
-  | { phase: "preparing" }
-  | { phase: "confirming"; txHash?: `0x${string}` }
-  | { phase: "success"; txHash: `0x${string}` }
-  | { phase: "error"; error: CheckoutError };
+  useTxWriteHook,
+  type TxWriteHookReturn,
+} from "@/hooks/useTxWriteHook";
 
 export interface OpenDisputeRunArgs {
   orderId: bigint;
@@ -37,73 +25,15 @@ export interface OpenDisputeRunArgs {
   reason: string;
 }
 
-export function useOpenDispute() {
-  const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
-  const queryClient = useQueryClient();
-  const chainId = useChainId();
-  const [state, setState] = useState<OpenDisputeState>({ phase: "idle" });
+export type OpenDisputeState = TxWriteHookReturn<OpenDisputeRunArgs>["state"];
 
-  const run = useCallback(
-    async ({ orderId, itemId, reason }: OpenDisputeRunArgs) => {
-      if (!publicClient || !walletClient) {
-        setState({
-          phase: "error",
-          error: {
-            code: "network",
-            message: "Wallet not ready. Please try again.",
-          },
-        });
-        return;
-      }
-
-      const disputeAddress = process.env.NEXT_PUBLIC_DISPUTE_ADDRESS;
-      if (!disputeAddress) {
-        setState({
-          phase: "error",
-          error: {
-            code: "network",
-            message: "Dispute contract not configured.",
-          },
-        });
-        return;
-      }
-
-      try {
-        setState({ phase: "preparing" });
-
-        const txHash = await walletClient.writeContract(
-          asTxOptions(
-            {
-              address: disputeAddress as `0x${string}`,
-              abi: disputeAbi as readonly unknown[],
-              functionName: "openDispute",
-              args: [orderId, itemId, reason],
-            },
-            { chainId },
-          ),
-        );
-
-        setState({ phase: "confirming", txHash });
-        await publicClient.waitForTransactionReceipt({
-          hash: txHash,
-          confirmations: TX_CONFIRMATIONS,
-          timeout: TX_TIMEOUT_MS,
-        });
-
-        await queryClient.invalidateQueries({
-          queryKey: [BUYER_ORDER_DETAIL_QUERY_KEY],
-        });
-
-        setState({ phase: "success", txHash });
-      } catch (err) {
-        setState({ phase: "error", error: classifyCheckoutError(err) });
-      }
-    },
-    [publicClient, walletClient, queryClient, chainId],
-  );
-
-  const reset = useCallback(() => setState({ phase: "idle" }), []);
-
-  return { state, run, reset };
+export function useOpenDispute(): TxWriteHookReturn<OpenDisputeRunArgs> {
+  return useTxWriteHook<OpenDisputeRunArgs>({
+    address: process.env.NEXT_PUBLIC_DISPUTE_ADDRESS,
+    abi: disputeAbi as readonly unknown[],
+    functionName: "openDispute",
+    buildArgs: ({ orderId, itemId, reason }) => [orderId, itemId, reason],
+    invalidateOnSuccess: [[BUYER_ORDER_DETAIL_QUERY_KEY]],
+    missingAddressMessage: "Dispute contract not configured.",
+  });
 }

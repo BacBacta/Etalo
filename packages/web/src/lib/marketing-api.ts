@@ -9,6 +9,7 @@
  *   POST /marketing/generate-caption
  */
 import { fetchApi } from "@/lib/fetch-api";
+import { walletAuthHeaders } from "@/lib/wallet-auth";
 import type { components } from "@/types/api.gen";
 
 export type GenerateImageRequest =
@@ -55,7 +56,7 @@ export async function fetchCreditsBalance(
   walletAddress: string,
 ): Promise<CreditsBalanceResponse> {
   const res = await fetchApi("/sellers/me/credits/balance", {
-    headers: { "X-Wallet-Address": walletAddress },
+    headers: walletAuthHeaders(walletAddress),
   });
   if (!res.ok) {
     throw new Error(`Credits balance fetch failed: ${res.status}`);
@@ -73,7 +74,7 @@ export async function fetchCreditsHistory(
     page_size: String(pageSize),
   });
   const res = await fetchApi(`/sellers/me/credits/history?${params}`, {
-    headers: { "X-Wallet-Address": walletAddress },
+    headers: walletAuthHeaders(walletAddress),
   });
   if (!res.ok) {
     throw new Error(`Credits history fetch failed: ${res.status}`);
@@ -89,7 +90,7 @@ export async function generateImage(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify(payload),
   });
@@ -117,7 +118,7 @@ export async function generateCaption(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Wallet-Address": walletAddress,
+      ...walletAuthHeaders(walletAddress),
     },
     body: JSON.stringify(payload),
   });
