@@ -24,6 +24,7 @@
  */
 "use client";
 
+import { SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 
@@ -128,8 +129,15 @@ export function ConnectWalletButton() {
   }
 
   if (isConnected && address) {
+    // Mobile-first layout : the address + a 44-px icon-only Disconnect
+    // button. On sm+ viewports we restore the full "Disconnect" label
+    // so desktop users still see the explicit action word. Before
+    // this fix the inline "Disconnect" text + address + 3 header
+    // icons + logo totaled ~430 px on a 360 px MiniPay viewport,
+    // causing page-level horizontal scroll on /marketplace and
+    // friends (Mike caught it 2026-05-22 screenshot).
     return (
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 sm:gap-2">
         <span
           data-testid="connect-wallet-address"
           className="font-mono text-sm tabular-nums text-celo-dark dark:text-celo-light"
@@ -141,9 +149,11 @@ export function ConnectWalletButton() {
           variant="outline"
           onClick={() => disconnect()}
           data-testid="connect-wallet-disconnect"
-          className="min-h-[44px]"
+          aria-label="Disconnect wallet"
+          className="min-h-[44px] min-w-[44px] px-2 sm:px-4"
         >
-          Disconnect
+          <SignOut className="h-4 w-4 sm:hidden" aria-hidden="true" />
+          <span className="hidden sm:inline">Disconnect</span>
         </Button>
       </div>
     );
