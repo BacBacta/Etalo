@@ -269,3 +269,67 @@ async def test_inline_unknown_onchain_id_returns_404(
     )
     r = await client.patch(fake_path, headers=_hdr(_BUYER), json=_VALID_INLINE)
     assert r.status_code == 404
+
+
+# ============================================================
+# Pre-mainnet hardening (2026-05-22 audit) — first-write-wins lock
+#
+# The X-Wallet-Address header is client-controlled and `OrderFunded`
+# is a public on-chain event. Without a lock, any wallet that knows
+# a buyer's address can spoof the header and overwrite the snapshot,
+# redirecting the physical shipment of up to MAX_ORDER (500 USDT)
+# of goods. These tests verify both PATCH variants reject the
+# overwrite silently (idempotent no-op), preserving the first write.
+# ============================================================
+async def test_snapshot_lock_subsequent_overwrite_ignored(
+    client: AsyncClient, seeded
+):
+    """Second PATCH with a different valid address does NOT change
+    the stored snapshot — even when the second caller is the
+    legitimate buyer. Protects against the attack where a spoof
+    PATCH arrives after the legitimate write."""
+    first = await client.patch(
+        PATH, headers=_hdr(_BUYER), json={"address_id": seeded["buyer_addr_id"]}
+    )
+    assert first.status_code == 200
+    first_snap = first.json()["delivery_address_snapshot"]
+
+    # Buyer (or attacker spoofing the buyer) attempts to swap the
+    # snapshot to a different address book entry.
+    second = await client.patch(
+        PATH,
+        headers=_hdr(_BUYER),
+        json={"address_id": seeded["other_addr_id"]},
+    )
+    assert second.status_code == 200
+    second_snap = second.json()["delivery_address_snapshot"]
+    assert second_snap == first_snap, (
+        "snapshot should be locked after the first write — attempted "
+        "overwrite must be ignored"
+    )
+
+
+async def test_inline_snapshot_lock_subsequent_overwrite_ignored(
+    client: AsyncClient, seeded
+):
+    """ADR-050 inline variant — same first-write-wins guarantee."""
+    first = await client.patch(
+        INLINE_PATH, headers=_hdr(_BUYER), json=_VALID_INLINE
+    )
+    assert first.status_code == 200
+    first_snap = first.json()["delivery_address_snapshot"]
+
+    attacker_payload = {
+        **_VALID_INLINE,
+        "recipient_name": "Attacker",
+        "address_line": "Attacker drop point, ulterior city",
+    }
+    second = await client.patch(
+        INLINE_PATH, headers=_hdr(_BUYER), json=attacker_payload
+    )
+    assert second.status_code == 200
+    second_snap = second.json()["delivery_address_snapshot"]
+    assert second_snap == first_snap, (
+        "inline snapshot must be locked after the first write"
+    )
+    assert second_snap["recipient_name"] == "Adaeze Okafor"
