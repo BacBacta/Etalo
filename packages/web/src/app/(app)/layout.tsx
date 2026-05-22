@@ -17,11 +17,23 @@ import { PublicHeader } from "@/components/PublicHeader";
 export default function AppGroupLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  // `overflow-x-clip` on the route-group root is a safety net against
+  // accidental page-level horizontal scroll on small viewports — a
+  // bleed-edge chip row (CountryFilterChips/CategoryFilterChips both
+  // use `-mx-4` for native-carousel feel) or any future component
+  // that's wider than 360 px will scroll WITHIN its own container
+  // instead of dragging the whole page sideways. `clip` over `hidden`
+  // because `clip` lets the inner sticky header keep its sticky
+  // behavior (overflow:hidden creates a new containing block that
+  // breaks position:sticky on descendants — caught the hard way on
+  // Mike's mobile screenshot 2026-05-22).
   return (
     <Providers>
-      <PublicHeader />
-      <PageTransition>{children}</PageTransition>
-      <Footer />
+      <div className="overflow-x-clip">
+        <PublicHeader />
+        <PageTransition>{children}</PageTransition>
+        <Footer />
+      </div>
     </Providers>
   );
 }
