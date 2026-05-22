@@ -12,6 +12,16 @@
 "use client";
 
 import {
+  DotsThree,
+  ForkKnife,
+  House,
+  Sparkle,
+  SquaresFour,
+  TShirt,
+  type Icon,
+} from "@phosphor-icons/react";
+
+import {
   CATEGORY_OPTIONS,
   categoryLabel,
   type CategoryCode,
@@ -22,14 +32,20 @@ export type CategoryFilterValue = CategoryCode | "all";
 
 const ALL_LABEL = "All categories";
 
-// Category emoji prefixes — same UX rationale as the country flags :
-// the chip row reads as a visual menu instead of a list of labels.
-const CATEGORY_EMOJI: Record<CategoryCode, string> = {
-  fashion: "👗",
-  beauty: "💄",
-  food: "🍲",
-  home: "🏠",
-  other: "✨",
+// Category icons — Phosphor duotone for a premium two-tone render
+// that holds up cross-platform (the previous Unicode emojis
+// 👗💄🍲🏠✨ rendered with Android Noto Color Emoji which looks
+// distinctly cartoony and dated against the rest of the V5 design
+// system). Phosphor weight="duotone" gives the soft 2-tone fill the
+// rest of the surfaces use, follows currentColor so it inverts
+// cleanly on the active chip's dark background.
+const CATEGORY_ICON: Record<CategoryFilterValue, Icon> = {
+  all: SquaresFour,
+  fashion: TShirt,
+  beauty: Sparkle,
+  food: ForkKnife,
+  home: House,
+  other: DotsThree,
 };
 
 interface Props {
@@ -49,13 +65,13 @@ export function CategoryFilterChips({
   const options: Array<{
     key: CategoryFilterValue;
     label: string;
-    emoji?: string;
+    icon: Icon;
   }> = [
-    { key: "all", label: ALL_LABEL },
+    { key: "all", label: ALL_LABEL, icon: CATEGORY_ICON.all },
     ...CATEGORY_OPTIONS.map((c) => ({
       key: c as CategoryFilterValue,
       label: categoryLabel(c) ?? c,
-      emoji: CATEGORY_EMOJI[c],
+      icon: CATEGORY_ICON[c],
     })),
   ];
 
@@ -95,11 +111,11 @@ export function CategoryFilterChips({
                 : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-300 hover:bg-neutral-50 dark:border-celo-light/15 dark:bg-celo-dark-elevated dark:text-celo-light/85 dark:hover:bg-celo-dark-bg",
             )}
           >
-            {opt.emoji ? (
-              <span aria-hidden className="text-base leading-none">
-                {opt.emoji}
-              </span>
-            ) : null}
+            <opt.icon
+              aria-hidden
+              weight="duotone"
+              className="h-4 w-4 flex-shrink-0"
+            />
             {opt.label}
           </button>
         );
