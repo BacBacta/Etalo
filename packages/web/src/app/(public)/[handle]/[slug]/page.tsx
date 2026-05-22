@@ -122,9 +122,18 @@ export default async function ProductPage({ params }: PageProps) {
 
   return (
     <>
+      {/*
+        Escape `<` to `<` before insertion — `JSON.stringify`
+        alone doesn't, so a seller naming their product
+        `</script><script>evil()</script>` could escape the JSON-LD
+        context and run arbitrary JS in etalo.app's origin. See the
+        matching note on /[handle]/page.tsx.
+      */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
       />
       <main id="main" className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
         <header className="flex items-center gap-3">

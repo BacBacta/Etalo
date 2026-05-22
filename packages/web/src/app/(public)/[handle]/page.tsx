@@ -107,9 +107,20 @@ export default async function BoutiquePage({ params }: Props) {
           fetchPriority="high"
         />
       ) : null}
+      {/*
+        JSON-LD payload contains seller-controlled strings
+        (`shop_name`, product titles/descriptions). `JSON.stringify`
+        does NOT escape `<` or `</script>`, so a seller naming their
+        shop `</script><script>evil()</script>` could break out of the
+        script context and run arbitrary JS on every visitor's page.
+        Escape `<` to its JSON-unicode form — JSON parsers accept it,
+        the HTML parser can no longer detect a `</script>` boundary.
+      */}
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
+        }}
       />
       <main id="main" className="min-h-screen">
         <BoutiqueHeader seller={data.seller} />

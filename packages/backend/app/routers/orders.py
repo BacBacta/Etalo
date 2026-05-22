@@ -342,6 +342,20 @@ async def set_order_delivery_snapshot(
             detail="Only the buyer can set the delivery address snapshot.",
         )
 
+    # Lock semantics — pre-mainnet hardening (audit finding, 2026-05-22).
+    # The `X-Wallet-Address` header is client-controlled (ADR-036) and
+    # the `OrderFunded` event is public on-chain, so any wallet that
+    # knows a buyer's address can spoof the header and overwrite the
+    # snapshot — redirecting the physical shipment of up to MAX_ORDER
+    # = 500 USDT of goods. Closing the window : if a snapshot is
+    # already set, the request becomes an idempotent no-op (returns
+    # the current state), regardless of caller. Legitimate frontend
+    # retries (indexer race / network flake) still succeed because
+    # the first write hadn't landed yet ; spoof attempts arrive AFTER
+    # the legitimate write and silently no-op.
+    if order.delivery_address_snapshot is not None:
+        return OrderResponse.model_validate(order)
+
     # Resolve the address book row + ensure it belongs to the buyer.
     addr = (
         await db.execute(
@@ -431,6 +445,13 @@ async def set_order_delivery_snapshot_inline(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the buyer can set the delivery address snapshot.",
         )
+
+    # Lock semantics — see the matching note on the address-book
+    # variant above. First-write-wins ; subsequent calls (legitimate
+    # retries or spoof attempts after the legitimate write landed)
+    # become idempotent no-ops.
+    if order.delivery_address_snapshot is not None:
+        return OrderResponse.model_validate(order)
 
     order.delivery_address_snapshot = {
         "recipient_name": body.recipient_name,
