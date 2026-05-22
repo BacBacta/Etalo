@@ -33,7 +33,7 @@ from app.models.enums import OrderStatus
 from app.models.order import USDT_SCALE, Order
 from app.models.product import Product
 from app.models.user import User
-from app.routers.sellers import get_current_wallet
+from app.dependencies.wallet_auth import get_current_wallet
 from app.schemas.analytics import (
     AnalyticsSummary,
     EscrowBlock,

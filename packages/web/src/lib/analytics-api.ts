@@ -19,6 +19,7 @@
  *     hook (5.3) surfaces it through its native error channel.
  */
 import { fetchApi } from "@/lib/fetch-api";
+import { walletAuthHeaders } from "@/lib/wallet-auth";
 import type { components } from "@/types/api.gen";
 
 export type AnalyticsSummary = components["schemas"]["AnalyticsSummary"];
@@ -27,7 +28,7 @@ export async function fetchAnalyticsSummary(
   walletAddress: string,
 ): Promise<AnalyticsSummary> {
   const res = await fetchApi("/analytics/summary", {
-    headers: { "X-Wallet-Address": walletAddress },
+    headers: walletAuthHeaders(walletAddress),
   });
   if (!res.ok) {
     throw new Error(`Analytics summary fetch failed: ${res.status}`);
