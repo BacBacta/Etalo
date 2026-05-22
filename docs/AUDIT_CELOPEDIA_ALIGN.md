@@ -1,8 +1,21 @@
-# Audit alignement Etalo ↔ celopedia-skills MiniPay (v2.0.0)
+# Audit alignement Etalo ↔ celopedia-skills MiniPay (upstream v2.2.0)
 
-**Date** : 2026-05-05
+**Date** : 2026-05-05 (initial audit against v2.0.0) — **refreshed 2026-05-22** (upstream now v2.2.0)
 **Auteur** : Phase 1 read-only audit, no modifs applied
 **Sources** : `CLAUDE.md` (root + inner), `docs/DECISIONS.md` ADR index (41 ADRs), `docs/SPEC_SMART_CONTRACT_V2.md` (sections createOrder/fees/refund), `celo-org/celopedia-skills@main` (minipay-requirements.md, minipay-guide.md, builder-guide.md, security-patterns.md)
+
+## Status update 2026-05-22 (upstream v2.0.0 → v2.2.0 delta)
+
+Conflits originaux résolus depuis le rapport initial :
+
+- ✅ **C.1 (CIP-64 fee currency)** — wired in PR #45 (commit `02fb6d3`) via `lib/tx.ts asTxOptions()` smart wrapper. USDT adapter hardcoded at `0x0E2A...6f72` (matches upstream builder-guide.md table, verified vs commit `93fc161`). `NEXT_PUBLIC_FEE_ABSTRACTION_ENABLED` kill-switch retained.
+- ✅ **C.2 (mobile viewport)** — CLAUDE.md updated 2026-05-22 to drop the 360×720 hedge ; spec now reads `360×640` per MiniPay req §2 (upstream commit `16b38a9`).
+- ✅ **§B Add Cash deeplink** — shipped J11 #1 ("Add Cash balance gate" sprint, merged pre-J11.7).
+- ✅ **§B Celoscan verification** — completed via PR #44 pre-mainnet ops checklist (`02fb6d3` series, see `docs/audit/PRE_MAINNET_OPS.md`).
+
+Conflits/gaps encore ouverts : ToS/Privacy/Support routes, NETWORK_MANIFEST (partial), SUPPORT_SLA, CELOSCAN_SAMPLES, FederatedAttestations phone resolution (V1.5+).
+
+Upstream v2.0.0 → v2.2.0 ne crée aucun nouveau conflit MAJEUR. Notable upstream additions worth tracking : `docs.minipay.xyz` link map (`7820c17`), grants funding refresh w/ Proof of Ship S2 + Frontier Pool (`44044bf`), `FeeCurrencyDirectory` registry address corrected `0x9212Fb...` → `0x15F344...` (`93fc161`, only affects runtime queriers — we hardcode the adapter, not the directory, so n/a).
 
 ## A — Conformités confirmées
 

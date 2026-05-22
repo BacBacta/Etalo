@@ -565,6 +565,14 @@ listing >6 months old). Builder Fund makes sense as a Series-A-
 flavoured follow-on with potential Verda Ventures further
 investment, not a seed.
 
+Maps to Celo Builder Fund's published "2-of-4" traction thresholds
+(per celopg.eco/programs/celo-builder-fund) : Etalo's "1000+ sellers"
+= **MAU criterion**, "$50K monthly GMV" comfortably exceeds the
+**$5K/month revenue criterion**. We'll cross the line when we add
+either **500+ daily on-chain transactions** (~17 orders/day) or
+**$50K TVL in active escrows** — both organic outcomes of seller
+acquisition, no engineering cost.
+
 ---
 
 ## Risks + mitigations
