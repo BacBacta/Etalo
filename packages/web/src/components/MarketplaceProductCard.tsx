@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { memo } from "react";
 
 import { AddToCartIcon } from "@/components/AddToCartIcon";
 import { CardV4 } from "@/components/ui/v4/Card";
@@ -40,7 +41,7 @@ const COUNTRY_FLAGS: Record<string, string> = {
 // without needing real time-based queries.
 const NEW_BADGE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function MarketplaceProductCard({
+function MarketplaceProductCardImpl({
   product,
   hideSellerCountry = false,
   priority = false,
@@ -154,3 +155,13 @@ export function MarketplaceProductCard({
     </div>
   );
 }
+
+// React.memo wrap (PR3.2 LCP) — the marketplace grid mounts up to
+// 20 cards per page (4 cols × 5 rows on lg) and re-renders on every
+// pull-to-refresh tick + active-filter pill click. The product
+// object reference is stable across re-renders (TanStack Query
+// memoizes the page array) so a shallow compare hits 100 % of the
+// time — saves ~20 React reconciliation passes per parent re-render
+// on a full page of cards. AddToCartIcon is the only mutable bit
+// inside ; it manages its own state.
+export const MarketplaceProductCard = memo(MarketplaceProductCardImpl);
