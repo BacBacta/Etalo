@@ -12,14 +12,14 @@
 "use client";
 
 import {
-  DotsThree,
-  ForkKnife,
-  House,
-  Sparkle,
-  SquaresFour,
-  TShirt,
+  IconApps,
+  IconDotsCircleHorizontal,
+  IconHome,
+  IconShirt,
+  IconSparkles,
+  IconToolsKitchen2,
   type Icon,
-} from "@phosphor-icons/react";
+} from "@tabler/icons-react";
 
 import {
   CATEGORY_OPTIONS,
@@ -32,20 +32,20 @@ export type CategoryFilterValue = CategoryCode | "all";
 
 const ALL_LABEL = "All categories";
 
-// Category icons — Phosphor duotone for a premium two-tone render
-// that holds up cross-platform (the previous Unicode emojis
-// 👗💄🍲🏠✨ rendered with Android Noto Color Emoji which looks
-// distinctly cartoony and dated against the rest of the V5 design
-// system). Phosphor weight="duotone" gives the soft 2-tone fill the
-// rest of the surfaces use, follows currentColor so it inverts
-// cleanly on the active chip's dark background.
+// Category icons — Tabler outline 2px stroke. Premium SaaS aesthetic
+// (Linear / Vercel / Notion family) ; vector glyphs that hold up
+// crisp across DPRs and follow currentColor for the chip
+// active/inactive inversion. Replaces both the previous Unicode
+// emoji prefixes (rendered as Android Noto Color Emoji — dated)
+// AND the brief Phosphor duotone iteration (too soft against the
+// hard-edge chip pills).
 const CATEGORY_ICON: Record<CategoryFilterValue, Icon> = {
-  all: SquaresFour,
-  fashion: TShirt,
-  beauty: Sparkle,
-  food: ForkKnife,
-  home: House,
-  other: DotsThree,
+  all: IconApps,
+  fashion: IconShirt,
+  beauty: IconSparkles,
+  food: IconToolsKitchen2,
+  home: IconHome,
+  other: IconDotsCircleHorizontal,
 };
 
 interface Props {
@@ -113,8 +113,9 @@ export function CategoryFilterChips({
           >
             <opt.icon
               aria-hidden
-              weight="duotone"
-              className="h-4 w-4 flex-shrink-0"
+              size={18}
+              stroke={1.75}
+              className="flex-shrink-0"
             />
             {opt.label}
           </button>
