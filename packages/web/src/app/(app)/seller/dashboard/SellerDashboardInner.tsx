@@ -12,6 +12,7 @@ import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
+import { detectMiniPay } from "@/lib/minipay-detect";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
 // First Load JS was 276 kB (perf score 27). Three of these imports
@@ -80,6 +81,13 @@ export function SellerDashboardInner() {
     null,
   );
   const [loading, setLoading] = useState(true);
+  // MiniPay context resolves only on the client (reads window.ethereum /
+  // hostname). Start `false` so the SSR + first-hydration HTML matches ;
+  // flip on the mount effect once we can read the browser signals.
+  const [inMiniPay, setInMiniPay] = useState(false);
+  useEffect(() => {
+    setInMiniPay(detectMiniPay());
+  }, []);
 
   // ADR-052/053 — dashboard access is gated on wallet connection, NOT
   // on MiniPay context. Chrome users with a connected wallet see their
@@ -203,6 +211,16 @@ export function SellerDashboardInner() {
   }
 
   if (!isConnected || !address) {
+    // CLAUDE.md rule #7 : never show a Connect button inside MiniPay
+    // (auto-connect only). SilentReconnectGate (mounted in Providers)
+    // handles the `eth_accounts` → `connect()` handshake silently. Until
+    // it resolves, keep the skeleton on screen so the user never sees a
+    // stray Connect CTA — also covers the case where the gate fails
+    // (skeleton-forever > spec-violating button-shown). The Chrome /
+    // desktop wallet flow ADR-052/053 falls through to the prompt below.
+    if (inMiniPay) {
+      return <DashboardSkeleton />;
+    }
     return (
       <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
