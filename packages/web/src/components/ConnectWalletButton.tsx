@@ -24,11 +24,20 @@
  */
 "use client";
 
-import { SignOut } from "@phosphor-icons/react";
+import { CaretDown, Check, Copy, SignOut } from "@phosphor-icons/react";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 
 import { Button } from "@/components/ui/button";
+import {
+  SheetV4,
+  SheetV4Content,
+  SheetV4Description,
+  SheetV4Header,
+  SheetV4Title,
+  SheetV4Trigger,
+} from "@/components/ui/v4/Sheet";
 import { detectMiniPay } from "@/lib/minipay-detect";
 
 const MINIPAY_DOWNLOAD_URL = "https://www.opera.com/products/minipay";
@@ -129,34 +138,7 @@ export function ConnectWalletButton() {
   }
 
   if (isConnected && address) {
-    // Mobile-first layout : the address + a 44-px icon-only Disconnect
-    // button. On sm+ viewports we restore the full "Disconnect" label
-    // so desktop users still see the explicit action word. Before
-    // this fix the inline "Disconnect" text + address + 3 header
-    // icons + logo totaled ~430 px on a 360 px MiniPay viewport,
-    // causing page-level horizontal scroll on /marketplace and
-    // friends (Mike caught it 2026-05-22 screenshot).
-    return (
-      <div className="flex items-center gap-1 sm:gap-2">
-        <span
-          data-testid="connect-wallet-address"
-          className="font-mono text-sm tabular-nums text-celo-dark dark:text-celo-light"
-        >
-          {shortAddress(address)}
-        </span>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={() => disconnect()}
-          data-testid="connect-wallet-disconnect"
-          aria-label="Disconnect wallet"
-          className="min-h-[44px] min-w-[44px] px-2 sm:px-4"
-        >
-          <SignOut className="h-4 w-4 sm:hidden" aria-hidden="true" />
-          <span className="hidden sm:inline">Disconnect</span>
-        </Button>
-      </div>
-    );
+    return <ConnectedAddressMenu address={address} onDisconnect={disconnect} />;
   }
 
   const walletConnectConnector = connectors.find(
@@ -221,5 +203,113 @@ export function ConnectWalletButton() {
     >
       {isConnecting ? "Connecting…" : "Connect wallet"}
     </Button>
+  );
+}
+
+// ConnectedAddressMenu — connected-state surface. Trigger = the
+// truncated address rendered as a button with a small caret. Sheet
+// content = full address (with copy-to-clipboard) + Disconnect. Single
+// component for mobile + desktop ; the sheet itself slides up from the
+// bottom on small viewports (per SheetV4 default side="bottom" via
+// className) which feels native on Android Chrome and MiniPay
+// WebView. Replaces the previous inline `address + Disconnect` row
+// that overflowed 360 px viewports (caught 2026-05-22).
+interface ConnectedAddressMenuProps {
+  address: string;
+  onDisconnect: () => void;
+}
+
+function ConnectedAddressMenu({
+  address,
+  onDisconnect,
+}: ConnectedAddressMenuProps) {
+  const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = () => {
+    if (typeof navigator === "undefined" || !navigator.clipboard) return;
+    void navigator.clipboard
+      .writeText(address)
+      .then(() => {
+        setCopied(true);
+        toast.success("Address copied");
+        setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => toast.error("Couldn't copy"));
+  };
+
+  const handleDisconnect = () => {
+    onDisconnect();
+    setOpen(false);
+  };
+
+  return (
+    <SheetV4 open={open} onOpenChange={setOpen}>
+      <SheetV4Trigger asChild>
+        <button
+          type="button"
+          data-testid="connect-wallet-address"
+          aria-label="Wallet menu"
+          className="inline-flex min-h-[44px] items-center gap-1 rounded-pill border border-celo-dark/15 px-3 font-mono text-sm tabular-nums text-celo-dark hover:bg-celo-forest-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/15 dark:text-celo-light dark:hover:bg-celo-forest-bright-soft"
+        >
+          {shortAddress(address)}
+          <CaretDown className="h-3 w-3 opacity-60" aria-hidden="true" />
+        </button>
+      </SheetV4Trigger>
+      <SheetV4Content
+        side="bottom"
+        className="rounded-t-3xl border-t border-celo-dark/[8%] dark:border-celo-light/[8%]"
+      >
+        <SheetV4Header>
+          <SheetV4Title>Your wallet</SheetV4Title>
+          <SheetV4Description>
+            Connected to Etalo on Celo.
+          </SheetV4Description>
+        </SheetV4Header>
+        <div className="space-y-4 px-1 pb-2">
+          {/* Full address row — long string wraps via break-all so the
+              whole hex is selectable / copyable without truncation. */}
+          <div className="rounded-2xl border border-celo-dark/[8%] bg-celo-light/60 p-3 dark:border-celo-light/[8%] dark:bg-celo-dark-elevated">
+            <p className="mb-1 text-xs uppercase tracking-wide text-neutral-500 dark:text-celo-light/60">
+              Address
+            </p>
+            <p
+              data-testid="connect-wallet-address-full"
+              className="break-all font-mono text-sm text-celo-dark dark:text-celo-light"
+            >
+              {address}
+            </p>
+            <button
+              type="button"
+              onClick={handleCopy}
+              data-testid="connect-wallet-copy"
+              className="mt-3 inline-flex min-h-[44px] items-center gap-2 rounded-pill border border-celo-dark/15 px-4 text-sm font-medium text-celo-dark hover:bg-celo-forest-soft focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/15 dark:text-celo-light dark:hover:bg-celo-forest-bright-soft"
+            >
+              {copied ? (
+                <>
+                  <Check className="h-4 w-4 text-celo-forest" weight="bold" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="h-4 w-4" />
+                  Copy address
+                </>
+              )}
+            </button>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleDisconnect}
+            data-testid="connect-wallet-disconnect"
+            className="min-h-[48px] w-full"
+          >
+            <SignOut className="mr-2 h-4 w-4" aria-hidden="true" />
+            Disconnect
+          </Button>
+        </div>
+      </SheetV4Content>
+    </SheetV4>
   );
 }

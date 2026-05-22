@@ -6,6 +6,7 @@ import { useState } from "react";
 import { WagmiProvider } from "wagmi";
 
 import { MotionProvider } from "@/components/MotionProvider";
+import { SilentReconnectGate } from "@/components/SilentReconnectGate";
 import { useCartHydration } from "@/lib/cart-store";
 import { wagmiConfig } from "@/lib/wagmi-config";
 
@@ -37,8 +38,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
         enableSystem={false}
         storageKey="etalo-theme"
       >
-        <WagmiProvider config={wagmiConfig}>
+        {/* `reconnectOnMount={false}` disables wagmi's built-in
+            reconnect that, on some browser/wallet combinations,
+            surfaces a permission popup the user never asked for —
+            the root cause of PR #36's "User rejected" crash UX.
+            SilentReconnectGate below replaces it with an explicit
+            silent reconnect (uses `eth_accounts` RPC which never
+            prompts, only attaches the wallet if accounts are already
+            approved for the origin). */}
+        <WagmiProvider config={wagmiConfig} reconnectOnMount={false}>
           <QueryClientProvider client={queryClient}>
+            <SilentReconnectGate />
             <CartHydrationGate>{children}</CartHydrationGate>
           </QueryClientProvider>
         </WagmiProvider>
