@@ -11,7 +11,7 @@
  */
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePublicClient, useWalletClient } from "wagmi";
+import { useChainId, usePublicClient, useWalletClient } from "wagmi";
 
 import disputeAbi from "@/abis/v2/EtaloDispute.json";
 import { BUYER_ORDER_DETAIL_QUERY_KEY } from "@/hooks/useBuyerOrderDetail";
@@ -19,7 +19,7 @@ import {
   classifyCheckoutError,
   type CheckoutError,
 } from "@/lib/checkout-errors";
-import { asLegacyTx } from "@/lib/tx";
+import { asTxOptions } from "@/lib/tx";
 
 const TX_TIMEOUT_MS = 90_000;
 const TX_CONFIRMATIONS = 1;
@@ -41,6 +41,7 @@ export function useOpenDispute() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const queryClient = useQueryClient();
+  const chainId = useChainId();
   const [state, setState] = useState<OpenDisputeState>({ phase: "idle" });
 
   const run = useCallback(
@@ -72,12 +73,15 @@ export function useOpenDispute() {
         setState({ phase: "preparing" });
 
         const txHash = await walletClient.writeContract(
-          asLegacyTx({
-            address: disputeAddress as `0x${string}`,
-            abi: disputeAbi as readonly unknown[],
-            functionName: "openDispute",
-            args: [orderId, itemId, reason],
-          }),
+          asTxOptions(
+            {
+              address: disputeAddress as `0x${string}`,
+              abi: disputeAbi as readonly unknown[],
+              functionName: "openDispute",
+              args: [orderId, itemId, reason],
+            },
+            { chainId },
+          ),
         );
 
         setState({ phase: "confirming", txHash });
@@ -96,7 +100,7 @@ export function useOpenDispute() {
         setState({ phase: "error", error: classifyCheckoutError(err) });
       }
     },
-    [publicClient, walletClient, queryClient],
+    [publicClient, walletClient, queryClient, chainId],
   );
 
   const reset = useCallback(() => setState({ phase: "idle" }), []);

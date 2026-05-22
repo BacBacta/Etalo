@@ -39,7 +39,8 @@ export function parseOrderCreatedFromReceipt(
  * Returns a bigint (6-decimals raw).
  */
 export async function readUsdtAllowance(
-  client: PublicClient,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  client: PublicClient<any, any>,
   args: {
     usdt: Address;
     owner: Address;
