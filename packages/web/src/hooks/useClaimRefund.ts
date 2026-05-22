@@ -13,7 +13,7 @@
  */
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePublicClient, useWalletClient } from "wagmi";
+import { useChainId, usePublicClient, useWalletClient } from "wagmi";
 
 import escrowAbi from "@/abis/v2/EtaloEscrow.json";
 import { BUYER_ORDER_DETAIL_QUERY_KEY } from "@/hooks/useBuyerOrderDetail";
@@ -21,7 +21,7 @@ import {
   classifyCheckoutError,
   type CheckoutError,
 } from "@/lib/checkout-errors";
-import { asLegacyTx } from "@/lib/tx";
+import { asTxOptions } from "@/lib/tx";
 
 const TX_TIMEOUT_MS = 90_000;
 const TX_CONFIRMATIONS = 1;
@@ -41,6 +41,7 @@ export function useClaimRefund() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const queryClient = useQueryClient();
+  const chainId = useChainId();
   const [state, setState] = useState<ClaimRefundState>({ phase: "idle" });
 
   const run = useCallback(
@@ -72,12 +73,15 @@ export function useClaimRefund() {
         setState({ phase: "preparing" });
 
         const txHash = await walletClient.writeContract(
-          asLegacyTx({
-            address: escrowAddress as `0x${string}`,
-            abi: escrowAbi as readonly unknown[],
-            functionName: "triggerAutoRefundIfInactive",
-            args: [orderId],
-          }),
+          asTxOptions(
+            {
+              address: escrowAddress as `0x${string}`,
+              abi: escrowAbi as readonly unknown[],
+              functionName: "triggerAutoRefundIfInactive",
+              args: [orderId],
+            },
+            { chainId },
+          ),
         );
 
         setState({ phase: "confirming", txHash });
@@ -96,7 +100,7 @@ export function useClaimRefund() {
         setState({ phase: "error", error: classifyCheckoutError(err) });
       }
     },
-    [publicClient, walletClient, queryClient],
+    [publicClient, walletClient, queryClient, chainId],
   );
 
   const reset = useCallback(() => setState({ phase: "idle" }), []);

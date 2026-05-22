@@ -1,12 +1,12 @@
 import { useCallback, useState } from "react";
-import { usePublicClient, useWalletClient } from "wagmi";
+import { useChainId, usePublicClient, useWalletClient } from "wagmi";
 import { useQueryClient } from "@tanstack/react-query";
 
 import escrowAbi from "@/abis/v1/EtaloEscrow.json";
 import usdtAbi from "@/abis/v1/MockUSDT.json";
 import { apiFetch } from "@/lib/api";
 import { parseOrderCreatedFromReceipt, readUsdtAllowance } from "@/lib/escrow";
-import { asLegacyTx } from "@/lib/tx";
+import { asTxOptions } from "@/lib/tx";
 import {
   classifyCheckoutError,
   type CheckoutError,
@@ -51,6 +51,10 @@ export function useCheckout() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const queryClient = useQueryClient();
+  // chainId drives the CIP-64 vs legacy decision in asTxOptions —
+  // see lib/tx.ts. On mainnet + flag on → fee abstraction in USDT ;
+  // on Sepolia or flag off → legacy fallback (still MiniPay-safe).
+  const chainId = useChainId();
   const [state, setState] = useState<CheckoutState>({ phase: "idle" });
 
   const run = useCallback(
@@ -94,12 +98,15 @@ export function useCheckout() {
             totalSteps,
           });
           const hash = await walletClient.writeContract(
-            asLegacyTx({
-              address: usdt,
-              abi: usdtAbi as readonly unknown[],
-              functionName: "approve",
-              args: [escrow, amountRaw],
-            }),
+            asTxOptions(
+              {
+                address: usdt,
+                abi: usdtAbi as readonly unknown[],
+                functionName: "approve",
+                args: [escrow, amountRaw],
+              },
+              { chainId },
+            ),
           );
           await publicClient.waitForTransactionReceipt({
             hash,
@@ -116,12 +123,15 @@ export function useCheckout() {
           totalSteps,
         });
         const createHash = await walletClient.writeContract(
-          asLegacyTx({
-            address: escrow,
-            abi: escrowAbi as readonly unknown[],
-            functionName: "createOrder",
-            args: [seller, amountRaw, isCrossBorder],
-          }),
+          asTxOptions(
+            {
+              address: escrow,
+              abi: escrowAbi as readonly unknown[],
+              functionName: "createOrder",
+              args: [seller, amountRaw, isCrossBorder],
+            },
+            { chainId },
+          ),
         );
         const createReceipt = await publicClient.waitForTransactionReceipt({
           hash: createHash,
@@ -141,12 +151,15 @@ export function useCheckout() {
           totalSteps,
         });
         const fundHash = await walletClient.writeContract(
-          asLegacyTx({
-            address: escrow,
-            abi: escrowAbi as readonly unknown[],
-            functionName: "fundOrder",
-            args: [onchainOrderId],
-          }),
+          asTxOptions(
+            {
+              address: escrow,
+              abi: escrowAbi as readonly unknown[],
+              functionName: "fundOrder",
+              args: [onchainOrderId],
+            },
+            { chainId },
+          ),
         );
         await publicClient.waitForTransactionReceipt({
           hash: fundHash,
@@ -183,7 +196,7 @@ export function useCheckout() {
         setState({ phase: "error", error: classifyCheckoutError(err) });
       }
     },
-    [publicClient, walletClient, queryClient],
+    [publicClient, walletClient, queryClient, chainId],
   );
 
   const reset = useCallback(() => setState({ phase: "idle" }), []);

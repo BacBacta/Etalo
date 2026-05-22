@@ -13,7 +13,7 @@
  */
 import { useCallback, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePublicClient, useWalletClient } from "wagmi";
+import { useChainId, usePublicClient, useWalletClient } from "wagmi";
 
 import escrowAbi from "@/abis/v2/EtaloEscrow.json";
 import { BUYER_ORDER_DETAIL_QUERY_KEY } from "@/hooks/useBuyerOrderDetail";
@@ -21,7 +21,7 @@ import {
   classifyCheckoutError,
   type CheckoutError,
 } from "@/lib/checkout-errors";
-import { asLegacyTx } from "@/lib/tx";
+import { asTxOptions } from "@/lib/tx";
 
 const TX_TIMEOUT_MS = 90_000;
 const TX_CONFIRMATIONS = 1;
@@ -42,6 +42,7 @@ export function useConfirmDelivery() {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const queryClient = useQueryClient();
+  const chainId = useChainId();
   const [state, setState] = useState<ConfirmDeliveryState>({ phase: "idle" });
 
   const run = useCallback(
@@ -73,12 +74,15 @@ export function useConfirmDelivery() {
         setState({ phase: "preparing" });
 
         const txHash = await walletClient.writeContract(
-          asLegacyTx({
-            address: escrowAddress as `0x${string}`,
-            abi: escrowAbi as readonly unknown[],
-            functionName: "confirmItemDelivery",
-            args: [orderId, itemId],
-          }),
+          asTxOptions(
+            {
+              address: escrowAddress as `0x${string}`,
+              abi: escrowAbi as readonly unknown[],
+              functionName: "confirmItemDelivery",
+              args: [orderId, itemId],
+            },
+            { chainId },
+          ),
         );
 
         setState({ phase: "confirming", txHash });
@@ -97,7 +101,7 @@ export function useConfirmDelivery() {
         setState({ phase: "error", error: classifyCheckoutError(err) });
       }
     },
-    [publicClient, walletClient, queryClient],
+    [publicClient, walletClient, queryClient, chainId],
   );
 
   const reset = useCallback(() => setState({ phase: "idle" }), []);
