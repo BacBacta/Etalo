@@ -152,27 +152,32 @@ export function ConnectWalletButton() {
     // MiniPay install link as the only path (current production
     // behavior pre-Phase-2).
     if (walletConnectConnector) {
+      // Mobile-tight label : just "Connect" (~80 px) instead of
+      // "Connect with mobile wallet" (~200 px) so the disconnected
+      // header fits the 360 px viewport. Desktop keeps the full
+      // explicit label. The "Or install MiniPay" secondary link is
+      // dropped from the header on every viewport — the WalletConnect
+      // modal itself already lists wallet installation options, so
+      // the fallback isn't lost, just moved one tap deeper.
       return (
-        <div className="flex flex-col items-center gap-3">
-          <Button
-            type="button"
-            onClick={() => connect({ connector: walletConnectConnector })}
-            disabled={isConnecting}
-            data-testid="connect-wallet-walletconnect"
-            className="min-h-[44px]"
-          >
-            {isConnecting ? "Connecting…" : "Connect with mobile wallet"}
-          </Button>
-          <a
-            href={MINIPAY_DOWNLOAD_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="connect-wallet-get-minipay"
-            className="text-sm text-celo-dark/70 underline underline-offset-4 hover:text-celo-dark dark:text-celo-light/70 dark:hover:text-celo-light"
-          >
-            Or install MiniPay
-          </a>
-        </div>
+        <Button
+          type="button"
+          onClick={() => connect({ connector: walletConnectConnector })}
+          disabled={isConnecting}
+          data-testid="connect-wallet-walletconnect"
+          className="min-h-[44px]"
+        >
+          {isConnecting
+            ? "Connecting…"
+            : (
+                <>
+                  <span className="sm:hidden">Connect</span>
+                  <span className="hidden sm:inline">
+                    Connect with mobile wallet
+                  </span>
+                </>
+              )}
+        </Button>
       );
     }
     return (
@@ -181,9 +186,10 @@ export function ConnectWalletButton() {
         target="_blank"
         rel="noopener noreferrer"
         data-testid="connect-wallet-get-minipay"
-        className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-celo-forest-bright px-4 py-2 text-base font-medium text-celo-dark hover:bg-celo-forest-bright/90"
+        className="inline-flex min-h-[44px] items-center justify-center rounded-md bg-celo-forest-bright px-3 py-2 text-base font-medium text-celo-dark hover:bg-celo-forest-bright/90 sm:px-4"
       >
-        Get MiniPay
+        <span className="sm:hidden">MiniPay</span>
+        <span className="hidden sm:inline">Get MiniPay</span>
       </a>
     );
   }
