@@ -20,6 +20,15 @@ export type CountryFilterValue = CountryCode | "all";
 
 const ALL_LABEL = "All countries";
 
+// Country flag emoji prefixes for the premium marketplace UX —
+// gives the chip row a visual rhythm (🇳🇬 🇬🇭 🇰🇪) so buyers spot
+// their market at a glance instead of reading 3 country names.
+const COUNTRY_FLAGS: Record<CountryCode, string> = {
+  NGA: "🇳🇬",
+  GHA: "🇬🇭",
+  KEN: "🇰🇪",
+};
+
 interface Props {
   value: CountryFilterValue;
   onChange: (value: CountryFilterValue) => void;
@@ -34,11 +43,16 @@ export function CountryFilterChips({
   className,
   disabled,
 }: Props) {
-  const options: Array<{ key: CountryFilterValue; label: string }> = [
+  const options: Array<{
+    key: CountryFilterValue;
+    label: string;
+    flag?: string;
+  }> = [
     { key: "all", label: ALL_LABEL },
     ...COUNTRY_OPTIONS.map((c) => ({
       key: c as CountryFilterValue,
       label: countryName(c) ?? c,
+      flag: COUNTRY_FLAGS[c],
     })),
   ];
 
@@ -76,17 +90,22 @@ export function CountryFilterChips({
               // `flex-shrink-0` + `whitespace-nowrap` lock each chip's
               // width to its content so the row stays single-line and
               // overflows horizontally instead of wrapping.
-              "inline-flex flex-shrink-0 items-center justify-center whitespace-nowrap",
+              "inline-flex flex-shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
               "min-h-[44px] px-4 py-2",
-              "rounded-full text-sm font-medium",
-              "transition-colors duration-200",
+              "rounded-full border text-sm font-medium",
+              "transition-all duration-200",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               checked
-                ? "bg-celo-forest text-celo-light hover:bg-celo-forest/90"
-                : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200 dark:bg-celo-dark-elevated dark:text-celo-light dark:hover:bg-celo-dark-surface",
+                ? "border-celo-dark bg-celo-dark text-celo-light shadow-sm hover:bg-celo-dark/90 dark:border-celo-light dark:bg-celo-light dark:text-celo-dark dark:hover:bg-celo-light/90"
+                : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-300 hover:bg-neutral-50 dark:border-celo-light/15 dark:bg-celo-dark-elevated dark:text-celo-light/85 dark:hover:bg-celo-dark-bg",
             )}
           >
+            {opt.flag ? (
+              <span aria-hidden className="text-base leading-none">
+                {opt.flag}
+              </span>
+            ) : null}
             {opt.label}
           </button>
         );

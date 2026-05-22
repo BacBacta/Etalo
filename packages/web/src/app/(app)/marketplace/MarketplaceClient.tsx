@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { ArrowsClockwise } from "@phosphor-icons/react";
+import { ArrowsClockwise, Sparkle, X } from "@phosphor-icons/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
@@ -286,10 +286,10 @@ function MarketplaceClientInner() {
     return (
       <main id="main" className="min-h-screen" data-testid="marketplace-loading">
         <div className="mx-auto max-w-3xl px-4 py-6">
-          <h1 className="mb-1 text-xl font-semibold">Marketplace</h1>
+          <MarketplaceHero refreshDisabled />
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <SkeletonV5 key={i} variant="card" />
+            {Array.from({ length: 8 }).map((_, i) => (
+              <SkeletonCardV2 key={i} />
             ))}
           </div>
         </div>
@@ -464,45 +464,24 @@ function MarketplaceClientInner() {
         style={{ transform: `translateY(${pullDistance}px)` }}
       >
         <div className="mx-auto max-w-3xl px-4 py-6">
-          <div className="mb-1 flex items-center justify-between gap-3">
-            <h1 className="text-xl font-semibold">Marketplace</h1>
-            <button
-              type="button"
-              onClick={() => query.refetch()}
-              disabled={isRefreshing}
-              aria-label="Refresh marketplace products"
-              data-testid="marketplace-refresh"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-full text-celo-dark transition-colors hover:bg-celo-forest-soft disabled:opacity-50 dark:text-celo-light dark:hover:bg-celo-forest-bright-soft"
-            >
-              <ArrowsClockwise
-                className={cn("h-5 w-5", isRefreshing && "animate-spin")}
-                aria-hidden="true"
-              />
-            </button>
-          </div>
-          {/* Subtitle "Discover products from sellers across Africa"
-              dropped : low contrast on dark mode + redundant context
-              given the country chips below. ~24 px reclaimed above the
-              fold on a 360 px viewport. */}
-
-          <MarketplaceSearchInput
-            value={urlQ}
-            onChange={updateSearchQuery}
-            className="mb-3"
+          <MarketplaceHero
+            isRefreshing={isRefreshing}
+            onRefresh={() => query.refetch()}
           />
 
+          <div className="mt-5">
+            <MarketplaceSearchInput
+              value={urlQ}
+              onChange={updateSearchQuery}
+            />
+          </div>
+
           {showCountryBanner ? (
-            <div className="mb-4">
+            <div className="mt-4">
               <CountryPromptBanner
                 wallet={walletStr!}
                 onSaved={(c) => {
-                  // Persist a session dismiss so the banner doesn't re-show
-                  // mid-browse after the user just resolved it. The next
-                  // page reload re-checks profile.country and skips the
-                  // banner naturally.
                   handleBannerDismiss();
-                  // Sync the URL filter to the picked country if no
-                  // explicit override was set.
                   if (urlCountry === null) {
                     updateCountryFilter(c);
                   }
@@ -519,29 +498,52 @@ function MarketplaceClientInner() {
             </div>
           ) : null}
 
-          <CountryFilterChips
-            value={countryFilter}
-            onChange={updateCountryFilter}
-            className="mb-3"
-            disabled={isRefreshing}
-          />
-          <CategoryFilterChips
-            value={categoryFilter}
-            onChange={updateCategoryFilter}
-            className="mb-3"
-            disabled={isRefreshing}
-          />
-          <SortDropdown
-            value={sortValue}
-            onChange={updateSort}
-            className="mb-6"
-            disabled={isRefreshing}
-          />
+          <div className="mt-4 space-y-3">
+            <CountryFilterChips
+              value={countryFilter}
+              onChange={updateCountryFilter}
+              disabled={isRefreshing}
+            />
+            <CategoryFilterChips
+              value={categoryFilter}
+              onChange={updateCategoryFilter}
+              disabled={isRefreshing}
+            />
+          </div>
 
-          <MarketplaceGrid
-            products={products}
-            hideSellerCountry={countryFilter !== "all"}
-          />
+          {/* Results meta strip — active filter chips on the left,
+              count + sort dropdown on the right. Always rendered so
+              the layout stays stable between filter states. */}
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <ActiveFiltersBar
+              countryFilter={countryFilter}
+              categoryFilter={categoryFilter}
+              searchQuery={urlQ}
+              productCount={products.length}
+              onClearCountry={() => updateCountryFilter("all")}
+              onClearCategory={() => updateCategoryFilter("all")}
+              onClearSearch={() => updateSearchQuery("")}
+              onResetAll={() => {
+                updateCountryFilter("all");
+                updateCategoryFilter("all");
+                updateSearchQuery("");
+              }}
+            />
+            <div className="flex-shrink-0">
+              <SortDropdown
+                value={sortValue}
+                onChange={updateSort}
+                disabled={isRefreshing}
+              />
+            </div>
+          </div>
+
+          <div className="mt-5">
+            <MarketplaceGrid
+              products={products}
+              hideSellerCountry={countryFilter !== "all"}
+            />
+          </div>
 
           {query.hasNextPage ? (
             <div className="mt-8 flex justify-center">
@@ -558,5 +560,193 @@ function MarketplaceClientInner() {
         </div>
       </div>
     </main>
+  );
+}
+
+// =====================================================================
+// MarketplaceHero — branded header strip with title, subtitle, and the
+// refresh button. Same wrapper used by the skeleton state so the
+// transition skeleton → loaded doesn't shift the title row.
+// =====================================================================
+
+interface MarketplaceHeroProps {
+  isRefreshing?: boolean;
+  refreshDisabled?: boolean;
+  onRefresh?: () => void;
+}
+
+function MarketplaceHero({
+  isRefreshing = false,
+  refreshDisabled = false,
+  onRefresh,
+}: MarketplaceHeroProps) {
+  return (
+    <div className="overflow-hidden rounded-2xl border border-celo-forest/15 bg-gradient-to-br from-celo-yellow-soft/60 via-celo-light to-celo-forest-soft/40 p-4 dark:border-celo-green/15 dark:from-celo-dark-elevated dark:via-celo-dark-bg dark:to-celo-dark-elevated sm:p-5">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <div className="inline-flex items-center gap-1.5 rounded-full bg-celo-light/70 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide text-celo-forest dark:bg-celo-dark-bg/60 dark:text-celo-green">
+            <Sparkle className="h-3 w-3" weight="fill" aria-hidden />
+            Marketplace
+          </div>
+          <h1 className="mt-2 text-xl font-semibold text-celo-dark dark:text-celo-light sm:text-2xl">
+            Discover boutiques across Africa
+          </h1>
+          <p className="mt-1 text-sm text-celo-dark/70 dark:text-celo-light/70">
+            Browse curated products from sellers in Nigeria, Ghana and
+            Kenya — pay with USDT escrow, refund guaranteed.
+          </p>
+        </div>
+        {onRefresh ? (
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing || refreshDisabled}
+            aria-label="Refresh marketplace products"
+            data-testid="marketplace-refresh"
+            className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-celo-light/80 text-celo-dark shadow-sm backdrop-blur transition-colors hover:bg-celo-light disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:bg-celo-dark-bg/70 dark:text-celo-light dark:hover:bg-celo-dark-bg"
+          >
+            <ArrowsClockwise
+              className={cn("h-5 w-5", isRefreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+          </button>
+        ) : (
+          // Placeholder during the skeleton state so the hero height
+          // doesn't change when the real button mounts.
+          <div className="h-11 w-11 flex-shrink-0" aria-hidden />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =====================================================================
+// ActiveFiltersBar — visible recap of what's currently filtered with
+// per-filter remove buttons + a "Reset all" link when 2+ filters
+// stack. Shows a count of matched products when no filter is active
+// so the buyer still gets context.
+// =====================================================================
+
+interface ActiveFiltersBarProps {
+  countryFilter: CountryFilterValue;
+  categoryFilter: CategoryFilterValue;
+  searchQuery: string;
+  productCount: number;
+  onClearCountry: () => void;
+  onClearCategory: () => void;
+  onClearSearch: () => void;
+  onResetAll: () => void;
+}
+
+function ActiveFiltersBar({
+  countryFilter,
+  categoryFilter,
+  searchQuery,
+  productCount,
+  onClearCountry,
+  onClearCategory,
+  onClearSearch,
+  onResetAll,
+}: ActiveFiltersBarProps) {
+  const activeCount =
+    (countryFilter !== "all" ? 1 : 0) +
+    (categoryFilter !== "all" ? 1 : 0) +
+    (searchQuery.trim().length > 0 ? 1 : 0);
+
+  if (activeCount === 0) {
+    return (
+      <p
+        className="text-sm text-neutral-600 tabular-nums dark:text-celo-light/70"
+        data-testid="marketplace-results-count"
+      >
+        <span className="font-semibold text-celo-dark dark:text-celo-light">
+          {productCount}
+        </span>{" "}
+        {productCount === 1 ? "product" : "products"}
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className="flex flex-wrap items-center gap-2"
+      data-testid="marketplace-active-filters"
+    >
+      <span className="text-sm text-neutral-500 dark:text-celo-light/60">
+        Filters:
+      </span>
+      {countryFilter !== "all" ? (
+        <FilterPill
+          label={countryName(countryFilter) ?? countryFilter}
+          onRemove={onClearCountry}
+        />
+      ) : null}
+      {categoryFilter !== "all" ? (
+        <FilterPill
+          label={
+            categoryFilter.charAt(0).toUpperCase() + categoryFilter.slice(1)
+          }
+          onRemove={onClearCategory}
+        />
+      ) : null}
+      {searchQuery.trim().length > 0 ? (
+        <FilterPill label={`"${searchQuery.trim()}"`} onRemove={onClearSearch} />
+      ) : null}
+      {activeCount >= 2 ? (
+        <button
+          type="button"
+          onClick={onResetAll}
+          className="text-sm font-medium text-celo-forest underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:text-celo-green"
+        >
+          Reset all
+        </button>
+      ) : null}
+      <span
+        className="ml-auto text-sm text-neutral-500 tabular-nums dark:text-celo-light/60"
+        aria-live="polite"
+      >
+        {productCount} {productCount === 1 ? "match" : "matches"}
+      </span>
+    </div>
+  );
+}
+
+interface FilterPillProps {
+  label: string;
+  onRemove: () => void;
+}
+
+function FilterPill({ label, onRemove }: FilterPillProps) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-full border border-celo-forest/30 bg-celo-forest-soft px-2 py-0.5 text-sm font-medium text-celo-forest dark:border-celo-green/30 dark:bg-celo-forest-bright-soft dark:text-celo-light">
+      {label}
+      <button
+        type="button"
+        onClick={onRemove}
+        aria-label={`Remove ${label} filter`}
+        className="inline-flex h-5 w-5 items-center justify-center rounded-full hover:bg-celo-forest/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:hover:bg-celo-green/20"
+      >
+        <X className="h-3 w-3" weight="bold" aria-hidden />
+      </button>
+    </span>
+  );
+}
+
+// =====================================================================
+// SkeletonCardV2 — visual shape mirror of the new MarketplaceProductCard.
+// Square image area + 3 text rows (price, title, seller) so the layout
+// stays put when real cards arrive.
+// =====================================================================
+
+function SkeletonCardV2() {
+  return (
+    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated">
+      <SkeletonV5 variant="rectangle" className="aspect-square w-full" />
+      <div className="space-y-2 p-3">
+        <SkeletonV5 variant="text" className="h-5 w-20" />
+        <SkeletonV5 variant="text" className="h-4 w-full" />
+        <SkeletonV5 variant="text" className="h-3 w-2/3" />
+      </div>
+    </div>
   );
 }

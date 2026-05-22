@@ -22,6 +22,16 @@ export type CategoryFilterValue = CategoryCode | "all";
 
 const ALL_LABEL = "All categories";
 
+// Category emoji prefixes — same UX rationale as the country flags :
+// the chip row reads as a visual menu instead of a list of labels.
+const CATEGORY_EMOJI: Record<CategoryCode, string> = {
+  fashion: "👗",
+  beauty: "💄",
+  food: "🍲",
+  home: "🏠",
+  other: "✨",
+};
+
 interface Props {
   value: CategoryFilterValue;
   onChange: (value: CategoryFilterValue) => void;
@@ -36,11 +46,16 @@ export function CategoryFilterChips({
   className,
   disabled,
 }: Props) {
-  const options: Array<{ key: CategoryFilterValue; label: string }> = [
+  const options: Array<{
+    key: CategoryFilterValue;
+    label: string;
+    emoji?: string;
+  }> = [
     { key: "all", label: ALL_LABEL },
     ...CATEGORY_OPTIONS.map((c) => ({
       key: c as CategoryFilterValue,
       label: categoryLabel(c) ?? c,
+      emoji: CATEGORY_EMOJI[c],
     })),
   ];
 
@@ -69,17 +84,22 @@ export function CategoryFilterChips({
             onClick={() => onChange(opt.key)}
             data-testid={`category-chip-${opt.key}`}
             className={cn(
-              "inline-flex flex-shrink-0 items-center justify-center whitespace-nowrap",
+              "inline-flex flex-shrink-0 items-center justify-center gap-1.5 whitespace-nowrap",
               "min-h-[44px] px-4 py-2",
-              "rounded-full text-sm font-medium",
-              "transition-colors duration-200",
+              "rounded-full border text-sm font-medium",
+              "transition-all duration-200",
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               checked
-                ? "bg-celo-forest text-celo-light hover:bg-celo-forest/90"
-                : "bg-neutral-100 text-neutral-800 hover:bg-neutral-200 dark:bg-celo-dark-elevated dark:text-celo-light dark:hover:bg-celo-dark-surface",
+                ? "border-celo-dark bg-celo-dark text-celo-light shadow-sm hover:bg-celo-dark/90 dark:border-celo-light dark:bg-celo-light dark:text-celo-dark dark:hover:bg-celo-light/90"
+                : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-300 hover:bg-neutral-50 dark:border-celo-light/15 dark:bg-celo-dark-elevated dark:text-celo-light/85 dark:hover:bg-celo-dark-bg",
             )}
           >
+            {opt.emoji ? (
+              <span aria-hidden className="text-base leading-none">
+                {opt.emoji}
+              </span>
+            ) : null}
             {opt.label}
           </button>
         );

@@ -19,11 +19,26 @@ interface Props {
   priority?: boolean;
 }
 
-// Marketplace endpoint omits stock to keep the listing payload light;
+// Marketplace endpoint omits stock to keep the listing payload light ;
 // the cart-token POST re-validates against live stock at checkout.
 // 999 = "assume available", surfaces the real out-of-stock error only
 // when the buyer commits.
 const ASSUMED_STOCK = 999;
+
+// Country flag emojis surfaced on the card as a subtle backdrop-blur
+// chip top-left when the marketplace is in the "All countries" view.
+// Same map lives in CountryFilterChips so the visual language is
+// consistent across the filter bar and the result cards.
+const COUNTRY_FLAGS: Record<string, string> = {
+  NGA: "🇳🇬",
+  GHA: "🇬🇭",
+  KEN: "🇰🇪",
+};
+
+// "New" badge cutoff — anything pinned to IPFS within the last 7
+// days gets a small pill, gives the marketplace a sense of freshness
+// without needing real time-based queries.
+const NEW_BADGE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function MarketplaceProductCard({
   product,
@@ -31,48 +46,76 @@ export function MarketplaceProductCard({
   priority = false,
 }: Props) {
   const country = countryName(product.seller_country);
-  const sellerLine =
-    country && !hideSellerCountry
-      ? `${product.seller_shop_name} · ${country}`
-      : product.seller_shop_name;
+  const flag = product.seller_country
+    ? COUNTRY_FLAGS[product.seller_country]
+    : undefined;
+
+  const isNew = (() => {
+    if (!product.created_at) return false;
+    const created = new Date(product.created_at).getTime();
+    if (Number.isNaN(created)) return false;
+    return Date.now() - created < NEW_BADGE_THRESHOLD_MS;
+  })();
 
   return (
-    <div className="relative">
+    <div className="group relative">
       <CardV4
         variant="default"
         padding="none"
         interactive
-        className="overflow-hidden"
+        className="overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:hover:shadow-celo-light/5"
         data-testid="marketplace-product-card-wrapper"
       >
         <Link
           href={`/${product.seller_handle}/${product.slug}`}
-          className="block min-h-[44px] focus:outline-none focus:ring-2 focus:ring-celo-forest focus:ring-offset-2"
+          className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2"
         >
-          {/* Image area : neutral-100 in light, neutral-800 in dark so
-              the placeholder no longer burns as a stark white square
-              on dark mode (the screenshot bug — bg-neutral-100 had no
-              dark variant). */}
-          <div className="relative aspect-square bg-neutral-100 dark:bg-neutral-800">
+          {/* Image area — square. Light/dark backdrops kept from the
+              previous design ; on hover the image subtly zooms (1.05)
+              to give the card a tactile feel. */}
+          <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-celo-dark-elevated">
             {product.primary_image_url ? (
               <Image
                 src={product.primary_image_url}
                 alt={product.title}
                 fill
                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover"
+                className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
                 priority={priority}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-neutral-400">
+              <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-celo-light/50">
                 No image
               </div>
             )}
-            {/* `+` button moved to the IMAGE area's top-right so it
-                never overlaps the price/seller meta footer (the
-                screenshot showed it covering the seller line on the
-                Red Ankara Dress card). The image area is large + has
-                its own backdrop, so a circular button reads cleanly. */}
+
+            {/* Floating overlays on the image. Top-left : country flag
+                chip (hidden when the marketplace is already filtered to
+                that country). Top-right : the cart "+" button. Bottom-
+                left : "New" pill for recently-pinned products. All use
+                backdrop-blur so they don't fight the underlying photo. */}
+            {flag && !hideSellerCountry ? (
+              <span
+                aria-label={`Ships from ${country ?? product.seller_country ?? ""}`}
+                title={country ?? product.seller_country ?? undefined}
+                className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-celo-light/90 px-2 py-1 text-sm font-medium leading-none text-celo-dark shadow-sm backdrop-blur dark:bg-celo-dark-bg/85 dark:text-celo-light"
+              >
+                <span aria-hidden className="text-base leading-none">
+                  {flag}
+                </span>
+                {country ?? product.seller_country}
+              </span>
+            ) : null}
+
+            {isNew ? (
+              <span
+                className="absolute bottom-2 left-2 inline-flex items-center rounded-full bg-celo-yellow/95 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-celo-dark shadow-sm backdrop-blur"
+                aria-label="Recently added product"
+              >
+                New
+              </span>
+            ) : null}
+
             <AddToCartIcon
               productId={product.id}
               productSlug={product.slug}
@@ -85,19 +128,25 @@ export function MarketplaceProductCard({
               position="top-right"
             />
           </div>
-          {/* Card meta : price-prominent (display-4 + tabular-nums)
-              over the title because price is the primary buyer-side
-              decision driver. Title second, seller third. Pattern
-              borrowed from Robinhood / Shop. */}
+
+          {/* Card meta : price-prominent over title (Robinhood / Shop
+              pattern). USDT suffix is muted so the eye lands on the
+              number first. Seller name in a smaller, lighter row to
+              keep the hierarchy clean even on long boutique names. */}
           <div className="p-3">
-            <p className="text-base font-semibold tabular-nums text-celo-dark dark:text-celo-light">
-              {Number(product.price_usdt).toFixed(2)} USDT
-            </p>
-            <h3 className="mt-1 line-clamp-2 text-sm font-medium text-celo-dark dark:text-celo-light">
+            <div className="flex items-baseline gap-1.5">
+              <span className="text-lg font-semibold tabular-nums text-celo-dark dark:text-celo-light">
+                {Number(product.price_usdt).toFixed(2)}
+              </span>
+              <span className="text-sm text-neutral-500 dark:text-celo-light/60">
+                USDT
+              </span>
+            </div>
+            <h3 className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-celo-dark dark:text-celo-light">
               {product.title}
             </h3>
-            <p className="mt-1 truncate text-sm text-neutral-600 dark:text-neutral-400">
-              {sellerLine}
+            <p className="mt-1.5 truncate text-sm text-neutral-500 dark:text-celo-light/60">
+              {product.seller_shop_name}
             </p>
           </div>
         </Link>

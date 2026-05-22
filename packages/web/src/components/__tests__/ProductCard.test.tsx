@@ -96,8 +96,12 @@ describe("MarketplaceProductCard — CardV4 wrapper migration (P4 B2)", () => {
     expect(card).toHaveAttribute("data-interactive", "true");
 
     expect(screen.getByText("Blue Shoes")).toBeInTheDocument();
-    expect(screen.getByText("55.00 USDT")).toBeInTheDocument();
-    // Seller line includes shop name + country (Nigeria).
+    // Premium card splits the price number + USDT suffix across two
+    // spans for typographic hierarchy ; assert each piece independently.
+    expect(screen.getByText("55.00")).toBeInTheDocument();
+    expect(screen.getByText("USDT")).toBeInTheDocument();
+    // Seller line shown standalone (country moved to a flag chip on
+    // the image overlay post-premium-redesign).
     expect(screen.getByText(/Ekene Shoes/i)).toBeInTheDocument();
   });
 });
