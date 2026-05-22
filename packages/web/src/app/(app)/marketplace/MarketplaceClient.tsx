@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { ArrowsClockwise, Sparkle, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, X } from "@phosphor-icons/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
@@ -580,42 +580,36 @@ function MarketplaceHero({
   refreshDisabled = false,
   onRefresh,
 }: MarketplaceHeroProps) {
+  // Compact header — title left + refresh button right. The previous
+  // gradient card + pill + 2-line trust subline ate 140 px above the
+  // fold ; on a 360 px viewport that pushed the first product card
+  // way below the scroll line. The filter chips + cards already
+  // communicate "marketplace of African boutiques" without needing
+  // a marketing block here.
   return (
-    <div className="overflow-hidden rounded-2xl border border-celo-forest/15 bg-gradient-to-br from-celo-yellow-soft/60 via-celo-light to-celo-forest-soft/40 p-4 dark:border-celo-green/15 dark:from-celo-dark-elevated dark:via-celo-dark-bg dark:to-celo-dark-elevated sm:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="inline-flex items-center gap-1.5 rounded-full bg-celo-light/70 px-2.5 py-0.5 text-xs font-medium uppercase tracking-wide text-celo-forest dark:bg-celo-dark-bg/60 dark:text-celo-green">
-            <Sparkle className="h-3 w-3" weight="fill" aria-hidden />
-            Marketplace
-          </div>
-          <h1 className="mt-2 text-xl font-semibold text-celo-dark dark:text-celo-light sm:text-2xl">
-            Discover boutiques across Africa
-          </h1>
-          <p className="mt-1 text-sm text-celo-dark/70 dark:text-celo-light/70">
-            Browse curated products from sellers in Nigeria, Ghana and
-            Kenya — pay with USDT escrow, refund guaranteed.
-          </p>
-        </div>
-        {onRefresh ? (
-          <button
-            type="button"
-            onClick={onRefresh}
-            disabled={isRefreshing || refreshDisabled}
-            aria-label="Refresh marketplace products"
-            data-testid="marketplace-refresh"
-            className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full bg-celo-light/80 text-celo-dark shadow-sm backdrop-blur transition-colors hover:bg-celo-light disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:bg-celo-dark-bg/70 dark:text-celo-light dark:hover:bg-celo-dark-bg"
-          >
-            <ArrowsClockwise
-              className={cn("h-5 w-5", isRefreshing && "animate-spin")}
-              aria-hidden="true"
-            />
-          </button>
-        ) : (
-          // Placeholder during the skeleton state so the hero height
-          // doesn't change when the real button mounts.
-          <div className="h-11 w-11 flex-shrink-0" aria-hidden />
-        )}
-      </div>
+    <div className="flex items-center justify-between gap-3">
+      <h1 className="text-2xl font-semibold tracking-tight text-celo-dark dark:text-celo-light">
+        Marketplace
+      </h1>
+      {onRefresh ? (
+        <button
+          type="button"
+          onClick={onRefresh}
+          disabled={isRefreshing || refreshDisabled}
+          aria-label="Refresh marketplace products"
+          data-testid="marketplace-refresh"
+          className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-celo-dark transition-colors hover:bg-celo-forest-soft disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:text-celo-light dark:hover:bg-celo-forest-bright-soft"
+        >
+          <ArrowsClockwise
+            className={cn("h-5 w-5", isRefreshing && "animate-spin")}
+            aria-hidden="true"
+          />
+        </button>
+      ) : (
+        // Placeholder during the skeleton state so the header height
+        // doesn't change when the real button mounts.
+        <div className="h-11 w-11 flex-shrink-0" aria-hidden />
+      )}
     </div>
   );
 }
