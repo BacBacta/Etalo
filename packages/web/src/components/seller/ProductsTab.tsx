@@ -42,14 +42,12 @@ import {
   MY_PRODUCTS_QUERY_KEY,
   useMyProducts,
 } from "@/hooks/useMyProducts";
+import { IPFS_GATEWAY } from "@/lib/ipfs";
 import {
   type MyProductsListItem,
   type ProductDetail,
   type SellerProfilePublic,
 } from "@/lib/seller-api";
-
-// Phase A perf — ipfs.io (~0.5s) replaces gateway.pinata.cloud (4-5s).
-const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 
 // Low-stock threshold ; mirror in the KPI tiles + per-row warning.
 const LOW_STOCK_THRESHOLD = 5;
@@ -628,7 +626,7 @@ function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
           {firstImage ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={`${PINATA_GATEWAY}${firstImage}`}
+              src={`${IPFS_GATEWAY}${firstImage}`}
               alt=""
               className="h-full w-full object-cover"
               loading="lazy"
@@ -707,7 +705,7 @@ function ProductGridCard({ product, onEdit, onDelete }: ProductGridCardProps) {
         {firstImage ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`${PINATA_GATEWAY}${firstImage}`}
+            src={`${IPFS_GATEWAY}${firstImage}`}
             alt=""
             className="h-full w-full object-cover"
             loading="lazy"

@@ -3,6 +3,7 @@
 import { CircleNotch, WarningCircle, X } from "@phosphor-icons/react";
 import { useEffect, useRef, useState } from "react";
 
+import { IPFS_GATEWAY } from "@/lib/ipfs";
 import { uploadImage } from "@/lib/seller-api";
 
 interface Props {
@@ -19,9 +20,6 @@ interface ImageState {
   ipfsHash?: string;
   errorMessage?: string;
 }
-
-// Phase A perf — ipfs.io (~0.5s) replaces gateway.pinata.cloud (4-5s).
-const PINATA_GATEWAY = "https://ipfs.io/ipfs/";
 
 function readFileAsDataURL(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -42,7 +40,7 @@ export function ImageUploader({
     initialIpfsHashes.map((hash) => ({
       id: hash,
       status: "success" as const,
-      preview: `${PINATA_GATEWAY}${hash}`,
+      preview: `${IPFS_GATEWAY}${hash}`,
       ipfsHash: hash,
     })),
   );

@@ -15,7 +15,6 @@ from app.routers import (
     addresses,
     admin,
     analytics,
-    auth,
     cart,
     disputes,
     health,
@@ -155,7 +154,6 @@ def create_app() -> FastAPI:
 
     # Routers
     app.include_router(health.router, prefix="/api/v1")
-    app.include_router(auth.router, prefix="/api/v1")
     app.include_router(users.router, prefix="/api/v1")
     app.include_router(sellers.router, prefix="/api/v1")
     app.include_router(uploads.router, prefix="/api/v1")

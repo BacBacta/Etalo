@@ -1396,7 +1396,17 @@ auth before deletion.
 
 ## ADR-035 · 2026-04-25 — Etalo deployment architecture: single Next.js app at etalo.app
 
-**Status**: Accepted (architectural pivot, supersedes implicit two-package assumption)
+**Status**: Accepted (architectural pivot, supersedes implicit
+two-package assumption). **Partially modified by ADR-052** —
+the MiniPay-exclusive posture (auto-redirect non-MiniPay visitors)
+is reversed in favour of multi-wallet support across MiniPay /
+injected / WalletConnect. The single-Next.js-app consolidation
+itself stands.
+
+> Note : the production domain is now `etalo.xyz` (per the URL
+> consolidation commit on `main`) ; references to `etalo.app`
+> below reflect the architectural decision name as written, not the
+> live domain.
 
 **Context**: Implicit prior architecture had `packages/web` (Next.js, public funnel) and
 `packages/miniapp` (Vite, MiniPay-injected app) as two separate codebases destined for two
@@ -2353,7 +2363,11 @@ Tracking ticket for the privacy graduation investigation : FU-J11-005.
 ## ADR-044 — Delivery Address Capture for V1
 
 **Date** : 2026-05-07
-**Status** : Accepted
+**Status** : **Superseded by ADR-050** (2026-05-10) — the address-book
+pattern proved too heavy for V1 buyers ; ADR-050 replaces it with an
+inline checkout form. The address-book code remains in the repo
+behind `NEXT_PUBLIC_ENABLE_ADDRESS_BOOK=false` for potential V1.5+
+reactivation.
 
 ### Context
 
@@ -2658,7 +2672,9 @@ also the path the deployed frontend currently sends.
 
 ## ADR-047 — Marketing image generation : Flux Kontext via fal.ai
 
-**Status :** Accepted · 2026-05-09
+**Status :** **Superseded by ADR-048** (rembg+composite for fidelity)
+**then by ADR-049** (V1 pivot to photo-enhancement only — the whole
+5-template marketing pack flow is dormant V1.5+) · 2026-05-09
 
 ### Context
 
@@ -2753,7 +2769,10 @@ unset, so :
 
 ## ADR-048 — Marketing image generation : switch from Flux Kontext to rembg+composite
 
-**Status :** Accepted · 2026-05-09
+**Status :** **Partially superseded by ADR-049** (the rembg+composite
+pipeline survives, but the 5-template marketing pack itself is
+deferred V1.5+ ; the V1 surface is the single photo-enhancement
+button on AddProductForm) · 2026-05-09
 
 ### Context
 
@@ -3156,7 +3175,11 @@ the WhatsApp coordination prompt instead of crashing.
 
 ## ADR-051 — V1 funnel surface scope reduction (post-ADR-049 asset gen pivot)
 
-**Status :** Accepted · 2026-05-10
+**Status :** **Partially superseded by ADR-052** (the multi-wallet
+support repositions Etalo as "the Celo marketplace optimised for
+MiniPay" rather than MiniPay-exclusive ; the (public)/(app) route
+group split survives but the strict wallet-stack separation does
+not). · 2026-05-10
 
 ### Context
 
