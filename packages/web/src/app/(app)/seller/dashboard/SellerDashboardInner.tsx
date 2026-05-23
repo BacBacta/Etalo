@@ -12,7 +12,7 @@ import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
-import { useMinipay } from "@/hooks/useMinipay";
+import { detectMiniPay } from "@/lib/minipay-detect";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
 // First Load JS was 276 kB (perf score 27). Three of these imports
@@ -81,17 +81,13 @@ export function SellerDashboardInner() {
     null,
   );
   const [loading, setLoading] = useState(true);
-  // useMinipay() does TWO things : (a) returns the MiniPay context flags
-  // we read below, AND (b) mounts the auto-connect side-effect that
-  // actually fires `connect({ connector: minipay })` when we're inside
-  // the WebView. Without this hook on the dashboard, MiniPay's
-  // `window.ethereum` is present but wagmi is never asked to connect to
-  // it, so `useAccount().isConnected` stays false forever and the
-  // visitor sits on the "Connect your wallet" prompt indefinitely
-  // (production bug surfaced 2026-05-22). SilentReconnectGate covers
-  // returning MetaMask/Phantom sessions via `eth_accounts`, NOT a
-  // first-visit MiniPay handshake.
-  const { isInMinipay, isConnecting, connectFailed, retry } = useMinipay();
+  // MiniPay context resolves only on the client (reads window.ethereum /
+  // hostname). Start `false` so the SSR + first-hydration HTML matches ;
+  // flip on the mount effect once we can read the browser signals.
+  const [inMiniPay, setInMiniPay] = useState(false);
+  useEffect(() => {
+    setInMiniPay(detectMiniPay());
+  }, []);
 
   // ADR-052/053 — dashboard access is gated on wallet connection, NOT
   // on MiniPay context. Chrome users with a connected wallet see their
@@ -198,47 +194,31 @@ export function SellerDashboardInner() {
     });
   }, [safeTab]);
 
-  // Gate order (CLAUDE.md rule #7 + ADR-052/053) :
-  //   1. MiniPay handshake watchdog fired → Retry surface (never a
-  //      Connect button — auto-connect only inside MiniPay).
-  //   2. wagmi reconnecting / connecting OR useMinipay actively
-  //      connecting → DashboardSkeleton ("silent once connected" UX).
-  //   3. !isConnected inside MiniPay → DashboardSkeleton (the connect
-  //      side-effect from useMinipay is in flight ; skeleton-forever
-  //      is strictly better than the spec-violating Connect prompt).
-  //   4. !isConnected outside MiniPay → Chrome / desktop Connect
-  //      prompt (ADR-052/053 path, the only place ConnectWalletButton
-  //      is allowed to surface).
-  //   5. Connected → render the dashboard below.
-  if (connectFailed) {
-    return (
-      <StatusShell>
-        <div className="mx-auto max-w-md py-12 text-center">
-          <p className="mb-4 text-base text-celo-dark dark:text-celo-light">
-            Couldn&apos;t connect to MiniPay.
-          </p>
-          <button
-            type="button"
-            onClick={retry}
-            className="min-h-[44px] px-4 text-base underline"
-          >
-            Retry
-          </button>
-        </div>
-      </StatusShell>
-    );
-  }
-
-  if (
-    accountStatus === "reconnecting" ||
-    accountStatus === "connecting" ||
-    isConnecting
-  ) {
+  // ADR-052/053 — Chrome users with a wallet can access the dashboard.
+  // When the visitor is NOT connected we show a Connect-wallet prompt
+  // inside the dashboard shell instead of bouncing them back to `/`.
+  //
+  // Hydration race fix : wagmi's `useAccount()` returns `isConnected=false`
+  // briefly while it rehydrates the session from storage on first mount
+  // (status === 'reconnecting' or 'connecting'). Without this gate the
+  // user would see a 100-300 ms flash of the "Connect wallet" prompt
+  // before the dashboard renders — feels like the page "didn't open"
+  // because they're already looking at it before the real state lands.
+  // We keep the skeleton mounted through both reconnecting AND
+  // connecting states.
+  if (accountStatus === "reconnecting" || accountStatus === "connecting") {
     return <DashboardSkeleton />;
   }
 
   if (!isConnected || !address) {
-    if (isInMinipay) {
+    // CLAUDE.md rule #7 : never show a Connect button inside MiniPay
+    // (auto-connect only). SilentReconnectGate (mounted in Providers)
+    // handles the `eth_accounts` → `connect()` handshake silently. Until
+    // it resolves, keep the skeleton on screen so the user never sees a
+    // stray Connect CTA — also covers the case where the gate fails
+    // (skeleton-forever > spec-violating button-shown). The Chrome /
+    // desktop wallet flow ADR-052/053 falls through to the prompt below.
+    if (inMiniPay) {
       return <DashboardSkeleton />;
     }
     return (
