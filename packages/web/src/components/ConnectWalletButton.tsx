@@ -42,12 +42,6 @@ import { detectMiniPay } from "@/lib/minipay-detect";
 
 const MINIPAY_DOWNLOAD_URL = "https://www.opera.com/products/minipay";
 
-// Build-time inlined so we can show in the debug panel whether the
-// WalletConnect env var was visible at next build (Vercel re-deploys
-// don't always pick up new env vars without "redeploy without cache").
-const WC_PROJECT_ID_AT_BUILD =
-  process.env.NEXT_PUBLIC_WC_PROJECT_ID || "";
-
 function shortAddress(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
 }
@@ -73,14 +67,8 @@ export function ConnectWalletButton() {
   // button shows as a manual escape hatch ; tap → connects via the
   // generic injected connector against the available provider.
   const [hasInjected, setHasInjected] = useState(false);
-  const [isStrictMinipay, setIsStrictMinipay] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [debugMode, setDebugMode] = useState(false);
 
-  // Kept for the debug panel only — `detectMiniPay()` reflects the
-  // surface-detection signals (UA, ngrok, force flag) regardless of
-  // whether the wallet flag is actually present, which is useful when
-  // diagnosing why a manual Connect is being offered.
   const inMiniPay = mounted && detectMiniPay();
 
   useEffect(() => {
@@ -90,61 +78,16 @@ export function ConnectWalletButton() {
         window as Window & { ethereum?: { isMiniPay?: boolean } }
       ).ethereum;
       setHasInjected(Boolean(eth));
-      setIsStrictMinipay(eth?.isMiniPay === true);
-      // `?debug=wallet` query string flips the on-page diagnostic
-      // panel so we can remotely inspect the env-var + connector state
-      // on the user's actual device, instead of fishing through a
-      // tiny mobile DevTools.
-      const params = new URLSearchParams(window.location.search);
-      setDebugMode(params.get("debug") === "wallet");
     }
   }, []);
 
-  // Diagnostic panel — only renders when `?debug=wallet` is in the URL.
-  // Tree-shake-friendly : the panel JSX is short and shared across
-  // every render branch, no big payload regardless of debug state.
-  if (debugMode && mounted) {
-    return (
-      <pre
-        data-testid="wallet-debug-panel"
-        className="overflow-auto whitespace-pre-wrap break-all rounded-md border border-amber-300 bg-amber-50 p-3 text-xs text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-200"
-      >
-        {JSON.stringify(
-          {
-            wc_project_id_seen_at_build: Boolean(WC_PROJECT_ID_AT_BUILD),
-            wc_project_id_prefix:
-              WC_PROJECT_ID_AT_BUILD.slice(0, 4) || "(empty)",
-            wc_project_id_length: WC_PROJECT_ID_AT_BUILD.length,
-            connector_count: connectors.length,
-            connector_ids: connectors.map((c) => ({
-              id: c.id,
-              type: c.type,
-              name: c.name,
-            })),
-            hasInjected,
-            inMiniPay,
-            isStrictMinipay,
-            eth_isMiniPay:
-              typeof window !== "undefined"
-                ? (
-                    window as Window & {
-                      ethereum?: { isMiniPay?: unknown };
-                    }
-                  ).ethereum?.isMiniPay ?? null
-                : null,
-            isConnected,
-            address: address ? shortAddress(address) : null,
-            ua:
-              typeof navigator !== "undefined"
-                ? navigator.userAgent.slice(0, 80)
-                : "?",
-          },
-          null,
-          2,
-        )}
-      </pre>
-    );
-  }
+  // Legacy `?debug=wallet` JSON panel removed — it rendered an amber
+  // `<pre>` block IN THE HEADER instead of the wallet chip, which
+  // covered the page content (notably HomeMiniPay's "Open my
+  // boutique" button, blocking the SPA-nav broken-flow test).
+  // Diagnostic surface is now the `WalletDebugOverlay` mounted at
+  // root layout — it shows the same state + live event log without
+  // hijacking the header.
 
   // MiniPay context — per the official readiness requirements
   // (celopedia-skills minipay-requirements.md §1 Zero-Click Connect +
