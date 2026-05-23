@@ -95,6 +95,17 @@ export function SellerDashboardInner() {
   );
   const [loading, setLoading] = useState(true);
 
+  // Last-known address shadow (production bug 2026-05-23). wagmi
+  // sometimes briefly reports `isConnected=true, address=undefined`
+  // when EIP-6963 discovery adds a connector mid-session. Children
+  // (OverviewTab, ProductsTab, OrdersTab, ProfileTab) all need a
+  // stable string address — the shadow ref keeps the last valid
+  // value across the transient so child queries don't refetch with
+  // `undefined` and lose their data.
+  const lastAddressRef = useRef<string | null>(null);
+  if (address) lastAddressRef.current = address;
+  const stableAddress = address ?? lastAddressRef.current;
+
   // ADR-052/053 — dashboard access is gated on wallet connection, NOT
   // on MiniPay context. Chrome users with a connected wallet see their
   // dashboard ; otherwise we show a Connect-wallet prompt inside the
@@ -112,8 +123,28 @@ export function SellerDashboardInner() {
       hasAddress: Boolean(address),
       addressLower: address?.toLowerCase().slice(0, 10) ?? null,
     });
-    if (!isConnected || !address) {
+    if (!isConnected) {
+      // Truly disconnected — clear loading so the disconnected UI
+      // shows immediately.
       setLoading(false);
+      return;
+    }
+    if (!address) {
+      // wagmi address transient (production bug 2026-05-23) — wagmi
+      // sometimes briefly loses `address` while still reporting
+      // `isConnected=true` when EIP-6963 discovery adds a new
+      // connector mid-session (e.g. `com.opera.minipay` appearing
+      // alongside the statically-configured `minipay`). The captured
+      // logs at 14:03:00 show this : connectorCount went 4→5 and
+      // address went undefined for ~100 ms. Do NOT clobber the
+      // existing profile / loading state — the next dep tick will
+      // re-fire the effect with a real address. The render gate below
+      // tolerates this transient via the `!address && !profile` check
+      // so the user keeps seeing cached dashboard data instead of
+      // bouncing back to a skeleton.
+      walletLog(
+        "[SellerDashboard] address transient (isConnected=true, address=undefined) — keeping current state",
+      );
       return;
     }
     let cancelled = false;
@@ -265,7 +296,17 @@ export function SellerDashboardInner() {
     return <DashboardSkeleton />;
   }
 
-  if (!isConnected || !address) {
+  // Gate condition refined : tolerate the wagmi `address` transient
+  // (production bug 2026-05-23). When EIP-6963 connector discovery
+  // adds `com.opera.minipay` after the initial handshake, wagmi
+  // briefly emits `isConnected=true, address=undefined`. Without this
+  // tolerance the gate hit `!address` and dropped the user back to
+  // the disconnected-state UI (skeleton) — losing the in-progress
+  // fetch + the rendered dashboard. With `&& !profile` we only fall
+  // back to the disconnected UI when we have NO cached data to show.
+  // If profile is loaded, we render the dashboard normally and the
+  // next dep-tick (when address comes back) will refresh.
+  if (!isConnected || (!address && !profile)) {
     if (isInMinipay) {
       // Zero-click contract : the useMinipay() auto-connect side-
       // effect is in flight. Skeleton until it resolves — NO button,
@@ -300,7 +341,7 @@ export function SellerDashboardInner() {
     return <DashboardSkeleton />;
   }
 
-  if (error === "not_found" && address) {
+  if (error === "not_found" && stableAddress) {
     // Self-service shop creation. Single-page premium wizard — the
     // boutique can ship with zero products (backend `first_product` is
     // optional on `/onboarding/complete`). On success we drop the
@@ -310,7 +351,7 @@ export function SellerDashboardInner() {
     return (
       <main id="main" className="min-h-screen">
         <CreateShopForm
-          walletAddress={address}
+          walletAddress={stableAddress as string}
           onCreated={(created) => {
             setProfile(created);
             setError(null);
@@ -320,7 +361,7 @@ export function SellerDashboardInner() {
     );
   }
 
-  if (error === "fetch_failed" || !profile || !address) {
+  if (error === "fetch_failed" || !profile || !stableAddress) {
     return (
       <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
@@ -382,18 +423,18 @@ export function SellerDashboardInner() {
           </TabsV4List>
 
           <TabsV4Content value="overview">
-            <OverviewTab profile={profile} address={address} />
+            <OverviewTab profile={profile} address={stableAddress as string} />
           </TabsV4Content>
           <TabsV4Content value="products">
-            <ProductsTab profile={profile} walletAddress={address} />
+            <ProductsTab profile={profile} walletAddress={stableAddress as string} />
           </TabsV4Content>
           <TabsV4Content value="orders">
-            <OrdersTab address={address} />
+            <OrdersTab address={stableAddress as string} />
           </TabsV4Content>
           <TabsV4Content value="profile">
             <ProfileTab
               profile={profile}
-              address={address}
+              address={stableAddress as string}
               onUpdated={setProfile}
             />
           </TabsV4Content>
