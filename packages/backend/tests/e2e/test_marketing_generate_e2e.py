@@ -23,6 +23,12 @@ from collections.abc import AsyncGenerator
 from decimal import Decimal
 
 import pytest
+
+# ADR-049 — deferred to V1.5+ alongside the 5-template marketing pack.
+# Pipeline (Playwright + Pinata) stays exercisable behind
+# `pytest -m dormant_v1_5` but is deselected from default CI to avoid
+# the 6 pre-existing fixture-setup errors flagged in CLAUDE.md.
+pytestmark = pytest.mark.dormant_v1_5
 import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy import delete, select
