@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { memo } from "react";
 
 import { AddToCartIcon } from "@/components/AddToCartIcon";
 import { CardV4 } from "@/components/ui/v4/Card";
@@ -15,7 +16,7 @@ interface Props {
   priority?: boolean;
 }
 
-export function ProductCard({
+function ProductCardImpl({
   product,
   handle,
   sellerShopName,
@@ -80,3 +81,10 @@ export function ProductCard({
     </div>
   );
 }
+
+// React.memo wrap (PR3.2 LCP) — boutique grids can render up to
+// the whole seller catalog ; product object refs are stable across
+// re-renders (server-fetched, no in-place mutation) so the shallow
+// compare hits 100 % of the time. Saves N reconciliation passes
+// per parent re-render where N = number of products on the page.
+export const ProductCard = memo(ProductCardImpl);

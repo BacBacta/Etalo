@@ -39,3 +39,4 @@ Thumbs.db
 docs/audit/smoke-e2e-tx-output.json
 docs/audit/smoke-e2e-tx-output-partial.json
 docs/audit/SAMPLE_TXS.md.bak
+.vercel

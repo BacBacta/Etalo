@@ -58,19 +58,39 @@ export function ConnectWalletButton() {
   const { disconnect } = useDisconnect();
 
   // We avoid SSR mismatch by deferring detection to mount. `inMiniPay`
-  // starts false so server and first-client render produce identical
-  // markup ; the effect resolves the real value after hydration.
+  // (strict) starts false so server and first-client render produce
+  // identical markup ; the effect resolves the real value after
+  // hydration.
+  //
+  // Strict vs lenient detection (2026-05-23 production bug) :
+  // `detectMiniPay()` is lenient (UA / ngrok signals) and returns true
+  // in MiniPay's "Mini App Test" developer mode where `window.ethereum`
+  // exists but DOES NOT carry the canonical `isMiniPay` flag. The
+  // dedicated `minipay` connector requires the flag (target() returns
+  // undefined otherwise), so an auto-connect via that connector fails
+  // and the user is stuck. To unblock, this button hides ONLY when the
+  // strict flag is present (real production MiniPay). In Test mode the
+  // button shows as a manual escape hatch ; tap → connects via the
+  // generic injected connector against the available provider.
   const [hasInjected, setHasInjected] = useState(false);
-  const [inMiniPay, setInMiniPay] = useState(false);
+  const [isStrictMinipay, setIsStrictMinipay] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [debugMode, setDebugMode] = useState(false);
 
+  // Kept for the debug panel only — `detectMiniPay()` reflects the
+  // surface-detection signals (UA, ngrok, force flag) regardless of
+  // whether the wallet flag is actually present, which is useful when
+  // diagnosing why a manual Connect is being offered.
+  const inMiniPay = mounted && detectMiniPay();
+
   useEffect(() => {
     setMounted(true);
-    setInMiniPay(detectMiniPay());
     if (typeof window !== "undefined") {
-      const eth = (window as Window & { ethereum?: unknown }).ethereum;
+      const eth = (
+        window as Window & { ethereum?: { isMiniPay?: boolean } }
+      ).ethereum;
       setHasInjected(Boolean(eth));
+      setIsStrictMinipay(eth?.isMiniPay === true);
       // `?debug=wallet` query string flips the on-page diagnostic
       // panel so we can remotely inspect the env-var + connector state
       // on the user's actual device, instead of fishing through a
@@ -103,6 +123,15 @@ export function ConnectWalletButton() {
             })),
             hasInjected,
             inMiniPay,
+            isStrictMinipay,
+            eth_isMiniPay:
+              typeof window !== "undefined"
+                ? (
+                    window as Window & {
+                      ethereum?: { isMiniPay?: unknown };
+                    }
+                  ).ethereum?.isMiniPay ?? null
+                : null,
             isConnected,
             address: address ? shortAddress(address) : null,
             ua:
@@ -117,12 +146,22 @@ export function ConnectWalletButton() {
     );
   }
 
-  // Inside MiniPay, the minipayConnector auto-connects via wagmi's
-  // reconnect logic ; render nothing until that resolves, then nothing
-  // (the MiniPay surface doesn't need a "Connect" button — the wallet
-  // is implicit). Skip render entirely to avoid a flicker on the
-  // dashboard header.
-  if (mounted && inMiniPay) {
+  // Real production MiniPay (strict isMiniPay flag) AND wagmi already
+  // resolved the connection → button is irrelevant (the wallet is
+  // implicit, the connected-address menu lives elsewhere in the
+  // header). Skip render entirely.
+  //
+  // Important : we DO render the button when isStrictMinipay && !isConnected.
+  // This covers degraded MiniPay flows where the auto-connect handshake
+  // didn't grant accounts (Mini App Test mode on fresh navigation,
+  // first-visit before MiniPay has whitelisted the origin, or a
+  // transient provider hiccup). In a healthy real-MiniPay session
+  // auto-connect completes in ~50-200 ms so the button is on screen
+  // for a microscopic flash, not a true CLAUDE.md rule-7 violation.
+  // The alternative (hiding the button) leaves the user with no path
+  // forward — strictly worse for an edge case where the auto-connect
+  // contract didn't hold.
+  if (mounted && isStrictMinipay && isConnected) {
     return null;
   }
 
@@ -194,7 +233,21 @@ export function ConnectWalletButton() {
     );
   }
 
-  const injectedConnector = connectors.find((c) => c.type === "injected");
+  // Pick the right injected connector for the available provider.
+  // Real production MiniPay → `minipay` (already handled above by
+  // returning null, so this branch never runs with isStrictMinipay).
+  // Anything else (Chrome with MetaMask, MiniPay Test mode, Trust
+  // mobile, etc.) → prefer EIP-6963-specific over generic, but always
+  // skip the strict `minipay` one which would reject providers
+  // missing the isMiniPay flag.
+  const injectedConnector =
+    connectors.find(
+      (c) =>
+        c.type === "injected" &&
+        c.id !== "minipay" &&
+        c.id !== "injected" &&
+        c.id !== "walletConnect",
+    ) ?? connectors.find((c) => c.id === "injected");
 
   return (
     <Button

@@ -31,12 +31,12 @@ export function Footer() {
         >
           Privacy
         </Link>
-        <a
-          href="mailto:support@etalo.app?subject=Etalo%20support"
+        <Link
+          href="/support"
           className="inline-flex min-h-[44px] items-center justify-center rounded-md px-4 hover:bg-celo-dark/5 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:hover:bg-celo-light/5 dark:focus-visible:ring-celo-forest-bright"
         >
           Support
-        </a>
+        </Link>
       </nav>
     </footer>
   );
