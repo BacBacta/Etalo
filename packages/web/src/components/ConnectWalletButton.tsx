@@ -146,22 +146,24 @@ export function ConnectWalletButton() {
     );
   }
 
-  // Real production MiniPay (strict isMiniPay flag) AND wagmi already
-  // resolved the connection → button is irrelevant (the wallet is
-  // implicit, the connected-address menu lives elsewhere in the
-  // header). Skip render entirely.
-  //
-  // Important : we DO render the button when isStrictMinipay && !isConnected.
-  // This covers degraded MiniPay flows where the auto-connect handshake
-  // didn't grant accounts (Mini App Test mode on fresh navigation,
-  // first-visit before MiniPay has whitelisted the origin, or a
-  // transient provider hiccup). In a healthy real-MiniPay session
-  // auto-connect completes in ~50-200 ms so the button is on screen
-  // for a microscopic flash, not a true CLAUDE.md rule-7 violation.
-  // The alternative (hiding the button) leaves the user with no path
-  // forward — strictly worse for an edge case where the auto-connect
-  // contract didn't hold.
-  if (mounted && isStrictMinipay && isConnected) {
+  // MiniPay context — per the official readiness requirements
+  // (celopedia-skills minipay-requirements.md §1 + docs.minipay.xyz/
+  // getting-started/wallet-connection.html) Mini Apps MUST NOT surface
+  // a Connect Wallet button. Auto-connect is the contract ; whether
+  // the handshake is in-flight or done, this surface stays hidden.
+  // SilentReconnectGate at the app root drives the auto-connect
+  // (lenient detection covers real MiniPay AND "Mini App Test"
+  // developer mode where the isMiniPay flag is absent). Disconnected-
+  // state messaging in MiniPay belongs to the route shell
+  // (SellerDashboardInner shows "Connecting to MiniPay…" with a
+  // watchdog-driven Retry, not a manual Connect button).
+  if (mounted && inMiniPay) {
+    if (isConnected && address) {
+      // Connected — render the address menu so the user can manage
+      // their wallet (copy / disconnect). The trigger is a small
+      // truncated-address chip, unobtrusive.
+      return <ConnectedAddressMenu address={address} onDisconnect={disconnect} />;
+    }
     return null;
   }
 
@@ -234,12 +236,11 @@ export function ConnectWalletButton() {
   }
 
   // Pick the right injected connector for the available provider.
-  // Real production MiniPay → `minipay` (already handled above by
-  // returning null, so this branch never runs with isStrictMinipay).
-  // Anything else (Chrome with MetaMask, MiniPay Test mode, Trust
-  // mobile, etc.) → prefer EIP-6963-specific over generic, but always
-  // skip the strict `minipay` one which would reject providers
-  // missing the isMiniPay flag.
+  // MiniPay (real or Test mode) is handled by the early return above
+  // — this branch only runs for non-MiniPay browsers (Chrome with
+  // MetaMask, Trust mobile, Rabby, etc.). Prefer EIP-6963-specific
+  // over generic, always skip the strict `minipay` connector which
+  // would reject providers missing the isMiniPay flag.
   const injectedConnector =
     connectors.find(
       (c) =>
