@@ -112,6 +112,15 @@ export function SellerDashboardInner() {
     }
     let cancelled = false;
     setLoading(true);
+    // Watchdog : if /sellers/me takes more than 10 s (fly.dev cold
+    // start, intermittent network, anything) flip the gate to
+    // `fetch_failed` so the user sees the Retry surface instead of
+    // a permanent skeleton. Cleared in the success / error paths.
+    const watchdog = window.setTimeout(() => {
+      if (cancelled) return;
+      setError("fetch_failed");
+      setLoading(false);
+    }, 10_000);
     fetchMyProfile(address)
       .then((me) => {
         if (cancelled) return;
@@ -128,9 +137,11 @@ export function SellerDashboardInner() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
+        window.clearTimeout(watchdog);
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(watchdog);
     };
   }, [isConnected, address]);
 
