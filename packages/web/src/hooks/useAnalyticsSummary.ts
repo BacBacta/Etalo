@@ -18,11 +18,13 @@
  * KPI tiles look frozen after a fresh sale lands.
  */
 import { useQuery } from "@tanstack/react-query";
+import { useEffect } from "react";
 
 import {
   fetchAnalyticsSummary,
   type AnalyticsSummary,
 } from "@/lib/analytics-api";
+import { walletLog } from "@/lib/wallet-debug";
 
 // V1 badge values per the backend Literal enum (ADR-041 V1.1 deferred
 // "top_seller" — backend Phase 5 Angle C sub-block C.1 dropped the
@@ -92,9 +94,28 @@ export function parseAnalyticsSummary(
 }
 
 export function useAnalyticsSummary(walletAddress: string | undefined) {
-  return useQuery({
+  const query = useQuery({
     queryKey: ["analytics", "summary", walletAddress] as const,
-    queryFn: () => fetchAnalyticsSummary(walletAddress as string),
+    queryFn: async () => {
+      walletLog("[useAnalyticsSummary] fetch start", {
+        address: walletAddress?.slice(0, 10),
+      });
+      try {
+        const result = await fetchAnalyticsSummary(walletAddress as string);
+        walletLog("[useAnalyticsSummary] fetch resolved", {
+          hasRevenue: Boolean(result?.revenue),
+          activeOrders: result?.active_orders ?? null,
+          topProductsCount: result?.top_products?.length ?? null,
+        });
+        return result;
+      } catch (err) {
+        walletLog("[useAnalyticsSummary] fetch REJECTED", {
+          name: (err as Error)?.name ?? null,
+          message: (err as Error)?.message?.slice(0, 200) ?? null,
+        });
+        throw err;
+      }
+    },
     enabled: Boolean(walletAddress),
     select: parseAnalyticsSummary,
     // 30 s of cache reuse: tab switches between Overview / Products /
@@ -108,4 +129,33 @@ export function useAnalyticsSummary(walletAddress: string | undefined) {
     // is read-only and idempotent so retrying is safe.
     retry: 1,
   });
+
+  // Trace TanStack Query state transitions for the analytics call.
+  // The actual HTTP failure mode (404, 500, CORS, network timeout)
+  // surfaces in `query.error` ; pull it out so the overlay sees the
+  // exact rejection without needing chrome://inspect.
+  useEffect(() => {
+    walletLog("[useAnalyticsSummary] state", {
+      address: walletAddress?.slice(0, 10),
+      status: query.status,
+      fetchStatus: query.fetchStatus,
+      isLoading: query.isLoading,
+      isFetching: query.isFetching,
+      isError: query.isError,
+      errorName: query.error?.name ?? null,
+      errorMessage: query.error?.message?.slice(0, 200) ?? null,
+      hasData: Boolean(query.data),
+    });
+  }, [
+    walletAddress,
+    query.status,
+    query.fetchStatus,
+    query.isLoading,
+    query.isFetching,
+    query.isError,
+    query.error,
+    query.data,
+  ]);
+
+  return query;
 }
