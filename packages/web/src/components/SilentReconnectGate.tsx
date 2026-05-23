@@ -39,6 +39,8 @@
 import { useEffect, useRef } from "react";
 import { useAccount, useConnect } from "wagmi";
 
+import { detectMiniPay } from "@/lib/minipay-detect";
+
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   isMiniPay?: boolean;
@@ -70,38 +72,53 @@ export function SilentReconnectGate() {
     }
     attemptedRef.current = true;
 
+    // Pick the connector that can actually accept the provider at
+    // window.ethereum. Real MiniPay → the strict `minipay` connector
+    // (target() requires isMiniPay=true). Anything else → prefer an
+    // EIP-6963 specific (e.g. `io.metamask`) then fall back to the
+    // generic `injected`. This covers Chrome with MetaMask AND
+    // MiniPay's "Mini App Test" developer mode, where the WebView
+    // injects a working provider but DOES NOT set the `isMiniPay`
+    // flag.
+    const isRealMinipay = eth.isMiniPay === true;
+    const target = isRealMinipay
+      ? connectors.find((c) => c.id === "minipay")
+      : (connectors.find(
+          (c) =>
+            c.type === "injected" &&
+            c.id !== "injected" &&
+            c.id !== "minipay" &&
+            c.id !== "walletConnect",
+        ) ??
+        connectors.find((c) => c.id === "injected"));
+    if (!target) return;
+
     eth
       .request({ method: "eth_accounts" })
       .then((result) => {
         const accounts = Array.isArray(result) ? (result as string[]) : [];
-        if (accounts.length === 0) return;
 
-        // Pick the connector that can actually accept this provider :
-        //
-        // - If the real MiniPay flag is present → use the dedicated
-        //   `minipay` connector (its target() requires isMiniPay=true).
-        // - Otherwise → prefer an EIP-6963 specific (e.g. `io.metamask`)
-        //   then fall back to the generic `injected` connector. This
-        //   covers Chrome with MetaMask AND MiniPay's "Mini App Test"
-        //   developer mode, where the WebView injects a working
-        //   provider at `window.ethereum` but DOES NOT set the
-        //   `isMiniPay` flag — so the strict minipay connector's
-        //   target() returns undefined and the connect call fails
-        //   silently, leaving the user stuck (production bug surfaced
-        //   2026-05-23 on the seller dashboard).
-        const isRealMinipay = eth.isMiniPay === true;
-        const target = isRealMinipay
-          ? connectors.find((c) => c.id === "minipay")
-          : (connectors.find(
-              (c) =>
-                c.type === "injected" &&
-                c.id !== "injected" &&
-                c.id !== "minipay" &&
-                c.id !== "walletConnect",
-            ) ??
-            connectors.find((c) => c.id === "injected"));
-        if (!target) return;
-        connect({ connector: target });
+        if (accounts.length > 0) {
+          // Returning user — origin already approved, connect is silent.
+          connect({ connector: target });
+          return;
+        }
+
+        // No approved accounts yet. In a MiniPay context (real or Test
+        // mode, lenient detection) the wallet is implicit — per MiniPay
+        // best practices (docs.minipay.xyz/getting-started/wallet-connection)
+        // and CLAUDE.md rule 7, we must auto-connect and never surface
+        // a Connect Wallet button. Calling connect() here triggers
+        // `eth_requestAccounts` ; in real MiniPay it resolves silently
+        // (pre-approved at the WebView level), and in Test mode it
+        // surfaces the one-time approval prompt that gets the dev
+        // session unstuck. Outside MiniPay (regular Chrome, no prior
+        // approval) we stay silent — the user must tap Connect
+        // explicitly so we don't pop a MetaMask permission dialog on
+        // first page load.
+        if (detectMiniPay()) {
+          connect({ connector: target });
+        }
       })
       .catch(() => {
         // Provider rejected `eth_accounts` for whatever reason — fall

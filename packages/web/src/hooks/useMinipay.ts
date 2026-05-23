@@ -51,8 +51,30 @@ export function useMinipay() {
   const attemptedRef = useRef(false);
 
   const doConnect = useCallback(() => {
-    const minipay = connectors.find((c) => c.id === "minipay");
-    if (minipay) connect({ connector: minipay });
+    // Pick the connector that can actually accept window.ethereum.
+    // Real MiniPay (canonical isMiniPay flag injected) → strict
+    // `minipay` connector. MiniPay "Mini App Test" developer mode +
+    // ngrok dev tunnel → no flag, so the strict connector's target()
+    // returns undefined ; we fall back to an EIP-6963-specific or
+    // the generic `injected` connector against window.ethereum.
+    // This matches the connector-picking logic in SilentReconnectGate
+    // (kept in sync ; both surfaces auto-connect in Test mode per
+    // MiniPay best practices + CLAUDE.md rule 7).
+    const strict =
+      typeof window !== "undefined" &&
+      (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum
+        ?.isMiniPay === true;
+    const target = strict
+      ? connectors.find((c) => c.id === "minipay")
+      : (connectors.find(
+          (c) =>
+            c.type === "injected" &&
+            c.id !== "injected" &&
+            c.id !== "minipay" &&
+            c.id !== "walletConnect",
+        ) ??
+        connectors.find((c) => c.id === "injected"));
+    if (target) connect({ connector: target });
   }, [connectors, connect]);
 
   useEffect(() => {

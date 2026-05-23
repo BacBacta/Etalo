@@ -12,6 +12,7 @@ import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
+import { useMinipay } from "@/hooks/useMinipay";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
 // First Load JS was 276 kB (perf score 27). Three of these imports
@@ -74,6 +75,17 @@ export function SellerDashboardInner() {
   const searchParams = useSearchParams();
   const { address, isConnected, status: accountStatus } = useAccount();
   const queryClient = useQueryClient();
+  // CLAUDE.md rule 7 / MiniPay best practices : inside MiniPay we must
+  // never surface a Connect Wallet button. `useMinipay()` kicks the
+  // auto-connect via the lenient detection (real MiniPay + Test mode)
+  // and tells us whether we're rendering inside a MiniPay context so
+  // we can show "Connecting to MiniPay…" instead of the Chrome-style
+  // manual Connect prompt.
+  const {
+    isInMinipay,
+    connectFailed: minipayConnectFailed,
+    retry: retryMinipayConnect,
+  } = useMinipay();
 
   const [profile, setProfile] = useState<SellerProfilePublic | null>(null);
   const [error, setError] = useState<"not_found" | "fetch_failed" | null>(
@@ -203,6 +215,54 @@ export function SellerDashboardInner() {
   }
 
   if (!isConnected || !address) {
+    // MiniPay context (real WebView + "Mini App Test" developer mode,
+    // lenient detection). Per CLAUDE.md rule 7 + MiniPay best practices
+    // (docs.minipay.xyz/getting-started/wallet-connection) we MUST NOT
+    // render a Connect button here — the SilentReconnectGate auto-
+    // connects via the appropriate connector. Show a friendly waiting
+    // state, with a Retry surface if the watchdog (8 s) trips.
+    if (isInMinipay) {
+      return (
+        <StatusShell>
+          <div className="mx-auto max-w-md py-12 text-center">
+            {minipayConnectFailed ? (
+              <>
+                <h2 className="mb-3 text-xl font-semibold text-celo-dark dark:text-celo-light">
+                  Couldn&apos;t connect to MiniPay
+                </h2>
+                <p className="mb-4 text-base text-neutral-700 dark:text-celo-light/70">
+                  We didn&apos;t hear back from the wallet. Tap retry, or
+                  reopen this app from MiniPay&apos;s Mini App list.
+                </p>
+                <button
+                  type="button"
+                  onClick={retryMinipayConnect}
+                  className="min-h-[44px] rounded-md bg-celo-forest-bright px-4 text-base font-medium text-celo-dark hover:bg-celo-forest-bright/90"
+                >
+                  Retry
+                </button>
+              </>
+            ) : (
+              <>
+                <h2 className="mb-3 text-xl font-semibold text-celo-dark dark:text-celo-light">
+                  Connecting to MiniPay…
+                </h2>
+                <p
+                  aria-live="polite"
+                  className="text-base text-neutral-700 dark:text-celo-light/70"
+                >
+                  Opening your boutique. This should only take a moment.
+                </p>
+              </>
+            )}
+          </div>
+        </StatusShell>
+      );
+    }
+
+    // Outside MiniPay (Chrome / mobile browser). Show the manual
+    // Connect prompt — the user has to opt in explicitly so we don't
+    // pop a wallet permission dialog on first paint.
     return (
       <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
