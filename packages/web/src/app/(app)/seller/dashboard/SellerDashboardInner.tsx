@@ -83,6 +83,7 @@ export function SellerDashboardInner() {
   // manual Connect prompt.
   const {
     isInMinipay,
+    isConnecting: minipayConnecting,
     connectFailed: minipayConnectFailed,
     retry: retryMinipayConnect,
   } = useMinipay();
@@ -198,89 +199,62 @@ export function SellerDashboardInner() {
     });
   }, [safeTab]);
 
-  // ADR-052/053 — Chrome users with a wallet can access the dashboard.
-  // When the visitor is NOT connected we show a Connect-wallet prompt
-  // inside the dashboard shell instead of bouncing them back to `/`.
-  //
-  // Hydration race fix : wagmi's `useAccount()` returns `isConnected=false`
-  // briefly while it rehydrates the session from storage on first mount
-  // (status === 'reconnecting' or 'connecting'). Without this gate the
-  // user would see a 100-300 ms flash of the "Connect wallet" prompt
-  // before the dashboard renders — feels like the page "didn't open"
-  // because they're already looking at it before the real state lands.
-  // We keep the skeleton mounted through both reconnecting AND
-  // connecting states.
-  if (accountStatus === "reconnecting" || accountStatus === "connecting") {
+  // Gate order (CLAUDE.md rule #7 + ADR-052/053 + MiniPay readiness
+  // requirements §1 Zero-Click Connect) :
+  //   1. MiniPay handshake watchdog fired → Retry surface (never a
+  //      Connect-Wallet button — auto-connect only inside MiniPay,
+  //      Retry is a no-jargon redo of the same handshake).
+  //   2. wagmi `reconnecting` / `connecting` OR `useMinipay` actively
+  //      connecting → DashboardSkeleton ("silent once connected" UX).
+  //   3. !isConnected inside MiniPay → DashboardSkeleton. The
+  //      `useMinipay()` hook above has already fired
+  //      `connect({ connector: minipay })` as its mount side-effect ;
+  //      we keep the skeleton up while it resolves. Skeleton-forever
+  //      is strictly better than the spec-violating Connect prompt.
+  //   4. !isConnected outside MiniPay → Chrome / desktop Connect
+  //      prompt (ADR-052/053 path, the ONLY place
+  //      ConnectWalletButton may surface).
+  //   5. Connected → render the dashboard below.
+  if (minipayConnectFailed) {
+    return (
+      <StatusShell>
+        <div className="mx-auto max-w-md py-12 text-center">
+          <p className="mb-4 text-base text-celo-dark dark:text-celo-light">
+            Couldn&apos;t connect to MiniPay.
+          </p>
+          <button
+            type="button"
+            onClick={retryMinipayConnect}
+            className="min-h-[44px] px-4 text-base underline"
+          >
+            Retry
+          </button>
+        </div>
+      </StatusShell>
+    );
+  }
+
+  if (
+    accountStatus === "reconnecting" ||
+    accountStatus === "connecting" ||
+    minipayConnecting
+  ) {
     return <DashboardSkeleton />;
   }
 
   if (!isConnected || !address) {
-    // MiniPay context (real WebView + "Mini App Test" developer mode,
-    // lenient detection). Both `SilentReconnectGate` (root) and
-    // `useMinipay` (this hook) fire auto-connect on mount per the
-    // requirements doc's zero-click contract. In healthy production
-    // MiniPay this resolves in 50-300 ms and the button below
-    // flashes briefly. When the WebView refuses non-gesture
-    // `eth_requestAccounts` (observed in production : Test mode AND
-    // some real-MiniPay first-visit sessions where the flag is set
-    // but the account approval still gates on a user tap), the
-    // button is the user gesture that gets the flow unstuck. We
-    // ALWAYS render it regardless of the strict isMiniPay flag —
-    // the empirical evidence (user reports of stuck "Connecting…"
-    // with isMiniPay=true on Test mode) made the strict-only gate
-    // useless. The label "Open my boutique" intentionally avoids
-    // crypto jargon ; it reads as "launch the app" not "connect
-    // wallet" per the requirements doc copy rules.
     if (isInMinipay) {
-      return (
-        <StatusShell>
-          <div className="mx-auto max-w-md py-12 text-center">
-            {minipayConnectFailed ? (
-              <>
-                <h2 className="mb-3 text-xl font-semibold text-celo-dark dark:text-celo-light">
-                  Couldn&apos;t connect to MiniPay
-                </h2>
-                <p className="mb-4 text-base text-neutral-700 dark:text-celo-light/70">
-                  We didn&apos;t hear back from the wallet. Tap retry, or
-                  reopen this app from MiniPay&apos;s Mini App list.
-                </p>
-                <button
-                  type="button"
-                  onClick={retryMinipayConnect}
-                  className="min-h-[44px] rounded-md bg-celo-forest-bright px-4 text-base font-medium text-celo-dark hover:bg-celo-forest-bright/90"
-                >
-                  Retry
-                </button>
-              </>
-            ) : (
-              <>
-                <h2 className="mb-3 text-xl font-semibold text-celo-dark dark:text-celo-light">
-                  Opening your boutique…
-                </h2>
-                <p
-                  aria-live="polite"
-                  className="mb-6 text-base text-neutral-700 dark:text-celo-light/70"
-                >
-                  If this takes more than a moment, tap below.
-                </p>
-                <button
-                  type="button"
-                  onClick={retryMinipayConnect}
-                  className="min-h-[44px] rounded-md bg-celo-forest-bright px-4 text-base font-medium text-celo-dark hover:bg-celo-forest-bright/90"
-                  data-testid="minipay-tap-connect"
-                >
-                  Open my boutique
-                </button>
-              </>
-            )}
-          </div>
-        </StatusShell>
-      );
+      // Zero-click contract : the useMinipay() auto-connect side-
+      // effect is in flight. Skeleton until it resolves — NO button,
+      // NO prompt text. Per MiniPay requirements doc §1 + CLAUDE.md
+      // rule 7.
+      return <DashboardSkeleton />;
     }
 
-    // Outside MiniPay (Chrome / mobile browser). Show the manual
-    // Connect prompt — the user has to opt in explicitly so we don't
-    // pop a wallet permission dialog on first paint.
+    // Outside MiniPay (Chrome / mobile browser, no auto-connect
+    // possible). Manual Connect prompt — the user has to opt in
+    // explicitly so we don't pop a wallet permission dialog on first
+    // paint.
     return (
       <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
