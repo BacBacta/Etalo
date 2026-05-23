@@ -8,7 +8,7 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
@@ -139,6 +139,7 @@ def check_handle_available(
 @router.get("/{seller_address}/profile", response_model=SellerProfileResponse)
 async def get_seller_profile_v2(
     seller_address: str,
+    response: Response,
     db: AsyncSession = Depends(get_async_db),
     celo: CeloService = Depends(_get_celo_service),
 ) -> SellerProfileResponse:
@@ -211,6 +212,15 @@ async def get_seller_profile_v2(
         select(func.count(Order.id)).where(Order.seller_address == addr)
     )
     recent_orders_count = count_result.scalar() or 0
+
+    # Public boutique data : let Vercel CDN absorb most of the traffic
+    # so a viral seller link doesn't hammer the backend. 30 s max-age,
+    # 60 s s-maxage (shared edge cache), 5 min stale-while-revalidate
+    # gives the buyer immediately served stale data while a background
+    # refresh updates the cache for the next visitor.
+    response.headers["Cache-Control"] = (
+        "public, max-age=30, s-maxage=60, stale-while-revalidate=300"
+    )
 
     return SellerProfileResponse(
         seller_address=addr,

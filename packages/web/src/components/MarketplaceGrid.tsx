@@ -18,10 +18,15 @@ export function MarketplaceGrid({ products, hideSellerCountry }: Props) {
           key={product.id}
           product={product}
           hideSellerCountry={hideSellerCountry}
-          // LCP optimization (Phase A P1) — first card image is the
-          // marketplace LCP element. priority=true skips Next.js'
-          // default lazy-loading + sets fetchpriority=high on the img.
-          priority={idx === 0}
+          // LCP optimization — the first row of cards is above the
+          // fold on every breakpoint we ship (mobile 2-col → 2 cards,
+          // tablet 3-col → 3, desktop 4-col → 4). priority=true skips
+          // Next.js' default lazy-loading + sets fetchpriority=high
+          // on the img, so the LCP image starts downloading at the
+          // same moment as the JS chunks parse. Index < 4 covers the
+          // worst-case (desktop 4-col first row) without over-eager
+          // loading on mobile.
+          priority={idx < 4}
         />
       ))}
     </div>

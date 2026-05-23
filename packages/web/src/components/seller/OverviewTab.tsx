@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
+import { memo } from "react";
 
 import {
   useAnalyticsSummary,
@@ -438,9 +439,15 @@ function KpiTile({
         </p>
       </div>
       {loading ? (
+        // LCP fix : skeleton dimensioned to roughly match the post-data
+        // value glyph (h-9 ≈ text-2xl line-height, w-32 ≈ "1234.56" max
+        // typical width). Matching the post-data box prevents layout
+        // shift AND gives the LCP candidate a stable bounding box at
+        // first paint instead of a small grey pill that gets replaced
+        // by a larger numeral.
         <SkeletonV5
           variant="rectangle"
-          className="mt-3 h-7 w-24"
+          className="mt-2 h-9 w-32"
           data-testid={`overview-kpi-skeleton-${label.toLowerCase().replace(/\s+/g, "-")}`}
         />
       ) : error || value === null ? (
@@ -484,7 +491,10 @@ interface TopProductRowProps {
   rank: number;
 }
 
-function TopProductRow({ product, rank }: TopProductRowProps) {
+// memo'd : rendered in .map() under the Top Products card. Parent
+// (OverviewTab) re-renders on every analytics refresh ; product +
+// rank props are stable per row so memo prevents unnecessary repaints.
+const TopProductRow = memo(function TopProductRow({ product, rank }: TopProductRowProps) {
   const rankClass = RANK_CLASSES[rank] ?? "bg-neutral-100 text-neutral-700";
   return (
     <li
@@ -523,7 +533,8 @@ function TopProductRow({ product, rank }: TopProductRowProps) {
       </p>
     </li>
   );
-}
+});
+TopProductRow.displayName = "TopProductRow";
 
 // =====================================================================
 // RecentOrderRow — mirrors the OrdersTab card style (status dot,
@@ -542,7 +553,7 @@ interface RecentOrderRowProps {
   };
 }
 
-function RecentOrderRow({ order }: RecentOrderRowProps) {
+const RecentOrderRow = memo(function RecentOrderRow({ order }: RecentOrderRowProps) {
   const dotClass =
     STATUS_DOT[order.global_status] ?? "bg-neutral-400";
   return (
@@ -580,7 +591,8 @@ function RecentOrderRow({ order }: RecentOrderRowProps) {
       </Link>
     </li>
   );
-}
+});
+RecentOrderRow.displayName = "RecentOrderRow";
 
 // Re-exported for tests so the fixture can build a parsed-shape mock
 // without re-importing from the hook module.

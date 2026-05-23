@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { memo } from "react";
 
 import { AddToCartIcon } from "@/components/AddToCartIcon";
 import { CardV4 } from "@/components/ui/v4/Card";
@@ -40,7 +41,13 @@ const COUNTRY_FLAGS: Record<string, string> = {
 // without needing real time-based queries.
 const NEW_BADGE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
 
-export function MarketplaceProductCard({
+// memo wraps the export below — the marketplace renders 20-50 of
+// these in a `.map()` and the parent (`MarketplaceClient`) re-renders
+// on every keystroke in the search input + every filter chip click.
+// Without memo, all cards re-rendered each time. Props are stable per
+// product (server-rehydrated objects) so referential-equality memo is
+// effective.
+function MarketplaceProductCardBase({
   product,
   hideSellerCountry = false,
   priority = false,
@@ -154,3 +161,6 @@ export function MarketplaceProductCard({
     </div>
   );
 }
+
+export const MarketplaceProductCard = memo(MarketplaceProductCardBase);
+MarketplaceProductCard.displayName = "MarketplaceProductCard";
