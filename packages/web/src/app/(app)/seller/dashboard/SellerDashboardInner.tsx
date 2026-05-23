@@ -13,6 +13,7 @@ import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 import { useMinipay } from "@/hooks/useMinipay";
+import { walletLog } from "@/lib/wallet-debug";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
 // First Load JS was 276 kB (perf score 27). Three of these imports
@@ -106,24 +107,35 @@ export function SellerDashboardInner() {
   // numbers from useAnalyticsSummary (sub-block 5.3) directly inside
   // OverviewTab, so the parent only needs the off-chain identity row.
   useEffect(() => {
+    walletLog("[SellerDashboard] effect run", {
+      isConnected,
+      hasAddress: Boolean(address),
+      addressLower: address?.toLowerCase().slice(0, 10) ?? null,
+    });
     if (!isConnected || !address) {
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
-    // Watchdog : if /sellers/me takes more than 10 s (fly.dev cold
-    // start, intermittent network, anything) flip the gate to
-    // `fetch_failed` so the user sees the Retry surface instead of
-    // a permanent skeleton. Cleared in the success / error paths.
+    walletLog("[SellerDashboard] fetchMyProfile start", {
+      address: address.slice(0, 10),
+    });
+    // Watchdog : if /sellers/me takes more than 10 s flip to
+    // `fetch_failed` so the user sees Retry instead of a perma-skeleton.
     const watchdog = window.setTimeout(() => {
       if (cancelled) return;
+      walletLog("[SellerDashboard] WATCHDOG FIRED (10s, no resolve)");
       setError("fetch_failed");
       setLoading(false);
     }, 10_000);
     fetchMyProfile(address)
       .then((me) => {
         if (cancelled) return;
+        walletLog("[SellerDashboard] fetchMyProfile resolved", {
+          hasProfile: Boolean(me),
+          shop_handle: me?.shop_handle ?? null,
+        });
         if (!me) {
           setError("not_found");
           return;
@@ -131,8 +143,12 @@ export function SellerDashboardInner() {
         setProfile(me);
         setError(null);
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
+        walletLog("[SellerDashboard] fetchMyProfile REJECTED", {
+          name: (err as Error)?.name ?? null,
+          message: (err as Error)?.message?.slice(0, 200) ?? null,
+        });
         setError("fetch_failed");
       })
       .finally(() => {
@@ -140,6 +156,7 @@ export function SellerDashboardInner() {
         window.clearTimeout(watchdog);
       });
     return () => {
+      walletLog("[SellerDashboard] effect cleanup (deps changed or unmount)");
       cancelled = true;
       window.clearTimeout(watchdog);
     };
@@ -210,22 +227,17 @@ export function SellerDashboardInner() {
     });
   }, [safeTab]);
 
-  // Gate order (CLAUDE.md rule #7 + ADR-052/053 + MiniPay readiness
-  // requirements §1 Zero-Click Connect) :
-  //   1. MiniPay handshake watchdog fired → Retry surface (never a
-  //      Connect-Wallet button — auto-connect only inside MiniPay,
-  //      Retry is a no-jargon redo of the same handshake).
-  //   2. wagmi `reconnecting` / `connecting` OR `useMinipay` actively
-  //      connecting → DashboardSkeleton ("silent once connected" UX).
-  //   3. !isConnected inside MiniPay → DashboardSkeleton. The
-  //      `useMinipay()` hook above has already fired
-  //      `connect({ connector: minipay })` as its mount side-effect ;
-  //      we keep the skeleton up while it resolves. Skeleton-forever
-  //      is strictly better than the spec-violating Connect prompt.
-  //   4. !isConnected outside MiniPay → Chrome / desktop Connect
-  //      prompt (ADR-052/053 path, the ONLY place
-  //      ConnectWalletButton may surface).
-  //   5. Connected → render the dashboard below.
+  walletLog("[SellerDashboard] render", {
+    minipayConnectFailed,
+    accountStatus,
+    minipayConnecting,
+    isConnected,
+    hasAddress: Boolean(address),
+    loading,
+    error,
+    hasProfile: Boolean(profile),
+  });
+
   if (minipayConnectFailed) {
     return (
       <StatusShell>
