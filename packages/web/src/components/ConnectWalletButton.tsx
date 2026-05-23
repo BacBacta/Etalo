@@ -149,14 +149,14 @@ export function ConnectWalletButton() {
   // MiniPay context — per the official readiness requirements
   // (celopedia-skills minipay-requirements.md §1 + docs.minipay.xyz/
   // getting-started/wallet-connection.html) Mini Apps MUST NOT surface
-  // a Connect Wallet button. Auto-connect is the contract ; whether
-  // the handshake is in-flight or done, this surface stays hidden.
-  // SilentReconnectGate at the app root drives the auto-connect
-  // (lenient detection covers real MiniPay AND "Mini App Test"
-  // developer mode where the isMiniPay flag is absent). Disconnected-
-  // state messaging in MiniPay belongs to the route shell
-  // (SellerDashboardInner shows "Connecting to MiniPay…" with a
-  // watchdog-driven Retry, not a manual Connect button).
+  // a Connect Wallet button. Auto-connect is the contract — even in
+  // Test mode. Whether the handshake is in-flight or done, this
+  // surface stays hidden. The auto-connect side-effect itself is
+  // driven by `useMinipay()` which is mounted on every gate surface
+  // (seller dashboard, /orders, RequireWallet, …). Disconnected-
+  // state UX in MiniPay belongs to the route shell — typically a
+  // skeleton until isConnected flips, with a Retry-only fallback if
+  // the 8 s watchdog trips.
   if (mounted && inMiniPay) {
     if (isConnected && address) {
       // Connected — render the address menu so the user can manage
