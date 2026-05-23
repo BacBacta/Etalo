@@ -16,6 +16,7 @@ import localFont from "next/font/local";
 import "./globals.css";
 import { SkipLink } from "@/components/SkipLink";
 import { ToasterV4 } from "@/components/ui/v4/Toast";
+import { WalletDebugOverlay } from "@/components/WalletDebugOverlay";
 
 const switzer = localFont({
   src: [
@@ -72,6 +73,13 @@ export default function RootLayout({
         <SkipLink />
         {children}
         <ToasterV4 position="bottom-center" />
+        {/* On-screen wallet debug overlay — mounted at root so the
+            `?debug=wallet` flag survives cross-route-group SPA nav
+            from `(public)/` → `(app)/seller/dashboard` etc. The
+            overlay is gated by sessionStorage so it only renders
+            when the user has explicitly enabled it via the URL
+            param at any point in the session. Zero cost otherwise. */}
+        <WalletDebugOverlay />
       </body>
     </html>
   );
