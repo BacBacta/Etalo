@@ -35,6 +35,17 @@
 import { useEffect, useRef } from "react";
 import { useAccount, useConnect } from "wagmi";
 
+import { walletLog } from "@/lib/wallet-debug";
+
+function dlog(...args: unknown[]) {
+  walletLog("[SilentReconnectGate]", ...args);
+  try {
+    console.info("[SilentReconnectGate]", ...args);
+  } catch {
+    // ignore
+  }
+}
+
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   isMiniPay?: boolean;
@@ -57,26 +68,17 @@ export function SilentReconnectGate() {
     if (attemptedRef.current) return;
     if (isConnected) {
       attemptedRef.current = true;
+      dlog("bail: already connected");
       return;
     }
     const eth = getEthereum();
     if (!eth) {
       attemptedRef.current = true;
+      dlog("bail: no window.ethereum");
       return;
     }
     attemptedRef.current = true;
 
-    // Pick the connector that can actually accept this provider :
-    //
-    // - Real MiniPay (isMiniPay flag set) → strict `minipay` connector
-    //   (its target() requires the flag and returns undefined otherwise).
-    // - Anything else → prefer an EIP-6963 specific (e.g. `io.metamask`)
-    //   then fall back to the generic `injected` connector. This
-    //   covers Chrome with MetaMask AND MiniPay's Test mode where the
-    //   WebView injects a working provider but does not set the
-    //   `isMiniPay` flag — though in that latter case `useMinipay()`
-    //   is the one that will fire connect (this gate stays silent
-    //   unless accounts are already approved).
     const isRealMinipay = eth.isMiniPay === true;
     const target = isRealMinipay
       ? connectors.find((c) => c.id === "minipay")
@@ -88,20 +90,31 @@ export function SilentReconnectGate() {
             c.id !== "walletConnect",
         ) ??
         connectors.find((c) => c.id === "injected"));
+    dlog("picked target", {
+      isRealMinipay,
+      targetId: target?.id ?? null,
+      connectorIds: connectors.map((c) => c.id),
+    });
     if (!target) return;
 
     eth
       .request({ method: "eth_accounts" })
       .then((result) => {
         const accounts = Array.isArray(result) ? (result as string[]) : [];
+        dlog("eth_accounts returned", {
+          count: accounts.length,
+          first: accounts[0] ?? null,
+        });
         if (accounts.length === 0) return;
         // Origin already approved — silent connect with no popup.
+        dlog("firing wagmi connect", { targetId: target.id });
         connect({ connector: target });
       })
-      .catch(() => {
-        // Provider rejected eth_accounts — silent no-op. The user can
-        // still tap Connect (Chrome) or the route's useMinipay() will
-        // drive the handshake (MiniPay).
+      .catch((err) => {
+        dlog("eth_accounts threw", {
+          name: (err as Error)?.name ?? null,
+          message: (err as Error)?.message?.slice(0, 200) ?? null,
+        });
       });
   }, [isConnected, connect, connectors]);
 

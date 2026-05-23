@@ -7,6 +7,7 @@ import { WagmiProvider } from "wagmi";
 
 import { MotionProvider } from "@/components/MotionProvider";
 import { SilentReconnectGate } from "@/components/SilentReconnectGate";
+import { WalletDebugOverlay } from "@/components/WalletDebugOverlay";
 import { useCartHydration } from "@/lib/cart-store";
 import { wagmiConfig } from "@/lib/wagmi-config";
 
@@ -50,6 +51,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           <QueryClientProvider client={queryClient}>
             <SilentReconnectGate />
             <CartHydrationGate>{children}</CartHydrationGate>
+            {/* On-screen debug log overlay, activated with
+                `?debug=wallet` in the URL. Sticky bottom of viewport
+                so MiniPay users without chrome://inspect access can
+                read the wallet-chain state directly on their device. */}
+            <WalletDebugOverlay />
           </QueryClientProvider>
         </WagmiProvider>
       </ThemeProvider>
