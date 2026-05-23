@@ -3,13 +3,13 @@ import { useAccount, useConnect } from "wagmi";
 
 import { detectMiniPay } from "@/lib/minipay-detect";
 
-// Hard ceiling on the "Connecting to MiniPay…" surface. If the
-// auto-connect call hasn't resolved (success OR error) within this
-// many ms, we flip `connectFailed` so callers can show a retry path
-// instead of an infinite "Connecting…" message. 8 s is comfortably
-// above p95 connect time observed in MiniPay Test mode, and matches
-// the dashboard's wallet-timeout gate.
-const CONNECT_TIMEOUT_MS = 8_000;
+// Hard ceiling on the "Connecting to MiniPay…" surface. 3 s — long
+// enough for a healthy production auto-connect (typically 50-300 ms)
+// to land, short enough that a stuck user gets the manual escape
+// surface fast. Was 8 s but stuck-state observed in MiniPay Test
+// mode (WebView refuses non-user-gesture eth_requestAccounts and
+// `connect()` never rejects either — it just hangs in pending).
+const CONNECT_TIMEOUT_MS = 3_000;
 
 /**
  * Silent MiniPay auto-connect.
@@ -41,6 +41,17 @@ export function useMinipay() {
   const { address, isConnected } = useAccount();
 
   const isInMinipay = detectMiniPay();
+  // Strict detection — does the WebView's provider actually carry the
+  // canonical `isMiniPay` flag ? True ⇒ real production MiniPay
+  // (eth_requestAccounts is pre-approved at the WebView level, the
+  // silent auto-connect contract holds). False but `isInMinipay` true
+  // ⇒ Mini App Test developer mode or ngrok tunnel : the WebView often
+  // refuses to grant accounts without a user gesture, so callers
+  // should surface a tap-to-connect CTA as fallback.
+  const isStrictMinipay =
+    typeof window !== "undefined" &&
+    (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum
+      ?.isMiniPay === true;
   // Crucial : only treat the wagmi pending status as a MiniPay
   // connect-in-flight signal when we ARE in MiniPay. Outside the
   // MiniPay WebView (Chrome, Safari, etc.) `status === "pending"` can
@@ -108,6 +119,7 @@ export function useMinipay() {
 
   return {
     isInMinipay,
+    isStrictMinipay,
     address,
     isConnected,
     isConnecting,

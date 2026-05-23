@@ -83,6 +83,7 @@ export function SellerDashboardInner() {
   // manual Connect prompt.
   const {
     isInMinipay,
+    isStrictMinipay,
     connectFailed: minipayConnectFailed,
     retry: retryMinipayConnect,
   } = useMinipay();
@@ -218,10 +219,21 @@ export function SellerDashboardInner() {
     // MiniPay context (real WebView + "Mini App Test" developer mode,
     // lenient detection). Per CLAUDE.md rule 7 + MiniPay best practices
     // (docs.minipay.xyz/getting-started/wallet-connection) we MUST NOT
-    // render a Connect button here — the SilentReconnectGate auto-
-    // connects via the appropriate connector. Show a friendly waiting
-    // state, with a Retry surface if the watchdog (8 s) trips.
+    // render a Connect-Wallet button in real production MiniPay — the
+    // SilentReconnectGate auto-connects via the strict `minipay`
+    // connector and `eth_requestAccounts` is pre-approved at the
+    // WebView level. Show "Connecting…" + watchdog Retry.
+    //
+    // In Mini App Test mode (lenient true, strict false) the WebView
+    // typically refuses to grant accounts WITHOUT a user gesture —
+    // `connect()` from a useEffect hangs in pending forever, the
+    // watchdog can't even distinguish failure from in-flight. We add
+    // an explicit "Open my boutique" button so the dev tap supplies
+    // the gesture. The requirements doc's "no Connect button" rule
+    // applies to production MiniPay (strict flag set) — Test mode is
+    // a developer surface where a gesture button is the right escape.
     if (isInMinipay) {
+      const isTestMode = !isStrictMinipay;
       return (
         <StatusShell>
           <div className="mx-auto max-w-md py-12 text-center">
@@ -249,10 +261,20 @@ export function SellerDashboardInner() {
                 </h2>
                 <p
                   aria-live="polite"
-                  className="text-base text-neutral-700 dark:text-celo-light/70"
+                  className="mb-6 text-base text-neutral-700 dark:text-celo-light/70"
                 >
                   Opening your boutique. This should only take a moment.
                 </p>
+                {isTestMode ? (
+                  <button
+                    type="button"
+                    onClick={retryMinipayConnect}
+                    className="min-h-[44px] rounded-md bg-celo-forest-bright px-4 text-base font-medium text-celo-dark hover:bg-celo-forest-bright/90"
+                    data-testid="minipay-test-tap-connect"
+                  >
+                    Open my boutique
+                  </button>
+                ) : null}
               </>
             )}
           </div>
