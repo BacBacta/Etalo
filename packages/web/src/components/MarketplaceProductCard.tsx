@@ -165,3 +165,4 @@ function MarketplaceProductCardImpl({
 // on a full page of cards. AddToCartIcon is the only mutable bit
 // inside ; it manages its own state.
 export const MarketplaceProductCard = memo(MarketplaceProductCardImpl);
+MarketplaceProductCard.displayName = "MarketplaceProductCard";

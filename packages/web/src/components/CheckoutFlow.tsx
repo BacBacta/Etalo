@@ -9,6 +9,14 @@ import { CheckoutSellerStatus } from "@/components/CheckoutSellerStatus";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { InsufficientBalanceCTA } from "@/components/checkout/InsufficientBalanceCTA";
 
+// Note : CheckoutSellerStatus + InsufficientBalanceCTA were briefly
+// dynamic-imported here as a /checkout bundle optimisation, but both
+// are conversion-critical (the buyer must see the InsufficientBalanceCTA
+// the moment the balance gate resolves, not after a chunk-fetch
+// roundtrip). Reverted ; the existing CheckoutErrorView /
+// CheckoutSuccessView lazy-loads below are the safe ones because
+// they only mount post-tx, never on the critical first-paint path.
+
 // Phase A P1 (2026-05-15) — Success + Error views are unreachable on
 // initial page render (only mounted after the buyer signs ≥ 1 tx,
 // which always pivots out of the idle phase). Dynamic-import them to

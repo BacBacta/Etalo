@@ -4,7 +4,7 @@ import { Clock, Copy, MapPin, Package, Truck } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
 // Phase A P0-2 — MarkGroupShippedDialog lazy-loaded (only opens when
@@ -389,7 +389,12 @@ interface OrderRowProps {
   onShipClick: () => void;
 }
 
-function OrderRow({ order, onShipClick }: OrderRowProps) {
+// memo'd : OrdersTab renders 20+ rows in a .map() and the parent
+// state (search input, filter chips, ship-dialog open) changes
+// frequently. `order` is referentially stable per row across parent
+// re-renders ; `onShipClick` is a closure — consumers should pass a
+// useCallback-stabilised handler for memo to bite.
+const OrderRow = memo(function OrderRow({ order, onShipClick }: OrderRowProps) {
   const canShip = isShippable(order.global_status);
   const dl = deadlineInfo(order.funded_at, order.global_status);
   const buyer = buyerLabel(order.delivery_address_snapshot, order.onchain_order_id);
@@ -578,7 +583,8 @@ function OrderRow({ order, onShipClick }: OrderRowProps) {
       ) : null}
     </li>
   );
-}
+});
+OrderRow.displayName = "OrderRow";
 
 // Compact avatar : first letter of buyer label, monogram-style. Cheap
 // alternative to a real photo since we never display the buyer's wallet

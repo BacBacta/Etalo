@@ -11,6 +11,7 @@
  * indexer can write Order rows before the seller has a User row).
  */
 import Link from "next/link";
+import { memo } from "react";
 
 import { OrderStatusBadge } from "@/components/orders/OrderStatusBadge";
 import { formatRowDate } from "@/lib/format";
@@ -23,7 +24,10 @@ export interface OrderCardProps {
   className?: string;
 }
 
-export function OrderCard({ order, className }: OrderCardProps) {
+// Rendered in `.map()` on `/orders` (10-30 cards typically). Parent
+// re-renders on any state change ; memo + referentially-stable
+// `order` props means cards repaint only when their own data changes.
+function OrderCardBase({ order, className }: OrderCardProps) {
   const sellerLabel = order.seller_handle
     ? `@${order.seller_handle}`
     : "Unknown shop";
@@ -63,3 +67,6 @@ export function OrderCard({ order, className }: OrderCardProps) {
     </Link>
   );
 }
+
+export const OrderCard = memo(OrderCardBase);
+OrderCard.displayName = "OrderCard";
