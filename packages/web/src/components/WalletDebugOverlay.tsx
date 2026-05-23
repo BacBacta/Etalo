@@ -38,7 +38,12 @@ export function WalletDebugOverlay() {
     getServerSnapshot,
   );
   const [enabled, setEnabled] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  // Default collapsed so the overlay doesn't block taps on the page
+  // content. When expanded the overlay takes up 45vh — on a 640 px
+  // MiniPay viewport that covers ~288 px of the bottom, blocking
+  // HomeMiniPay's "Open my boutique" button. User taps ▲ to expand
+  // when they want to read or copy the buffer.
+  const [collapsed, setCollapsed] = useState(true);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "error">(
     "idle",
   );
