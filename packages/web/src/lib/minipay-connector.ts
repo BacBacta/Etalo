@@ -1,6 +1,8 @@
 import { injected } from "@wagmi/core";
 import type { EIP1193Provider } from "viem";
 
+import { walletLog } from "@/lib/wallet-debug";
+
 /**
  * Wagmi connector that targets the MiniPay in-app wallet specifically.
  *
@@ -25,7 +27,13 @@ export function minipayConnector() {
         typeof window !== "undefined"
           ? (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum
           : undefined;
-      if (eth?.isMiniPay !== true) return undefined;
+      const isMinipay = eth?.isMiniPay === true;
+      walletLog("minipayConnector.target()", {
+        hasEth: Boolean(eth),
+        isMiniPay: isMinipay,
+        ethIsMiniPayRaw: eth?.isMiniPay ?? null,
+      });
+      if (!isMinipay) return undefined;
       return {
         id: "minipay",
         name: "MiniPay",

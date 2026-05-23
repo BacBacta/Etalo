@@ -2,21 +2,26 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount, useConnect } from "wagmi";
 
 import { detectMiniPay } from "@/lib/minipay-detect";
+import { walletLog } from "@/lib/wallet-debug";
 
 // Hard ceiling on the "in-flight" surface. 8 s comfortably above the
 // p95 connect time observed in MiniPay Test mode ; if `isConnected`
 // hasn't flipped true by then, the dashboard surfaces Retry.
 const CONNECT_TIMEOUT_MS = 8_000;
 
-// Diagnostic logging guard. Enable with `?debug=wallet` in the URL.
-// All logs prefix with `[useMinipay]` so they're easy to filter in
-// Chrome DevTools over chrome://inspect on the MiniPay WebView.
-function diag(): boolean {
-  if (typeof window === "undefined") return false;
-  return new URLSearchParams(window.location.search).get("debug") === "wallet";
-}
+// Diagnostic logger — pushes to both console.info and the on-screen
+// WalletDebugOverlay (activated via `?debug=wallet`). The overlay is
+// the field-readable surface for users without Chrome DevTools access
+// to their device.
 function dlog(...args: unknown[]) {
-  if (diag()) console.info("[useMinipay]", ...args);
+  if (typeof window === "undefined") return;
+  walletLog("[useMinipay]", ...args);
+  // Mirror to console too in case Chrome DevTools IS connected.
+  try {
+    console.info("[useMinipay]", ...args);
+  } catch {
+    // ignore
+  }
 }
 
 /**
@@ -45,7 +50,7 @@ function dlog(...args: unknown[]) {
  * regardless of timing.
  */
 export function useMinipay() {
-  const { connect, connectors, status } = useConnect();
+  const { connect, connectors, status, error: connectError } = useConnect();
   const { address, isConnected } = useAccount();
 
   const isInMinipay = detectMiniPay();
@@ -120,14 +125,30 @@ export function useMinipay() {
 
   // wagmi error listener — surface Retry IMMEDIATELY when the connect
   // mutation rejects, so the user doesn't have to wait the watchdog
-  // timeout to escape the dashboard skeleton.
+  // timeout to escape the dashboard skeleton. Also captures the full
+  // wagmi error object so the on-screen debug overlay shows WHAT
+  // failed (RPC method, code, message).
   useEffect(() => {
     if (!isInMinipay) return;
     if (status === "error" && !isConnected) {
-      dlog("status=error → flip connectFailed");
+      dlog("status=error → flip connectFailed", {
+        errorName: connectError?.name ?? null,
+        errorMessage: connectError?.message?.slice(0, 200) ?? null,
+        // Wagmi sometimes nests the provider error under `.cause`
+        causeName:
+          connectError && "cause" in connectError
+            ? String((connectError as { cause?: { name?: string } }).cause?.name ?? "")
+            : null,
+        causeMessage:
+          connectError && "cause" in connectError
+            ? String(
+                (connectError as { cause?: { message?: string } }).cause?.message ?? "",
+              ).slice(0, 200)
+            : null,
+      });
       setConnectFailed(true);
     }
-  }, [status, isInMinipay, isConnected]);
+  }, [status, isInMinipay, isConnected, connectError]);
 
   // Trace every state change for debug sessions.
   useEffect(() => {
