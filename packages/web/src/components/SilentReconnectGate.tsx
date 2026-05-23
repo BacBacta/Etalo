@@ -41,6 +41,7 @@ import { useAccount, useConnect } from "wagmi";
 
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
+  isMiniPay?: boolean;
 }
 
 function getEthereum(): EthereumProvider | undefined {
@@ -75,19 +76,30 @@ export function SilentReconnectGate() {
         const accounts = Array.isArray(result) ? (result as string[]) : [];
         if (accounts.length === 0) return;
 
-        // We have at least one approved account. Pick the most
-        // specific connector that matches the injected provider —
-        // prefer the EIP-6963-discovered one (e.g. `io.metamask`)
-        // over the generic `injected`. Wagmi auto-registers
-        // EIP-6963 providers at runtime with their RDNS id.
-        const target =
-          connectors.find(
-            (c) =>
-              c.type === "injected" &&
-              c.id !== "injected" &&
-              c.id !== "walletConnect",
-          ) ??
-          connectors.find((c) => c.id === "injected");
+        // Pick the connector that can actually accept this provider :
+        //
+        // - If the real MiniPay flag is present → use the dedicated
+        //   `minipay` connector (its target() requires isMiniPay=true).
+        // - Otherwise → prefer an EIP-6963 specific (e.g. `io.metamask`)
+        //   then fall back to the generic `injected` connector. This
+        //   covers Chrome with MetaMask AND MiniPay's "Mini App Test"
+        //   developer mode, where the WebView injects a working
+        //   provider at `window.ethereum` but DOES NOT set the
+        //   `isMiniPay` flag — so the strict minipay connector's
+        //   target() returns undefined and the connect call fails
+        //   silently, leaving the user stuck (production bug surfaced
+        //   2026-05-23 on the seller dashboard).
+        const isRealMinipay = eth.isMiniPay === true;
+        const target = isRealMinipay
+          ? connectors.find((c) => c.id === "minipay")
+          : (connectors.find(
+              (c) =>
+                c.type === "injected" &&
+                c.id !== "injected" &&
+                c.id !== "minipay" &&
+                c.id !== "walletConnect",
+            ) ??
+            connectors.find((c) => c.id === "injected"));
         if (!target) return;
         connect({ connector: target });
       })
