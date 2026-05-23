@@ -3,18 +3,24 @@ import type { EIP1193Provider } from "viem";
 
 /**
  * Wagmi connector that targets the MiniPay in-app wallet specifically.
+ *
  * MiniPay injects its provider at `window.ethereum` and sets the
- * `isMiniPay` flag. When we are not running inside the MiniPay WebView
- * (e.g. desktop dev), the target returns `undefined` and wagmi simply
- * falls back to the next connector in the list.
+ * `isMiniPay` flag. The target() returns undefined outside the MiniPay
+ * WebView so wagmi falls back to the next connector in the list.
+ *
+ * `shimDisconnect: false` is INTENTIONAL — the wagmi v2 injected
+ * connector with shimDisconnect=true calls `wallet_requestPermissions`
+ * before `eth_requestAccounts` on every fresh connect. MiniPay's
+ * WebView either doesn't implement that method or hangs on it ; the
+ * result is a `connect()` call that never resolves and a user stuck on
+ * the dashboard skeleton forever (production bug 2026-05-23). With
+ * shimDisconnect=false wagmi goes straight to `eth_requestAccounts`,
+ * which MiniPay handles silently (account is pre-approved at the
+ * WebView level).
  */
 export function minipayConnector() {
   return injected({
     target() {
-      // J10-V5 Phase 5 Angle F sub-block F.3 follow-up — `wagmi/connectors`
-      // barrel previously augmented `Window` ambiently with `ethereum` ;
-      // switching to `@wagmi/core` (to drop the @metamask/sdk + pino-pretty
-      // build warnings) loses that augmentation, so we cast locally.
       const eth =
         typeof window !== "undefined"
           ? (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum
@@ -26,6 +32,6 @@ export function minipayConnector() {
         provider: eth as unknown as EIP1193Provider,
       };
     },
-    shimDisconnect: true,
+    shimDisconnect: false,
   });
 }

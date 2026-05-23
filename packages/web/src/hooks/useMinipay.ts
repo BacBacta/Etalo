@@ -3,122 +3,161 @@ import { useAccount, useConnect } from "wagmi";
 
 import { detectMiniPay } from "@/lib/minipay-detect";
 
-// Hard ceiling on the "Connecting to MiniPay…" surface. 8 s comfortably
-// above the p95 connect time observed in MiniPay Test mode ; if the
-// auto-connect hasn't resolved by then, callers can render Retry.
+// Hard ceiling on the "in-flight" surface. 8 s comfortably above the
+// p95 connect time observed in MiniPay Test mode ; if `isConnected`
+// hasn't flipped true by then, the dashboard surfaces Retry.
 const CONNECT_TIMEOUT_MS = 8_000;
 
+// Diagnostic logging guard. Enable with `?debug=wallet` in the URL.
+// All logs prefix with `[useMinipay]` so they're easy to filter in
+// Chrome DevTools over chrome://inspect on the MiniPay WebView.
+function diag(): boolean {
+  if (typeof window === "undefined") return false;
+  return new URLSearchParams(window.location.search).get("debug") === "wallet";
+}
+function dlog(...args: unknown[]) {
+  if (diag()) console.info("[useMinipay]", ...args);
+}
+
 /**
- * MiniPay auto-connect hook (restored from reverted commit 8f56b91).
+ * MiniPay auto-connect hook (restored from reverted commit 8f56b91 +
+ * 2026-05-23 hardening).
  *
- * Owns the on-mount `connect()` side-effect for any surface that
- * gates the user experience on a wallet being present (the seller
- * dashboard, /orders, RequireWallet, useOrderInitiate, …). Mounting
- * this hook is what makes MiniPay's WebView provider actually
- * register with wagmi — without it, `window.ethereum` sits there and
+ * Owns the on-mount `connect()` side-effect for any surface that gates
+ * the user experience on a wallet being present (the seller dashboard,
+ * /orders, RequireWallet, useOrderInitiate, …). Without this hook on
+ * the surface, MiniPay's `window.ethereum` sits there and
  * `useAccount().isConnected` never flips true.
  *
- * `SilentReconnectGate` (in Providers.tsx) is the COMPLEMENTARY
- * surface for non-MiniPay returning sessions (Chrome with a prior
- * MetaMask approval, etc.) ; it probes `eth_accounts` silently and
- * connects only if accounts are already approved for the origin.
- * It deliberately does NOT cover MiniPay — `useMinipay` is the
- * single owner of the MiniPay handshake (avoids the race where
- * both surfaces fire `connect()` concurrently and wagmi gets stuck
- * in `status: pending` — user-report production bug 2026-05-23).
+ * `SilentReconnectGate` (in Providers.tsx) is the complementary surface
+ * for non-MiniPay returning sessions (Chrome with a prior MetaMask
+ * approval). It deliberately does NOT cover MiniPay — `useMinipay` is
+ * the single owner of the MiniPay handshake to avoid the race where
+ * both surfaces fire `connect()` concurrently.
  *
- * Per CLAUDE.md rule 7 + MiniPay readiness requirements §1 (Zero-
- * Click Connect), MiniPay surfaces MUST NOT render a Connect button.
- * Callers render `<DashboardSkeleton />` (or equivalent) while
- * `isConnecting`, and a Retry-only surface (NO Connect button) when
- * `connectFailed` flips.
- *
- * Returns `{ isInMinipay, isStrictMinipay, address, isConnected,
- * isConnecting, connectFailed, retry }`.
+ * Watchdog robustness (2026-05-23) — the watchdog arms on MOUNT (not
+ * on `isConnecting`) and clears ONLY on `isConnected=true` or unmount.
+ * The previous design cleared the timeout whenever `isConnecting`
+ * flipped false, which masked the failure mode where wagmi went
+ * pending → error silently and left the user stuck on the dashboard
+ * skeleton forever with no Retry surface (production bug). The hook
+ * also listens for `status === "error"` to surface Retry immediately
+ * regardless of timing.
  */
 export function useMinipay() {
   const { connect, connectors, status } = useConnect();
   const { address, isConnected } = useAccount();
 
   const isInMinipay = detectMiniPay();
-  // Strict detection — canonical `isMiniPay` flag present on
-  // window.ethereum. Exposed for callers / debug panels ; not used
-  // to gate behaviour here (the connector picker checks the flag
-  // again at call time to pick the right connector).
   const isStrictMinipay =
     typeof window !== "undefined" &&
     (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum
       ?.isMiniPay === true;
-  // Only treat the wagmi pending status as MiniPay-in-flight when we
-  // ARE in MiniPay — otherwise the same `pending` from wagmi's own
-  // reconnect-on-mount would surface "Connecting to MiniPay…" on
-  // non-MiniPay users (the bug PR #38 fixed by gating this).
   const isConnecting = isInMinipay && status === "pending";
   const [connectFailed, setConnectFailed] = useState(false);
-  // We retry on connector-list changes (wagmi populates EIP-6963
-  // connectors async) until a real connect() call lands. `firedRef`
-  // flips true ONLY after we successfully fire connect with a valid
-  // target — bail paths (no target yet, status already pending)
-  // leave it open so the next dep tick gets another chance.
   const firedRef = useRef(false);
 
-  // Pick the connector that can accept window.ethereum. Real MiniPay
-  // (canonical `isMiniPay` flag set) → strict `minipay` connector.
-  // Anything else (MiniPay Test mode WITHOUT the flag, ngrok dev
-  // tunnel, Chrome / Trust / MetaMask in MiniPay-detected context)
-  // → prefer EIP-6963-specific then fall back to the generic
-  // `injected` connector. Same logic mirrored in SilentReconnectGate
-  // for the non-MiniPay path.
   const pickTarget = useCallback(() => {
     const strict =
       typeof window !== "undefined" &&
       (window as Window & { ethereum?: { isMiniPay?: boolean } }).ethereum
         ?.isMiniPay === true;
     if (strict) {
-      return connectors.find((c) => c.id === "minipay");
+      const minipay = connectors.find((c) => c.id === "minipay");
+      dlog("pickTarget strict", { id: minipay?.id, found: Boolean(minipay) });
+      return minipay;
     }
-    return (
-      connectors.find(
-        (c) =>
-          c.type === "injected" &&
-          c.id !== "injected" &&
-          c.id !== "minipay" &&
-          c.id !== "walletConnect",
-      ) ?? connectors.find((c) => c.id === "injected")
+    const eip6963 = connectors.find(
+      (c) =>
+        c.type === "injected" &&
+        c.id !== "injected" &&
+        c.id !== "minipay" &&
+        c.id !== "walletConnect",
     );
+    const generic = connectors.find((c) => c.id === "injected");
+    const picked = eip6963 ?? generic;
+    dlog("pickTarget lenient", {
+      id: picked?.id,
+      eip6963: eip6963?.id,
+      generic: generic?.id,
+    });
+    return picked;
   }, [connectors]);
 
   // Auto-connect on mount inside MiniPay. Retries on dep changes
-  // (connectors list updates, isInMinipay flips client-side) until
-  // a real connect call fires.
+  // (connectors list updates, isInMinipay flips client-side) until a
+  // real connect call fires.
   useEffect(() => {
     if (firedRef.current) return;
     if (!isInMinipay || isConnected) return;
     if (status === "pending") return;
     const target = pickTarget();
-    if (!target) return; // wait for connectors to populate
+    if (!target) {
+      dlog("auto-connect bail: no target");
+      return;
+    }
     firedRef.current = true;
+    dlog("auto-connect fire", { id: target.id, status });
     connect({ connector: target });
   }, [isInMinipay, isConnected, status, pickTarget, connect]);
 
-  // Timeout watchdog. Arms only while connect is in flight inside
-  // MiniPay. Clears the moment we succeed, leave the pending state,
-  // or unmount. If it fires, the dashboard surfaces Retry.
+  // Watchdog — arms ON MOUNT (not on isConnecting). Only clears when
+  // we actually connect or unmount. Without this, a wagmi pending→
+  // error transition would clear the timeout (deps changed) before
+  // the user gets a Retry surface.
   useEffect(() => {
     if (!isInMinipay) return;
     if (isConnected) {
       setConnectFailed(false);
       return;
     }
-    if (!isConnecting) return;
-    const id = window.setTimeout(() => setConnectFailed(true), CONNECT_TIMEOUT_MS);
+    const id = window.setTimeout(() => {
+      dlog("watchdog fire");
+      setConnectFailed(true);
+    }, CONNECT_TIMEOUT_MS);
     return () => window.clearTimeout(id);
-  }, [isInMinipay, isConnected, isConnecting]);
+  }, [isInMinipay, isConnected]);
+
+  // wagmi error listener — surface Retry IMMEDIATELY when the connect
+  // mutation rejects, so the user doesn't have to wait the watchdog
+  // timeout to escape the dashboard skeleton.
+  useEffect(() => {
+    if (!isInMinipay) return;
+    if (status === "error" && !isConnected) {
+      dlog("status=error → flip connectFailed");
+      setConnectFailed(true);
+    }
+  }, [status, isInMinipay, isConnected]);
+
+  // Trace every state change for debug sessions.
+  useEffect(() => {
+    dlog("state", {
+      isInMinipay,
+      isStrictMinipay,
+      isConnected,
+      address,
+      status,
+      isConnecting,
+      connectFailed,
+      connectorCount: connectors.length,
+      connectorIds: connectors.map((c) => c.id),
+    });
+  }, [
+    isInMinipay,
+    isStrictMinipay,
+    isConnected,
+    address,
+    status,
+    isConnecting,
+    connectFailed,
+    connectors,
+  ]);
 
   const retry = useCallback(() => {
     setConnectFailed(false);
     firedRef.current = false;
     const target = pickTarget();
+    dlog("retry", { id: target?.id });
     if (target) connect({ connector: target });
   }, [pickTarget, connect]);
 
