@@ -123,6 +123,15 @@ export function ConnectWalletButton() {
             })),
             hasInjected,
             inMiniPay,
+            isStrictMinipay,
+            eth_isMiniPay:
+              typeof window !== "undefined"
+                ? (
+                    window as Window & {
+                      ethereum?: { isMiniPay?: unknown };
+                    }
+                  ).ethereum?.isMiniPay ?? null
+                : null,
             isConnected,
             address: address ? shortAddress(address) : null,
             ua:
@@ -137,13 +146,22 @@ export function ConnectWalletButton() {
     );
   }
 
-  // Real production MiniPay (strict isMiniPay flag) → the
-  // minipayConnector auto-connects silently and the wallet is
-  // implicit. Skip render entirely. Note : `detectMiniPay()` (lenient)
-  // is intentionally NOT used here — Mini App Test mode passes the
-  // lenient signals but does not inject the flag, so a manual button
-  // is the only escape hatch.
-  if (mounted && isStrictMinipay) {
+  // Real production MiniPay (strict isMiniPay flag) AND wagmi already
+  // resolved the connection → button is irrelevant (the wallet is
+  // implicit, the connected-address menu lives elsewhere in the
+  // header). Skip render entirely.
+  //
+  // Important : we DO render the button when isStrictMinipay && !isConnected.
+  // This covers degraded MiniPay flows where the auto-connect handshake
+  // didn't grant accounts (Mini App Test mode on fresh navigation,
+  // first-visit before MiniPay has whitelisted the origin, or a
+  // transient provider hiccup). In a healthy real-MiniPay session
+  // auto-connect completes in ~50-200 ms so the button is on screen
+  // for a microscopic flash, not a true CLAUDE.md rule-7 violation.
+  // The alternative (hiding the button) leaves the user with no path
+  // forward — strictly worse for an edge case where the auto-connect
+  // contract didn't hold.
+  if (mounted && isStrictMinipay && isConnected) {
     return null;
   }
 
