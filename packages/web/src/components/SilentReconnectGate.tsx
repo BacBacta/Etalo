@@ -10,7 +10,7 @@
  * Contract :
  *  - WagmiProvider gets `reconnectOnMount={false}` so wagmi never
  *    fires its own reconnect attempt.
- *  - This gate, mounted once at the app root in Providers.tsx,
+ *  - This gate, mounted once at the app root in AppProviders,
  *    asks the injected provider directly via `eth_accounts` — the
  *    SILENT RPC method that returns approved accounts without
  *    prompting (`[]` if nothing is approved for this origin).
@@ -35,17 +35,6 @@
 import { useEffect, useRef } from "react";
 import { useAccount, useConnect } from "wagmi";
 
-import { walletLog } from "@/lib/wallet-debug";
-
-function dlog(...args: unknown[]) {
-  walletLog("[SilentReconnectGate]", ...args);
-  try {
-    console.info("[SilentReconnectGate]", ...args);
-  } catch {
-    // ignore
-  }
-}
-
 interface EthereumProvider {
   request: (args: { method: string; params?: unknown[] }) => Promise<unknown>;
   isMiniPay?: boolean;
@@ -68,13 +57,11 @@ export function SilentReconnectGate() {
     if (attemptedRef.current) return;
     if (isConnected) {
       attemptedRef.current = true;
-      dlog("bail: already connected");
       return;
     }
     const eth = getEthereum();
     if (!eth) {
       attemptedRef.current = true;
-      dlog("bail: no window.ethereum");
       return;
     }
     attemptedRef.current = true;
@@ -90,31 +77,20 @@ export function SilentReconnectGate() {
             c.id !== "walletConnect",
         ) ??
         connectors.find((c) => c.id === "injected"));
-    dlog("picked target", {
-      isRealMinipay,
-      targetId: target?.id ?? null,
-      connectorIds: connectors.map((c) => c.id),
-    });
     if (!target) return;
 
     eth
       .request({ method: "eth_accounts" })
       .then((result) => {
         const accounts = Array.isArray(result) ? (result as string[]) : [];
-        dlog("eth_accounts returned", {
-          count: accounts.length,
-          first: accounts[0] ?? null,
-        });
         if (accounts.length === 0) return;
         // Origin already approved — silent connect with no popup.
-        dlog("firing wagmi connect", { targetId: target.id });
         connect({ connector: target });
       })
-      .catch((err) => {
-        dlog("eth_accounts threw", {
-          name: (err as Error)?.name ?? null,
-          message: (err as Error)?.message?.slice(0, 200) ?? null,
-        });
+      .catch(() => {
+        // Provider rejected eth_accounts — silent no-op. The user
+        // can still tap Connect (Chrome) or the route's useMinipay()
+        // will drive the handshake (MiniPay).
       });
   }, [isConnected, connect, connectors]);
 
