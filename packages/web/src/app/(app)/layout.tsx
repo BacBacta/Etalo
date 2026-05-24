@@ -1,17 +1,21 @@
 /**
- * (app) route group layout — ADR-051.
+ * (app) route group layout — ADR-051 / ADR-070-app-providers.
  *
  * Wraps the Mini App surface (`/marketplace`, `/checkout`, `/orders/*`,
- * `/profile/*`, `/seller/*`, `/dev/*`) with the full `Providers` stack
- * (WagmiProvider + CartHydrationGate + Theme + Motion + QueryClient)
- * and the full `PublicHeader` (with cart trigger + my-orders link
- * conditional on wallet connection).
+ * `/profile/*`, `/seller/*`, `/dev/*`) with the full `PublicHeader`
+ * (with cart trigger + my-orders link conditional on wallet connection).
  *
- * Public-funnel routes use the lighter `(public)/layout.tsx` instead.
+ * Providers (WagmiProvider + QueryClient + Theme + Motion +
+ * CartHydration + SilentReconnectGate) live at the ROOT layout via
+ * `AppProviders`, so they mount ONCE and persist across (public) ↔
+ * (app) SPA nav (PR #70 root-cause fix for the dashboard-stuck-on-
+ * skeleton bug).
+ *
+ * Public-funnel routes use the lighter `(public)/layout.tsx` (no
+ * cart, no PublicHeader).
  */
 import { Footer } from "@/components/Footer";
 import { PageTransition } from "@/components/PageTransition";
-import { Providers } from "@/components/Providers";
 import { PublicHeader } from "@/components/PublicHeader";
 
 export default function AppGroupLayout({
@@ -28,12 +32,10 @@ export default function AppGroupLayout({
   // breaks position:sticky on descendants — caught the hard way on
   // Mike's mobile screenshot 2026-05-22).
   return (
-    <Providers>
-      <div className="overflow-x-clip">
-        <PublicHeader />
-        <PageTransition>{children}</PageTransition>
-        <Footer />
-      </div>
-    </Providers>
+    <div className="overflow-x-clip">
+      <PublicHeader />
+      <PageTransition>{children}</PageTransition>
+      <Footer />
+    </div>
   );
 }
