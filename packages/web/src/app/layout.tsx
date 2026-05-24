@@ -14,6 +14,7 @@ import type { Metadata } from "next";
 import localFont from "next/font/local";
 
 import "./globals.css";
+import { AppProviders } from "@/components/AppProviders";
 import { SkipLink } from "@/components/SkipLink";
 import { ToasterV4 } from "@/components/ui/v4/Toast";
 import { WalletDebugOverlay } from "@/components/WalletDebugOverlay";
@@ -71,7 +72,17 @@ export default function RootLayout({
       <body className="min-h-screen bg-celo-light text-celo-dark antialiased dark:bg-celo-dark-bg dark:text-celo-light">
         {/* WCAG 2.4.1 Bypass Blocks — keyboard users skip to <main>. */}
         <SkipLink />
-        {children}
+        {/* AppProviders hoists WagmiProvider + QueryClientProvider +
+            ThemeProvider + MotionProvider + CartHydrationGate +
+            SilentReconnectGate to the ROOT so they mount ONCE and
+            persist across (public) ↔ (app) SPA navigations. Without
+            this, each group-boundary nav re-mounted wagmi → EIP-6963
+            re-discovery → duplicate connectors → address dropped
+            mid-fetch → dashboard stuck on skeleton forever
+            (user-report bug 2026-05-24, logs at 09:24:08 showed
+            connectorCount 5→6 in 11 ms with com.opera.minipay
+            doubled). */}
+        <AppProviders>{children}</AppProviders>
         <ToasterV4 position="bottom-center" />
         {/* On-screen wallet debug overlay — mounted at root so the
             `?debug=wallet` flag survives cross-route-group SPA nav
