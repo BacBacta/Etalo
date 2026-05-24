@@ -78,10 +78,11 @@ jobs:
         run: pip install slither-analyzer==0.10.4
 
       - name: Run Slither
-        # `--fail-high` + `--fail-medium` exit non-zero (blocks merge)
-        # when any high/medium severity finding is detected. INFO /
-        # LOW / optimization filtered at config level for noise.
-        run: slither . --fail-high --fail-medium
+        # `--fail-medium` is cumulative (fails on HIGH + MEDIUM) ;
+        # `--fail-high` is mutually exclusive with it, so we use the
+        # broader flag. INFO / LOW / optimization filtered at config
+        # level for noise.
+        run: slither . --fail-medium
 
   aderyn:
     name: Aderyn (Cyfrin Rust-based scanner)
@@ -99,26 +100,30 @@ jobs:
           node-version: "20"
 
       - name: Install contracts dependencies
+        # Aderyn needs @openzeppelin/contracts under node_modules
+        # to resolve the imports in our contracts. No Foundry
+        # required — Aderyn discovers Solidity files directly
+        # from foundry.toml / hardhat.config without compiling.
         run: npm install --no-audit --no-fund
 
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
-
       - name: Install Aderyn
-        # Cyfrin's static analyser. Single Rust binary, fast (~ 10 s
-        # on Etalo's 3 k Solidity LOC), complements Slither with
-        # different rule coverage.
+        # Direct download of the prebuilt Linux binary from the
+        # Cyfrin GitHub release. The legacy `cyfrinup` install endpoint
+        # started returning 404 in May 2026, so we bypass it. Version
+        # pinned to keep the CI signal reproducible.
+        env:
+          ADERYN_VERSION: v0.4.0
         run: |
-          curl -L https://raw.githubusercontent.com/Cyfrin/aderyn/dev/cyfrinup/install | bash
-          export PATH="$HOME/.cyfrin/bin:$PATH"
-          cyfrinup
-          echo "$HOME/.cyfrin/bin" >> $GITHUB_PATH
+          curl -sSL \
+            "https://github.com/Cyfrin/aderyn/releases/download/${ADERYN_VERSION}/aderyn-x86_64-unknown-linux-gnu.tar.gz" \
+            -o aderyn.tar.gz
+          tar -xzf aderyn.tar.gz
+          sudo mv aderyn /usr/local/bin/aderyn
+          aderyn --version
 
       - name: Run Aderyn
         # `--severity high` exits non-zero on high-severity findings
         # only. Medium findings surface in the report but don't block
-        # merge yet (let's tune the threshold once we see Aderyn's
+        # merge yet (tune the threshold once we see Aderyn's
         # signal-to-noise on Etalo's codebase).
         run: aderyn --severity high .
