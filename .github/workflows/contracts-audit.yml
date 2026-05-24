@@ -1,3 +1,4 @@
+# Re-trigger v3 fixes: Slither hardhat-compile + Aderyn cargo install.
 name: Contracts self-audit
 
 # Triple-layer static analysis of the Etalo Solidity contracts on every
@@ -77,12 +78,27 @@ jobs:
       - name: Install Slither
         run: pip install slither-analyzer==0.10.4
 
+      - name: Hardhat compile
+        # Pre-compile via Hardhat so Slither can pick up the
+        # artifacts without trying to run `forge build` (which would
+        # need Foundry installed in CI, hitting the GitHub-API rate
+        # limit on the runner's shared IP). The contracts ARE
+        # configured for both Hardhat and Foundry — we use Hardhat
+        # in CI because npm install already gave us the toolchain.
+        run: npx hardhat compile
+
       - name: Run Slither
+        # `--compile-force-framework hardhat` overrides Slither's
+        # auto-detection (which would pick Foundry first because
+        # `foundry.toml` is present at the project root) so Slither
+        # reads the Hardhat artifacts produced above instead of
+        # invoking `forge`.
+        #
         # `--fail-medium` is cumulative (fails on HIGH + MEDIUM) ;
         # `--fail-high` is mutually exclusive with it, so we use the
         # broader flag. INFO / LOW / optimization filtered at config
         # level for noise.
-        run: slither . --fail-medium
+        run: slither . --compile-force-framework hardhat --fail-medium
 
   aderyn:
     name: Aderyn (Cyfrin Rust-based scanner)
@@ -107,19 +123,19 @@ jobs:
         run: npm install --no-audit --no-fund
 
       - name: Install Aderyn
-        # Direct download of the prebuilt Linux binary from the
-        # Cyfrin GitHub release. The legacy `cyfrinup` install endpoint
-        # started returning 404 in May 2026, so we bypass it. Version
-        # pinned to keep the CI signal reproducible.
+        # `cargo install aderyn` is the most reliable install path —
+        # Rust toolchain is preinstalled on ubuntu-latest runners and
+        # crates.io publishing is stable. Takes 2-3 minutes to compile
+        # vs <5 s for the binary, but the legacy `cyfrinup` endpoint
+        # returns 404 and the GitHub-release tarball naming changed
+        # in 2026 (the previous `aderyn-x86_64-unknown-linux-gnu.tar.gz`
+        # URL pattern silently 404s with a 14-byte body that breaks
+        # `tar -xzf`).
+        run: cargo install aderyn --locked
         env:
-          ADERYN_VERSION: v0.4.0
-        run: |
-          curl -sSL \
-            "https://github.com/Cyfrin/aderyn/releases/download/${ADERYN_VERSION}/aderyn-x86_64-unknown-linux-gnu.tar.gz" \
-            -o aderyn.tar.gz
-          tar -xzf aderyn.tar.gz
-          sudo mv aderyn /usr/local/bin/aderyn
-          aderyn --version
+          # Speed up cargo install : single codegen unit, no debug info.
+          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
+          CARGO_PROFILE_RELEASE_DEBUG: "false"
 
       - name: Run Aderyn
         # `--severity high` exits non-zero on high-severity findings
