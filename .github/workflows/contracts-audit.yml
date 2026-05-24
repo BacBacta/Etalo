@@ -78,10 +78,11 @@ jobs:
         run: pip install slither-analyzer==0.10.4
 
       - name: Run Slither
-        # `--fail-high` + `--fail-medium` exit non-zero (blocks merge)
-        # when any high/medium severity finding is detected. INFO /
-        # LOW / optimization filtered at config level for noise.
-        run: slither . --fail-high --fail-medium
+        # `--fail-medium` is cumulative (fails on HIGH + MEDIUM) ;
+        # `--fail-high` is mutually exclusive with it, so we use the
+        # broader flag. INFO / LOW / optimization filtered at config
+        # level for noise.
+        run: slither . --fail-medium
 
   aderyn:
     name: Aderyn (Cyfrin Rust-based scanner)
@@ -99,16 +100,15 @@ jobs:
           node-version: "20"
 
       - name: Install contracts dependencies
+        # Aderyn needs @openzeppelin/contracts under node_modules
+        # to resolve the imports in our contracts. No Foundry
+        # required — Aderyn discovers Solidity files directly
+        # from foundry.toml / hardhat.config without compiling.
         run: npm install --no-audit --no-fund
-
-      - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@v1
-        with:
-          version: stable
 
       - name: Install Aderyn
         # Cyfrin's static analyser. Single Rust binary, fast (~ 10 s
-        # on Etalo's 3 k Solidity LOC), complements Slither with
+        # on Etalo's 3 k Solidity LOC), complements Slither with a
         # different rule coverage.
         run: |
           curl -L https://raw.githubusercontent.com/Cyfrin/aderyn/dev/cyfrinup/install | bash
