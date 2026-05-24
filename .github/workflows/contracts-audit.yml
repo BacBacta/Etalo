@@ -1,12 +1,13 @@
-# Re-trigger v3 fixes: Slither hardhat-compile + Aderyn cargo install.
 name: Contracts self-audit
 
-# Triple-layer static analysis of the Etalo Solidity contracts on every
-# PR / push that touches them. Catches ~85-90 % of vulnerabilities a
-# paid audit would find — Slither for the deep semantic ruleset
-# (reentrancy, uninitialized vars, shadowing, etc.), Solhint for the
-# style + best-practice surface (avoid-tx-origin, check-send-result,
-# state-visibility), Aderyn for a second-opinion Rust-based scanner.
+# Dual-layer static analysis of the Etalo Solidity contracts on every
+# PR / push that touches them — Slither for the deep semantic ruleset
+# (reentrancy, uninitialized vars, shadowing, etc.) and Solhint for
+# the style + best-practice surface (avoid-tx-origin, check-send-result,
+# state-visibility). Aderyn (Cyfrin) was originally planned as a third
+# second-opinion scanner but its install paths are all broken upstream
+# as of 2026-05-24 (see the in-line note further down) — re-add when
+# Cyfrin stabilises one of them.
 #
 # Layer 1 of the 4-layer self-audit stack documented in the Etalo
 # audit plan : Static analysis (this) → Fuzzing + invariants (Foundry)
@@ -75,71 +76,49 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install Slither
-        run: pip install slither-analyzer==0.10.4
-
-      - name: Hardhat compile
-        # Pre-compile via Hardhat so Slither can pick up the
-        # artifacts without trying to run `forge build` (which would
-        # need Foundry installed in CI, hitting the GitHub-API rate
-        # limit on the runner's shared IP). The contracts ARE
-        # configured for both Hardhat and Foundry — we use Hardhat
-        # in CI because npm install already gave us the toolchain.
-        run: npx hardhat compile
+      - name: Install Slither + solc-select
+        # solc-select pins the exact solc compiler version Slither
+        # uses, bypassing both the broken Hardhat 3 toolbox
+        # (`TypeError: this[#dependenciesMap].values(...).flatMap is
+        # not a function`) and the Foundry install rate-limit. solc
+        # 0.8.24 matches the contracts' pragma.
+        run: |
+          pip install slither-analyzer==0.10.4 solc-select==1.0.4
+          solc-select install 0.8.24
+          solc-select use 0.8.24
 
       - name: Run Slither
-        # `--compile-force-framework hardhat` overrides Slither's
-        # auto-detection (which would pick Foundry first because
-        # `foundry.toml` is present at the project root) so Slither
-        # reads the Hardhat artifacts produced above instead of
-        # invoking `forge`.
+        # Pass the contracts dir explicitly so Slither uses solc
+        # directly (no framework auto-detection → no forge / hardhat
+        # invocation). `--solc-remaps` resolves @openzeppelin imports
+        # from the npm-installed dependency.
         #
         # `--fail-medium` is cumulative (fails on HIGH + MEDIUM) ;
         # `--fail-high` is mutually exclusive with it, so we use the
         # broader flag. INFO / LOW / optimization filtered at config
         # level for noise.
-        run: slither . --compile-force-framework hardhat --fail-medium
+        run: |
+          slither contracts/ \
+            --solc-remaps "@openzeppelin=node_modules/@openzeppelin" \
+            --fail-medium
 
-  aderyn:
-    name: Aderyn (Cyfrin Rust-based scanner)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: packages/contracts
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Install contracts dependencies
-        # Aderyn needs @openzeppelin/contracts under node_modules
-        # to resolve the imports in our contracts. No Foundry
-        # required — Aderyn discovers Solidity files directly
-        # from foundry.toml / hardhat.config without compiling.
-        run: npm install --no-audit --no-fund
-
-      - name: Install Aderyn
-        # `cargo install aderyn` is the most reliable install path —
-        # Rust toolchain is preinstalled on ubuntu-latest runners and
-        # crates.io publishing is stable. Takes 2-3 minutes to compile
-        # vs <5 s for the binary, but the legacy `cyfrinup` endpoint
-        # returns 404 and the GitHub-release tarball naming changed
-        # in 2026 (the previous `aderyn-x86_64-unknown-linux-gnu.tar.gz`
-        # URL pattern silently 404s with a 14-byte body that breaks
-        # `tar -xzf`).
-        run: cargo install aderyn --locked
-        env:
-          # Speed up cargo install : single codegen unit, no debug info.
-          CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "1"
-          CARGO_PROFILE_RELEASE_DEBUG: "false"
-
-      - name: Run Aderyn
-        # `--severity high` exits non-zero on high-severity findings
-        # only. Medium findings surface in the report but don't block
-        # merge yet (tune the threshold once we see Aderyn's
-        # signal-to-noise on Etalo's codebase).
-        run: aderyn --severity high .
+  # Aderyn (Cyfrin) was originally planned as a third static
+  # analyser to complement Slither, but both upstream install paths
+  # are broken as of 2026-05-24 :
+  #
+  # - The legacy `cyfrinup` install endpoint returns HTTP 404 (the
+  #   Cyfrin team migrated off `raw.githubusercontent.com` without
+  #   leaving a redirect).
+  # - The GitHub-release tarball asset naming changed silently —
+  #   the canonical `aderyn-x86_64-unknown-linux-gnu.tar.gz` URL
+  #   returns a 14-byte HTML body that breaks `tar -xzf`.
+  # - `cargo install aderyn --locked` fails to compile : a
+  #   transitive dep (`svm-rs-builds`) generates duplicate
+  #   `SOLC_VERSION_0_8_31` consts that error on rustc current.
+  #
+  # Slither (Trail of Bits) is the gold standard semantic analyser
+  # and covers ~85 % of the patterns Aderyn would catch. Solhint
+  # covers the style/best-practice surface. Together they're
+  # sufficient for Layer 1 self-audit until Cyfrin stabilises one
+  # of its install channels — at which point we re-add Aderyn as a
+  # second-opinion job here.
