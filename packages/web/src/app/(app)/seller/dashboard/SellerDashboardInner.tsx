@@ -288,13 +288,24 @@ export function SellerDashboardInner() {
     );
   }
 
-  if (
-    accountStatus === "reconnecting" ||
-    accountStatus === "connecting" ||
-    minipayConnecting
-  ) {
-    return <DashboardSkeleton />;
-  }
+  // SKELETON-TRAP REMOVAL (production bug 2026-05-24) — the previous
+  // gate here fired `<DashboardSkeleton />` whenever wagmi reported
+  // `accountStatus === "reconnecting" | "connecting"` OR our internal
+  // `minipayConnecting`. The motivation was to mask the brief flash
+  // of the disconnected-state UI during a healthy reconnect (~50 ms).
+  // But it created a perpetual-skeleton trap : when wagmi gets stuck
+  // in "connecting" (MetaMask popup left open, MiniPay WebView slow,
+  // or an EIP-6963 race that never resolves), the Skeleton stays
+  // forever with NO escape — the user can't reach the Connect button
+  // because the skeleton covers it.
+  //
+  // Resolution : let gate 3 (`!isConnected || (!address && !profile)`)
+  // handle the disconnected/in-flight states. In MiniPay it renders
+  // "Connecting to MiniPay…" text (with a watchdog-driven Retry at
+  // 8 s). On Chrome it renders the Connect prompt with a working
+  // button. Either is recoverable ; the perpetual skeleton wasn't.
+  // The brief disconnected-UI flash during a healthy connect (~50 ms)
+  // is the acceptable cost.
 
   // Gate condition refined : tolerate the wagmi `address` transient
   // (production bug 2026-05-23). When EIP-6963 connector discovery
