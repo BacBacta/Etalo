@@ -1,3 +1,4 @@
+# Re-trigger v3 fixes: Slither hardhat-compile + Aderyn cargo install.
 name: Contracts self-audit
 
 # Triple-layer static analysis of the Etalo Solidity contracts on every
