@@ -13,7 +13,6 @@ import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 import { useMinipay } from "@/hooks/useMinipay";
-import { walletLog } from "@/lib/wallet-debug";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
 // First Load JS was 276 kB (perf score 27). Three of these imports
@@ -74,7 +73,7 @@ type TabKey = (typeof VALID_TABS)[number];
 export function SellerDashboardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { address, isConnected, status: accountStatus } = useAccount();
+  const { address, isConnected } = useAccount();
   const queryClient = useQueryClient();
   // CLAUDE.md rule 7 / MiniPay best practices : inside MiniPay we must
   // never surface a Connect Wallet button. `useMinipay()` kicks the
@@ -84,7 +83,6 @@ export function SellerDashboardInner() {
   // manual Connect prompt.
   const {
     isInMinipay,
-    isConnecting: minipayConnecting,
     connectFailed: minipayConnectFailed,
     retry: retryMinipayConnect,
   } = useMinipay();
@@ -118,11 +116,6 @@ export function SellerDashboardInner() {
   // numbers from useAnalyticsSummary (sub-block 5.3) directly inside
   // OverviewTab, so the parent only needs the off-chain identity row.
   useEffect(() => {
-    walletLog("[SellerDashboard] effect run", {
-      isConnected,
-      hasAddress: Boolean(address),
-      addressLower: address?.toLowerCase().slice(0, 10) ?? null,
-    });
     if (!isConnected) {
       // Truly disconnected — clear loading so the disconnected UI
       // shows immediately.
@@ -130,43 +123,29 @@ export function SellerDashboardInner() {
       return;
     }
     if (!address) {
-      // wagmi address transient (production bug 2026-05-23) — wagmi
-      // sometimes briefly loses `address` while still reporting
-      // `isConnected=true` when EIP-6963 discovery adds a new
-      // connector mid-session (e.g. `com.opera.minipay` appearing
-      // alongside the statically-configured `minipay`). The captured
-      // logs at 14:03:00 show this : connectorCount went 4→5 and
-      // address went undefined for ~100 ms. Do NOT clobber the
-      // existing profile / loading state — the next dep tick will
-      // re-fire the effect with a real address. The render gate below
-      // tolerates this transient via the `!address && !profile` check
-      // so the user keeps seeing cached dashboard data instead of
-      // bouncing back to a skeleton.
-      walletLog(
-        "[SellerDashboard] address transient (isConnected=true, address=undefined) — keeping current state",
-      );
+      // wagmi address transient (PR #65) — wagmi sometimes briefly
+      // loses `address` while still reporting `isConnected=true`
+      // when EIP-6963 discovery adds a new connector mid-session
+      // (e.g. `com.opera.minipay` appearing alongside the statically-
+      // configured `minipay`). Do NOT clobber the existing profile /
+      // loading state — the next dep tick re-fires the effect with
+      // a real address. The render gate below tolerates this via the
+      // `!address && !profile` check so the user keeps seeing cached
+      // dashboard data instead of bouncing back to a skeleton.
       return;
     }
     let cancelled = false;
     setLoading(true);
-    walletLog("[SellerDashboard] fetchMyProfile start", {
-      address: address.slice(0, 10),
-    });
     // Watchdog : if /sellers/me takes more than 10 s flip to
     // `fetch_failed` so the user sees Retry instead of a perma-skeleton.
     const watchdog = window.setTimeout(() => {
       if (cancelled) return;
-      walletLog("[SellerDashboard] WATCHDOG FIRED (10s, no resolve)");
       setError("fetch_failed");
       setLoading(false);
     }, 10_000);
     fetchMyProfile(address)
       .then((me) => {
         if (cancelled) return;
-        walletLog("[SellerDashboard] fetchMyProfile resolved", {
-          hasProfile: Boolean(me),
-          shop_handle: me?.shop_handle ?? null,
-        });
         if (!me) {
           setError("not_found");
           return;
@@ -174,12 +153,8 @@ export function SellerDashboardInner() {
         setProfile(me);
         setError(null);
       })
-      .catch((err) => {
+      .catch(() => {
         if (cancelled) return;
-        walletLog("[SellerDashboard] fetchMyProfile REJECTED", {
-          name: (err as Error)?.name ?? null,
-          message: (err as Error)?.message?.slice(0, 200) ?? null,
-        });
         setError("fetch_failed");
       })
       .finally(() => {
@@ -187,7 +162,6 @@ export function SellerDashboardInner() {
         window.clearTimeout(watchdog);
       });
     return () => {
-      walletLog("[SellerDashboard] effect cleanup (deps changed or unmount)");
       cancelled = true;
       window.clearTimeout(watchdog);
     };
@@ -257,17 +231,6 @@ export function SellerDashboardInner() {
       block: "nearest",
     });
   }, [safeTab]);
-
-  walletLog("[SellerDashboard] render", {
-    minipayConnectFailed,
-    accountStatus,
-    minipayConnecting,
-    isConnected,
-    hasAddress: Boolean(address),
-    loading,
-    error,
-    hasProfile: Boolean(profile),
-  });
 
   if (minipayConnectFailed) {
     return (
