@@ -1,0 +1,8 @@
+node_modules/
+artifacts/
+cache/
+cache_forge/
+out/
+archive/
+contracts/test/
+contracts/types/

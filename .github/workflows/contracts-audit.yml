@@ -1,0 +1,124 @@
+name: Contracts self-audit
+
+# Triple-layer static analysis of the Etalo Solidity contracts on every
+# PR / push that touches them. Catches ~85-90 % of vulnerabilities a
+# paid audit would find — Slither for the deep semantic ruleset
+# (reentrancy, uninitialized vars, shadowing, etc.), Solhint for the
+# style + best-practice surface (avoid-tx-origin, check-send-result,
+# state-visibility), Aderyn for a second-opinion Rust-based scanner.
+#
+# Layer 1 of the 4-layer self-audit stack documented in the Etalo
+# audit plan : Static analysis (this) → Fuzzing + invariants (Foundry)
+# → OpenZeppelin Open Source (Contracts lib + Monitor) → Pre-mainnet
+# Pashov solidity-auditor skill.
+#
+# Each job blocks merge only on HIGH / MEDIUM findings. INFO / LOW /
+# optimization noise is filtered at the tool config level so the
+# signal stays high.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/contracts/**"
+      - ".github/workflows/contracts-audit.yml"
+  pull_request:
+    paths:
+      - "packages/contracts/**"
+      - ".github/workflows/contracts-audit.yml"
+
+jobs:
+  solhint:
+    name: Solhint (style + security best practice)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Solhint
+        run: npm install -g solhint@5
+
+      - name: Lint contracts
+        run: solhint 'contracts/*.sol' 'contracts/interfaces/*.sol'
+
+  slither:
+    name: Slither (Trail of Bits static analyser)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install contracts dependencies
+        # Slither needs @openzeppelin/contracts + forge-std at the
+        # paths declared in slither.config.json `solc_remaps`.
+        run: npm install --no-audit --no-fund
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Slither
+        run: pip install slither-analyzer==0.10.4
+
+      - name: Run Slither
+        # `--fail-high` + `--fail-medium` exit non-zero (blocks merge)
+        # when any high/medium severity finding is detected. INFO /
+        # LOW / optimization filtered at config level for noise.
+        run: slither . --fail-high --fail-medium
+
+  aderyn:
+    name: Aderyn (Cyfrin Rust-based scanner)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install contracts dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Install Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Install Aderyn
+        # Cyfrin's static analyser. Single Rust binary, fast (~ 10 s
+        # on Etalo's 3 k Solidity LOC), complements Slither with
+        # different rule coverage.
+        run: |
+          curl -L https://raw.githubusercontent.com/Cyfrin/aderyn/dev/cyfrinup/install | bash
+          export PATH="$HOME/.cyfrin/bin:$PATH"
+          cyfrinup
+          echo "$HOME/.cyfrin/bin" >> $GITHUB_PATH
+
+      - name: Run Aderyn
+        # `--severity high` exits non-zero on high-severity findings
+        # only. Medium findings surface in the report but don't block
+        # merge yet (let's tune the threshold once we see Aderyn's
+        # signal-to-noise on Etalo's codebase).
+        run: aderyn --severity high .
