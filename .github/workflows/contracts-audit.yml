@@ -80,18 +80,17 @@ jobs:
         run: pip install slither-analyzer==0.10.4
 
       - name: Install solc 0.8.24 from soliditylang.org CDN
-        # Download the prebuilt solc binary directly from the official
-        # Solidity binaries CDN — no GitHub API involved, no rate
-        # limit. solc-select can't be used because its
-        # `get_latest_release()` hardcodes a GitHub API call that
-        # ignores GITHUB_TOKEN env (verified on solc-select v1.0.4
-        # source, 2026-05-24). The CDN URL is stable and serves the
-        # exact bytecode released by the Solidity team.
+        # `-f` makes curl exit non-zero on HTTP errors (without it the
+        # 8th-iteration failed silently and left whatever system solc
+        # was in PATH, which is 0.8.35 on the ubuntu-latest runner —
+        # rejecting the contracts' `pragma 0.8.24`).
         run: |
-          curl -sSL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.24+commit.e11b9ed9 \
+          curl -fSL https://binaries.soliditylang.org/linux-amd64/solc-linux-amd64-v0.8.24+commit.e11b9ed9 \
             -o /usr/local/bin/solc
           chmod +x /usr/local/bin/solc
-          solc --version
+          # Sanity check : confirm we actually got 0.8.24, not some
+          # stale binary that was already at that path.
+          /usr/local/bin/solc --version | grep "0.8.24" || (echo "Wrong solc version" && exit 1)
 
       - name: Hide foundry.toml from crytic-compile
         # crytic-compile detects the build framework BEFORE applying
@@ -107,6 +106,8 @@ jobs:
       - name: Run Slither
         # With foundry.toml moved aside, crytic-compile compiles the
         # .sol files directly with the solc binary we installed above.
+        # `--solc` is the explicit path so we never accidentally pick
+        # the system's 0.8.35 (which rejects `pragma 0.8.24`).
         # `--solc-remaps` resolves @openzeppelin imports from the
         # npm-installed dependency.
         #
@@ -114,6 +115,7 @@ jobs:
         # INFO / LOW / optimization are filtered at config level.
         run: |
           slither contracts/ \
+            --solc /usr/local/bin/solc \
             --solc-remaps "@openzeppelin=node_modules/@openzeppelin" \
             --fail-medium
 
