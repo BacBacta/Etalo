@@ -94,10 +94,16 @@ jobs:
           solc --version
 
       - name: Run Slither
-        # Pass the contracts dir explicitly so Slither uses solc
-        # directly (no framework auto-detection → no forge / hardhat
-        # invocation). `--solc-remaps` resolves @openzeppelin imports
-        # from the npm-installed dependency.
+        # `--compile-force-framework solc` overrides crytic-compile's
+        # auto-detection. Without it, crytic-compile walks UP from
+        # `contracts/` and finds `foundry.toml` in the parent
+        # working-directory, triggering Foundry mode → tries to run
+        # `forge` → `FileNotFoundError`. Forcing `solc` makes
+        # crytic-compile compile the .sol files directly with the
+        # solc binary we installed above.
+        #
+        # `--solc-remaps` resolves @openzeppelin imports from the
+        # npm-installed dependency at node_modules/@openzeppelin.
         #
         # `--fail-medium` is cumulative (fails on HIGH + MEDIUM) ;
         # `--fail-high` is mutually exclusive with it, so we use the
@@ -105,6 +111,7 @@ jobs:
         # level for noise.
         run: |
           slither contracts/ \
+            --compile-force-framework solc \
             --solc-remaps "@openzeppelin=node_modules/@openzeppelin" \
             --fail-medium
 
