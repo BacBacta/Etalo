@@ -127,7 +127,17 @@ class Indexer:
             chunk = settings.indexer_block_chunk_size
             chunk_start = from_block
             events_seen = 0
+            first_chunk = True
             while chunk_start <= to_block and not self._stop.is_set():
+                # Gentle pacing between chunks — forno.celo.org returns
+                # 403 after ~25 rapid requests; even 5 contracts × a
+                # few chunks each can hit that during backfill. 100 ms
+                # is invisible in normal operation (~30 blocks/cycle =
+                # 1 chunk) and costs ~1 s extra on a fresh-start
+                # backfill in exchange for never being rate-limited.
+                if not first_chunk:
+                    await asyncio.sleep(0.1)
+                first_chunk = False
                 chunk_end = min(chunk_start + chunk - 1, to_block)
                 count = await self._poll_chunk(db, contract_name, chunk_start, chunk_end)
                 events_seen += count
