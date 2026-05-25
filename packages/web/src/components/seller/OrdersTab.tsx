@@ -113,6 +113,40 @@ export function OrdersTab({ address }: Props) {
     onchainOrderId: number;
   } | null>(null);
 
+  // DEBUG mainnet smoke: confirm state actually flipped + the dialog
+  // tree is reachable from re-render. Remove after smoke E2E pass.
+  useEffect(() => {
+    if (shipTarget) {
+      toast.info(`[DBG] dialog mounting for order=${shipTarget.onchainOrderId}`);
+    }
+  }, [shipTarget]);
+
+  // DEBUG mainnet smoke: catch any unhandled error / promise rejection
+  // in the page lifetime — chunk load errors from the dynamic
+  // MarkGroupShippedDialog import will surface here as toasts since
+  // MiniPay WebView has no devtools.
+  useEffect(() => {
+    const onError = (e: ErrorEvent) => {
+      toast.error(`[DBG] window.error: ${e.message}`);
+    };
+    const onRejection = (e: PromiseRejectionEvent) => {
+      const reason = e.reason;
+      const msg =
+        reason instanceof Error
+          ? reason.message
+          : typeof reason === "string"
+            ? reason
+            : JSON.stringify(reason);
+      toast.error(`[DBG] unhandled rejection: ${msg}`);
+    };
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
+  }, []);
+
   const ordersQuery = useSellerOrders({
     address,
     page: 1,
@@ -302,12 +336,22 @@ export function OrdersTab({ address }: Props) {
             <OrderRow
               key={o.id}
               order={o}
-              onShipClick={() =>
-                setShipTarget({
-                  dbOrderId: o.id,
-                  onchainOrderId: o.onchain_order_id,
-                })
-              }
+              onShipClick={() => {
+                // DEBUG mainnet smoke: surface every step as toast
+                // since MiniPay WebView has no devtools.
+                toast.info(`[DBG] click order=${o.onchain_order_id}`);
+                try {
+                  setShipTarget({
+                    dbOrderId: o.id,
+                    onchainOrderId: o.onchain_order_id,
+                  });
+                  toast.info("[DBG] setShipTarget OK");
+                } catch (e) {
+                  toast.error(
+                    `[DBG] setShipTarget threw: ${e instanceof Error ? e.message : String(e)}`,
+                  );
+                }
+              }}
             />
           ))}
         </ul>

@@ -50,6 +50,14 @@ export function MarkGroupShippedDialog({
   const [itemIds, setItemIds] = useState<bigint[] | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
+  // DEBUG mainnet smoke: confirm the dialog actually mounted.
+  // Remove after smoke E2E pass.
+  useEffect(() => {
+    toast.info(
+      `[DBG] dialog mounted open=${open} wc=${!!walletClient} pc=${!!publicClient} addr=${ESCROW_ADDRESS ?? "MISSING"}`,
+    );
+  }, [open, walletClient, publicClient]);
+
   // Fetch item ids on open: shipItemsGrouped requires the contract's
   // uint256[] of itemIds (per ABI). The boutique-facing OrderItem doesn't
   // expose them, so we hit /api/v1/orders/{uuid}/items.
@@ -61,6 +69,7 @@ export function MarkGroupShippedDialog({
     setTxHash(null);
     setTrackingNumber("");
 
+    toast.info(`[DBG] fetching items for ${dbOrderId.slice(0, 8)}...`);
     fetchApi(`/orders/${dbOrderId}/items`)
       .then((res) => {
         if (!res.ok) throw new Error(`Items fetch failed: ${res.status}`);
@@ -69,10 +78,13 @@ export function MarkGroupShippedDialog({
       .then((items: Array<{ onchain_item_id: number }>) => {
         if (cancelled) return;
         setItemIds(items.map((i) => BigInt(i.onchain_item_id)));
+        toast.info(`[DBG] items loaded: ${items.length}`);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        setFetchError(err instanceof Error ? err.message : "Fetch failed");
+        const msg = err instanceof Error ? err.message : "Fetch failed";
+        setFetchError(msg);
+        toast.error(`[DBG] items fetch err: ${msg}`);
       });
     return () => {
       cancelled = true;
@@ -80,7 +92,11 @@ export function MarkGroupShippedDialog({
   }, [open, dbOrderId]);
 
   const handleConfirm = async () => {
+    toast.info(
+      `[DBG] confirm: wc=${!!walletClient} pc=${!!publicClient} items=${itemIds?.length ?? "null"}`,
+    );
     if (!walletClient || !publicClient || !itemIds || itemIds.length === 0) {
+      toast.error("[DBG] confirm bailed (preconditions)");
       return;
     }
     setSubmitting(true);
@@ -111,7 +127,9 @@ export function MarkGroupShippedDialog({
       onSuccess();
       onOpenChange(false);
     } catch (err) {
-      toast.error(classifyError(err));
+      toast.error(
+        `[DBG] tx err: ${err instanceof Error ? err.message : classifyError(err)}`,
+      );
     } finally {
       setSubmitting(false);
     }
