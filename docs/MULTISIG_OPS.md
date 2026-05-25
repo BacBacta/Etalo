@@ -10,24 +10,124 @@ ADR-055).
 
 ---
 
-## 1. Signer set (V1 lock-in, 2026-05-25 — per ADR-055)
+## 1. Signer set (V1 ship-now, 2026-05-25 — per ADR-055 second update)
 
-| # | Role | Storage | Owner | Status |
-|---|------|---------|-------|--------|
-| 1 | Mobile passkey #1 | Secure Enclave (iOS) / TEE (Android) on Mike's primary phone, Safe Wallet app | Mike | Validated on Sepolia rehearsal ✓ |
-| 2 | Mobile passkey #2 | Secure Enclave on a separate device (iPad / tablet / secondary phone), Safe Wallet app | Mike | Pending — Mike picks the device + creates the 2nd passkey before mainnet Safe creation |
-| 3 | 3rd-party advisor | Mobile passkey (preferred) OR HW wallet | Trusted technical advisor (Mike identifies + onboards per `docs/audit/SIGNER_3_ONBOARDING.md`) | Pending |
+| # | Role | Storage | Address | Status |
+|---|------|---------|---------|--------|
+| 1 | Mike mobile passkey | Secure Enclave / TEE on primary Android phone, Safe Wallet app | `0xCb56A1f46f8bC0ef9a83161678DAbE49b847d047` | Active (validated on Sepolia rehearsal Safe) ✓ |
+| 2 | Deployer EOA (dual-role) | `PRIVATE_KEY` in `packages/contracts/.env` on Mike's Windows laptop | `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8` | Active (also handles ops/deploys — see §1.1) |
+| 3 | 3rd-party advisor | Mobile passkey (preferred) OR HW wallet | TBD via `docs/audit/SIGNER_3_ONBOARDING.md` | Pending — Mike's outreach in progress |
 
-**Why 2 passkeys instead of "passkey + desktop EOA" (original ADR-055 draft):** both passkeys live in hardware-isolated Secure Enclaves on physically separate devices. A laptop compromise (malware, lost laptop, etc.) cannot exfiltrate either passkey because neither key is ever loaded into a desktop process. The trade-off is needing a 2nd device with Secure Enclave / TEE — minor friction, much stronger security floor.
+Threshold : 2-of-3.
 
-**Hardware-wallet upgrade plan**: still on the roadmap (Q3 2026 or sooner) as a future _addition_, not a launch blocker. When Mike receives a Ledger Nano S Plus, it's added as a 4th signer (`addOwner` Safe tx, threshold can stay 2 or bump to 3-of-4 for tighter governance) without touching contract ownership.
+### 1.1 Why deployer-as-signer-#2 (and why it's acceptable for V1)
 
-### Signer #1 + #2 (Mike's 2 passkeys) hygiene
+The original ADR-055 lock-in called for 2 mobile passkeys + advisor.
+The 2nd-passkey device wasn't available at launch decision time
+(spare Android phone was broken), so V1 ships with the deployer EOA
+filling the signer #2 slot. Full rationale + trade-off analysis in
+`docs/DECISIONS.md` ADR-055 second update.
 
-- Each passkey generated **independently** on its respective device — never share a recovery seed between them.
-- Both devices enroll their passkey recovery into iCloud Keychain / Google Password Manager (or both, depending on the device family) so individual device loss is recoverable from the other.
-- **Never** load either passkey into a desktop browser EOA / extension — passkeys stay in Secure Enclave, always.
-- Both devices kept on auto-update for OS security patches.
+**Trade-off accepted :** if the deployer key is compromised
+(laptop theft, `.env` exfiltration), the attacker holds 1 of 3 Safe
+signers from the start. They still need EITHER the mobile passkey
+OR the advisor to reach 2-of-3 quorum and drain. This is weaker
+than 2 hardware-isolated passkeys but meaningfully stronger than
+the single-key pre-multisig state.
+
+**Risk bounded by :** ADR-026 TVL cap 50 K USDT, 7-day inactivity
+refund window, geographic separation of the 3 signers (laptop,
+phone, advisor's device), J5 backend anomaly detection on admin
+Safe txs.
+
+**Acceptable for V1 because :** intra-Africa 4-market launch
+(ADR-041) ramps TVL gradually — realistic first-weeks TVL is
+sub-1K USDT. Waiting on a clean signer #2 setup has meaningful
+opportunity cost (delayed real-volume validation, MiniPay listing
+delay, etc.).
+
+### 1.2 Mainnet upgrade path (no contract-side rotation needed)
+
+When a clean signer #2 device becomes available (Ledger, fresh
+Android phone, iPad, YubiKey, etc.) :
+
+1. Set up the new signer key on the clean device — note address
+   `0xNEW…`.
+2. Open Safe Wallet app → Settings → Owners → tap the deployer
+   owner → "Replace".
+3. Enter `0xNEW…` as replacement. Safe drafts a `swapOwner` tx.
+4. Cosign with the mobile passkey (1st sig from current
+   threshold) and advisor (2nd sig).
+5. Execute. The 6 V2 contracts + 3 treasuries stay owned by the
+   same Safe address — they don't see the swap.
+
+Costs : ~0.01 CELO mainnet gas. Ceremony : ~15 min including
+co-signature collection.
+
+The fact that the deployer can sign its own removal (it's still a
+signer until the swap executes) is intentional — Mike doesn't need
+to ask anyone for "permission" to upgrade the signer set.
+
+### 1.3 Operational implications post-rotation
+
+- Deployer dual role :
+  - Gas payer for Safe tx executions (broadcasts the assembled tx).
+  - One of the 3 Safe signers.
+- Routine ops (deploy.v2.ts, smoke scripts, mint MockUSDT) continue
+  from the deployer wallet without going through the Safe — those
+  don't touch contract admin functions.
+- Admin ops (`applySanction`, `forceRefund`, `emergencyPause`,
+  `adminForceCloseN3IfNoQuorum`, treasury reassignment) now require
+  Safe Wallet co-sign. From Mike's laptop : open Safe Wallet web
+  (`app.safe.global`), connect MetaMask with the deployer key,
+  initiate the tx, sign with deployer + mobile passkey OR + advisor
+  remote co-sign.
+- The `safe-tx-exec.ts` script's "2 EOA cosign" path is rehearsal-
+  only — mainnet emergency ops via that script would need the
+  advisor's PK in `.env`, which is unrealistic. Mainnet emergencies
+  go through Safe Wallet UI with manual advisor sig.
+
+### 1.4 Deployer key hygiene (extra-critical now that it's a signer)
+
+Since the deployer key is a Safe signer, its compromise has
+multisig-relevant impact :
+
+- `.env` file gitignored ✓ (verify on every commit)
+- `.env` file on Mike's encrypted disk (BitLocker on Windows,
+  FileVault on Mac if used as travel laptop)
+- No `.env` cloud sync (no OneDrive backup, no Dropbox sync of the
+  project folder)
+- No PK paste into clipboard managers with cloud sync
+- Periodic check : `grep -r "PRIVATE_KEY" --include="*.{ts,js,md}"`
+  outside `.env` to catch accidental leaks
+- Annual deployer-key rotation OR rotation triggered by any
+  laptop incident
+
+### 1.5 Signer #3 onboarding
+
+Process documented in `docs/audit/SIGNER_3_ONBOARDING.md` (outreach
+message template + intake questionnaire + lock-in checklist).
+
+Required disclosures at onboarding (recap — full template in the
+SIGNER_3 doc) :
+
+- Address (mainnet Celo, chainId 42220).
+- Storage device class (passkey-mobile preferred ; HW or EOA also acceptable).
+- Contact channel for sign-requests (Signal / encrypted email / Slack DM).
+- SLA :
+  - **Non-emergency** (planned ops, treasury rotation, parameter bump in V1.1): **24 h** acknowledgement.
+  - **Incident-response** (`emergencyPause`, force-close-stuck-dispute, fund-recovery): **4 h** acknowledgement.
+- Out-of-band recovery contact for the 3rd party (in case of phone / laptop loss).
+
+**Current 3rd-party signer**: TBD — fill in once onboarded :
+
+| Field | Value |
+|-------|-------|
+| Address | `0x…` |
+| Storage | (passkey / HW / EOA) |
+| Sign-request channel | (Signal / email / …) |
+| Out-of-band recovery contact | … |
+| SLA acknowledgement (date) | YYYY-MM-DD |
 
 ### Signer #3 onboarding
 
@@ -227,6 +327,38 @@ If a real-USDT incident is suspected :
 6. Notify the new/removed signer out-of-band so they're aware of
    the state change.
 7. Update §1 of this runbook with the new signer set.
+
+### 7.1 Swap-deployer-to-clean-passkey upgrade (when 2nd device ready)
+
+The §1 ADR-055-second-update trade-off (deployer as signer #2)
+upgrades to "real isolated signer #2" via a single Safe tx :
+
+1. **Set up the new signer key on the clean device** (Ledger, fresh
+   Android with Safe Wallet, iPad, YubiKey-compatible wallet).
+2. **Note the new address** `0xNEW…`.
+3. **Open Safe Wallet** (mobile or `app.safe.global` web).
+4. **Connect** the deployer wallet (MetaMask / Rabby with deployer
+   PK) — needed to sign the swap.
+5. **Settings → Owners → tap the deployer row → "Replace owner"**.
+6. **Enter** `0xNEW…` as the replacement address.
+7. **Sign** with the deployer (sig 1/2). Safe drafts a `swapOwner`
+   transaction.
+8. **Forward** the pending Safe tx URL to either Mike-on-mobile
+   (mobile passkey) OR the advisor for the 2nd signature.
+9. **Execute** once both signatures collected. Costs ~0.01 CELO
+   mainnet gas.
+10. **Verify** via `SAFE_ADDRESS=<safe> npx hardhat run
+    scripts/multisig/verify-ownership.ts --network celoMainnet`.
+    All 9 reads should still equal the Safe address — the contracts
+    don't see the signer-set change.
+11. **Cross-check** on CeloScan : Safe address → "Owners" tab now
+    shows `0xNEW…` in place of the deployer.
+12. **Update §1** of this runbook : replace the deployer row with
+    the new signer #2 row, update the "Status" column.
+13. **Decommission the deployer-as-signer role**. The deployer
+    EOA remains the ops account for `deploy.v2.ts` / smoke scripts
+    / gas payments, but is no longer a multisig signer. Its
+    compromise no longer reduces multisig security.
 
 ---
 

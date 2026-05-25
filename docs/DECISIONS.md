@@ -3862,3 +3862,121 @@ Not a launch blocker.
 
 Audit firm sign-off (ADR-039) can run in parallel with steps 2-4
 since they don't touch contract code.
+
+---
+
+### ADR-055 second update (2026-05-25) — V1 ship-now signer set : mobile passkey + deployer + advisor (trade-off accepted)
+
+**Status:** Accepted (2026-05-25). Supersedes the "2 mobile passkeys
++ advisor" lock-in from earlier today for V1 launch only ; the
+2-passkey configuration remains the target end-state and the
+upgrade path is documented below.
+
+### Context
+
+The "2 mobile passkeys" target requires Mike to have a 2nd device
+with Secure Enclave / TEE for the second passkey (per ADR-055
+update §"Why 2 passkeys"). At launch decision time, no such device
+is available :
+
+- Primary Android phone holds passkey #1 (already created, used in
+  Sepolia rehearsal Safe at owner `0xCb56A1f46f8bC0ef9a83161678DAbE49b847d047`).
+- The spare Android phone Mike planned to use turned out to be
+  broken at factory-reset time.
+- iOS device, YubiKey, refurbished Android — all introduce
+  procurement delay (2-7 days) and cost (€50-200).
+- Desktop EOA via Rabby / MetaMask in OS keychain — viable but
+  introduces a new wallet setup ceremony (seed phrase backup,
+  password ceremony, etc.) at a moment when Mike wants to ship.
+
+### Decision
+
+For V1 mainnet launch, signer #2 = the existing deployer EOA
+`0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8`. Signer set becomes :
+
+| # | Role | Storage | Same as Sepolia rehearsal ? |
+|---|------|---------|------------------------------|
+| 1 | Mike mobile passkey | Secure Enclave on primary Android | ✅ same address |
+| 2 | Deployer EOA | `PRIVATE_KEY` in `packages/contracts/.env` on Mike's Windows laptop | ✅ same address (deployer) |
+| 3 | Trusted technical advisor | Address TBD via `docs/audit/SIGNER_3_ONBOARDING.md` flow | 🔴 replaces CHIOMA at mainnet creation |
+
+Threshold remains 2-of-3.
+
+### Trade-off accepted
+
+Compared to the "2 mobile passkeys" target this lowers the security
+floor :
+
+- **Risk introduced :** if the deployer key is compromised (laptop
+  theft, malware extracting `.env`, Mike's home break-in), the
+  attacker holds 1 of 3 Safe signers from the start. They still
+  need EITHER the mobile passkey OR the advisor to assemble a
+  2-of-3 quorum and drain. This is meaningfully better than the
+  pre-multisig single-key state (where the deployer was the
+  sole owner of every contract), but weaker than 2-isolated
+  passkeys + advisor (where the attacker needs to compromise 2
+  of 3 physically-separate trust domains).
+- **Risk bounded by :** ADR-026 caps still hold — max TVL 50 K
+  USDT means worst-case drain is 50 K. The 7-day inactivity
+  refund window means any abnormal admin tx pattern is visible
+  on chain before being final. Anomaly detector in the J5 backend
+  flags Safe txs from unfamiliar callers.
+- **Risk acceptable for V1 because :** TVL ramp will be gradual
+  (intra-Africa 4-market big-bang per ADR-041 — realistic V1
+  TVL is sub-1 K USDT for the first weeks), the upgrade path
+  below is single-tx low-cost, and waiting an unknown number
+  of days for a clean signer #2 setup has a meaningful
+  opportunity cost (delayed real-volume validation, MiniPay
+  listing delay, etc.).
+
+### Mainnet upgrade path (no contract-side rotation needed)
+
+When a clean signer #2 device becomes available (Ledger, fresh
+Android, iPad, YubiKey, etc.), the upgrade is **one Safe
+transaction** :
+
+1. Set up the new signer key (create wallet on the clean device).
+2. Note the new address `0xNEW…`.
+3. From the Safe Wallet app, send a `swapOwner(prevOwner=deployer,
+   oldOwner=deployer, newOwner=0xNEW…)` Safe tx — cosigned by
+   mobile passkey + advisor (or deployer itself + 1 other while
+   deployer is still a signer).
+4. Verify the new owner via `verify-ownership.ts` (works as-is,
+   just point at the new signer #2 address).
+5. The 6 V2 contracts and 3 treasuries stay owned by the same
+   Safe — they don't see the rotation.
+
+Costs : ~0.01 CELO mainnet gas for the swapOwner tx, ~10 min
+ceremony.
+
+### Operational implications
+
+After mainnet rotation :
+
+- The deployer EOA is BOTH (a) the gas payer for Safe tx executions
+  (broadcasts the assembled tx) and (b) one of the 3 Safe signers.
+  This dual role is acceptable.
+- Routine smoke / deploy / mint ops continue from the deployer
+  exactly as today — those don't go through the Safe.
+- Admin ops (sanction, forceRefund, emergencyPause,
+  adminForceCloseN3IfNoQuorum, treasury reassignment) now go
+  through Safe Wallet app with 2-of-3 sign : Mike from
+  laptop + mobile passkey, OR laptop + advisor.
+- The `safe-tx-exec.ts` script's "2 EOA cosign" path still works
+  for emergency ops — `SIGNER_1_PK_ENV=PRIVATE_KEY` and
+  `SIGNER_2_PK_ENV=…` would need a CHIOMA-equivalent advisor
+  PK in `.env`, which is unrealistic (advisor's PK is theirs,
+  not Mike's). So mainnet emergency ops via `safe-tx-exec.ts`
+  require deployer + 1 manual Safe Wallet signature from
+  advisor.
+
+### Acceptance criteria
+
+- [x] Trade-off documented in this ADR update.
+- [ ] `docs/MULTISIG_OPS.md` §1 updated to reflect the V1 ship-now
+      signer set + upgrade path.
+- [ ] Mainnet Safe created with these 3 signers.
+- [ ] `transfer-ownership.ts --network celoMainnet` executes
+      cleanly (Sepolia-rehearsal-validated script).
+- [ ] Upgrade path documented in `docs/MULTISIG_OPS.md` §7 with
+      example `swapOwner` Safe tx flow.
