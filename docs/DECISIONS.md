@@ -3816,3 +3816,49 @@ wallet without changing threshold or ownership of any contract.
   to add a Safe entry.
 - `docs/SECURITY.md` Deployed addresses table updated post-mainnet
   with the Safe address as `owner`.
+
+---
+
+### ADR-055 update (2026-05-25) — V1 signer-set lock-in
+
+**Status:** Locked-in (decision recorded 2026-05-25, after Sepolia
+multisig rehearsal — see `docs/audit/MULTISIG_REHEARSAL.md`).
+
+The original ADR-055 draft proposed "mobile passkey + desktop EOA +
+3rd-party" as the V1 signer set. After validating the workflow on
+Sepolia and reviewing the practical security floor, the locked-in
+choice is :
+
+| # | Role | Storage |
+|---|------|---------|
+| 1 | Mike mobile passkey #1 | Secure Enclave on primary phone |
+| 2 | Mike mobile passkey #2 | Secure Enclave on a separate device (iPad / tablet / secondary phone) |
+| 3 | Trusted technical advisor | Mobile passkey preferred ; HW or EOA acceptable |
+
+**Why 2 passkeys instead of passkey + desktop EOA :**
+
+- Both passkeys are hardware-isolated (Secure Enclave / TEE) — a dev
+  laptop compromise cannot exfiltrate either.
+- Eliminates the OS-keychain attack surface (Rabby/MetaMask
+  loading the desktop EOA from Keychain on each session).
+- Both keys are biometric-gated (Face ID / Touch ID), so device theft
+  without the legitimate user yields no signing capability.
+- Recovery via iCloud / Google passkey sync covers single-device loss.
+
+**Trade-off accepted :** requires a 2nd device with Secure Enclave /
+TEE. iPad, secondary phone, or even a thrift-store old phone all
+qualify. Acceptable friction for the security gain.
+
+**Hardware-wallet upgrade :** still planned for Q3 2026 or sooner as
+a 4th signer addition (`addOwner` Safe tx, no contract-side rotation).
+Not a launch blocker.
+
+**Mainnet rotation gate :**
+
+1. ✅ ADR-055 signer set locked-in (this update).
+2. ⏳ Mike sets up the 2nd passkey on a separate device.
+3. ⏳ 3rd-party advisor onboarded (per `docs/audit/SIGNER_3_ONBOARDING.md`).
+4. ⏳ Mainnet Safe creation + `transfer-ownership.ts --network celoMainnet`.
+
+Audit firm sign-off (ADR-039) can run in parallel with steps 2-4
+since they don't touch contract code.
