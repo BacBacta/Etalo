@@ -1,0 +1,14 @@
+{
+  "network": "celoMainnet",
+  "chainId": 42220,
+  "safeAddress": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
+  "threshold": 2,
+  "owners": {
+    "mobilePasskey": "0xCb56A1f46f8bC0ef9a83161678DAbE49b847d047",
+    "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
+    "coldRecovery": "0x1B26f42Cc3b1e21AfE33756b9282a5514f030A12"
+  },
+  "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
+  "deployedAt": "2026-05-25T18:46:12.717Z",
+  "explorer": "https://celoscan.io/address/0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F"
+}

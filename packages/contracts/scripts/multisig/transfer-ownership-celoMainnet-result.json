@@ -1,0 +1,54 @@
+{
+  "network": "Celo Mainnet",
+  "chainId": 42220,
+  "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
+  "safe": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
+  "executedAt": "2026-05-25T18:47:21.676Z",
+  "txs": [
+    {
+      "step": "1",
+      "hash": "0x42ab0438d34837082c23fd5225252b8b01ddd8533899090a7232f66232a9c03a",
+      "explorer": "https://celoscan.io/tx/0x42ab0438d34837082c23fd5225252b8b01ddd8533899090a7232f66232a9c03a"
+    },
+    {
+      "step": "2",
+      "hash": "0xc4a6ea94c0db0c9eb86b874bc5f0e6508b7ec64c391984fb0352ed62b68153d2",
+      "explorer": "https://celoscan.io/tx/0xc4a6ea94c0db0c9eb86b874bc5f0e6508b7ec64c391984fb0352ed62b68153d2"
+    },
+    {
+      "step": "3",
+      "hash": "0xef4c6a8992f01c829fb666fda52aef417cb23467dd44c46c6aa4bd070bae6e2c",
+      "explorer": "https://celoscan.io/tx/0xef4c6a8992f01c829fb666fda52aef417cb23467dd44c46c6aa4bd070bae6e2c"
+    },
+    {
+      "step": "4",
+      "hash": "0x9d4e318cccb93854f55423975954448b6a51984231b04a83b99375dc0d431317",
+      "explorer": "https://celoscan.io/tx/0x9d4e318cccb93854f55423975954448b6a51984231b04a83b99375dc0d431317"
+    },
+    {
+      "step": "5",
+      "hash": "0xb5877414186f076d6f727ceeac2e1a461cd8f08485be99edad9fa06db2ade5fc",
+      "explorer": "https://celoscan.io/tx/0xb5877414186f076d6f727ceeac2e1a461cd8f08485be99edad9fa06db2ade5fc"
+    },
+    {
+      "step": "6",
+      "hash": "0x8b39287fc45afcf87f4a8dff408fe404c72ffb3c81d984b6557f433f9094485b",
+      "explorer": "https://celoscan.io/tx/0x8b39287fc45afcf87f4a8dff408fe404c72ffb3c81d984b6557f433f9094485b"
+    },
+    {
+      "step": "7",
+      "hash": "0x9dec866579a598f18ffd19a89a445cab08847453e16569cff2228be866b6daa0",
+      "explorer": "https://celoscan.io/tx/0x9dec866579a598f18ffd19a89a445cab08847453e16569cff2228be866b6daa0"
+    },
+    {
+      "step": "8",
+      "hash": "0x68bac4172191b30e4cb561540b6b782111263c744fb2f23ce37aa0127b98c978",
+      "explorer": "https://celoscan.io/tx/0x68bac4172191b30e4cb561540b6b782111263c744fb2f23ce37aa0127b98c978"
+    },
+    {
+      "step": "9",
+      "hash": "0x206160b2e594de87315650b7332c28098f71d5a0fee6cbdabde5fda4b18d88c4",
+      "explorer": "https://celoscan.io/tx/0x206160b2e594de87315650b7332c28098f71d5a0fee6cbdabde5fda4b18d88c4"
+    }
+  ]
+}

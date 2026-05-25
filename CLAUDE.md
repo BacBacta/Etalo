@@ -93,8 +93,36 @@ power is structurally bounded by code.
 
 ## Key addresses (Celo mainnet)
 
+**V1 production deploy — 2026-05-25** (post-Pashov-audit ADR-054 +
+shadow Mike multisig ADR-055-3, tag `v1.4-mainnet`). Owned by the
+2-of-3 Safe.
+
+### Tokens (existing, not deployed by us)
+
 - USDT token: 0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e
 - USDT adapter (for gas fees): 0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72
+
+### Etalo V2 contracts (mainnet, all owned by Safe below)
+
+- EtaloReputation: `0xaF890609a3B2AF6E1E2Ebf91267347133b5065AD`
+- EtaloStake: `0x3D588192BC76e38a3f6453E45A9B9aD0Dc85bc9A`
+- EtaloVoting: `0xa1C48f2f962484D63D4D1b04C9c2574Da2C0EcBA`
+- EtaloDispute: `0x6d5Aa5e0EAE407688E99492213849D9a608D63d2`
+- EtaloEscrow: `0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92`
+- EtaloCredits: `0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6`
+
+### Multisig Safe (2-of-3 — owns all 6 contracts + 3 treasury slots)
+
+- **Mainnet Safe**: `0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F` (v1.4.1, 3 owners, threshold 2-of-3)
+- Owner 1 (mobile passkey): `0xCb56A1f46f8bC0ef9a83161678DAbE49b847d047`
+- Owner 2 (deployer EOA): `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8`
+- Owner 3 (cold recovery): `0x1B26f42Cc3b1e21AfE33756b9282a5514f030A12`
+
+All 6 V2 contracts AND the 3 EtaloEscrow treasury slots
+(`commissionTreasury` / `creditsTreasury` / `communityFund`) point
+to the Safe address. Per ADR-024, treasury logical separation is
+preserved off-chain — admin Safe tx routes revenue to dedicated
+sub-accounts in V1.1+ once accumulation justifies the split.
 
 ## Key addresses (Celo Sepolia testnet — V2 deploys)
 

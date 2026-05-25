@@ -1,0 +1,57 @@
+{
+  "network": "celoMainnet",
+  "chainId": 42220,
+  "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
+  "realUsdt": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+  "treasuries": {
+    "commission": "0x9819c9E1b4F634784fd9A286240ecACd297823fa",
+    "credits": "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
+    "community": "0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6"
+  },
+  "contracts": {
+    "EtaloReputation": {
+      "address": "0xaF890609a3B2AF6E1E2Ebf91267347133b5065AD",
+      "txHash": "0xdd8551bbc4ef7266b57f29dd3460fee8d331ec3323d288fed1ec278b7e6bb0d4",
+      "block": "67832966"
+    },
+    "EtaloStake": {
+      "address": "0x3D588192BC76e38a3f6453E45A9B9aD0Dc85bc9A",
+      "txHash": "0x1e5b8526ed175d38b1d58af0e5ce84232f3de50f685ffa09adcfa94069af5f97",
+      "block": "67832970",
+      "constructorArgs": [
+        "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+      ]
+    },
+    "EtaloVoting": {
+      "address": "0xa1C48f2f962484D63D4D1b04C9c2574Da2C0EcBA",
+      "txHash": "0x6fe27aadf3d51e0be336eaa2bf8a5f241fd74b2c22e46b9777eb18d7f97817a4",
+      "block": "67832974"
+    },
+    "EtaloDispute": {
+      "address": "0x6d5Aa5e0EAE407688E99492213849D9a608D63d2",
+      "txHash": "0x3ba3f2cd28c19a6f51d93fdde952da5583db633ac0768bb985bb36168ce2b01a",
+      "block": "67832979"
+    },
+    "EtaloEscrow": {
+      "address": "0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92",
+      "txHash": "0x5789d53c9cfc2b24939e69e55589c68ec484d9d8940e842dea0e97e8ec0c651b",
+      "block": "67832984",
+      "constructorArgs": [
+        "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+      ]
+    },
+    "EtaloCredits": {
+      "address": "0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6",
+      "txHash": "0xce04a53eba6db3edb4240bf0e8b8afe45cfdb7b5d556cb245855326550f02431",
+      "block": "67832987",
+      "constructorArgs": [
+        "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+        "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
+        "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8"
+      ]
+    }
+  },
+  "deployedAt": "2026-05-25T18:30:05.844Z",
+  "tag": "v1.4-mainnet",
+  "adr": "ADR-054 (audit fixes) + ADR-055 third update (shadow Mike multisig)"
+}
