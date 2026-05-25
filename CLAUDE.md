@@ -98,18 +98,19 @@ power is structurally bounded by code.
 
 ## Key addresses (Celo Sepolia testnet — V2 deploys)
 
-Active deploy (post-H-1 redeploy, 2026-05-05, ADR-042). Predecessor
-addresses retained in `docs/DEPLOYMENTS_HISTORY.md` and
+Active deploy (post-Pashov-audit redeploy, 2026-05-25, ADR-054 +
+tag `v1.3-audit-fixes`). Predecessor addresses retained in
+`docs/DEPLOYMENTS_HISTORY.md` and
 `packages/contracts/deployments/celo-sepolia-v2.json`
 `previous_deployments[]`.
 
-- MockUSDT (V2): 0xea07db5d3D7576864ac434133abFE0E815735300
-- EtaloReputation: 0x539e0d44c0773504075E1B00f25A99ED70258178
-- EtaloStake: 0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB
-- EtaloVoting: 0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A
-- EtaloDispute: 0xEe8339b29F54bd29d68E061c4212c8b202760F5b
-- EtaloEscrow: 0xAeC58270973A973e3FF4913602Db1b5c98894640
-- EtaloCredits (J7): 0x778a6bda524F4D396F9566c0dF131F76b0E15CA3
+- MockUSDT (V2): 0xd34428140Fc8D6Be523d9A14C4E215F5709f9427
+- EtaloReputation: 0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE
+- EtaloStake: 0xE599a167f0422D6700EC812c6b0f3c485379Ed05
+- EtaloVoting: 0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671
+- EtaloDispute: 0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1
+- EtaloEscrow: 0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1
+- EtaloCredits (J7): 0x778a6bda524F4D396F9566c0dF131F76b0E15CA3 _(unchanged — audit fixes did not touch Credits)_
 - creditsTreasury (ADR-024): 0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA
 - commissionTreasury (ADR-024): 0x9819c9E1b4F634784fd9A286240ecACd297823fa
 - communityFund (ADR-024): 0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6
