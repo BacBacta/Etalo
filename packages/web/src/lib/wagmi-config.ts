@@ -2,7 +2,7 @@ import { injected } from "@wagmi/core";
 import { createConfig, http } from "wagmi";
 import { walletConnect } from "wagmi/connectors";
 
-import { celoSepolia } from "@/lib/chain";
+import { celoMainnet, celoSepolia, etaloChain } from "@/lib/chain";
 import { minipayConnector } from "@/lib/minipay-connector";
 
 /**
@@ -57,11 +57,21 @@ const connectors = [
     : []),
 ];
 
+// Both chains are declared in the union type via @/lib/chain ; wagmi's
+// TS Register requires transports for every declared chain even if only
+// one is actually selected at runtime via NEXT_PUBLIC_CHAIN_ID. The
+// non-selected chain's transport is dead-weight at runtime but typed-
+// correct at build time.
 export const wagmiConfig = createConfig({
-  chains: [celoSepolia],
+  chains: [etaloChain],
   connectors,
   transports: {
-    [celoSepolia.id]: http(),
+    [celoSepolia.id]: http(
+      process.env.NEXT_PUBLIC_CELO_RPC_URL ?? "https://celo-sepolia.drpc.org",
+    ),
+    [celoMainnet.id]: http(
+      process.env.NEXT_PUBLIC_CELO_RPC_URL ?? "https://forno.celo.org",
+    ),
   },
   ssr: true,
 });
