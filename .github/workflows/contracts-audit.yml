@@ -123,6 +123,50 @@ jobs:
         if: always()
         run: mv /tmp/etalo-foundry.toml.bak foundry.toml
 
+  forge-invariants:
+    name: Foundry invariants (Layer 2)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install contracts dependencies
+        # forge tests import @openzeppelin/contracts via the npm
+        # path declared in foundry.toml `remappings`.
+        run: npm install --no-audit --no-fund
+
+      - name: Install Foundry
+        # Pinning to a specific Foundry release tag (instead of
+        # `stable` or `nightly`) skips the foundryup → GitHub API
+        # `latest release` lookup that was hitting the runner's
+        # 60-req/hour unauthenticated rate limit on earlier attempts.
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Foundry invariant tests
+        # Etalo ships 824 LOC of invariant tests covering :
+        # - EtaloEscrow : totalLocked == sum(orders.amount),
+        #   commission ∈ [0, 1.8 %], item-status monotonic
+        # - EtaloStake : slash ≤ deposited, sales reconciliation
+        # - EtaloCredits : treasury == sum(credits) (ADR-024)
+        # - Handler robustness : no unexpected reverts
+        #
+        # 256 runs × 15 depth (default Foundry invariant config) is
+        # a reasonable balance for CI : ~ 2-3 min, catches the
+        # obvious state-machine + accounting violations.
+        run: forge test --match-path 'foundry-test/**/*.t.sol' -vv
+
   # Aderyn (Cyfrin) was originally planned as a third static
   # analyser to complement Slither, but both upstream install paths
   # are broken as of 2026-05-24 :
