@@ -10,13 +10,13 @@ ADR-055).
 
 ---
 
-## 1. Signer set (V1 ship-now, 2026-05-25 — per ADR-055 second update)
+## 1. Signer set (V1 ship-now, 2026-05-25 — per ADR-055 third update : "shadow Mike" 2-of-3, no external advisor V1)
 
-| # | Role | Storage | Address | Status |
-|---|------|---------|---------|--------|
-| 1 | Mike mobile passkey | Secure Enclave / TEE on primary Android phone, Safe Wallet app | `0xCb56A1f46f8bC0ef9a83161678DAbE49b847d047` | Active (validated on Sepolia rehearsal Safe) ✓ |
-| 2 | Deployer EOA (dual-role) | `PRIVATE_KEY` in `packages/contracts/.env` on Mike's Windows laptop | `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8` | Active (also handles ops/deploys — see §1.1) |
-| 3 | 3rd-party advisor | Mobile passkey (preferred) OR HW wallet | TBD via `docs/audit/SIGNER_3_ONBOARDING.md` | Pending — Mike's outreach in progress |
+| # | Role | Storage | Address | Daily use |
+|---|------|---------|---------|-----------|
+| 1 | Mike mobile passkey | Secure Enclave / TEE on primary Android phone, Safe Wallet app | `0xCb56A1f46f8bC0ef9a83161678DAbE49b847d047` | Hot — daily admin co-sign |
+| 2 | Deployer EOA (dual-role) | `PRIVATE_KEY` in `packages/contracts/.env` on Mike's Windows laptop | `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8` | Hot — daily admin co-sign + ops + gas payer (see §1.3) |
+| 3 | Cold recovery EOA | Paper seed in 2 separate physical locations (home fireproof safe + parents' / trusted family home). **Never** loaded on any internet-connected device after creation. | TBD via §1.6 procedure | Cold — used ONLY for recovery if #1 or #2 lost |
 
 Threshold : 2-of-3.
 
@@ -103,57 +103,100 @@ multisig-relevant impact :
 - Annual deployer-key rotation OR rotation triggered by any
   laptop incident
 
-### 1.5 Signer #3 onboarding
+### 1.5 Signer #3 — cold recovery key setup procedure
 
-Process documented in `docs/audit/SIGNER_3_ONBOARDING.md` (outreach
-message template + intake questionnaire + lock-in checklist).
+Per ADR-055 third update : signer #3 is a "shadow Mike" cold
+recovery EOA, not an external advisor. The cold key's PRIVATE
+KEY material lives ONLY on paper, never on a device connected to
+the internet after creation.
 
-Required disclosures at onboarding (recap — full template in the
-SIGNER_3 doc) :
+**Goal :** generate a fresh EOA, capture the seed phrase on paper,
+note the address, then wipe the generation device. The address goes
+into the mainnet Safe as Owner #3 ; the seed phrase stays in a
+sealed envelope in a separate physical location.
 
-- Address (mainnet Celo, chainId 42220).
-- Storage device class (passkey-mobile preferred ; HW or EOA also acceptable).
-- Contact channel for sign-requests (Signal / encrypted email / Slack DM).
-- SLA :
-  - **Non-emergency** (planned ops, treasury rotation, parameter bump in V1.1): **24 h** acknowledgement.
-  - **Incident-response** (`emergencyPause`, force-close-stuck-dispute, fund-recovery): **4 h** acknowledgement.
-- Out-of-band recovery contact for the 3rd party (in case of phone / laptop loss).
+**Procedure (30-45 min, do it ONCE) :**
 
-**Current 3rd-party signer**: TBD — fill in once onboarded :
+1. **Prepare the air-gapped session** :
+   - Boot a Linux live USB (Ubuntu / Tails) — does NOT touch your
+     Windows install or its disk
+   - Disconnect Wi-Fi + Ethernet during the entire session
+   - Verify offline (`ping 8.8.8.8` must fail) before continuing
+   - Open Firefox (bundled with the live USB)
+2. **Install MetaMask in the live session** :
+   - Download MetaMask `.xpi` ahead of time on a separate machine
+     onto a USB stick (use ONLY this USB to transfer to the live
+     session — no network during install)
+   - Drag-drop the `.xpi` into Firefox to install offline
+   - Alternative (simpler) : briefly enable network ONLY to install
+     MetaMask from metamask.io, then immediately disconnect again
+3. **Create the new wallet** :
+   - "Create a new wallet"
+   - Password : memorable phrase (this password protects the wallet
+     within MetaMask only — won't be used after wipe). Doesn't
+     need to be elaborate since the device is being wiped.
+   - **Reveal the Secret Recovery Phrase (12 words)**
+   - **WRITE THE 12 WORDS ON PAPER. With a pen. Twice.** Two
+     identical copies — one for safe #1, one for safe #2.
+   - On each paper : write "Etalo mainnet multisig recovery key —
+     created YYYY-MM-DD — see MULTISIG_OPS.md for usage"
+   - Confirm the SRP in MetaMask UI
+4. **Note the wallet address** :
+   - Copy the `0x…` address from MetaMask
+   - Write it on a third separate paper — this one you can carry
+     digitally back to your normal machine (the address is public
+     info, not sensitive)
+   - Or take a photo with your phone of just the address (not the
+     seed phrase — never photograph the seed)
+5. **Wipe the live session** :
+   - Power off the live USB system without saving anything to disk
+   - The session leaves zero traces — the seed phrase exists ONLY
+     on your two paper copies
+   - Boot back into your normal Windows
+6. **Store the two paper copies in 2 separate physical locations** :
+   - **Location 1** : home fireproof safe (or in a sealed envelope
+     in a drawer with a key)
+   - **Location 2** : parents' home / trusted family member's home /
+     bank safe deposit box. Sealed envelope with Mike's name + the
+     header above. Tell the trusted person what it is and that
+     recovery instructions are in this MULTISIG_OPS.md.
+7. **Verify the address** :
+   - Back on your normal machine, paste the address into
+     `https://celoscan.io/address/<addr>` — should show "Contract
+     not found" or empty EOA (fresh wallet, no history)
+   - Address is now a permanent record of signer #3 in the
+     Etalo multisig
 
-| Field | Value |
-|-------|-------|
-| Address | `0x…` |
-| Storage | (passkey / HW / EOA) |
-| Sign-request channel | (Signal / email / …) |
-| Out-of-band recovery contact | … |
-| SLA acknowledgement (date) | YYYY-MM-DD |
+**During Safe creation** : add this `0x…` as Owner #3. The Safe
+doesn't care that there's no private key loaded anywhere ; it just
+records the address.
 
-### Signer #3 onboarding
+**Recovery use** (only if signer #1 or #2 is lost) :
+1. Boot a fresh Linux live USB
+2. Install MetaMask offline
+3. "Import wallet" → enter the 12-word seed from paper
+4. Connect to network briefly to interact with Safe Wallet web
+5. Sign the recovery `swapOwner` Safe tx (cosign with the remaining
+   active signer)
+6. Wipe the live session
+7. The seed papers stay where they are — no need to rotate the
+   cold key (you only used it briefly for the recovery)
 
-Process documented in `docs/audit/SIGNER_3_ONBOARDING.md` (outreach
-message template + intake questionnaire + lock-in checklist).
+### 1.6 External 3rd-party advisor — deferred V1.1+
 
-Required disclosures at onboarding (recap — full template in the
-SIGNER_3 doc) :
+The "external trusted technical advisor" plan from ADR-055 first
++ second updates is **deferred V1.1+** for Mike's solo-dev V1.
+`docs/audit/SIGNER_3_ONBOARDING.md` is preserved as a future-self
+template : when the time comes to add a real external advisor,
+follow that doc's outreach + intake flow, then run a `swapOwner`
+Safe tx replacing the cold recovery key (#3) with the advisor's
+address.
 
-- Address (mainnet Celo, chainId 42220).
-- Storage device class (passkey-mobile preferred ; HW or EOA also acceptable).
-- Contact channel for sign-requests (Signal / encrypted email / Slack DM).
-- SLA :
-  - **Non-emergency** (planned ops, treasury rotation, parameter bump in V1.1): **24 h** acknowledgement.
-  - **Incident-response** (`emergencyPause`, force-close-stuck-dispute, fund-recovery): **4 h** acknowledgement.
-- Out-of-band recovery contact for the 3rd party (in case of phone / laptop loss).
-
-**Current 3rd-party signer**: TBD — fill in once onboarded :
-
-| Field | Value |
-|-------|-------|
-| Address | `0x…` |
-| Storage | (passkey / HW / EOA) |
-| Sign-request channel | (Signal / email / …) |
-| Out-of-band recovery contact | … |
-| SLA acknowledgement (date) | YYYY-MM-DD |
+The cold recovery seed phrase **MUST be physically destroyed**
+(shredded, burnt) after the advisor swap. Otherwise both the
+advisor AND the cold key exist as parallel recovery paths — that's
+not a security regression but creates ambiguity about who has
+authority for what.
 
 ---
 

@@ -1,11 +1,20 @@
-# 3rd-party signer onboarding — Etalo mainnet multisig
+# 3rd-party signer onboarding — Etalo mainnet multisig (deferred V1.1+)
 
-**Purpose:** structured process to onboard the 3rd signer for the
+**Purpose:** structured process to onboard a 3rd signer for the
 2-of-3 Safe that owns the Etalo V2 mainnet contracts (per ADR-038 +
 ADR-055).
 
-**Status:** ⏳ in progress — candidate identified by Mike, contact
-+ intake form not yet sent.
+**Status:** 🟡 **Deferred V1.1+** — V1 launches with a "shadow Mike"
+2-of-3 (mobile passkey + deployer + cold recovery key, all
+controlled by Mike) per ADR-055 third update (2026-05-25). This
+doc is preserved as a future-self template for when Mike onboards
+a real external advisor post-launch — at that point the cold
+recovery key (signer #3) is rotated out via a `swapOwner` Safe tx
+and replaced by the advisor's address. See
+`docs/MULTISIG_OPS.md` §1.6 for the swap procedure + cold-seed
+destruction protocol.
+
+Everything below stays valid as-is for the V1.1+ onboarding flow.
 
 ---
 
