@@ -2,8 +2,8 @@
   "scenario": "pashov-1-sanction-regression",
   "tag": "v1.3-audit-fixes",
   "adr": "ADR-054",
-  "startedAt": "2026-05-25T10:10:06.687Z",
-  "finishedAt": "2026-05-25T10:10:49.272Z",
+  "startedAt": "2026-05-25T13:02:31.458Z",
+  "finishedAt": "2026-05-25T13:03:03.086Z",
   "deploy": {
     "reputation": "0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE",
     "escrow": "0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1",
@@ -14,21 +14,21 @@
     "seller": "0x77D2F8F23579c0Af378bD8eD94d25363b3F3444F",
     "buyer": "0x6319598c1b6C76cE0777e69b541035eAA4031Ef2"
   },
-  "orderId": "1",
-  "itemId": "1",
+  "orderId": "5",
+  "itemId": "14",
   "txs": {
-    "approve": "0x9a3daf068624cb814ac2790f154e9414cffa090515270a8694bcd98682609e73",
-    "create": "0x01d9e126da15a6427be7bf99991bac5243857cce2d9898dbcb241f13f0e470eb",
-    "fund": "0x32c7a0f5f774581c101d08af56f4a56e3d138518c5ff3b3426ff52929f7e589d",
-    "ship": "0x3684c733ee436fbce4c6b3a475604c69d993ae71e2b3272c55fa79b881409adc",
-    "sanction": "0xf378bd92dba27d7d2e30cbe50b4b316ef29cef4408509b3c2ff2937d4a68a0ae",
-    "confirm": "0xdd238fcd777ff3f5e82e623602ef45ab1951d4b26e175926370e2f4a9b1b3665"
+    "approve": "0xf5e5db97729d0e2b0024ed46b65ec46b1bff55255ec570afc33f3fa908e06418",
+    "create": "0x3e0c70b615e1ccc089b6fc8a7f2f959cded39e7155d99966b4855f4843964e05",
+    "fund": "0x6cbf1edd4405a21de157774864bfbd1a67e3267f6dee529ee529eba3c6999f8d",
+    "ship": "0xc743b78c3678525a2685ac13377b2811f233a07afef7b77fd1d57b44fdd365ba",
+    "sanction": "0xc751db6443ed28732b742ea3ba2a0fc883275fa1eead9bb8cf123462c0ee7e84",
+    "confirm": "0x730d63504f8140dca3082686325aadbdc4361faf5ba5816cd2d0a126c7efa4c1"
   },
   "deltas": {
-    "sellerNet": "4.91",
-    "treasuryCommission": "0.09"
+    "sellerNet": "0",
+    "treasuryCommission": "0"
   },
-  "finalItemStatus": "Released",
+  "finalItemStatus": "Shipped",
   "reputationFrozen": true,
-  "passed": true
+  "passed": false
 }
