@@ -3668,3 +3668,151 @@ invariants passing (+2 net)** at 256 runs × 15 depth.
 - Sepolia redeploy under tag `v1.3-audit-fixes` — addresses
   updated in `CLAUDE.md` and
   `packages/contracts/deployments/celo-sepolia-v2.json`.
+
+---
+
+## ADR-055 — Mobile passkey + 2 EOAs accepted as multisig signer set for V1 mainnet (amends ADR-038)
+
+**Status:** Accepted (2026-05-25)
+**Supersedes:** the "hardware wallet required" sub-decision of ADR-038
+for the V1 launch only. The signer-rotation flow (transfer
+ownership to a 2-of-3 Safe) defined in ADR-038 stands unchanged.
+
+### Context
+
+ADR-038 (2026-04-27) made hardware-wallet acquisition a hard
+prerequisite for the V1 mainnet multisig, on the principle that
+"hardware wallet is the load-bearing security artifact." Eight weeks
+later, three things have shifted :
+
+1. The four critical Pashov audit findings (#1, #2, #4, #5) are fixed
+   and live on Sepolia v1.3 (ADR-054, PR #82 / #85 / #87). The
+   admin-side blast radius has shrunk : `applySanction` cannot lock
+   buyer funds, `forceRefund` still needs the 3 ADR-023 conditions,
+   `adminForceCloseN3IfNoQuorum` is gated on a real 0-quorum check.
+2. Hardware wallet acquisition is still pending (delivery delay), and
+   the V1 launch deadline is tight. Each week of delay on multisig
+   setup is a week of single-key deployer custody on the v1.3
+   bytecode that's ready to ship.
+3. Safe Wallet's mobile app (`safe.global`) now supports **passkey
+   signers** — the private key is generated and stored in the
+   device's Secure Enclave (iOS) or Trusted Execution Environment
+   (Android), never exfiltrable to the network-connected layer. For
+   typical mobile-loss / malware threat models, this is comparable
+   to a hardware wallet (same WebAuthn / FIDO2 stack that backs
+   Apple Pay).
+
+### Decision
+
+For V1 mainnet, the 2-of-3 Safe signer set is :
+
+1. **Mike mobile passkey** (Safe Wallet app, Secure Enclave-backed).
+   Primary daily-ops signer. Re-installable on a new device from the
+   Safe Wallet recovery flow + Mike's email-bound account.
+2. **Mike desktop EOA** (Rabby / MetaMask on the dev laptop, **a
+   newly-generated keypair distinct from the deployer EOA**). Backup
+   + co-signer for ownership-rotation transactions. Stored in the OS
+   keychain, never copied to source control or cloud.
+3. **3rd-party signer** (TBD — see §Replacement plan). Geographically
+   separate from Mike. Hardware wallet preferred but not mandatory if
+   the 3rd party is using their own Safe passkey on a distinct
+   secure-enclave device.
+
+Threshold : 2-of-3.
+
+Hardware-wallet upgrade is a **post-launch operation, not a launch
+blocker** : when Mike receives his Ledger Nano S Plus, a single Safe
+governance tx swaps signer #2 from the desktop EOA to the hardware
+wallet without changing threshold or ownership of any contract.
+
+### Rationale
+
+- **Secure Enclave ≈ hardware wallet for the threat models that
+  matter here.** Loss of the phone yields no private key to the
+  attacker (biometric required + key never leaves the enclave). The
+  threat model where HW genuinely beats passkey is targeted
+  state-actor supply-chain attacks on the phone manufacturer — not
+  Etalo's V1 risk surface.
+- **Time-to-mainnet matters more than security perfection.** The
+  Pashov audit fixes are sitting on Sepolia v1.3 with no users.
+  Every week of delay on mainnet launch is a week of cumulative
+  opportunity cost (no real-volume validation, no MiniPay listing
+  progress, no Top Seller cohort data for V1.1 tuning).
+- **Rotation cost from passkey to HW is one tx.** ADR-038's "single-
+  step rotation" argument actually supports this approach : we do
+  the ownership rotation once (deployer → 2-of-3 Safe), then any
+  future signer swap is a Safe-internal `swapOwner` call that does
+  not require touching the 6 contract `transferOwnership` calls
+  again.
+- **Worst-case post-launch upgrade**: if any V1 incident reveals a
+  signer-set weakness, the rotation is `addOwner` / `removeOwner` /
+  `changeThreshold` Safe calls — same operational ceremony as the
+  HW-wallet upgrade. No contract redeploy required.
+
+### Risk
+
+- **Single-vendor passkey lock-in (Apple/Google).** Acceptable for V1
+  because (a) the desktop EOA + 3rd-party signer provide path-around
+  redundancy and (b) Safe Wallet supports importing passkeys across
+  devices via account recovery. Document the recovery flow in
+  `MULTISIG_OPS.md`.
+- **3rd-party signer availability for emergency txs.** Mitigated by
+  selecting a signer with a documented SLA (e.g. 24h response for
+  non-emergency, 4h for incident response). Recorded in
+  `MULTISIG_OPS.md` per §Replacement plan.
+- **Audit firm pushback on "no HW for V1".** Mitigated by this ADR's
+  explicit rationale + the public post-launch HW upgrade commitment
+  (see §Replacement plan step 6). The audit firm reviews the actual
+  signer set at handover ; this ADR makes the substitution visible.
+
+### Replacement plan (V1 mainnet, executable today)
+
+1. Install Safe Wallet mobile app (iOS / Android). Create a passkey
+   signer ; back up the Safe account email + passkey-recovery cloud
+   sync (iCloud Keychain / Google Password Manager).
+2. Generate a desktop EOA distinct from the deployer (`generatePrivateKey()`
+   in viem ; store via OS keychain ; never write to `.env` outside
+   `.env.local`).
+3. Identify 3rd-party signer ; exchange addresses, agree on contact
+   protocol + emergency-response SLA, record in
+   `docs/MULTISIG_OPS.md`.
+4. Deploy 2-of-3 Safe on Celo mainnet via the Safe Wallet mobile app
+   (Celo mainnet support is GA — `chainId 42220`). Threshold = 2,
+   owners = [mobile-passkey, desktop-EOA, 3rd-party].
+5. Run `scripts/multisig/transfer-ownership.ts --safe <addr> --network
+   celoMainnet --confirm` (deployer signs ; transfers ownership of
+   the 6 V2 contracts and reassigns the 3 treasuries to the Safe).
+6. Run `scripts/multisig/verify-ownership.ts --safe <addr> --network
+   celoMainnet` to confirm all 9 `owner()` reads return the Safe
+   address. CeloScan cross-check the Safe address shows it's a
+   `GnosisSafeProxy` with the declared signers and threshold = 2.
+7. **Post-launch (Q3 2026 or sooner)** : acquire Ledger Nano S Plus,
+   add it as a 4th signer (`addOwner` Safe tx, threshold stays 2/4),
+   remove the desktop EOA (`removeOwner`, threshold returns to 2/3).
+   This is a single Safe governance flow and does NOT touch the 6
+   contracts' ownership.
+
+### Acceptance criteria (mainnet gate)
+
+- 2-of-3 Safe deployed on Celo mainnet with documented address in
+  `CLAUDE.md` and `docs/SECURITY.md` "Mainnet" section.
+- All 6 V2 contracts return the Safe address from `owner()`
+  (verified via `verify-ownership.ts` AND CeloScan UI).
+- All 3 treasuries reassigned via `setCommissionTreasury` /
+  `setCreditsTreasury` / `setCommunityFund` to the Safe address.
+- `docs/MULTISIG_OPS.md` shipped — signing, recovery, rotation
+  procedures, plus the Q3 HW-upgrade plan.
+- One Sepolia rehearsal run completed against `Sepolia v1.3 deploy`
+  with the same 2-of-3 Safe pattern (test wallets) before mainnet
+  execution (see `docs/audit/MULTISIG_REHEARSAL.md`).
+
+### Implications for affected files
+
+- `docs/MULTISIG_OPS.md` (new) — full runbook.
+- `scripts/multisig/transfer-ownership.ts` (new) — 9-call ownership
+  + treasury transfer with dry-run mode.
+- `scripts/multisig/verify-ownership.ts` (new) — read-only audit.
+- `CLAUDE.md` Key addresses sections updated post-mainnet-Safe-deploy
+  to add a Safe entry.
+- `docs/SECURITY.md` Deployed addresses table updated post-mainnet
+  with the Safe address as `owner`.
