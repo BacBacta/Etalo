@@ -3980,3 +3980,124 @@ After mainnet rotation :
       cleanly (Sepolia-rehearsal-validated script).
 - [ ] Upgrade path documented in `docs/MULTISIG_OPS.md` §7 with
       example `swapOwner` Safe tx flow.
+
+---
+
+### ADR-055 third update (2026-05-25) — V1 "shadow Mike" 2-of-3 (no external advisor, structural multisig with cold-recovery key)
+
+**Status:** Accepted (2026-05-25). Supersedes the "external 3rd-party
+advisor" element of all prior ADR-055 lock-ins for the V1 launch
+period. The external co-signer option remains documented in
+`docs/audit/SIGNER_3_ONBOARDING.md` and may be re-introduced
+post-V1 via the standard swapOwner upgrade flow.
+
+### Context
+
+The V1 launch is a solo-dev operation. Mike's primary candidates
+for the 3rd-party advisor slot either declined, are unavailable on
+the launch timeline, or introduce trust dynamics that don't fit a
+pre-revenue MVP (asking someone to take on a 4-hour-SLA security
+responsibility for an app they have no stake in is a heavy ask).
+
+Rather than delay J12 mainnet indefinitely waiting on the right
+external person, V1 ships with a "shadow Mike" 2-of-3 Safe — three
+keys, all controlled by Mike, but structurally separated to retain
+two of the four multisig benefits (theft protection + recovery) and
+honestly waive the third (external governance check).
+
+### Decision
+
+V1 mainnet signer set :
+
+| # | Role | Storage | Controlled by | Daily use |
+|---|------|---------|---------------|-----------|
+| 1 | Mobile passkey | Secure Enclave / TEE on primary Android phone, Safe Wallet app | Mike | Hot — daily admin co-sign |
+| 2 | Deployer EOA | `PRIVATE_KEY` in `.env` on Windows laptop, Rabby/MetaMask | Mike | Hot — daily admin co-sign + ops + gas payer |
+| 3 | Cold recovery EOA | Paper seed stored in a separate physical location (safe deposit box / parents' house / fireproof home safe), NEVER loaded on Mike's daily devices | Mike | Cold — sortie uniquement pour recovery if 1 of #1/#2 lost |
+
+Threshold : 2-of-3.
+
+### What this preserves vs a "real" 3-party multisig
+
+| Benefit | "Real" 2-of-3 (with external advisor) | "Shadow Mike" 2-of-3 (this ADR) |
+|---------|----------------------------------------|----------------------------------|
+| Protection against compromise of a single key | ✅ — 1 compromise needs another to drain | ✅ — 1 of #1/#2 compromise needs the other ; #3 is cold + offline |
+| Recovery if 1 key is lost | ✅ — other 2 cosign to add a replacement | ✅ — #3 cold key cosigns with whichever of #1/#2 remains |
+| Theft protection (physical / malware) | ✅ — attacker needs 2 separate trust domains | 🟡 — attacker who fully owns Mike's laptop + phone has #1 + #2 = 2-of-3 drain ; #3 is offline & immune |
+| External governance check (refusal to cosign unethical action) | ✅ — independent party can say "no" | 🔴 — none ; Mike alone decides every admin action |
+
+The 3rd benefit (external governance check) is **honestly
+unavailable** for a solo-dev V1. Documenting this explicitly is
+better than pretending otherwise to MiniPay reviewers, auditors, or
+users.
+
+### Cold recovery key (#3) setup constraints
+
+- **Generated on an air-gapped or single-use device** : fresh
+  MetaMask wallet creation, immediately export the seed phrase to
+  paper, immediately delete the browser profile / extension.
+  Optimal : run on a fresh OS install in a VM that is destroyed
+  after seed export.
+- **Paper seed stored in TWO physically separate locations** :
+  e.g. (a) Mike's home fireproof safe + (b) parents' or trusted
+  family member's home. Both locations have copies — single-
+  location loss (fire, theft) is recoverable from the other.
+- **NEVER loaded on any device connected to internet** during
+  normal ops. Loaded only :
+  - At Safe creation time (to confirm address #3 belongs to a
+    real wallet — done by importing seed into a dedicated, fresh,
+    air-gapped device, copying the address, then wiping the
+    device).
+  - At recovery time, if #1 or #2 is lost.
+- **The seed phrase + recovery instructions are in a sealed
+  envelope** with Mike's name + a "for use only on recovery from
+  Etalo mainnet multisig" note. If Mike is incapacitated, the
+  trusted party with the second copy knows what to do.
+
+### What this is NOT
+
+- Not a substitute for a real external co-signer relationship.
+  Tag remains in the V1.1+ backlog (`docs/audit/SIGNER_3_ONBOARDING.md`
+  is preserved as a future-self-onboarding template).
+- Not a permanent commitment. The day Mike identifies + onboards
+  a real external advisor, the upgrade is a `swapOwner` Safe tx
+  replacing #3 → external advisor address. The 6 V2 contracts
+  + 3 treasuries don't see the swap.
+- Not a passable substitute under threat models where Mike himself
+  is the malicious actor. Solo-dev V1 explicitly assumes Mike acts
+  in good faith ; user trust in Etalo at V1 IS user trust in Mike.
+
+### Risk reassessment vs prior ADR-055 second update (deployer-as-#2)
+
+The second update accepted "if deployer compromises, attacker has
+1 of 3 signers". This third update strengthens that :
+
+- If deployer compromises AND mobile phone is unstolen → attacker
+  has 1 of 3 keys, still needs phone OR cold key (cold key is
+  physically inaccessible to a remote attacker) → no drain.
+- If deployer AND mobile compromise → attacker has 2 of 3 keys
+  → CAN drain. This requires physical compromise of laptop + phone
+  simultaneously (Mike's home break-in) or remote compromise of
+  both (e.g., Mike's main email + 2FA both compromised allowing
+  malware push to both devices).
+- Cold key compromise scenario : physically inaccessible to remote
+  attackers ; only readable by someone with physical access to
+  Mike's safe OR his parents' home. Both have at least one trusted
+  inhabitant. Attack path requires either coercion or burglary at
+  one of two known physical locations.
+
+Bounded by ADR-026 50K USDT TVL cap. Acceptable for V1.
+
+### Mainnet rotation gate (updated)
+
+1. ✅ ADR-055 third update : V1 ship-now signer set (this entry).
+2. ⏳ Mike creates the cold recovery key (fresh MetaMask in
+   air-gapped session → export seed to paper → wipe device → store
+   paper in 2 separate physical locations).
+3. ⏳ Mike notes the cold key address (does NOT keep the seed
+   loaded on any device after step 2).
+4. ⏳ Mainnet Safe creation with 3 owners [mobile passkey,
+   deployer, cold key address], threshold 2.
+5. ⏳ `transfer-ownership.ts --network celoMainnet` execution.
+
+Audit firm engagement (ADR-039) in parallel.
