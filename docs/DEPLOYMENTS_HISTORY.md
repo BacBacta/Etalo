@@ -102,3 +102,49 @@ intra-Africa-only scope) once :
 4. Test sellers re-staked on testnet, full E2E smoke green
 
 Mainnet addresses will be appended here once deployed.
+
+---
+
+## V2 redeploy 5 — Celo Sepolia (Pashov audit fixes — 2026-05-25)
+
+**Tag:** `v1.3-audit-fixes`
+**ADR:** ADR-054 (Pashov findings #1, #2, #4, #5 fixed pre-mainnet)
+**Block range:** 26416199 – 26416227
+**Deployer:** 0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8
+
+| Contract         | Address                                    |
+|------------------|--------------------------------------------|
+| MockUSDT (V2)    | 0xd34428140Fc8D6Be523d9A14C4E215F5709f9427 |
+| EtaloReputation  | 0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE |
+| EtaloStake       | 0xE599a167f0422D6700EC812c6b0f3c485379Ed05 |
+| EtaloVoting      | 0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671 |
+| EtaloDispute     | 0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1 |
+| EtaloEscrow      | 0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1 |
+| EtaloCredits (J7)| 0x778a6bda524F4D396F9566c0dF131F76b0E15CA3 _(unchanged)_ |
+
+**Predecessor addresses (deprecated 2026-05-25, do_not_interact):**
+
+| Contract         | Old address                                |
+|------------------|--------------------------------------------|
+| MockUSDT (V2)    | 0xea07db5d3D7576864ac434133abFE0E815735300 |
+| EtaloReputation  | 0x539e0d44c0773504075E1B00f25A99ED70258178 |
+| EtaloStake       | 0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB |
+| EtaloVoting      | 0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A |
+| EtaloDispute     | 0xEe8339b29F54bd29d68E061c4212c8b202760F5b |
+| EtaloEscrow      | 0xAeC58270973A973e3FF4913602Db1b5c98894640 |
+
+The 5 deprecated addresses still respond on chain (they were valid
+Sepolia deploys from the H-1 redeploy 2026-05-05, ADR-042) but
+**must not** be wired into any new frontend / indexer build — they
+carry the four pre-fix bugs (Pashov #1, #2, #4, #5 — see
+`assets/findings/etalo-pashov-ai-audit-report-20260525-105458.md`).
+The frontend env `NEXT_PUBLIC_ESCROW_ADDRESS` and the backend
+`packages/contracts/deployments/celo-sepolia-v2.json` carry the new
+addresses post-merge.
+
+EtaloCredits address is unchanged because the audit fixes did not
+touch the EtaloCredits contract — the old J7 deploy stays active.
+
+17/17 wiring sanity checks passed at deploy time
+(`scripts/deploy.v2.ts`). 10,000 MockUSDT minted to deployer for
+post-deploy smoke testing.
