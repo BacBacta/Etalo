@@ -1,0 +1,34 @@
+{
+  "scenario": "pashov-1-sanction-regression",
+  "tag": "v1.3-audit-fixes",
+  "adr": "ADR-054",
+  "startedAt": "2026-05-25T10:10:06.687Z",
+  "finishedAt": "2026-05-25T10:10:49.272Z",
+  "deploy": {
+    "reputation": "0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE",
+    "escrow": "0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1",
+    "usdt": "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427"
+  },
+  "actors": {
+    "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
+    "seller": "0x77D2F8F23579c0Af378bD8eD94d25363b3F3444F",
+    "buyer": "0x6319598c1b6C76cE0777e69b541035eAA4031Ef2"
+  },
+  "orderId": "1",
+  "itemId": "1",
+  "txs": {
+    "approve": "0x9a3daf068624cb814ac2790f154e9414cffa090515270a8694bcd98682609e73",
+    "create": "0x01d9e126da15a6427be7bf99991bac5243857cce2d9898dbcb241f13f0e470eb",
+    "fund": "0x32c7a0f5f774581c101d08af56f4a56e3d138518c5ff3b3426ff52929f7e589d",
+    "ship": "0x3684c733ee436fbce4c6b3a475604c69d993ae71e2b3272c55fa79b881409adc",
+    "sanction": "0xf378bd92dba27d7d2e30cbe50b4b316ef29cef4408509b3c2ff2937d4a68a0ae",
+    "confirm": "0xdd238fcd777ff3f5e82e623602ef45ab1951d4b26e175926370e2f4a9b1b3665"
+  },
+  "deltas": {
+    "sellerNet": "4.91",
+    "treasuryCommission": "0.09"
+  },
+  "finalItemStatus": "Released",
+  "reputationFrozen": true,
+  "passed": true
+}
