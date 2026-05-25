@@ -1,0 +1,41 @@
+{
+  "scenario": "pashov-2-5-regression",
+  "tag": "v1.3-audit-fixes",
+  "adr": "ADR-054",
+  "startedAt": "2026-05-25T11:03:47.245Z",
+  "finishedAt": "2026-05-25T11:04:34.985Z",
+  "deploy": {
+    "escrow": "0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1",
+    "dispute": "0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1",
+    "usdt": "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427"
+  },
+  "actors": {
+    "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
+    "seller": "0x77D2F8F23579c0Af378bD8eD94d25363b3F3444F",
+    "buyer": "0x6319598c1b6C76cE0777e69b541035eAA4031Ef2"
+  },
+  "orderId": "3",
+  "disputeId": "2",
+  "itemId": "3",
+  "txs": {
+    "approve": "0xcfbd411cc32fdb88d066f882c3723b104e4326df0296fe3cda94d3272adefe6a",
+    "create": "0x392527fb9dc0dd4fb4e70132cac3f59f7bb61725680592bd1be191f9af002444",
+    "fund": "0x41d84b90023cd655a8dd88fb14cf8a3e9929ac8ab134ebeec694ba291c0b9cec",
+    "open": "0x398e230ff7fef67a9c83e76d51159956f498f6e809c95ffc5ac0f6fa67d64cf4",
+    "escN2": "0x90863f08100a73a4468b201818a0bf412e6893e18126b6a78fd36a2d8f7a1c4e",
+    "escN3": "0x6ee1d60e830a0af3ef26fe0a03d09dc48f1a8c212c774570591e1c2e0bd7433a",
+    "adminClose": "0x8272cdf240f8881e5e381d5de0061f210408418c8b703ab084c32030592c7df6"
+  },
+  "pashov2": {
+    "weeklyBefore": "10",
+    "weeklyAfterFund": "15",
+    "weeklyAfterResolve": "10",
+    "passed": true
+  },
+  "pashov5": {
+    "finalLevel": 4,
+    "resolved": true,
+    "buyerRefund": "5",
+    "passed": true
+  }
+}
