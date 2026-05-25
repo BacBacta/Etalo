@@ -1,0 +1,36 @@
+{
+  "scenario": "pashov-4-dust-cap-regression",
+  "tag": "v1.3-audit-fixes",
+  "adr": "ADR-054",
+  "startedAt": "2026-05-25T11:10:03.176Z",
+  "finishedAt": "2026-05-25T11:10:15.568Z",
+  "deploy": {
+    "escrow": "0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1"
+  },
+  "actors": {
+    "seller": "0x77D2F8F23579c0Af378bD8eD94d25363b3F3444F",
+    "buyer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8"
+  },
+  "orderId": "4",
+  "attackShape": {
+    "itemCount": 10,
+    "pricesPreview": "[55, 55, ..., 55, 1] (9 × 55 + 1 × 1)",
+    "totalAmount": "496",
+    "expectedTotalCommissionWithoutCap": "8"
+  },
+  "lastItem": {
+    "itemId": "13",
+    "price": "1",
+    "commission": "1",
+    "cappedCorrectly": true
+  },
+  "sweep": {
+    "itemsChecked": 10,
+    "violations": 0,
+    "maxRatio": 1
+  },
+  "txs": {
+    "create": "0x318eeb2cca2ba59879f18341e4132c78a1eaa3c954f4a48fea981fadb70e33bc"
+  },
+  "passed": true
+}
