@@ -1,37 +1,34 @@
-# Celoscan / Blockscout Verification — Sepolia V2 (post-H-1)
+# Celoscan / Blockscout Verification — Sepolia V2 (v1.3-audit-fixes)
 
-**Date** : 2026-05-06
-**Bundle** : ADR-042 H-1 fix + V2 redeploy (PR #7 + #8 merged)
+**Date** : 2026-05-25 (last re-verification after Pashov audit fixes redeploy)
+**Bundle** : ADR-054 Pashov audit fixes + V2 redeploy (PR #82 + #83 + #84 merged), tag `v1.3-audit-fixes`
 **Verification target** : `https://celo-sepolia.blockscout.com` (canonical Etalo explorer)
 **MiniPay listing prereq** : §3 (per `minipay-requirements.md`)
-**Branch** : `ops/celoscan-verify-h1-redeploy`
-
-> ⚠️ **Stale verification metadata — re-verification pending for v1.3-audit-fixes redeploy.**
-> The addresses below were automatically replaced when the V1.3 redeploy
-> (2026-05-25, ADR-054, tag `v1.3-audit-fixes`) was propagated through the
-> codebase, but **the txHashes, blocks, and Blockscout/Sourcify
-> "✓ Verified" claims still reference the deprecated H-1 deploy
-> (2026-05-05)**. The new addresses are on chain but **not yet
-> re-verified** on Blockscout / Sourcify / Celoscan.
-> Re-verification is a follow-up task tracked in
-> `docs/audit/PASHOV_FINDINGS_J12.md`. Until then, treat this file as
-> the v1.3 deploy roster, not as a verification proof.
+**Branch** : `chore/celoscan-verify-v1.3`
+**Previous verification round** (H-1 fix, 2026-05-06, deprecated addresses) : see `docs/DEPLOYMENTS_HISTORY.md`.
 
 ---
 
 ## Verified contracts (7/7) ✓
 
-All 7 contracts deployed post-H-1 redeploy on Celo Sepolia are now source-verified on Blockscout (canonical) + Sourcify (auto-pickup via Blockscout metadata push). The Celoscan/Etherscan path was attempted but skipped due to a missing `CELOSCAN_API_KEY` config variable — see §Notes below ; this is acceptable because Blockscout is the explorer Etalo references in `docs/SECURITY.md`, `docs/AUDIT_BRIEFING.md`, and CLAUDE.md key-addresses cross-links.
+All 7 active contracts on Celo Sepolia (v1.3-audit-fixes deploy
+2026-05-25 + EtaloCredits from J7 unchanged) are source-verified on
+Blockscout (canonical) + Sourcify (auto-pickup via Blockscout metadata
+push). The Celoscan/Etherscan path was attempted but skipped due to a
+missing `CELOSCAN_API_KEY` config variable — see §Notes below ; this
+is acceptable because Blockscout is the explorer Etalo references in
+`docs/SECURITY.md`, `docs/AUDIT_BRIEFING.md`, and CLAUDE.md
+key-addresses cross-links.
 
 | Contract | Address | Block | Source-verified | Method | Compiler |
 |---|---|---|---|---|---|
-| MockUSDT | `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` | 24720376 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| EtaloReputation | `0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE` | 24720379 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| EtaloStake | `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` | 24720383 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| EtaloVoting | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` | 24720386 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| **EtaloDispute** | `0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1` | 24720389 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| **EtaloEscrow** | `0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1` | 24720393 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| EtaloCredits | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` | 24720520 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| MockUSDT | `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` | 26416199 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| EtaloReputation | `0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE` | 26416203 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| EtaloStake | `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` | 26416208 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| EtaloVoting | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` | 26416212 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| **EtaloDispute** | `0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1` | 26416220 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| **EtaloEscrow** | `0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1` | 26416227 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| EtaloCredits _(unchanged J7 deploy)_ | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` | 24720520 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
 
 Bold rows = P0 (high financial impact, primary audit targets).
 
