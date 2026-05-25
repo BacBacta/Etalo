@@ -239,16 +239,25 @@ async function main() {
   }
 
   // ── Plan ──────────────────────────────────────────────────
+  //
+  // ORDER CONSTRAINT (Sepolia rehearsal 2026-05-25 lesson learned):
+  // the 3 EtaloEscrow treasury setters are `onlyOwner`, so they MUST
+  // run BEFORE `EtaloEscrow.transferOwnership(Safe)`. Otherwise the
+  // deployer loses owner status mid-batch and the treasury setters
+  // revert with OwnableUnauthorizedAccount. Order below : 5 non-Escrow
+  // contracts first (any order), then 3 treasury setters (Escrow
+  // still owned by deployer), THEN EtaloEscrow.transferOwnership
+  // last.
   console.log(`\n--- Plan (9 txs total) ---`);
   console.log(`  1. EtaloReputation.transferOwnership(Safe)`);
   console.log(`  2. EtaloStake.transferOwnership(Safe)`);
   console.log(`  3. EtaloVoting.transferOwnership(Safe)`);
   console.log(`  4. EtaloDispute.transferOwnership(Safe)`);
-  console.log(`  5. EtaloEscrow.transferOwnership(Safe)`);
-  console.log(`  6. EtaloCredits.transferOwnership(Safe)`);
-  console.log(`  7. EtaloEscrow.setCommissionTreasury(Safe)`);
-  console.log(`  8. EtaloEscrow.setCreditsTreasury(Safe)`);
-  console.log(`  9. EtaloEscrow.setCommunityFund(Safe)`);
+  console.log(`  5. EtaloCredits.transferOwnership(Safe)`);
+  console.log(`  6. EtaloEscrow.setCommissionTreasury(Safe)`);
+  console.log(`  7. EtaloEscrow.setCreditsTreasury(Safe)`);
+  console.log(`  8. EtaloEscrow.setCommunityFund(Safe)`);
+  console.log(`  9. EtaloEscrow.transferOwnership(Safe)  ← LAST so treasuries can be set above`);
 
   if (dryRun) {
     console.log(`\n✅ DRY RUN complete — no transactions broadcast. Re-run without DRY_RUN=1 to execute.`);
@@ -280,8 +289,10 @@ async function main() {
     txs.push({ step, hash, explorer });
   }
 
-  for (let i = 0; i < OWNABLE_CONTRACTS.length; i++) {
-    const c = OWNABLE_CONTRACTS[i];
+  // Phase 1 : transfer ownership of 5 non-Escrow contracts.
+  const PHASE_1 = OWNABLE_CONTRACTS.filter((c) => c !== "EtaloEscrow");
+  for (let i = 0; i < PHASE_1.length; i++) {
+    const c = PHASE_1[i];
     const addr = resolve(c);
     const owner = (await pub.readContract({
       address: addr, abi: ownableAbi, functionName: "owner",
@@ -293,7 +304,8 @@ async function main() {
     await send(`${i + 1}`, addr, ownableAbi, "transferOwnership", [SAFE_ADDRESS]);
   }
 
-  // Treasuries
+  // Phase 2 : set the 3 treasuries on EtaloEscrow WHILE deployer is
+  // still the owner. (`onlyOwner` modifier — must run before Phase 3.)
   const treasurySteps = [
     { name: "setCommissionTreasury", getter: "commissionTreasury" },
     { name: "setCreditsTreasury", getter: "creditsTreasury" },
@@ -305,10 +317,20 @@ async function main() {
       address: ESCROW, abi: escrowTreasuryAbi, functionName: s.getter,
     })) as `0x${string}`;
     if (getAddress(cur) === SAFE_ADDRESS) {
-      console.log(`  [${7 + i}] SKIP EtaloEscrow.${s.name} — already Safe`);
+      console.log(`  [${6 + i}] SKIP EtaloEscrow.${s.name} — already Safe`);
       continue;
     }
-    await send(`${7 + i}`, ESCROW, escrowTreasuryAbi, s.name, [SAFE_ADDRESS]);
+    await send(`${6 + i}`, ESCROW, escrowTreasuryAbi, s.name, [SAFE_ADDRESS]);
+  }
+
+  // Phase 3 : finally transfer EtaloEscrow ownership to the Safe.
+  const escrowOwner = (await pub.readContract({
+    address: ESCROW, abi: ownableAbi, functionName: "owner",
+  })) as `0x${string}`;
+  if (getAddress(escrowOwner) === SAFE_ADDRESS) {
+    console.log(`  [9] SKIP EtaloEscrow.transferOwnership — already owned by Safe`);
+  } else {
+    await send(`9`, ESCROW, ownableAbi, "transferOwnership", [SAFE_ADDRESS]);
   }
 
   // ── Persist result ────────────────────────────────────────

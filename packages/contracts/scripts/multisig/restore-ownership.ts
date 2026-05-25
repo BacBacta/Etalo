@@ -195,7 +195,19 @@ async function main() {
   // Build the 9-tx batch
   const txs: { name: string; to: `0x${string}`; data: `0x${string}` }[] = [];
 
-  for (const c of OWNABLE_CONTRACTS) {
+  // ORDER CONSTRAINT (Sepolia rehearsal 2026-05-25 lesson learned):
+  // setCommissionTreasury / setCreditsTreasury / setCommunityFund
+  // are `onlyOwner` — so the Safe MUST do them BEFORE giving up
+  // ownership of EtaloEscrow. Otherwise the Safe loses owner status
+  // mid-batch and the treasury setters revert with
+  // OwnableUnauthorizedAccount. Order :
+  //   Phase 1 : non-Escrow contract ownership (5 txs, any order)
+  //   Phase 2 : Escrow treasuries (3 txs, Safe still owns Escrow)
+  //   Phase 3 : EtaloEscrow.transferOwnership(NEW_OWNER) (1 tx, last)
+
+  // Phase 1 : 5 non-Escrow contracts
+  const PHASE_1 = OWNABLE_CONTRACTS.filter((c) => c !== "EtaloEscrow");
+  for (const c of PHASE_1) {
     const addr = resolve(c);
     const currentOwner = (await pub.readContract({
       address: addr, abi: ownableAbi, functionName: "owner",
@@ -213,7 +225,7 @@ async function main() {
     txs.push({ name: `${c}.transferOwnership(NEW_OWNER)`, to: addr, data });
   }
 
-  // Treasuries
+  // Phase 2 : Escrow treasuries (while Safe still owns Escrow)
   const treasurySteps = [
     { name: "setCommissionTreasury", getter: "commissionTreasury" as const },
     { name: "setCreditsTreasury", getter: "creditsTreasury" as const },
@@ -231,6 +243,21 @@ async function main() {
       abi: escrowTreasuryAbi, functionName: s.name as any, args: [NEW_OWNER],
     });
     txs.push({ name: `EtaloEscrow.${s.name}(NEW_OWNER)`, to: ESCROW, data });
+  }
+
+  // Phase 3 : EtaloEscrow.transferOwnership last
+  const escrowOwner = (await pub.readContract({
+    address: ESCROW, abi: ownableAbi, functionName: "owner",
+  })) as `0x${string}`;
+  if (getAddress(escrowOwner) === NEW_OWNER) {
+    console.log(`  [SKIP] EtaloEscrow already owned by NEW_OWNER`);
+  } else if (getAddress(escrowOwner) !== SAFE) {
+    throw new Error(`EtaloEscrow owner ${escrowOwner} is neither Safe nor NEW_OWNER — refuse to rotate.`);
+  } else {
+    const data = encodeFunctionData({
+      abi: ownableAbi, functionName: "transferOwnership", args: [NEW_OWNER],
+    });
+    txs.push({ name: `EtaloEscrow.transferOwnership(NEW_OWNER)`, to: ESCROW, data });
   }
 
   if (txs.length === 0) {
@@ -257,19 +284,28 @@ async function main() {
     const t = txs[i];
     console.log(`\n[${i + 1}/${txs.length}] ${t.name}`);
 
-    const safeTx = await sdkSig1.createTransaction({
-      transactions: [{ to: t.to, value: "0", data: t.data }],
+    // Re-init both SDKs each iteration so they read the freshly
+    // incremented Safe nonce on chain. Without this the SDK caches
+    // the original nonce and the 2nd iteration reverts with GS026
+    // ("Invalid signatures") because the proposed tx hash mismatches
+    // what the on-chain Safe expects for the current nonce.
+    const sdk1 = await Safe.init({
+      provider: cfg.rpc, signer: pk1, safeAddress: SAFE,
     });
-    const safeTxHash = await sdkSig1.getTransactionHash(safeTx);
-    console.log(`  Safe tx hash : ${safeTxHash}`);
-
-    const sig1 = await sdkSig1.signTransaction(safeTx);
-    const sdkSig2 = await Safe.init({
+    const sdk2 = await Safe.init({
       provider: cfg.rpc, signer: pk2, safeAddress: SAFE,
     });
-    const sig2 = await sdkSig2.signTransaction(sig1);
 
-    const exec = await sdkSig1.executeTransaction(sig2);
+    const safeTx = await sdk1.createTransaction({
+      transactions: [{ to: t.to, value: "0", data: t.data }],
+    });
+    const safeTxHash = await sdk1.getTransactionHash(safeTx);
+    console.log(`  Safe tx hash : ${safeTxHash}`);
+
+    const sig1 = await sdk1.signTransaction(safeTx);
+    const sig2 = await sdk2.signTransaction(sig1);
+
+    const exec = await sdk1.executeTransaction(sig2);
     const hash = exec.hash as `0x${string}`;
     const receipt = await pub.waitForTransactionReceipt({ hash });
     if (receipt.status !== "success") {
