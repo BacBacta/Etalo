@@ -65,6 +65,14 @@ export default defineConfig({
           browserURL: "https://sepolia.celoscan.io",
         },
       },
+      {
+        network: "celoMainnet",
+        chainId: 42220,
+        urls: {
+          apiURL: "https://api.celoscan.io/api",
+          browserURL: "https://celoscan.io",
+        },
+      },
     ],
   },
 });
