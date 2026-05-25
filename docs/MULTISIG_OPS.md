@@ -5,57 +5,52 @@ mainnet contracts after the 2-of-3 Safe takeover (per ADR-038 +
 ADR-055).
 
 **Mainnet Safe address:** _TBD — populate at Safe-creation time._
-**Sepolia rehearsal Safe address:** _TBD — populate at rehearsal time
-(`docs/audit/MULTISIG_REHEARSAL.md`)._
+**Sepolia rehearsal Safe address:** `0x8be4a6f4E053D8CB758ff26053B47d9423734501` (2-of-3, v1.4.1, rehearsal completed 2026-05-25 — see `docs/audit/MULTISIG_REHEARSAL.md`).
 **Threshold:** 2-of-3 (any 2 signers can authorise a tx).
 
 ---
 
-## 1. Signer set
+## 1. Signer set (V1 lock-in, 2026-05-25 — per ADR-055)
 
-| # | Role | Storage | Owner |
-|---|------|---------|-------|
-| 1 | Mobile passkey | Secure Enclave (iOS) / TEE (Android), Safe Wallet app | Mike |
-| 2 | Desktop EOA | OS keychain on dev laptop, distinct from deployer | Mike |
-| 3 | 3rd-party | TBD (HW preferred ; passkey on separate device acceptable) | TBD |
+| # | Role | Storage | Owner | Status |
+|---|------|---------|-------|--------|
+| 1 | Mobile passkey #1 | Secure Enclave (iOS) / TEE (Android) on Mike's primary phone, Safe Wallet app | Mike | Validated on Sepolia rehearsal ✓ |
+| 2 | Mobile passkey #2 | Secure Enclave on a separate device (iPad / tablet / secondary phone), Safe Wallet app | Mike | Pending — Mike picks the device + creates the 2nd passkey before mainnet Safe creation |
+| 3 | 3rd-party advisor | Mobile passkey (preferred) OR HW wallet | Trusted technical advisor (Mike identifies + onboards per `docs/audit/SIGNER_3_ONBOARDING.md`) | Pending |
 
-**Hardware-wallet upgrade plan**: when Mike receives the Ledger Nano S
-Plus (Q3 2026 or sooner), signer #2 is rotated via a single
-`addOwner` + `removeOwner` Safe tx — no contract-side rotation
-needed. Threshold stays 2-of-3.
+**Why 2 passkeys instead of "passkey + desktop EOA" (original ADR-055 draft):** both passkeys live in hardware-isolated Secure Enclaves on physically separate devices. A laptop compromise (malware, lost laptop, etc.) cannot exfiltrate either passkey because neither key is ever loaded into a desktop process. The trade-off is needing a 2nd device with Secure Enclave / TEE — minor friction, much stronger security floor.
 
-### Signer #2 (desktop EOA) hygiene
+**Hardware-wallet upgrade plan**: still on the roadmap (Q3 2026 or sooner) as a future _addition_, not a launch blocker. When Mike receives a Ledger Nano S Plus, it's added as a 4th signer (`addOwner` Safe tx, threshold can stay 2 or bump to 3-of-4 for tighter governance) without touching contract ownership.
 
-- Generated fresh, **never reused** from the deployer mnemonic.
-- Private key stored only in the OS keychain (`security add-generic-
-  password` on macOS, `keyring` on Linux, Windows Credential Manager
-  on Windows). **Never** written to a `.env` file outside
-  `.env.local` (gitignored), never copied to cloud sync.
-- Loaded into wallets only via the keychain backend — Rabby supports
-  this natively, MetaMask via the Snap.
+### Signer #1 + #2 (Mike's 2 passkeys) hygiene
 
-### Signer #3 (3rd-party) onboarding
+- Each passkey generated **independently** on its respective device — never share a recovery seed between them.
+- Both devices enroll their passkey recovery into iCloud Keychain / Google Password Manager (or both, depending on the device family) so individual device loss is recoverable from the other.
+- **Never** load either passkey into a desktop browser EOA / extension — passkeys stay in Secure Enclave, always.
+- Both devices kept on auto-update for OS security patches.
 
-Required disclosures at onboarding :
+### Signer #3 onboarding
+
+Process documented in `docs/audit/SIGNER_3_ONBOARDING.md` (outreach
+message template + intake questionnaire + lock-in checklist).
+
+Required disclosures at onboarding (recap — full template in the
+SIGNER_3 doc) :
 
 - Address (mainnet Celo, chainId 42220).
-- Storage device class (HW / passkey-mobile / EOA).
-- Contact channel for sign-requests (Signal / encrypted email / Slack
-  DM — pick one and document below).
+- Storage device class (passkey-mobile preferred ; HW or EOA also acceptable).
+- Contact channel for sign-requests (Signal / encrypted email / Slack DM).
 - SLA :
-  - **Non-emergency** (planned ops, treasury rotation, parameter
-    bump if any added in V1.1): **24 h** acknowledgement.
-  - **Incident-response** (`emergencyPause`, force-close-stuck-dispute,
-    fund-recovery): **4 h** acknowledgement.
-- Out-of-band recovery contact for the 3rd party (in case of phone /
-  laptop loss).
+  - **Non-emergency** (planned ops, treasury rotation, parameter bump in V1.1): **24 h** acknowledgement.
+  - **Incident-response** (`emergencyPause`, force-close-stuck-dispute, fund-recovery): **4 h** acknowledgement.
+- Out-of-band recovery contact for the 3rd party (in case of phone / laptop loss).
 
-**Current 3rd-party signer**: TBD — fill in :
+**Current 3rd-party signer**: TBD — fill in once onboarded :
 
 | Field | Value |
 |-------|-------|
 | Address | `0x…` |
-| Storage | (HW / passkey / EOA) |
+| Storage | (passkey / HW / EOA) |
 | Sign-request channel | (Signal / email / …) |
 | Out-of-band recovery contact | … |
 | SLA acknowledgement (date) | YYYY-MM-DD |
