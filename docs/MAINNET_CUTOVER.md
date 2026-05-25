@@ -59,7 +59,7 @@ fly secrets set \
   COMMISSION_TREASURY_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F \
   CREDITS_TREASURY_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F \
   COMMUNITY_FUND_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F \
-  --app etalo-backend
+  --app etalo-api
 ```
 
 **Notes on this set :**
@@ -134,10 +134,10 @@ Sepolia chainId and CIP-64 would reject with "unknown fee currency".
    state before any user tries) :
 
    ```bash
-   fly secrets set [all vars above] --app etalo-backend
-   fly deploy --app etalo-backend
+   fly secrets set [all vars above] --app etalo-api
+   fly deploy --app etalo-api
    # Wait for healthcheck green
-   curl https://etalo-backend.fly.dev/api/v1/health
+   curl https://etalo-api.fly.dev/api/v1/health
    # Confirm response includes "chain": "celo", "chainId": 42220
    ```
 
