@@ -6,6 +6,17 @@
 **MiniPay listing prereq** : §3 (per `minipay-requirements.md`)
 **Branch** : `ops/celoscan-verify-h1-redeploy`
 
+> ⚠️ **Stale verification metadata — re-verification pending for v1.3-audit-fixes redeploy.**
+> The addresses below were automatically replaced when the V1.3 redeploy
+> (2026-05-25, ADR-054, tag `v1.3-audit-fixes`) was propagated through the
+> codebase, but **the txHashes, blocks, and Blockscout/Sourcify
+> "✓ Verified" claims still reference the deprecated H-1 deploy
+> (2026-05-05)**. The new addresses are on chain but **not yet
+> re-verified** on Blockscout / Sourcify / Celoscan.
+> Re-verification is a follow-up task tracked in
+> `docs/audit/PASHOV_FINDINGS_J12.md`. Until then, treat this file as
+> the v1.3 deploy roster, not as a verification proof.
+
 ---
 
 ## Verified contracts (7/7) ✓
@@ -14,12 +25,12 @@ All 7 contracts deployed post-H-1 redeploy on Celo Sepolia are now source-verifi
 
 | Contract | Address | Block | Source-verified | Method | Compiler |
 |---|---|---|---|---|---|
-| MockUSDT | `0xea07db5d3D7576864ac434133abFE0E815735300` | 24720376 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| EtaloReputation | `0x539e0d44c0773504075E1B00f25A99ED70258178` | 24720379 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| EtaloStake | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` | 24720383 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| EtaloVoting | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` | 24720386 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| **EtaloDispute** | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` | 24720389 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
-| **EtaloEscrow** | `0xAeC58270973A973e3FF4913602Db1b5c98894640` | 24720393 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| MockUSDT | `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` | 24720376 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| EtaloReputation | `0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE` | 24720379 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| EtaloStake | `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` | 24720383 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| EtaloVoting | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` | 24720386 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| **EtaloDispute** | `0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1` | 24720389 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
+| **EtaloEscrow** | `0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1` | 24720393 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
 | EtaloCredits | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` | 24720520 | ✓ Blockscout + Sourcify | `hardhat verify` | `v0.8.24+commit.e11b9ed9` |
 
 Bold rows = P0 (high financial impact, primary audit targets).
@@ -34,14 +45,14 @@ For reproducibility. All commands run from `packages/contracts/` after `pnpm exe
 
 ```bash
 pnpm exec hardhat verify --network celoSepolia \
-  0xAeC58270973A973e3FF4913602Db1b5c98894640 \
-  "0xea07db5d3D7576864ac434133abFE0E815735300"
+  0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1 \
+  "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427"
 # EtaloEscrow — constructor: mockUsdt
 ```
 
 ```bash
 pnpm exec hardhat verify --network celoSepolia \
-  0xEe8339b29F54bd29d68E061c4212c8b202760F5b
+  0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1
 # EtaloDispute — no constructor args
 ```
 
@@ -49,15 +60,15 @@ pnpm exec hardhat verify --network celoSepolia \
 
 ```bash
 pnpm exec hardhat verify --network celoSepolia \
-  0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB \
-  "0xea07db5d3D7576864ac434133abFE0E815735300"
+  0xE599a167f0422D6700EC812c6b0f3c485379Ed05 \
+  "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427"
 # EtaloStake — constructor: mockUsdt
 ```
 
 ```bash
 pnpm exec hardhat verify --network celoSepolia \
   0x778a6bda524F4D396F9566c0dF131F76b0E15CA3 \
-  "0xea07db5d3D7576864ac434133abFE0E815735300" \
+  "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427" \
   "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA" \
   "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8"
 # EtaloCredits — constructor: mockUsdt, creditsTreasury, admin
@@ -67,13 +78,13 @@ pnpm exec hardhat verify --network celoSepolia \
 
 ```bash
 pnpm exec hardhat verify --network celoSepolia \
-  0x539e0d44c0773504075E1B00f25A99ED70258178
+  0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE
 # EtaloReputation — no constructor args
 ```
 
 ```bash
 pnpm exec hardhat verify --network celoSepolia \
-  0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A
+  0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671
 # EtaloVoting — no constructor args
 ```
 
@@ -81,7 +92,7 @@ pnpm exec hardhat verify --network celoSepolia \
 
 ```bash
 pnpm exec hardhat verify --network celoSepolia \
-  0xea07db5d3D7576864ac434133abFE0E815735300
+  0xd34428140Fc8D6Be523d9A14C4E215F5709f9427
 # MockUSDT — no constructor args
 ```
 
@@ -91,12 +102,12 @@ pnpm exec hardhat verify --network celoSepolia \
 
 | Contract | Blockscout source page |
 |---|---|
-| MockUSDT | https://celo-sepolia.blockscout.com/address/0xea07db5d3D7576864ac434133abFE0E815735300?tab=contract |
-| EtaloReputation | https://celo-sepolia.blockscout.com/address/0x539e0d44c0773504075E1B00f25A99ED70258178?tab=contract |
-| EtaloStake | https://celo-sepolia.blockscout.com/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB?tab=contract |
-| EtaloVoting | https://celo-sepolia.blockscout.com/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A?tab=contract |
-| EtaloDispute | https://celo-sepolia.blockscout.com/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b?tab=contract |
-| EtaloEscrow | https://celo-sepolia.blockscout.com/address/0xAeC58270973A973e3FF4913602Db1b5c98894640?tab=contract |
+| MockUSDT | https://celo-sepolia.blockscout.com/address/0xd34428140Fc8D6Be523d9A14C4E215F5709f9427?tab=contract |
+| EtaloReputation | https://celo-sepolia.blockscout.com/address/0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE?tab=contract |
+| EtaloStake | https://celo-sepolia.blockscout.com/address/0xE599a167f0422D6700EC812c6b0f3c485379Ed05?tab=contract |
+| EtaloVoting | https://celo-sepolia.blockscout.com/address/0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671?tab=contract |
+| EtaloDispute | https://celo-sepolia.blockscout.com/address/0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1?tab=contract |
+| EtaloEscrow | https://celo-sepolia.blockscout.com/address/0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1?tab=contract |
 | EtaloCredits | https://celo-sepolia.blockscout.com/address/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3?tab=contract |
 
 ---
@@ -107,12 +118,12 @@ Sourcify cross-links via `sourcify.dev/server/repo-ui/<chainId>/<address>` — c
 
 | Contract | Sourcify page |
 |---|---|
-| MockUSDT | https://sourcify.dev/server/repo-ui/11142220/0xea07db5d3D7576864ac434133abFE0E815735300 |
-| EtaloReputation | https://sourcify.dev/server/repo-ui/11142220/0x539e0d44c0773504075E1B00f25A99ED70258178 |
-| EtaloStake | https://sourcify.dev/server/repo-ui/11142220/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB |
-| EtaloVoting | https://sourcify.dev/server/repo-ui/11142220/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A |
-| EtaloDispute | https://sourcify.dev/server/repo-ui/11142220/0xEe8339b29F54bd29d68E061c4212c8b202760F5b |
-| EtaloEscrow | https://sourcify.dev/server/repo-ui/11142220/0xAeC58270973A973e3FF4913602Db1b5c98894640 |
+| MockUSDT | https://sourcify.dev/server/repo-ui/11142220/0xd34428140Fc8D6Be523d9A14C4E215F5709f9427 |
+| EtaloReputation | https://sourcify.dev/server/repo-ui/11142220/0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE |
+| EtaloStake | https://sourcify.dev/server/repo-ui/11142220/0xE599a167f0422D6700EC812c6b0f3c485379Ed05 |
+| EtaloVoting | https://sourcify.dev/server/repo-ui/11142220/0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671 |
+| EtaloDispute | https://sourcify.dev/server/repo-ui/11142220/0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1 |
+| EtaloEscrow | https://sourcify.dev/server/repo-ui/11142220/0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1 |
 | EtaloCredits | https://sourcify.dev/server/repo-ui/11142220/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3 |
 
 ---

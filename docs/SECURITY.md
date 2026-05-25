@@ -101,12 +101,12 @@ section of each caller.
 
 | Contract | Address |
 |---|---|
-| `MockUSDT` (test-only) | `0xea07db5d3D7576864ac434133abFE0E815735300` |
-| `EtaloReputation` | `0x539e0d44c0773504075E1B00f25A99ED70258178` |
-| `EtaloStake` | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` |
-| `EtaloVoting` | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` |
-| `EtaloDispute` | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` |
-| `EtaloEscrow` | `0xAeC58270973A973e3FF4913602Db1b5c98894640` |
+| `MockUSDT` (test-only) | `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` |
+| `EtaloReputation` | `0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE` |
+| `EtaloStake` | `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` |
+| `EtaloVoting` | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` |
+| `EtaloDispute` | `0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1` |
+| `EtaloEscrow` | `0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1` |
 | `EtaloCredits` (J7 Block 5b, redeployed 2026-05-05) | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` |
 
 ### Treasury wallets (three-wallet separation per ADR-024)
@@ -127,12 +127,12 @@ single-explorer outage or delisting.
 
 | Contract | CeloScan | Blockscout | Sourcify |
 |---|---|---|---|
-| `MockUSDT` | [source](https://sepolia.celoscan.io/address/0xea07db5d3D7576864ac434133abFE0E815735300#code) | [source](https://celo-sepolia.blockscout.com/address/0xea07db5d3D7576864ac434133abFE0E815735300#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xea07db5d3D7576864ac434133abFE0E815735300) |
-| `EtaloReputation` | [source](https://sepolia.celoscan.io/address/0x539e0d44c0773504075E1B00f25A99ED70258178#code) | [source](https://celo-sepolia.blockscout.com/address/0x539e0d44c0773504075E1B00f25A99ED70258178#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x539e0d44c0773504075E1B00f25A99ED70258178) |
-| `EtaloStake` | [source](https://sepolia.celoscan.io/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB#code) | [source](https://celo-sepolia.blockscout.com/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB) |
-| `EtaloVoting` | [source](https://sepolia.celoscan.io/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A#code) | [source](https://celo-sepolia.blockscout.com/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A) |
-| `EtaloDispute` | [source](https://sepolia.celoscan.io/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b#code) | [source](https://celo-sepolia.blockscout.com/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xEe8339b29F54bd29d68E061c4212c8b202760F5b) |
-| `EtaloEscrow` | [source](https://sepolia.celoscan.io/address/0xAeC58270973A973e3FF4913602Db1b5c98894640#code) | [source](https://celo-sepolia.blockscout.com/address/0xAeC58270973A973e3FF4913602Db1b5c98894640#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xAeC58270973A973e3FF4913602Db1b5c98894640) |
+| `MockUSDT` | [source](https://sepolia.celoscan.io/address/0xd34428140Fc8D6Be523d9A14C4E215F5709f9427#code) | [source](https://celo-sepolia.blockscout.com/address/0xd34428140Fc8D6Be523d9A14C4E215F5709f9427#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xd34428140Fc8D6Be523d9A14C4E215F5709f9427) |
+| `EtaloReputation` | [source](https://sepolia.celoscan.io/address/0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE#code) | [source](https://celo-sepolia.blockscout.com/address/0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE) |
+| `EtaloStake` | [source](https://sepolia.celoscan.io/address/0xE599a167f0422D6700EC812c6b0f3c485379Ed05#code) | [source](https://celo-sepolia.blockscout.com/address/0xE599a167f0422D6700EC812c6b0f3c485379Ed05#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xE599a167f0422D6700EC812c6b0f3c485379Ed05) |
+| `EtaloVoting` | [source](https://sepolia.celoscan.io/address/0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671#code) | [source](https://celo-sepolia.blockscout.com/address/0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671) |
+| `EtaloDispute` | [source](https://sepolia.celoscan.io/address/0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1#code) | [source](https://celo-sepolia.blockscout.com/address/0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1) |
+| `EtaloEscrow` | [source](https://sepolia.celoscan.io/address/0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1#code) | [source](https://celo-sepolia.blockscout.com/address/0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1) |
 | `EtaloCredits` | [source](https://sepolia.celoscan.io/address/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3#code) | [source](https://celo-sepolia.blockscout.com/address/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3#code) | [source](https://sourcify.dev/server/repo-ui/11142220/0x778a6bda524F4D396F9566c0dF131F76b0E15CA3) |
 
 ### EtaloCredits deployment (Sprint J7 Block 5b, redeployed post-H-1 on 2026-05-05)
@@ -141,7 +141,7 @@ single-explorer outage or delisting.
 - **Deploy tx**: `0xf5ae6be3dbfaa52c90531d58502d81ee1fe052056f034944f9fd0d083ea68077` (block 24720520)
 - **Deployer**: `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8` (admin owner)
 - **Constructor args**:
-  - `_usdt`: `0xea07db5d3D7576864ac434133abFE0E815735300` (MockUSDT V2 post-H-1)
+  - `_usdt`: `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` (MockUSDT V2 post-H-1)
   - `_creditsTreasury`: `0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA` (per ADR-024 — wallet unchanged)
   - `_admin`: `0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8`
 - **Predecessor (deprecated 2026-05-05 per ADR-042)**: address `0xb201a5F0D471261383F8aFbF07a9dc6584C7B60d` deployed 2026-04-26 on the now-deprecated MockUSDT/Escrow suite — see `docs/DEPLOYMENTS_HISTORY.md` for the full pre-H-1 deploy detail. The 2026-04-26 smoke-test result (next bullet) was performed on the predecessor and is retained as historical evidence of testing rigor at that point.

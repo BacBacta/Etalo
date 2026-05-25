@@ -11,7 +11,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useBuyCredits } from "@/hooks/useBuyCredits";
 
 const BUYER = "0xabc0000000000000000000000000000000000001" as const;
-const USDT = "0xea07db5d3D7576864ac434133abFE0E815735300" as const;
+const USDT = "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427" as const;
 const CREDITS_ADDR =
   "0x778a6bda524F4D396F9566c0dF131F76b0E15CA3" as const;
 

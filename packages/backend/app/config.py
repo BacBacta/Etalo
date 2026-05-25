@@ -81,17 +81,18 @@ class Settings(BaseSettings):
     # Block 4 of Sprint J5 fully replaces it.
     celo_rpc_url: str = "https://celo-sepolia.drpc.org"
 
-    # V2 contract addresses (Celo Sepolia, redeployed 2026-05-05 post-H-1 fix
-    # per ADR-042). Previous addresses retained in
+    # V2 contract addresses (Celo Sepolia, redeployed 2026-05-25
+    # post-Pashov-audit-fixes per ADR-054, tag v1.3-audit-fixes).
+    # Previous addresses retained in
     # packages/contracts/deployments/celo-sepolia-v2.json previous_deployments[]
     # and docs/DEPLOYMENTS_HISTORY.md.
     # Source of truth: packages/contracts/deployments/celo-sepolia-v2.json.
-    mock_usdt_address: str = "0xea07db5d3D7576864ac434133abFE0E815735300"
-    etalo_reputation_address: str = "0x539e0d44c0773504075E1B00f25A99ED70258178"
-    etalo_stake_address: str = "0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB"
-    etalo_voting_address: str = "0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A"
-    etalo_dispute_address: str = "0xEe8339b29F54bd29d68E061c4212c8b202760F5b"
-    etalo_escrow_address: str = "0xAeC58270973A973e3FF4913602Db1b5c98894640"
+    mock_usdt_address: str = "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427"
+    etalo_reputation_address: str = "0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE"
+    etalo_stake_address: str = "0xE599a167f0422D6700EC812c6b0f3c485379Ed05"
+    etalo_voting_address: str = "0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671"
+    etalo_dispute_address: str = "0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1"
+    etalo_escrow_address: str = "0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1"
     # EtaloCredits (Sprint J7 Block 5b, redeployed post-H-1)
     etalo_credits_address: str = "0x778a6bda524F4D396F9566c0dF131F76b0E15CA3"
 

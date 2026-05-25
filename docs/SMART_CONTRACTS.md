@@ -28,12 +28,12 @@ analysis report, and testnet smoke-test results, read
 
 | Contract | Address | Source |
 |---|---|---|
-| `MockUSDT` (test USDT) | `0xea07db5d3D7576864ac434133abFE0E815735300` | [CeloScan](https://sepolia.celoscan.io/address/0xea07db5d3D7576864ac434133abFE0E815735300#code) |
-| `EtaloReputation` | `0x539e0d44c0773504075E1B00f25A99ED70258178` | [CeloScan](https://sepolia.celoscan.io/address/0x539e0d44c0773504075E1B00f25A99ED70258178#code) |
-| `EtaloStake` | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` | [CeloScan](https://sepolia.celoscan.io/address/0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB#code) |
-| `EtaloVoting` | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` | [CeloScan](https://sepolia.celoscan.io/address/0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A#code) |
-| `EtaloDispute` | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` | [CeloScan](https://sepolia.celoscan.io/address/0xEe8339b29F54bd29d68E061c4212c8b202760F5b#code) |
-| `EtaloEscrow` | `0xAeC58270973A973e3FF4913602Db1b5c98894640` | [CeloScan](https://sepolia.celoscan.io/address/0xAeC58270973A973e3FF4913602Db1b5c98894640#code) |
+| `MockUSDT` (test USDT) | `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` | [CeloScan](https://sepolia.celoscan.io/address/0xd34428140Fc8D6Be523d9A14C4E215F5709f9427#code) |
+| `EtaloReputation` | `0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE` | [CeloScan](https://sepolia.celoscan.io/address/0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE#code) |
+| `EtaloStake` | `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` | [CeloScan](https://sepolia.celoscan.io/address/0xE599a167f0422D6700EC812c6b0f3c485379Ed05#code) |
+| `EtaloVoting` | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` | [CeloScan](https://sepolia.celoscan.io/address/0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671#code) |
+| `EtaloDispute` | `0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1` | [CeloScan](https://sepolia.celoscan.io/address/0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1#code) |
+| `EtaloEscrow` | `0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1` | [CeloScan](https://sepolia.celoscan.io/address/0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1#code) |
 
 Treasury wallets (three-wallet separation per ADR-024):
 
@@ -64,7 +64,7 @@ community vote are separate concerns with narrow interfaces.
 
 All USDT transfers happen through the USDT ERC-20 contract
 (`0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` on Celo mainnet,
-`MockUSDT` at `0xea07db5d3D7576864ac434133abFE0E815735300` on Sepolia
+`MockUSDT` at `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` on Sepolia
 testnet for development). USDT is not shown in the graph below —
 it's the settlement rail for every transfer labeled `ship`, `fund`,
 `release`, etc.

@@ -80,13 +80,13 @@ addresses retained in `docs/DEPLOYMENTS_HISTORY.md` and
 
 | Contract | Address |
 |---|---|
-| MockUSDT V2 | `0xea07db5d3D7576864ac434133abFE0E815735300` |
-| EtaloReputation | `0x539e0d44c0773504075E1B00f25A99ED70258178` |
-| EtaloDispute | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` |
-| EtaloEscrow | `0xAeC58270973A973e3FF4913602Db1b5c98894640` |
+| MockUSDT V2 | `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` |
+| EtaloReputation | `0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE` |
+| EtaloDispute | `0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1` |
+| EtaloEscrow | `0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1` |
 | EtaloCredits | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` |
-| EtaloStake (V2 deferred per ADR-041) | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` |
-| EtaloVoting (V2 deferred per ADR-041) | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` |
+| EtaloStake (V2 deferred per ADR-041) | `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` |
+| EtaloVoting (V2 deferred per ADR-041) | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` |
 
 Treasury wallets (3 separated per ADR-024) :
 
