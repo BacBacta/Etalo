@@ -76,6 +76,11 @@ contract EtaloDispute is IEtaloDispute, Ownable, ReentrancyGuard {
     mapping(uint256 => Dispute) private _disputes;
     mapping(uint256 => N1Proposal) private _n1Proposals;
     mapping(uint256 => uint256) private _voteIdToDisputeId;
+    // Reverse mapping populated in escalateToVoting so
+    // adminForceCloseN3IfNoQuorum can locate the vote tallies for a
+    // given dispute (ADR-054 escape hatch for the new zero-quorum
+    // revert in EtaloVoting.finalizeVote).
+    mapping(uint256 => uint256) private _disputeIdToVoteId;
     mapping(uint256 => mapping(uint256 => uint256)) private _disputeByItem;
     mapping(address => uint256) private _activeDisputesBySeller;
 
@@ -251,6 +256,7 @@ contract EtaloDispute is IEtaloDispute, Ownable, ReentrancyGuard {
 
         uint256 voteId = voting.createVote(disputeId, voters, N3_VOTING_PERIOD);
         _voteIdToDisputeId[voteId] = disputeId;
+        _disputeIdToVoteId[disputeId] = voteId;
 
         emit DisputeEscalated(disputeId, LEVEL_N3);
     }
@@ -380,6 +386,36 @@ contract EtaloDispute is IEtaloDispute, Ownable, ReentrancyGuard {
 
     function mediatorsCount() external view returns (uint256) {
         return _mediatorsList.length;
+    }
+
+    /// @notice Owner-only escape hatch for the zero-quorum N3 case
+    /// introduced by the Pashov audit finding #5 fix (ADR-054).
+    /// `EtaloVoting.finalizeVote` now reverts when the vote received
+    /// zero ballots, which leaves the dispute stuck at LEVEL_N3
+    /// indefinitely (and the seller's stake frozen). This function
+    /// forces the legacy conservative-buyer-win resolution path so
+    /// the dispute can close; it requires the underlying vote to
+    /// truly have zero ballots on both sides — `forBuyer == 0 &&
+    /// forSeller == 0` — so it cannot be used to bypass a real vote.
+    function adminForceCloseN3IfNoQuorum(uint256 disputeId)
+        external
+        onlyOwner
+        nonReentrant
+    {
+        Dispute storage d = _disputes[disputeId];
+        require(d.openedAt > 0, "Dispute does not exist");
+        require(!d.resolved, "Already resolved");
+        require(d.level == LEVEL_N3, "Not at N3");
+        require(address(voting) != address(0), "Voting not set");
+
+        uint256 voteId = _disputeIdToVoteId[disputeId];
+        require(voteId > 0, "No vote tracked");
+        (uint256 forBuyer, uint256 forSeller) = voting.getVoteCounts(voteId);
+        require(forBuyer == 0 && forSeller == 0, "Vote has quorum");
+
+        EtaloTypes.Item memory item = escrow.getItem(d.itemId);
+        uint256 refundAmount = item.itemPrice - item.releasedAmount;
+        _applyResolution(disputeId, refundAmount, 0);
     }
 
     // ===== Internal =====

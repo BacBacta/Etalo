@@ -137,7 +137,14 @@ describe("EtaloReputation V2", async function () {
       );
     });
 
-    it("should revoke Top Seller on sanction and block subsequent recordCompletedOrder", async function () {
+    it("should revoke Top Seller on sanction and silently no-op subsequent recordCompletedOrder (ADR-054)", async function () {
+      // Behavior changed per ADR-054 (Pashov finding #1): a
+      // sanctioned-seller recordCompletedOrder used to revert with
+      // "Seller not active", which turned every in-flight release
+      // path inside EtaloEscrow._releaseItemFully into a permanent
+      // fund lockup for the buyer. The contract now skips silently
+      // so buyer funds keep flowing; the sanction still revokes
+      // Top Seller and freezes reputation increments.
       const { reputation, seller } = await deployReputation(viem);
       for (let i = 0; i < 50; i++) {
         await reputation.write.recordCompletedOrder([seller.account.address, BigInt(i), toUSDT(50)]);
@@ -150,11 +157,32 @@ describe("EtaloReputation V2", async function () {
       const rep = await reputation.read.getReputation([seller.account.address]);
       assert.equal(rep.status, 1);
       assert.equal(rep.isTopSeller, false);
+      const ordersBefore = rep.ordersCompleted;
+      const volumeBefore = rep.totalVolume;
 
-      await expectRevert(
-        reputation.write.recordCompletedOrder([seller.account.address, 999n, toUSDT(50)]),
-        "Seller not active"
-      );
+      // Must NOT revert anymore — silent no-op.
+      await reputation.write.recordCompletedOrder([seller.account.address, 999n, toUSDT(50)]);
+
+      const repAfter = await reputation.read.getReputation([seller.account.address]);
+      // Counters frozen during sanction.
+      assert.equal(repAfter.ordersCompleted, ordersBefore);
+      assert.equal(repAfter.totalVolume, volumeBefore);
+      // Status unchanged.
+      assert.equal(repAfter.status, 1);
+    });
+
+    it("should resume normal increments once sanction is lifted (ADR-054)", async function () {
+      const { reputation, seller } = await deployReputation(viem);
+      await reputation.write.recordCompletedOrder([seller.account.address, 0n, toUSDT(50)]);
+      await reputation.write.applySanction([seller.account.address, 1]); // Suspended
+      await reputation.write.recordCompletedOrder([seller.account.address, 1n, toUSDT(50)]); // no-op
+      await reputation.write.applySanction([seller.account.address, 0]); // Active again
+      await reputation.write.recordCompletedOrder([seller.account.address, 2n, toUSDT(50)]);
+
+      const rep = await reputation.read.getReputation([seller.account.address]);
+      // 2 real records + 1 silent skip
+      assert.equal(rep.ordersCompleted, 2n);
+      assert.equal(rep.totalVolume, toUSDT(100));
     });
   });
 

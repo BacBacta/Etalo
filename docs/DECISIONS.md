@@ -3555,3 +3555,116 @@ wallet on demand.
   reused as-is from J10-V5 Block 4c)
 - `packages/web/src/components/PublicHeader.tsx` +
   `PublicHeaderMinimal.tsx` (logo `href` → `/`)
+
+---
+
+## ADR-054 — Pre-mainnet audit fixes (Pashov findings #1, #2, #4, #5)
+
+**Status:** Accepted (2026-05-25)
+**Context:** the `solidity-auditor` skill (Pashov 8-agent parallel
+audit) was run on the 3,083 LOC V2 contracts as Phase 4 of the
+self-audit stack, ahead of the J12 Celo mainnet deploy. It surfaced
+8 high-confidence findings + 9 leads. Four of those findings are
+concrete unprivileged fund-lockup or zero-cost griefing bugs that
+must be fixed in V1 bytecode, not post-mainnet migration. The
+remaining four findings are either dormant in V1 (cross-border
+deferred per ADR-041) or admin-recoverable; they are tracked in
+`docs/audit/PASHOV_FINDINGS_J12.md` for V1.1.
+
+**Decision:** patch the four critical findings before J12, retain
+the rest as V1.1 backlog.
+
+### Finding #1 — `EtaloReputation.recordCompletedOrder` reverted on sanctioned sellers
+
+The owner-only `applySanction` flips `SellerStatus` to non-Active,
+which made every subsequent `recordCompletedOrder(...)` revert with
+`"Seller not active"`. That call lives inside
+`EtaloEscrow._releaseItemFully`, so every release path
+(`confirmItemDelivery`, `confirmGroupDelivery`,
+`triggerAutoReleaseForItem`) reverted for any in-flight order of a
+sanctioned seller. Buyer funds were permanently locked
+(`triggerAutoRefundIfInactive` only works pre-ship; `forceRefund`
+requires the three ADR-023 conditions which the buyer cannot
+control).
+
+**Fix:** `recordCompletedOrder` silently no-ops for non-Active
+sellers (emits `OrderRecorded` but skips counter increments). One
+source of truth — no duplicated `try/catch` in every call-site.
+
+### Finding #2 — `sellerWeeklyVolume` never released on refund
+
+`fundOrder` records the seller's `totalAmount` against the
+`MAX_SELLER_WEEKLY_VOLUME = 5,000 USDT` rolling cap. None of
+`triggerAutoRefundIfInactive`, `forceRefund`, or `resolveItemDispute`
+(refund branch) decremented the counter. An attacker with throwaway
+buyer addresses could fund up to 5K worth of orders against any
+target seller, refund permissionlessly 7 days later, and lock the
+seller out of legitimate orders for the rest of the rolling week
+— a zero-cost weekly commerce DoS.
+
+**Fix:** add `_releaseSellerWeeklyVolume(seller, amount)` helper
+(saturating subtract — no over-release when the weekly window has
+rolled) and call it from all three refund paths.
+
+### Finding #4 — Dust commission can exceed itemPrice
+
+The last-item dust absorber (`itemCommission = totalCommission -
+sumAssigned`) was unbounded. A buyer constructing 49 items of 55
+wei each + 1 item of 1 wei produced `lastItemCommission = 48` on
+`lastItemPrice = 1`. Every release path then computed `itemNet =
+itemPrice - itemCommission = -47` → 0.8 underflow revert. The item
+was permanently stuck.
+
+**Fix:** cap the last item's commission at its price in
+`createOrderWithItems`. Trade-off accepted: up to a few wei of
+commission lost to perpetual escrow on adversarial inputs — better
+than locking the entire item.
+
+### Finding #5 — Zero-quorum N3 vote defaulted to buyer win
+
+`finalizeVote` computed `buyerWon = forBuyer >= forSeller`. With
+both counters at zero the expression was `true`, so an N3 dispute
+that received no votes during its 14-day window automatically
+refunded the buyer the full `remainingInEscrow` on `finalizeVote`
+(permissionless). This turned voter apathy into a free refund
+extraction.
+
+**Fix:** add `require(v.forBuyer + v.forSeller > 0, "No quorum")`
+in `finalizeVote`. Real ties (1-1, 2-2) still default to buyer per
+ADR-022. The new revert leaves the dispute stuck at LEVEL_N3, so we
+also added `EtaloDispute.adminForceCloseN3IfNoQuorum(disputeId)` —
+an `onlyOwner` escape hatch that fires the legacy buyer-win path
+*only* when `getVoteCounts(voteId)` returns `(0, 0)`. The owner
+cannot override a real vote. This required adding a reverse mapping
+`_disputeIdToVoteId` in `EtaloDispute` and a `getVoteCounts` view
+on `EtaloVoting` (interface change — `IEtaloVoting`).
+
+### Test coverage added
+
+- `EtaloReputation.v2.test.ts`: 2 tests for the silent no-op +
+  resume-on-lift behavior.
+- `EtaloEscrow.test.ts`: 5 tests — weekly volume release on each of
+  the three refund paths, dust cap regression, confirm-after-sanction
+  regression (Pashov #1 end-to-end).
+- `EtaloVoting.test.ts`: 3 tests — zero-quorum revert, 1-0 still
+  valid, `getVoteCounts` view sanity.
+- `EtaloDispute.test.ts`: 4 tests for `adminForceCloseN3IfNoQuorum`
+  (happy path, quorum revert, non-owner revert, wrong-level revert).
+- `Invariants.t.sol`: `invariant_CommissionNeverExceedsPrice` +
+  `invariant_WeeklyVolumeWithinCap` (with new
+  `h_createDustAttackOrder` handler action driving the fuzzer
+  through the Pashov #4 attack shape).
+
+Result: **188 hardhat tests passing (+13 net)**, **9 forge
+invariants passing (+2 net)** at 256 runs × 15 depth.
+
+### Implications for affected files
+- `packages/contracts/contracts/EtaloReputation.sol` (Fix #1)
+- `packages/contracts/contracts/EtaloEscrow.sol` (Fix #2 + #4)
+- `packages/contracts/contracts/EtaloVoting.sol` (Fix #5)
+- `packages/contracts/contracts/EtaloDispute.sol` (escape hatch)
+- `packages/contracts/contracts/interfaces/IEtaloVoting.sol`
+  (new `getVoteCounts` signature)
+- Sepolia redeploy under tag `v1.3-audit-fixes` — addresses
+  updated in `CLAUDE.md` and
+  `packages/contracts/deployments/celo-sepolia-v2.json`.

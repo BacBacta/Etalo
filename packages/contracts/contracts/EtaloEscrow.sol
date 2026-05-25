@@ -255,6 +255,21 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
                 // Last item absorbs the dust so per-item commissions
                 // sum exactly to totalCommission.
                 itemCommission = totalCommission - sumAssigned;
+                // Cap dust at itemPrice so itemNet = itemPrice -
+                // itemCommission cannot underflow inside
+                // _releaseItemFully. Pashov audit finding #4
+                // (ADR-054): a buyer can construct an order with
+                // many sub-rounding-threshold items + one tiny last
+                // item that accumulates the entire totalCommission,
+                // and any release path for that item would revert
+                // forever — locking the item's escrow until refunded
+                // via the inactivity flow (which is unreachable post-
+                // ship). Capping here drops at most a few wei of
+                // commission into perpetual escrow, which is the
+                // accepted trade-off.
+                if (itemCommission > itemPrices[i]) {
+                    itemCommission = itemPrices[i];
+                }
             }
 
             _items[itemId] = EtaloTypes.Item({
@@ -655,6 +670,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
 
         uint256 refundAmount = order.totalAmount;
         totalEscrowedAmount -= refundAmount;
+        _releaseSellerWeeklyVolume(order.seller, refundAmount);
 
         require(
             usdt.transfer(order.buyer, refundAmount),
@@ -722,6 +738,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         order.globalStatus = EtaloTypes.OrderStatus.Refunded;
         if (totalRefund > 0) {
             totalEscrowedAmount -= totalRefund;
+            _releaseSellerWeeklyVolume(order.seller, totalRefund);
             require(
                 usdt.transfer(order.buyer, totalRefund),
                 "USDT transfer failed"
@@ -874,6 +891,13 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
             item.releasedAmount += netShare;
         }
         totalEscrowedAmount -= remainingInEscrow;
+        // Release the buyer-refunded portion from the seller's weekly
+        // volume counter (Pashov audit finding #2, ADR-054) — only the
+        // refunded slice frees up cap; the released slice stays
+        // accounted for as a real sale.
+        if (refundAmount > 0) {
+            _releaseSellerWeeklyVolume(order.seller, refundAmount);
+        }
 
         (EtaloTypes.OrderStatus newStatus, bool shouldDecrementStake) =
             _computeNewOrderStatus(orderId);
@@ -1001,6 +1025,20 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
             "Seller weekly cap"
         );
         sellerWeeklyVolume[seller] += amount;
+    }
+
+    /// @dev Releases `amount` from the seller's weekly volume counter,
+    /// saturating at 0. Called from every refund path so a buyer
+    /// cannot cap-fill a seller, auto-refund, and consume the
+    /// seller's weekly budget at zero cost (Pashov audit finding #2,
+    /// ADR-054). Saturating-subtract handles the case where the
+    /// weekly window has rolled since `fundOrder` recorded the
+    /// volume — we cannot detect that without an extra timestamp
+    /// per-order, and over-releasing would let a seller breach the
+    /// cap mid-window.
+    function _releaseSellerWeeklyVolume(address seller, uint256 amount) internal {
+        uint256 current = sellerWeeklyVolume[seller];
+        sellerWeeklyVolume[seller] = current > amount ? current - amount : 0;
     }
 
     /// @dev Auto-release duration for intra orders — 2 days for a

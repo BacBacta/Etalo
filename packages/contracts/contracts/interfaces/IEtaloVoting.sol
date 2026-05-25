@@ -55,4 +55,13 @@ interface IEtaloVoting {
         external
         view
         returns (bool buyerWon, bool isFinalized);
+
+    /// @notice Returns the current vote tallies. Used by
+    /// EtaloDispute.adminForceCloseN3IfNoQuorum (ADR-054) to detect
+    /// the zero-quorum case after the new `finalizeVote` quorum
+    /// guard would have reverted.
+    function getVoteCounts(uint256 voteId)
+        external
+        view
+        returns (uint256 forBuyer, uint256 forSeller);
 }

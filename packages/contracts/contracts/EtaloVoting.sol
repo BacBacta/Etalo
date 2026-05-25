@@ -99,6 +99,15 @@ contract EtaloVoting is IEtaloVoting, Ownable {
         require(v.deadline > 0, "Vote does not exist");
         require(block.timestamp >= v.deadline, "Voting still open");
         require(!v.finalized, "Already finalized");
+        // Quorum guard (Pashov audit finding #5, ADR-054): the
+        // previous `buyerWon = forBuyer >= forSeller` default-handed
+        // every zero-vote N3 to the buyer, turning voter apathy into
+        // a free refund extraction. Real ties (1-1, 2-2, ...) still
+        // default to buyer per ADR-022 — only the 0-0 case is
+        // rejected here. EtaloDispute exposes
+        // `adminForceCloseN3IfNoQuorum` as the owner-controlled
+        // escape hatch so the dispute is never permanently stuck.
+        require(v.forBuyer + v.forSeller > 0, "No quorum");
 
         // Tie → buyer wins (conservative default per ADR-022).
         bool buyerWon = v.forBuyer >= v.forSeller;
@@ -132,5 +141,14 @@ contract EtaloVoting is IEtaloVoting, Ownable {
     {
         Vote storage v = _votes[voteId];
         return (v.buyerWon, v.finalized);
+    }
+
+    function getVoteCounts(uint256 voteId)
+        external
+        view
+        returns (uint256 forBuyer, uint256 forSeller)
+    {
+        Vote storage v = _votes[voteId];
+        return (v.forBuyer, v.forSeller);
     }
 }

@@ -191,6 +191,58 @@ describe("EtaloVoting", async function () {
       await voting.write.finalizeVote([1n]);
       await expectRevert(voting.write.finalizeVote([1n]), "Already finalized");
     });
+
+    it("rejects finalize on a zero-quorum vote (ADR-054, Pashov #5)", async function () {
+      // Without the quorum guard, the previous behavior was
+      // `buyerWon = forBuyer >= forSeller` with both at 0 → buyer
+      // wins by inaction. The audit demonstrated that this turned
+      // voter apathy into a guaranteed refund extraction for the
+      // buyer. Real ties (1-1, 2-2, ...) still default to buyer;
+      // only the 0-0 case is now rejected.
+      const { voting, mockDispute, voter1, publicClient } = await deployVoting(viem);
+      await mockDispute.write.createVoteOn([
+        voting.address,
+        42n,
+        [voter1.account.address],
+        VOTING_PERIOD,
+      ]);
+      // No vote cast.
+      await increaseTime(publicClient, Number(VOTING_PERIOD) + 1);
+      await expectRevert(voting.write.finalizeVote([1n]), "No quorum");
+    });
+
+    it("accepts finalize with a single buyer vote (1-0 ≠ zero quorum)", async function () {
+      // Regression — the quorum guard fires only on 0-0, not 1-0.
+      const { voting, mockDispute, voter1, publicClient } = await deployVoting(viem);
+      await mockDispute.write.createVoteOn([
+        voting.address,
+        42n,
+        [voter1.account.address],
+        VOTING_PERIOD,
+      ]);
+      await voting.write.submitVote([1n, true], { account: voter1.account });
+      await increaseTime(publicClient, Number(VOTING_PERIOD) + 1);
+      await voting.write.finalizeVote([1n]);
+      const [buyerWon, isFinalized] = await voting.read.getResult([1n]);
+      assert.equal(buyerWon, true);
+      assert.equal(isFinalized, true);
+    });
+
+    it("exposes getVoteCounts for the EtaloDispute escape hatch", async function () {
+      const { voting, mockDispute, voter1, voter2 } = await deployVoting(viem);
+      const voters = [voter1.account.address, voter2.account.address];
+      await mockDispute.write.createVoteOn([voting.address, 42n, voters, VOTING_PERIOD]);
+
+      let [forBuyer, forSeller] = await voting.read.getVoteCounts([1n]);
+      assert.equal(forBuyer, 0n);
+      assert.equal(forSeller, 0n);
+
+      await voting.write.submitVote([1n, true], { account: voter1.account });
+      await voting.write.submitVote([1n, false], { account: voter2.account });
+      [forBuyer, forSeller] = await voting.read.getVoteCounts([1n]);
+      assert.equal(forBuyer, 1n);
+      assert.equal(forSeller, 1n);
+    });
   });
 
   // ── Dispute callback (ADR-022) ────────────────────────────

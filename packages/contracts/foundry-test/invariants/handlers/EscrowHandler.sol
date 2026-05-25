@@ -181,6 +181,33 @@ contract EscrowHandler is Test {
         }
     }
 
+    /// @dev Constructs the dust-attack shape from the Pashov audit
+    /// finding #4 — many sub-rounding-threshold items + one tiny last
+    /// item. Without the dust cap, the last item's commission
+    /// accumulates the entire totalCommission and exceeds itemPrice,
+    /// causing _releaseItemFully to underflow. With the cap, every
+    /// item's commission is <= its price (validated by
+    /// invariant_CommissionNeverExceedsPrice).
+    function h_createDustAttackOrder(uint256 buyerSeed, uint256 sellerSeed) external {
+        _onCall();
+        address buyer = buyers[buyerSeed % 3];
+        address seller = sellers[sellerSeed % 5];
+        if (buyer == seller) return;
+        if (block.timestamp <= escrow.pausedUntil()) return;
+
+        // 49 items of 55 wei (< 180bps rounding threshold) + 1 wei tail.
+        uint256[] memory prices = new uint256[](50);
+        for (uint256 i = 0; i < 49; i++) prices[i] = 55;
+        prices[49] = 1;
+
+        vm.prank(buyer);
+        try escrow.createOrderWithItems(seller, prices, false) returns (uint256 orderId) {
+            createdOrderIds.push(orderId);
+        } catch {
+            // Expected occasional revert from cap checks; not unexpected.
+        }
+    }
+
     function h_createCrossBorderOrder(
         uint256 buyerSeed,
         uint256 sellerSeed,
