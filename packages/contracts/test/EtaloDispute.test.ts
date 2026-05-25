@@ -287,4 +287,70 @@ describe("EtaloDispute", async function () {
       );
     });
   });
+
+  // ── ADR-054 adminForceCloseN3IfNoQuorum (Pashov #5 escape hatch) ──
+  describe("adminForceCloseN3IfNoQuorum", function () {
+    it("resolves a zero-quorum N3 dispute as buyer-win", async function () {
+      const { dispute, mockEscrow, stake, buyer, seller, publicClient } =
+        await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.escalateToVoting([1n], { account: buyer.account });
+
+      // Voting period elapses with NOBODY casting a vote.
+      await increaseTime(publicClient, N3_VOTING_PERIOD + 1);
+
+      // Owner triggers the escape hatch.
+      await dispute.write.adminForceCloseN3IfNoQuorum([1n]);
+
+      const [, , level, resolved] = await dispute.read.getDispute([1n]);
+      assert.equal(resolved, true);
+      assert.equal(level, LEVEL_RESOLVED);
+      // Full item price refunded to buyer (mock escrow returns itemPrice = 50).
+      assert.equal(await mockEscrow.read.lastRefundAmount(), toUSDT(50));
+
+      // Seller stake unfrozen.
+      const [, , , , , freezeCount] = await stake.read.getWithdrawal([
+        seller.account.address,
+      ]);
+      assert.equal(freezeCount, 0n);
+    });
+
+    it("reverts when the vote has any quorum (forBuyer + forSeller > 0)", async function () {
+      const { dispute, voting, buyer, mediator } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.escalateToVoting([1n], { account: buyer.account });
+
+      // A single ballot is enough to disqualify the escape hatch.
+      await voting.write.submitVote([1n, true], { account: mediator.account });
+
+      await expectRevert(
+        dispute.write.adminForceCloseN3IfNoQuorum([1n]),
+        "Vote has quorum"
+      );
+    });
+
+    it("rejects non-owner callers", async function () {
+      const { dispute, buyer, nonParty, publicClient } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      await dispute.write.escalateToMediation([1n], { account: buyer.account });
+      await dispute.write.escalateToVoting([1n], { account: buyer.account });
+      await increaseTime(publicClient, N3_VOTING_PERIOD + 1);
+
+      await expectRevert(
+        dispute.write.adminForceCloseN3IfNoQuorum([1n], { account: nonParty.account })
+      );
+    });
+
+    it("reverts when dispute is not at N3", async function () {
+      const { dispute, buyer } = await deployDispute(viem);
+      await dispute.write.openDispute([1n, 1n, "r"], { account: buyer.account });
+      // Still at N1.
+      await expectRevert(
+        dispute.write.adminForceCloseN3IfNoQuorum([1n]),
+        "Not at N3"
+      );
+    });
+  });
 });

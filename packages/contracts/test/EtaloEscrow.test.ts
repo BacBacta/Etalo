@@ -1280,4 +1280,136 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       await expectRevert(escrow.write.emergencyPause(), "Already paused");
     });
   });
+
+  // ── ADR-054 Pashov audit fixes ────────────────────────────
+  describe("ADR-054 audit fixes (Pashov findings #1, #2, #4)", function () {
+    it("Fix #2: triggerAutoRefundIfInactive releases sellerWeeklyVolume", async function () {
+      const { escrow, buyer, seller, publicClient } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+
+      const usedBefore = await escrow.read.sellerWeeklyVolume([seller.account.address]);
+      assert.equal(usedBefore, toUSDT(50));
+
+      await increaseTime(publicClient, 7 * 24 * 3600 + 1);
+      await escrow.write.triggerAutoRefundIfInactive([1n]);
+
+      const usedAfter = await escrow.read.sellerWeeklyVolume([seller.account.address]);
+      assert.equal(usedAfter, 0n);
+    });
+
+    it("Fix #2: resolveItemDispute refund branch releases the refunded slice", async function () {
+      const { escrow, buyer, seller, nonParty } = await deployEscrow(viem);
+      // Stand-in dispute contract so we can invoke the hooks.
+      await escrow.write.setDisputeContract([nonParty.account.address]);
+
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.markItemDisputed([1n, itemIds[0]], { account: nonParty.account });
+
+      const usedBefore = await escrow.read.sellerWeeklyVolume([seller.account.address]);
+      assert.equal(usedBefore, toUSDT(50));
+
+      // Full refund: should release the full 50 from weekly counter.
+      await escrow.write.resolveItemDispute(
+        [1n, itemIds[0], toUSDT(50)],
+        { account: nonParty.account }
+      );
+
+      const usedAfter = await escrow.read.sellerWeeklyVolume([seller.account.address]);
+      assert.equal(usedAfter, 0n);
+    });
+
+    it("Fix #2: forceRefund releases sellerWeeklyVolume", async function () {
+      const { escrow, buyer, seller, publicClient } = await deployEscrow(viem);
+      // Order in Funded state (no ship), set up forceRefund preconditions.
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+
+      // ADR-023 preconditions: unset dispute, +90 days, legal hold.
+      // setDisputeContract(0x0) is not exposed, but the fresh fixture
+      // has no dispute contract wired in the first place.
+      await escrow.write.registerLegalHold([1n, "0x" + "11".repeat(32)]);
+      await increaseTime(publicClient, 90 * 24 * 3600 + 1);
+
+      await escrow.write.forceRefund([1n, "0x" + "22".repeat(32)]);
+
+      const usedAfter = await escrow.read.sellerWeeklyVolume([seller.account.address]);
+      assert.equal(usedAfter, 0n);
+    });
+
+    it("Fix #4: createOrderWithItems caps dust commission to itemPrice", async function () {
+      // Construct: 49 sub-rounding-threshold items + 1 tiny last
+      // item. Without the cap, totalCommission accumulates on the
+      // last item via the dust-absorption line and the resulting
+      // itemCommission would exceed itemPrice — bricking every
+      // release path. With the cap, the last item's commission is
+      // truncated to itemPrice and the item remains releasable.
+      const { escrow, buyer, seller } = await deployEscrow(viem);
+
+      const smallPrice = 55n; // < rounding threshold for intra (180 bps): 55 * 180 / 10_000 = 0
+      const items: bigint[] = [];
+      for (let i = 0; i < 49; i++) items.push(smallPrice);
+      items.push(1n); // tiny last item
+
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, items, false],
+        { account: buyer.account }
+      );
+
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      const lastItem = await escrow.read.getItem([itemIds[49]]);
+      // Commission must not exceed price.
+      assert.ok(lastItem.itemCommission <= lastItem.itemPrice, "commission > price");
+      // Specifically: capped at itemPrice (1).
+      assert.equal(lastItem.itemCommission, 1n);
+      // Sanity: every item's invariant holds.
+      for (let i = 0; i < itemIds.length; i++) {
+        const it = await escrow.read.getItem([itemIds[i]]);
+        assert.ok(it.itemCommission <= it.itemPrice);
+      }
+    });
+
+    it("Fix #1: confirmItemDelivery succeeds after seller sanction", async function () {
+      // Regression for Pashov #1: a sanctioned seller used to brick
+      // every release path because EtaloReputation.recordCompletedOrder
+      // reverted. With the no-op fix in place, the buyer can still
+      // confirm delivery and the funds flow normally.
+      const { escrow, reputation, mockUSDT, buyer, seller } = await deployEscrow(viem);
+      await escrow.write.createOrderWithItems(
+        [seller.account.address, [toUSDT(50)], false],
+        { account: buyer.account }
+      );
+      await escrow.write.fundOrder([1n], { account: buyer.account });
+      const itemIds = await escrow.read.getOrderItems([1n]);
+      await escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
+        { account: seller.account }
+      );
+
+      // Owner sanctions the seller (status = Suspended) BEFORE the
+      // buyer confirms delivery.
+      await reputation.write.applySanction([seller.account.address, 1]);
+
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      await escrow.write.confirmItemDelivery([1n, itemIds[0]], { account: buyer.account });
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+
+      // Seller received the net payout despite the sanction
+      // (1.8% commission on 50 USDT → 49.10 USDT net).
+      assert.ok(sellerAfter > sellerBefore, "seller received nothing");
+      const item = await escrow.read.getItem([itemIds[0]]);
+      assert.equal(item.status, ITEM_RELEASED);
+    });
+  });
 });

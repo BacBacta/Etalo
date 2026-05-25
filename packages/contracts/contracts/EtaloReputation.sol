@@ -59,7 +59,16 @@ contract EtaloReputation is IEtaloReputation, Ownable {
     // ===== Core =====
     function recordCompletedOrder(address seller, uint256 orderId, uint256 amount) external onlyAuthorized {
         SellerReputation storage rep = _reputations[seller];
-        require(rep.status == SellerStatus.Active, "Seller not active");
+        // Skip silently for sanctioned sellers instead of reverting.
+        // Pashov audit finding #1 (ADR-054): reverting here turned every
+        // pending release path in EtaloEscrow._releaseItemFully into a
+        // permanent fund lockup for innocent buyers as soon as the
+        // owner applied a sanction. The sanction must affect the
+        // seller's future reputation, never lock counterparty funds.
+        if (rep.status != SellerStatus.Active) {
+            emit OrderRecorded(seller, orderId, amount);
+            return;
+        }
 
         if (rep.ordersCompleted == 0) {
             rep.firstOrderAt = block.timestamp;   // stamped once on the very first completed order

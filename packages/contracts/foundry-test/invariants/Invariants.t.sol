@@ -203,4 +203,43 @@ contract Invariants is Test {
             "Handler caught unexpected reverts - potential bug"
         );
     }
+
+    /// @notice 8. Every item ever created must satisfy
+    /// `itemCommission <= itemPrice`. Pashov audit finding #4
+    /// (ADR-054): a crafted order with many sub-rounding items + 1
+    /// tiny last item could accumulate the entire totalCommission on
+    /// the last item, making the property false and causing
+    /// `_releaseItemFully` to underflow on `itemNet = itemPrice -
+    /// itemCommission`. The dust cap in createOrderWithItems makes
+    /// this property hold for every item, regardless of input shape.
+    function invariant_CommissionNeverExceedsPrice() public view {
+        uint256 count = escrow.getOrderCount();
+        for (uint256 oid = 1; oid <= count; oid++) {
+            uint256[] memory itemIds = escrow.getOrderItems(oid);
+            for (uint256 i = 0; i < itemIds.length; i++) {
+                EtaloTypes.Item memory it = escrow.getItem(itemIds[i]);
+                assertLe(
+                    it.itemCommission,
+                    it.itemPrice,
+                    "itemCommission > itemPrice (Pashov #4 regression)"
+                );
+            }
+        }
+    }
+
+    /// @notice 9. `sellerWeeklyVolume` must never exceed
+    /// `MAX_SELLER_WEEKLY_VOLUME` for any seller, regardless of fund
+    /// + refund interleaving. Pashov audit finding #2 (ADR-054):
+    /// `triggerAutoRefundIfInactive`, `resolveItemDispute` refund,
+    /// and `forceRefund` all now release the buyer-refunded slice
+    /// from the weekly counter — this invariant guards against the
+    /// release helper over-shooting or any future refund path
+    /// forgetting to decrement.
+    function invariant_WeeklyVolumeWithinCap() public view {
+        uint256 cap = escrow.MAX_SELLER_WEEKLY_VOLUME();
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 weekly = escrow.sellerWeeklyVolume(handler.sellers(i));
+            assertLe(weekly, cap, "sellerWeeklyVolume > MAX_SELLER_WEEKLY_VOLUME");
+        }
+    }
 }
