@@ -8,14 +8,18 @@
  * inspect events / read storage there. Future iteration : pin the
  * URL to a specific log entry once the indexer surfaces tx_hash.
  *
- * Hard-coded to Celo Sepolia for V1 (mainnet swap to celoscan.io
- * comes with the J12 mainnet deploy + chain switch).
+ * URL switches based on NEXT_PUBLIC_CHAIN_ID :
+ *   42220 (mainnet)    -> celo.blockscout.com
+ *   11142220 (Sepolia) -> celo-sepolia.blockscout.com
  */
 import { ArrowSquareOut } from "@phosphor-icons/react";
 
 import { cn } from "@/lib/utils";
 
-const BLOCKSCOUT_BASE = "https://celo-sepolia.blockscout.com";
+const BLOCKSCOUT_BASE =
+  process.env.NEXT_PUBLIC_CHAIN_ID === "42220"
+    ? "https://celo.blockscout.com"
+    : "https://celo-sepolia.blockscout.com";
 
 export interface BlockscoutLinkButtonProps {
   className?: string;
