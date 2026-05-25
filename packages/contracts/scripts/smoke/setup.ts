@@ -100,7 +100,7 @@ async function main() {
       env[envKey] = pk;
       created = true;
     }
-    const account = privateKeyToAccount(`0x${pk}` as `0x${string}`);
+    const account = privateKeyToAccount(`0x${pk.replace(/^0x/, "")}` as `0x${string}`);
     wallets[name] = { address: account.address, created };
   }
 
