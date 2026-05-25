@@ -7,11 +7,17 @@ import votingAbi from "@/abis/v2/EtaloVoting.json";
 import usdtAbi from "@/abis/v2/MockUSDT.json";
 
 /**
- * Etalo V2 contracts on Celo Sepolia.
+ * Etalo V2 contract registry.
  *
- * Six contracts, all behind the V2 audit-gated deploy
- * (`v2.0.0-contracts-sepolia`). USDT remains MockUSDT on testnet —
- * mainnet will swap to 0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e.
+ * Addresses come from NEXT_PUBLIC_*_ADDRESS env vars — defaults in
+ * `.env.example` point to Celo Sepolia (V1.3 audit-fixes redeploy).
+ * Production (Vercel env override) points to Celo mainnet (V1.4
+ * shadow-Mike multisig deploy, tag v1.4-mainnet — see
+ * `docs/MAINNET_CUTOVER.md`).
+ *
+ * USDT : Sepolia uses MockUSDT, mainnet uses real Celo Tether
+ * `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e`. The variable name
+ * stays NEXT_PUBLIC_USDT_ADDRESS on both — only the value differs.
  */
 export const CONTRACTS = {
   escrow: {

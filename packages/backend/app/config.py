@@ -81,6 +81,12 @@ class Settings(BaseSettings):
     # Block 4 of Sprint J5 fully replaces it.
     celo_rpc_url: str = "https://celo-sepolia.drpc.org"
 
+    # ----------------------------------------------------------
+    # Contract addresses — DEFAULTS = Celo Sepolia (testnet) for
+    # local dev safety. Production MUST override every value below
+    # via env vars (Fly.io secrets) — see docs/MAINNET_CUTOVER.md
+    # for the full cutover checklist + the mainnet values to set.
+    # ----------------------------------------------------------
     # V2 contract addresses (Celo Sepolia, redeployed 2026-05-25
     # post-Pashov-audit-fixes per ADR-054, tag v1.3-audit-fixes).
     # Previous addresses retained in
@@ -96,10 +102,33 @@ class Settings(BaseSettings):
     # EtaloCredits (Sprint J7 Block 5b, redeployed post-H-1)
     etalo_credits_address: str = "0x778a6bda524F4D396F9566c0dF131F76b0E15CA3"
 
-    # Treasuries (three-wallet separation per ADR-024)
+    # Treasuries (three-wallet separation per ADR-024).
+    # On mainnet, all 3 point to the multisig Safe at
+    # 0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F — ADR-024 logical
+    # separation preserved off-chain (admin Safe tx routes revenue
+    # to dedicated sub-accounts in V1.1+ when accumulation justifies).
     commission_treasury_address: str = "0x9819c9E1b4F634784fd9A286240ecACd297823fa"
     credits_treasury_address: str = "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA"
     community_fund_address: str = "0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6"
+
+    # ----------------------------------------------------------
+    # MAINNET reference (Celo mainnet chainId 42220, V1.4 launch
+    # 2026-05-25, tag v1.4-mainnet). NOT loaded by default — set the
+    # env vars below in production (Fly.io secrets).
+    # Source: packages/contracts/deployments/celo-mainnet-v2.json.
+    # ----------------------------------------------------------
+    # MOCK_USDT_ADDRESS=0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e (real Celo Tether)
+    # ETALO_REPUTATION_ADDRESS=0xaF890609a3B2AF6E1E2Ebf91267347133b5065AD
+    # ETALO_STAKE_ADDRESS=0x3D588192BC76e38a3f6453E45A9B9aD0Dc85bc9A
+    # ETALO_VOTING_ADDRESS=0xa1C48f2f962484D63D4D1b04C9c2574Da2C0EcBA
+    # ETALO_DISPUTE_ADDRESS=0x6d5Aa5e0EAE407688E99492213849D9a608D63d2
+    # ETALO_ESCROW_ADDRESS=0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92
+    # ETALO_CREDITS_ADDRESS=0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6
+    # COMMISSION_TREASURY_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F  (Safe)
+    # CREDITS_TREASURY_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F  (Safe)
+    # COMMUNITY_FUND_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F  (Safe)
+    # CELO_RPC_URL=https://forno.celo.org
+    # CELO_SEPOLIA_RPC=https://forno.celo.org  (legacy alias, same value as CELO_RPC_URL until Sprint J5 Block 4 removes it)
 
     # ============================================================
     # Analytics (J10-V5 Phase 5 Angle C sub-block C.2)
