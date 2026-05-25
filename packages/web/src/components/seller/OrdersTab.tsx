@@ -7,17 +7,12 @@ import { toast } from "sonner";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
-// Phase A P0-2 — MarkGroupShippedDialog lazy-loaded (only opens when
-// the seller taps "Mark shipped" on a card). Drops ~10-15 kB from the
-// dashboard eager bundle alongside the other two dialogs in
-// ProductsTab.
-const MarkGroupShippedDialog = dynamic(
-  () =>
-    import("@/components/seller/MarkGroupShippedDialog").then(
-      (m) => m.MarkGroupShippedDialog,
-    ),
-  { ssr: false, loading: () => null },
-);
+// MarkGroupShippedDialog was previously dynamic-imported (Phase A P0-2,
+// ~10-15 kB saving), but MiniPay's WebView returned an error while
+// fetching the chunk so the click had no observable effect and the
+// seller couldn't ship. The bundle delta isn't worth a broken core
+// flow ; switched to a static import.
+import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
 import { PickListView } from "@/components/seller/PickListView";
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
@@ -157,13 +152,63 @@ export function OrdersTab({ address }: Props) {
     ? null
     : (ordersQuery.data ?? null);
 
+  // Optimistic "I just shipped this" set. Indexer lag means
+  // `global_status` stays "Funded" for up to 30 s after the seller's
+  // tx confirms — without this, the row stays in shippable state and
+  // the seller can double-tap the action. We clear an id once the
+  // refetched data shows the order has advanced past the shippable
+  // statuses.
+  const [optimisticallyShipped, setOptimisticallyShipped] = useState<
+    Set<number>
+  >(new Set());
+
   // Centralized invalidation point used after a successful
-  // markShipped mutation.
+  // markShipped mutation. Also kicks off a 30 s burst of 5 s polls so
+  // the optimistic state flips back to real data fast — beats waiting
+  // for the next default 30 s indexer cycle.
   const refetch = useCallback(() => {
-    void queryClient.invalidateQueries({
-      queryKey: SELLER_ORDERS_QUERY_KEY,
-    });
+    void queryClient.invalidateQueries({ queryKey: SELLER_ORDERS_QUERY_KEY });
+    let elapsed = 0;
+    const interval = setInterval(() => {
+      elapsed += 5_000;
+      void queryClient.invalidateQueries({ queryKey: SELLER_ORDERS_QUERY_KEY });
+      if (elapsed >= 30_000) clearInterval(interval);
+    }, 5_000);
   }, [queryClient]);
+
+  const handleShipSuccess = useCallback(
+    (onchainOrderId: number) => {
+      setOptimisticallyShipped((prev) => {
+        const next = new Set(prev);
+        next.add(onchainOrderId);
+        return next;
+      });
+      refetch();
+    },
+    [refetch],
+  );
+
+  // Once the refetched order is no longer in a shippable state, drop
+  // the optimistic id — the real status pill takes over.
+  useEffect(() => {
+    if (!data || optimisticallyShipped.size === 0) return;
+    const stillShippable = new Set(
+      data.orders
+        .filter((o) => isShippable(o.global_status))
+        .map((o) => o.onchain_order_id),
+    );
+    setOptimisticallyShipped((prev) => {
+      let changed = false;
+      const next = new Set(prev);
+      for (const id of prev) {
+        if (!stillShippable.has(id)) {
+          next.delete(id);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [data, optimisticallyShipped.size]);
 
   // J10-V5 Block 7 — first-sale milestone confetti + dialog.
   const prevOrdersCountRef = useRef<number | null>(null);
@@ -336,21 +381,12 @@ export function OrdersTab({ address }: Props) {
             <OrderRow
               key={o.id}
               order={o}
+              optimisticShipped={optimisticallyShipped.has(o.onchain_order_id)}
               onShipClick={() => {
-                // DEBUG mainnet smoke: surface every step as toast
-                // since MiniPay WebView has no devtools.
-                toast.info(`[DBG] click order=${o.onchain_order_id}`);
-                try {
-                  setShipTarget({
-                    dbOrderId: o.id,
-                    onchainOrderId: o.onchain_order_id,
-                  });
-                  toast.info("[DBG] setShipTarget OK");
-                } catch (e) {
-                  toast.error(
-                    `[DBG] setShipTarget threw: ${e instanceof Error ? e.message : String(e)}`,
-                  );
-                }
+                setShipTarget({
+                  dbOrderId: o.id,
+                  onchainOrderId: o.onchain_order_id,
+                });
               }}
             />
           ))}
@@ -371,7 +407,7 @@ export function OrdersTab({ address }: Props) {
           }}
           dbOrderId={shipTarget.dbOrderId}
           onchainOrderId={shipTarget.onchainOrderId}
-          onSuccess={refetch}
+          onSuccess={() => handleShipSuccess(shipTarget.onchainOrderId)}
         />
       ) : null}
 
@@ -431,6 +467,11 @@ function KpiTile({ label, value, sub, icon, urgency, testId }: KpiTileProps) {
 interface OrderRowProps {
   order: SellerOrderItem;
   onShipClick: () => void;
+  // True from the moment the seller's ship tx confirms until the
+  // indexer-updated `global_status` no longer reports the order as
+  // shippable. Drives the "syncing" pill + button hide so the seller
+  // can't double-tap during the 0-30 s indexer lag.
+  optimisticShipped: boolean;
 }
 
 // memo'd : OrdersTab renders 20+ rows in a .map() and the parent
@@ -438,8 +479,12 @@ interface OrderRowProps {
 // frequently. `order` is referentially stable per row across parent
 // re-renders ; `onShipClick` is a closure — consumers should pass a
 // useCallback-stabilised handler for memo to bite.
-const OrderRow = memo(function OrderRow({ order, onShipClick }: OrderRowProps) {
-  const canShip = isShippable(order.global_status);
+const OrderRow = memo(function OrderRow({
+  order,
+  onShipClick,
+  optimisticShipped,
+}: OrderRowProps) {
+  const canShip = isShippable(order.global_status) && !optimisticShipped;
   const dl = deadlineInfo(order.funded_at, order.global_status);
   const buyer = buyerLabel(order.delivery_address_snapshot, order.onchain_order_id);
   const lineItems = order.line_items ?? [];
@@ -597,6 +642,14 @@ const OrderRow = memo(function OrderRow({ order, onShipClick }: OrderRowProps) {
             <Truck className="mr-2 h-4 w-4" />
             Mark shipped
           </Button>
+        ) : optimisticShipped ? (
+          <div
+            data-testid="order-row-shipped-syncing"
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-md bg-emerald-50 px-3 text-base font-medium text-emerald-800 sm:flex-none dark:bg-emerald-950/40 dark:text-emerald-200"
+          >
+            <Truck className="h-4 w-4" weight="fill" />
+            <span>Shipped — syncing on-chain…</span>
+          </div>
         ) : null}
         {snapshot ? (
           <button
