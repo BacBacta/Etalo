@@ -15,17 +15,21 @@ V2 (see ADR-041). The 4 launch markets transact among themselves; diaspora
 buying is a public-funnel-only signal in V1.
 
 **V1 Boutique model** (see ADR-014): three integrated pillars:
-1. Per-seller Boutique at `etalo.app/[handle]` — full catalog, cart,
-   grouped checkout for N items from the same seller.
+1. Per-seller Boutique at `etalo.xyz/[handle]` — full catalog, cart,
+   grouped checkout for N items from the same seller. (V1 canonical
+   domain is etalo.xyz per Vercel alias 2026-05-25 ; etalo.app is
+   planned future, not yet wired.)
 2. Dual-mode MiniPay app — buyer and seller modes in the same Mini App.
 3. Asset generator (monetized) — per-product content pack sold in
    credits (0.15 USDT/credit, see `docs/PRICING_MODEL_CREDITS.md`).
 
 **Architecture (ADR-035)**: All three pillars live in a single Next.js
-app at `etalo.app`. The user's experience adapts based on MiniPay
-detection: visitors without MiniPay see the public funnel surface
-(per-seller boutique pages, conversion CTA); MiniPay users see the
-full Mini App surface (marketplace, cart, seller dashboard).
+app served at `etalo.xyz` (V1 canonical domain — Vercel alias since
+2026-05-25 ; `etalo.app` reserved for future). The user's experience
+adapts based on MiniPay detection: visitors without MiniPay see the
+public funnel surface (per-seller boutique pages, conversion CTA);
+MiniPay users see the full Mini App surface (marketplace, cart,
+seller dashboard).
 
 Tagline: "Your digital stall, open 24/7"
 
@@ -36,7 +40,7 @@ power is structurally bounded by code.
 ## Tech stack (locked, do not change without an ADR)
 
 - Smart contracts: Solidity 0.8.24 + Hardhat + OpenZeppelin
-- Frontend (single Next.js app at `etalo.app`, see ADR-035): React 18.3 +
+- Frontend (single Next.js app at `etalo.xyz` V1 canonical / `etalo.app` future, see ADR-035): React 18.3 +
   TypeScript 5 + Next.js 14 (App Router, SSR + Client Components) +
   Wagmi v2 + Viem v2 + shadcn/ui + Tailwind. Same app serves the public
   funnel surface (no wallet required, SEO-optimized for social media

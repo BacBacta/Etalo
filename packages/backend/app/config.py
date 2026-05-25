@@ -72,7 +72,10 @@ class Settings(BaseSettings):
     # production ; override via .env in dev (typically an ngrok
     # reserved domain since WhatsApp messages can't reach
     # localhost). Trailing slash is stripped at compose time.
-    frontend_base_url: str = "https://etalo.app"
+    # V1 canonical production domain is etalo.xyz (per Vercel project alias
+    # 2026-05-25). etalo.app planned future domain — not yet wired.
+    # Default points to etalo.xyz for production builds.
+    frontend_base_url: str = "https://etalo.xyz"
 
     # Celo Sepolia RPC — env var CELO_SEPOLIA_RPC overrides; drpc fallback.
     # Aligned with packages/contracts/hardhat.config.ts and smoke scripts.
