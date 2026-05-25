@@ -16,7 +16,7 @@
   - Chain ID `11142220`, RPC `https://celo-sepolia.drpc.org`, symbole `CELO`
 - [ ] Wallet **seller** différent (idéalement le `0x3154835dEAf9DF60A7aCaf45955236e73aD84502` shopday)
 - [ ] **CELO Sepolia** sur les 2 wallets via https://faucet.celo.org/celo-sepolia
-- [ ] **MockUSDT** sur le wallet buyer — adresse contrat `0xea07db5d3D7576864ac434133abFE0E815735300`. Si vide, mint via Celoscan write tab ou demande à un dev.
+- [ ] **MockUSDT** sur le wallet buyer — adresse contrat `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427`. Si vide, mint via Celoscan write tab ou demande à un dev.
   - Minimum 50 USDT pour faire 5-10 tests
 
 ### Setup browser

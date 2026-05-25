@@ -174,7 +174,7 @@ stake's only V1 role was the Top Seller tier gating — also retired.
 **Contracts :**
 - [`packages/contracts/contracts/EtaloStake.sol`](../packages/contracts/contracts/EtaloStake.sol) — full contract : `depositStake`, `withdrawStake`, `slashStake`, `incrementActiveSales` / `decrementActiveSales`, tier ladder (`NONE` / `STARTER` / `GROWTH` / `SCALE`)
 - [`packages/contracts/contracts/interfaces/IEtaloStake.sol`](../packages/contracts/contracts/interfaces/IEtaloStake.sol)
-- Deployed address : `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` (Sepolia)
+- Deployed address : `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` (Sepolia)
 
 **Backend :**
 - [`app/models/stake.py`](../packages/backend/app/models/stake.py) — `stakes` table mirror

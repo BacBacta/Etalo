@@ -6,6 +6,15 @@
 **MiniPay listing prereq** : §3 — for every user-facing public method, provide a sample on-chain transaction link
 **Branch** : `ops/sample-tx-j11`
 
+> ⚠️ **Stale tx links — re-collection pending for v1.3-audit-fixes redeploy.**
+> The contract addresses in the deploy table below were automatically
+> updated to the v1.3 redeploy (2026-05-25, ADR-054) but **the txHash
+> links + block numbers still point to the deprecated H-1 deploy
+> (2026-05-05)**. The new addresses have not yet been exercised
+> end-to-end on Sepolia to produce a fresh sample-tx table.
+> Re-collecting the per-method sample TXs is a follow-up task tracked
+> in `docs/audit/PASHOV_FINDINGS_J12.md`.
+>
 > **Related audit artifacts** :
 > - Source-verification : `docs/CELOSCAN_VERIFICATION.md` (PR ops/celoscan-verify-h1-redeploy)
 > - PageSpeed baseline : `docs/audit/lighthouse/` (PR ops/pagespeed-baseline-j11)
@@ -55,12 +64,12 @@ These 25 transactions exercise the contract initialization sequence run by `depl
 
 | Contract | Address | Deploy tx | Block |
 |---|---|---|---|
-| MockUSDT | `0xea07db5d3D7576864ac434133abFE0E815735300` | [`0xea336bc1`...](https://celo-sepolia.blockscout.com/tx/0xea336bc1e5467dfc45dacacefe10147b1eb19a0620e90bbbf03d98f760f4d26f) | 24720376 |
-| EtaloReputation | `0x539e0d44c0773504075E1B00f25A99ED70258178` | [`0xdd315dc4`...](https://celo-sepolia.blockscout.com/tx/0xdd315dc4162f797d029a26e919687af1623881a0fcf0c6fbb438390a3e40f842) | 24720379 |
-| EtaloStake | `0x676C40be9517e61D9CB01E6d8C4E12c4e2Be0CeB` | [`0x974a61f0`...](https://celo-sepolia.blockscout.com/tx/0x974a61f07af0ee5a96beea16e2cceb4acb0809e941749e6c0d6a1db6f28b2842) | 24720383 |
-| EtaloVoting | `0x9C4831fAb1a1893BCABf3aB6843096058bab3d0A` | [`0x6248fe61`...](https://celo-sepolia.blockscout.com/tx/0x6248fe61521d09e0f0bec1bc903086cd0ff8847233339b477b79505361b6c8df) | 24720386 |
-| EtaloDispute | `0xEe8339b29F54bd29d68E061c4212c8b202760F5b` | [`0x02268e68`...](https://celo-sepolia.blockscout.com/tx/0x02268e68b2d37da55264cccb7fd38faf782e7c3c6cd236fbed16c4b241890876) | 24720389 |
-| EtaloEscrow | `0xAeC58270973A973e3FF4913602Db1b5c98894640` | [`0xf29c1b47`...](https://celo-sepolia.blockscout.com/tx/0xf29c1b47f8d74d65adc6fb059cd62850edf9a609ebefbd75d03fe4c078d300fe) | 24720393 |
+| MockUSDT | `0xd34428140Fc8D6Be523d9A14C4E215F5709f9427` | [`0xea336bc1`...](https://celo-sepolia.blockscout.com/tx/0xea336bc1e5467dfc45dacacefe10147b1eb19a0620e90bbbf03d98f760f4d26f) | 24720376 |
+| EtaloReputation | `0x5762502acAA57744F0bC10b3f0fD2Cd59a16EFbE` | [`0xdd315dc4`...](https://celo-sepolia.blockscout.com/tx/0xdd315dc4162f797d029a26e919687af1623881a0fcf0c6fbb438390a3e40f842) | 24720379 |
+| EtaloStake | `0xE599a167f0422D6700EC812c6b0f3c485379Ed05` | [`0x974a61f0`...](https://celo-sepolia.blockscout.com/tx/0x974a61f07af0ee5a96beea16e2cceb4acb0809e941749e6c0d6a1db6f28b2842) | 24720383 |
+| EtaloVoting | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` | [`0x6248fe61`...](https://celo-sepolia.blockscout.com/tx/0x6248fe61521d09e0f0bec1bc903086cd0ff8847233339b477b79505361b6c8df) | 24720386 |
+| EtaloDispute | `0x1f830A47af07E2BE9Db2017C873Bd2eF7F98f4a1` | [`0x02268e68`...](https://celo-sepolia.blockscout.com/tx/0x02268e68b2d37da55264cccb7fd38faf782e7c3c6cd236fbed16c4b241890876) | 24720389 |
+| EtaloEscrow | `0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1` | [`0xf29c1b47`...](https://celo-sepolia.blockscout.com/tx/0xf29c1b47f8d74d65adc6fb059cd62850edf9a609ebefbd75d03fe4c078d300fe) | 24720393 |
 | EtaloCredits | `0x778a6bda524F4D396F9566c0dF131F76b0E15CA3` | [`0xf5ae6be3`...](https://celo-sepolia.blockscout.com/tx/0xf5ae6be3dbfaa52c90531d58502d81ee1fe052056f034944f9fd0d083ea68077) | 24720520 |
 
 ### §2.2 Initial mint (1)

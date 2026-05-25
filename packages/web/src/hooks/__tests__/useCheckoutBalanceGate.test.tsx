@@ -13,7 +13,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCheckoutBalanceGate } from "@/hooks/useCheckoutBalanceGate";
 
 const BUYER = "0xabc0000000000000000000000000000000000001" as const;
-const USDT = "0xea07db5d3D7576864ac434133abFE0E815735300" as const;
+const USDT = "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427" as const;
 
 vi.stubEnv("NEXT_PUBLIC_USDT_ADDRESS", USDT);
 
