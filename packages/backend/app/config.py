@@ -148,8 +148,18 @@ class Settings(BaseSettings):
     # ============================================================
     # Polling interval between scan cycles (seconds).
     indexer_poll_interval_seconds: int = 30
-    # Max blocks per eth_getLogs call (Alchemy limit ~50 for this RPC).
-    indexer_block_chunk_size: int = 50
+    # Max blocks per eth_getLogs call. Forno (Celo mainnet public RPC)
+    # caps each call at ~10k blocks but rate-limits bursts to ~25 reqs
+    # before returning 403. The previous 50-block default caused a
+    # silent indexer stall on first mainnet startup: 14k-block backfill
+    # / 50 = 280 chunks × 5 contracts = 1400 calls in a single cycle,
+    # all bursting in < 5 s → forno banned the IP mid-cycle, the
+    # AsyncWeb3 exception was swallowed by `_poll_cycle`'s blanket
+    # except, and the cursor never advanced past the deploy block.
+    # 2000 keeps backfill under ~10 calls and stays well below forno's
+    # 10k per-call cap with margin if forno tightens. Paired with the
+    # 100 ms inter-chunk sleep in `Indexer._poll_chunk`.
+    indexer_block_chunk_size: int = 2000
     # Re-read the last N blocks each cycle for reorg defense (idempotency
     # via UNIQUE(tx_hash, log_index) prevents double-write).
     indexer_reorg_depth: int = 3
