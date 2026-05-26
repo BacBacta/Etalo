@@ -8,6 +8,10 @@ import { useAccount, useChainId } from "wagmi";
 import { CheckoutSellerStatus } from "@/components/CheckoutSellerStatus";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { InsufficientBalanceCTA } from "@/components/checkout/InsufficientBalanceCTA";
+import {
+  ChainMismatchBanner,
+  useChainMatch,
+} from "@/components/wallet/ChainMismatchBanner";
 
 // Note : CheckoutSellerStatus + InsufficientBalanceCTA were briefly
 // dynamic-imported here as a /checkout bundle optimisation, but both
@@ -81,6 +85,7 @@ export function CheckoutFlow({ cart, token }: Props) {
     deliveryFormData: addressReady ? deliveryFormData : null,
   });
   const chainId = useChainId();
+  const { isMatch: chainMatches } = useChainMatch();
 
   // Stable references so the cleanup effect doesn't fire repeatedly.
   const clearSellerItems = useCartStore((s) => s.clearSellerItems);
@@ -145,13 +150,18 @@ export function CheckoutFlow({ cart, token }: Props) {
                 />
               </div>
 
+              <div className="mb-4">
+                <ChainMismatchBanner />
+              </div>
               {balanceGate.hasInsufficient ? (
                 <InsufficientBalanceCTA deficitRaw={balanceGate.deficitRaw} />
               ) : (
                 <Button
                   className="min-h-[44px] w-full text-base"
                   onClick={start}
-                  disabled={balanceGate.isLoading || !addressReady}
+                  disabled={
+                    balanceGate.isLoading || !addressReady || !chainMatches
+                  }
                   data-testid="checkout-start"
                 >
                   {addressReady

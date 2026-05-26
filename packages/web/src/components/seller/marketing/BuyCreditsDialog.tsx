@@ -17,6 +17,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  ChainMismatchBanner,
+  useChainMatch,
+} from "@/components/wallet/ChainMismatchBanner";
 import { useBuyCredits, type BuyCreditsPhase } from "@/hooks/useBuyCredits";
 import {
   buildExplorerUrl,
@@ -80,6 +84,7 @@ function phaseLabel(phase: BuyCreditsPhase): string {
 
 export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
   const chainId = useChainId();
+  const { isMatch: chainMatches } = useChainMatch();
   const { state, start, reset } = useBuyCredits();
   const inFlight = isInFlight(state.phase);
 
@@ -180,6 +185,7 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
         ) : (
           <>
             <div className="space-y-4">
+              <ChainMismatchBanner />
               <fieldset disabled={inFlight} className="space-y-3">
                 <legend className="text-base font-medium">
                   Choose a preset
@@ -281,7 +287,7 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
               <Button
                 type="button"
                 onClick={() => void handleBuy()}
-                disabled={!creditAmount || inFlight}
+                disabled={!creditAmount || inFlight || !chainMatches}
                 className="min-h-[48px] flex-1 tabular-nums"
                 data-testid="buy-cta"
               >
