@@ -31,7 +31,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
-import { useChainId, usePublicClient, useWalletClient } from "wagmi";
+import { useAccount, useChainId, usePublicClient } from "wagmi";
 
 import {
   classifyCheckoutError,
@@ -39,6 +39,7 @@ import {
 } from "@/lib/checkout-errors";
 import { etaloChain } from "@/lib/chain";
 import { asTxOptions } from "@/lib/tx";
+import { useResolvedWalletClient } from "./useResolvedWalletClient";
 
 const TX_TIMEOUT_MS = 90_000;
 const TX_CONFIRMATIONS = 1;
@@ -87,7 +88,8 @@ export function useTxWriteHook<TArgs>(
   options: TxWriteOptions<TArgs>,
 ): TxWriteHookReturn<TArgs> {
   const publicClient = usePublicClient();
-  const { data: walletClient } = useWalletClient();
+  const { resolve: resolveWalletClient } = useResolvedWalletClient();
+  const { address } = useAccount();
   const queryClient = useQueryClient();
   const chainId = useChainId();
   const [state, setState] = useState<TxWriteState>({ phase: "idle" });
@@ -104,7 +106,7 @@ export function useTxWriteHook<TArgs>(
     async (runArgs: TArgs) => {
       const opts = optsRef.current;
 
-      if (!publicClient || !walletClient) {
+      if (!publicClient) {
         setState({
           phase: "error",
           error: {
@@ -143,6 +145,21 @@ export function useTxWriteHook<TArgs>(
         return;
       }
 
+      // Resolve walletClient async so we survive the wagmi-MiniPay
+      // race where useWalletClient().data is still undefined at click
+      // time (the J12 mainnet smoke bug).
+      const walletClient = await resolveWalletClient();
+      if (!walletClient) {
+        setState({
+          phase: "error",
+          error: {
+            code: "network",
+            message: "Wallet not ready. Please try again.",
+          },
+        });
+        return;
+      }
+
       try {
         setState({ phase: "preparing" });
 
@@ -153,6 +170,8 @@ export function useTxWriteHook<TArgs>(
               abi: opts.abi,
               functionName: opts.functionName,
               args: opts.buildArgs(runArgs),
+              chain: etaloChain,
+              account: walletClient.account ?? (address as `0x${string}`),
             },
             { chainId },
           ),
@@ -176,7 +195,7 @@ export function useTxWriteHook<TArgs>(
         setState({ phase: "error", error: classifyCheckoutError(err) });
       }
     },
-    [publicClient, walletClient, queryClient, chainId],
+    [publicClient, resolveWalletClient, address, queryClient, chainId],
   );
 
   const reset = useCallback(() => setState({ phase: "idle" }), []);

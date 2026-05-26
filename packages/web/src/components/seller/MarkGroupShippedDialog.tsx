@@ -1,22 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import {
-  createWalletClient,
-  custom,
-  keccak256,
-  stringToBytes,
-  type Abi,
-  type EIP1193Provider,
-  type WalletClient,
-} from "viem";
+import { useEffect, useState } from "react";
+import { keccak256, stringToBytes, type Abi } from "viem";
 import { toast } from "sonner";
-import {
-  useAccount,
-  useChainId,
-  usePublicClient,
-  useWalletClient,
-} from "wagmi";
+import { useAccount, useChainId, usePublicClient } from "wagmi";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -31,6 +18,7 @@ import {
   ChainMismatchBanner,
   useChainMatch,
 } from "@/components/wallet/ChainMismatchBanner";
+import { useResolvedWalletClient } from "@/hooks/useResolvedWalletClient";
 import escrowAbiJson from "@/abis/v2/EtaloEscrow.json";
 import { etaloChain } from "@/lib/chain";
 import {
@@ -59,8 +47,7 @@ export function MarkGroupShippedDialog({
   onchainOrderId,
   onSuccess,
 }: Props) {
-  const { data: walletClient, refetch: refetchWalletClient } =
-    useWalletClient();
+  const { resolve: resolveWalletClient } = useResolvedWalletClient();
   const publicClient = usePublicClient();
   const chainId = useChainId();
   const { address } = useAccount();
@@ -100,37 +87,6 @@ export function MarkGroupShippedDialog({
       cancelled = true;
     };
   }, [open, dbOrderId]);
-
-  // Resolve a wallet client even when wagmi's async useWalletClient
-  // hasn't materialized yet. In MiniPay, the connector reports the
-  // address synchronously via useAccount but useWalletClient (a
-  // useQuery wrapper) can still be `undefined` at click time —
-  // the dialog then bailed silently. Two fallbacks:
-  //  1. refetch() forces wagmi to re-run getWalletClient against the
-  //     connector ; if MiniPay was just slow this resolves it.
-  //  2. Build a viem client directly from window.ethereum. MiniPay
-  //     always injects a provider inside its WebView, and the
-  //     connector flag was already true when address resolved, so
-  //     this changes the wrapper, not the wallet semantics.
-  const resolveWalletClient = useCallback(async (): Promise<
-    WalletClient | null
-  > => {
-    if (walletClient) return walletClient;
-    try {
-      const refetched = await refetchWalletClient();
-      if (refetched.data) return refetched.data;
-    } catch {
-      // Swallow refetch errors and fall through to the direct path.
-    }
-    if (typeof window === "undefined" || !address) return null;
-    const eth = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
-    if (!eth) return null;
-    return createWalletClient({
-      chain: etaloChain,
-      transport: custom(eth),
-      account: address,
-    });
-  }, [walletClient, refetchWalletClient, address]);
 
   const handleConfirm = async () => {
     if (!publicClient || !itemIds || itemIds.length === 0) {
