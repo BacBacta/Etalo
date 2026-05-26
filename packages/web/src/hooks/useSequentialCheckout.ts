@@ -1,9 +1,10 @@
 import { useCallback, useRef, useState } from "react";
 import { erc20Abi, parseUnits, type Abi } from "viem";
-import { useAccount, useChainId, usePublicClient, useWalletClient } from "wagmi";
+import { useAccount, useChainId, usePublicClient } from "wagmi";
 
 import escrowAbiJson from "@/abis/v2/EtaloEscrow.json";
 import { etaloChain } from "@/lib/chain";
+import { useResolvedWalletClient } from "@/hooks/useResolvedWalletClient";
 
 // JSON-imported ABIs lose literal-type narrowing on `type: "function"|"event"`,
 // so viem's strict `Abi` type rejects them. Cast once at module scope.
@@ -98,7 +99,7 @@ export function useSequentialCheckout(
   },
 ) {
   const { address: buyer } = useAccount();
-  const { data: walletClient } = useWalletClient();
+  const { resolve: resolveWalletClient } = useResolvedWalletClient();
   const publicClient = usePublicClient();
   const chainId = useChainId();
 
@@ -162,7 +163,7 @@ export function useSequentialCheckout(
 
   const start = useCallback(async () => {
     if (startedRef.current) return;
-    if (!walletClient || !buyer || !publicClient) {
+    if (!buyer || !publicClient) {
       setState((s) => ({
         ...s,
         phase: "error",
@@ -180,6 +181,18 @@ export function useSequentialCheckout(
         ...s,
         phase: "error",
         globalError: `Wrong network. Switch your wallet to ${etaloChain.name}.`,
+      }));
+      return;
+    }
+    // Resolve walletClient async to survive the wagmi-MiniPay race
+    // (J12 mainnet bug — PR #103). Same fallback chain as the rest
+    // of the writeContract callers via useResolvedWalletClient.
+    const walletClient = await resolveWalletClient();
+    if (!walletClient) {
+      setState((s) => ({
+        ...s,
+        phase: "error",
+        globalError: "Wallet not connected.",
       }));
       return;
     }
@@ -214,6 +227,8 @@ export function useSequentialCheckout(
           functionName: "approve",
           args: [ESCROW_ADDRESS, totalRequired],
           type: "legacy" as const,
+          chain: etaloChain,
+          account: walletClient.account ?? buyer,
         });
         setState((s) => ({ ...s, approveTxHash: approveTx }));
         const approveReceipt = await publicClient.waitForTransactionReceipt({
@@ -258,6 +273,8 @@ export function useSequentialCheckout(
               group.is_cross_border,
             ],
             type: "legacy" as const,
+            chain: etaloChain,
+            account: walletClient.account ?? buyer,
           });
           updateSeller(i, { createTxHash: createTx });
 
@@ -291,6 +308,8 @@ export function useSequentialCheckout(
             functionName: "fundOrder",
             args: [orderId],
             type: "legacy" as const,
+            chain: etaloChain,
+            account: walletClient.account ?? buyer,
           });
           updateSeller(i, { fundTxHash: fundTx });
 
@@ -346,7 +365,7 @@ export function useSequentialCheckout(
       }));
     }
   }, [
-    walletClient,
+    resolveWalletClient,
     buyer,
     publicClient,
     chainId,
