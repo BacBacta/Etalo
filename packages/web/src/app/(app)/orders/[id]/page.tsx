@@ -21,11 +21,14 @@ import { useAccount } from "wagmi";
 
 import { AutoReleaseTimer } from "@/components/orders/AutoReleaseTimer";
 import { BuyerOrderActions } from "@/components/orders/BuyerOrderActions";
+import { N1ResolutionCard } from "@/components/orders/N1ResolutionCard";
 import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
 import { OrderDetailHeader } from "@/components/orders/OrderDetailHeader";
 import { OrderItemsList } from "@/components/orders/OrderItemsList";
 import { OrdersLoadingState } from "@/components/orders/OrdersLoadingState";
 import { ChainMismatchBanner } from "@/components/wallet/ChainMismatchBanner";
+import { useDisputeForItem } from "@/hooks/useDisputeForItem";
+import type { OrderResponse } from "@/lib/orders/state";
 import { useBuyerOrderDetail } from "@/hooks/useBuyerOrderDetail";
 import { useMinipay } from "@/hooks/useMinipay";
 import { BuyerOrderNotFoundError } from "@/lib/orders/api";
@@ -149,9 +152,64 @@ function BuyerOrderDetailLoaded({
         snapshot={data.delivery_address_snapshot ?? null}
         orderId={data.onchain_order_id}
       />
+      <DisputedItemResolutionCards order={data} caller={caller} />
       <ChainMismatchBanner />
       <BuyerOrderActions order={data} />
     </article>
+  );
+}
+
+/**
+ * For each item in the order with status === 'Disputed', render a
+ * dedicated N1 resolution card. V1 typically has at most one
+ * disputed item per order (single-item orders), but the component
+ * is list-safe in case future flows put multiple items into
+ * dispute concurrently.
+ */
+function DisputedItemResolutionCards({
+  order,
+  caller,
+}: {
+  order: OrderResponse;
+  caller: string;
+}) {
+  const items = order.items ?? [];
+  const disputed = items.filter((it) => it.status === "Disputed");
+  if (disputed.length === 0) return null;
+  return (
+    <div className="space-y-3">
+      {disputed.map((it) => (
+        <DisputedItemCardOne
+          key={it.id}
+          orderUuid={order.id}
+          itemUuid={it.id}
+          itemPriceRawUsdt={it.item_price_usdt}
+          caller={caller}
+        />
+      ))}
+    </div>
+  );
+}
+
+function DisputedItemCardOne({
+  orderUuid,
+  itemUuid,
+  itemPriceRawUsdt,
+  caller,
+}: {
+  orderUuid: string;
+  itemUuid: string;
+  itemPriceRawUsdt: number;
+  caller: string;
+}) {
+  const { data: dispute, isLoading } = useDisputeForItem(orderUuid, itemUuid);
+  if (isLoading || !dispute) return null;
+  return (
+    <N1ResolutionCard
+      dispute={dispute}
+      currentUserAddress={caller}
+      itemPriceRawUsdt={itemPriceRawUsdt}
+    />
   );
 }
 
