@@ -37,6 +37,7 @@ import {
   classifyCheckoutError,
   type CheckoutError,
 } from "@/lib/checkout-errors";
+import { etaloChain } from "@/lib/chain";
 import { asTxOptions } from "@/lib/tx";
 
 const TX_TIMEOUT_MS = 90_000;
@@ -109,6 +110,22 @@ export function useTxWriteHook<TArgs>(
           error: {
             code: "network",
             message: "Wallet not ready. Please try again.",
+          },
+        });
+        return;
+      }
+
+      if (chainId !== etaloChain.id) {
+        // Defense in depth — pages that wrap actions in a
+        // ChainMismatchBanner already prevent the click visually,
+        // but a wallet that flips chains mid-session would still hit
+        // viem's `current chain … does not match …` revert at
+        // writeContract time. Surface a clean error instead.
+        setState({
+          phase: "error",
+          error: {
+            code: "network",
+            message: `Wrong network. Switch your wallet to ${etaloChain.name}.`,
           },
         });
         return;

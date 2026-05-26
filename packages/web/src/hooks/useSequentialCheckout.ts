@@ -1,8 +1,9 @@
 import { useCallback, useRef, useState } from "react";
 import { erc20Abi, parseUnits, type Abi } from "viem";
-import { useAccount, usePublicClient, useWalletClient } from "wagmi";
+import { useAccount, useChainId, usePublicClient, useWalletClient } from "wagmi";
 
 import escrowAbiJson from "@/abis/v2/EtaloEscrow.json";
+import { etaloChain } from "@/lib/chain";
 
 // JSON-imported ABIs lose literal-type narrowing on `type: "function"|"event"`,
 // so viem's strict `Abi` type rejects them. Cast once at module scope.
@@ -99,6 +100,7 @@ export function useSequentialCheckout(
   const { address: buyer } = useAccount();
   const { data: walletClient } = useWalletClient();
   const publicClient = usePublicClient();
+  const chainId = useChainId();
 
   const [state, setState] = useState<CheckoutState>(() => ({
     phase: "idle",
@@ -165,6 +167,19 @@ export function useSequentialCheckout(
         ...s,
         phase: "error",
         globalError: "Wallet not connected.",
+      }));
+      return;
+    }
+    if (chainId !== etaloChain.id) {
+      // Defense in depth — CheckoutFlow already gates the Start
+      // button via ChainMismatchBanner, but a wallet that flips
+      // chains mid-session would otherwise hit viem's
+      // "current chain … does not match …" revert at writeContract
+      // time. Surface a clean message instead.
+      setState((s) => ({
+        ...s,
+        phase: "error",
+        globalError: `Wrong network. Switch your wallet to ${etaloChain.name}.`,
       }));
       return;
     }
@@ -334,6 +349,7 @@ export function useSequentialCheckout(
     walletClient,
     buyer,
     publicClient,
+    chainId,
     cart,
     deliveryFormData,
     updateSeller,

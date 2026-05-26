@@ -42,6 +42,7 @@ const useAccountMock = vi.hoisted(() =>
 vi.mock("wagmi", () => ({
   useChainId: () => 11142220,
   useAccount: useAccountMock,
+  useSwitchChain: () => ({ switchChainAsync: vi.fn(), isPending: false }),
 }));
 
 // ConnectWalletButton (rendered when no wallet) pulls in wagmi connect

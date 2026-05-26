@@ -15,6 +15,7 @@ import type { BuyCreditsState } from "@/hooks/useBuyCredits";
 
 vi.mock("wagmi", () => ({
   useChainId: () => 11142220, // Celo Sepolia
+  useSwitchChain: () => ({ switchChainAsync: vi.fn(), isPending: false }),
 }));
 
 let hookState: BuyCreditsState = { phase: "idle" };

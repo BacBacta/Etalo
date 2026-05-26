@@ -25,6 +25,8 @@ vi.mock("@/hooks/useMinipay", () => ({
 }));
 vi.mock("wagmi", () => ({
   useAccount: useAccountMock,
+  useChainId: () => 11142220,
+  useSwitchChain: () => ({ switchChainAsync: vi.fn(), isPending: false }),
 }));
 vi.mock("@/hooks/useBuyerOrderDetail", () => ({
   useBuyerOrderDetail: useBuyerOrderDetailMock,

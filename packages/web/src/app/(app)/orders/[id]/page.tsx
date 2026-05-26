@@ -25,6 +25,7 @@ import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddre
 import { OrderDetailHeader } from "@/components/orders/OrderDetailHeader";
 import { OrderItemsList } from "@/components/orders/OrderItemsList";
 import { OrdersLoadingState } from "@/components/orders/OrdersLoadingState";
+import { ChainMismatchBanner } from "@/components/wallet/ChainMismatchBanner";
 import { useBuyerOrderDetail } from "@/hooks/useBuyerOrderDetail";
 import { useMinipay } from "@/hooks/useMinipay";
 import { BuyerOrderNotFoundError } from "@/lib/orders/api";
@@ -148,6 +149,7 @@ function BuyerOrderDetailLoaded({
         snapshot={data.delivery_address_snapshot ?? null}
         orderId={data.onchain_order_id}
       />
+      <ChainMismatchBanner />
       <BuyerOrderActions order={data} />
     </article>
   );
