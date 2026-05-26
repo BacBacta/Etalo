@@ -122,6 +122,28 @@ async def _get_group_by_onchain_id(
     return result.scalar_one_or_none()
 
 
+async def _sync_order_global_status(
+    order: Order, services: dict[str, Any]
+) -> None:
+    """Re-read the order's globalStatus from chain and update the DB
+    mirror if it changed.
+
+    The contract owns the FUNDED → PARTIALLY_SHIPPED / ALL_SHIPPED /
+    PARTIALLY_DELIVERED transitions internally (no dedicated event
+    fires when only the order status changes). Without this resync the
+    DB stays in FUNDED until the OrderCompleted event lands, which
+    breaks the dashboard rollups + the buyer/seller card chips.
+
+    Single chain read per state-transitioning event ; acceptable
+    overhead given indexer pacing.
+    """
+    chain_order = await services["celo"].get_order(order.onchain_order_id)
+    if chain_order is None:
+        return
+    if chain_order.global_status != order.global_status:
+        order.global_status = chain_order.global_status
+
+
 # ============================================================
 # Escrow handlers (8)
 # ============================================================
@@ -225,6 +247,12 @@ async def handle_shipment_group_created(
             item.shipment_group_id = group.id
             item.status = ItemStatus.SHIPPED
 
+    # Re-read order.globalStatus from chain so the DB mirror reflects
+    # the contract's PartiallyShipped/AllShipped transition. Without
+    # this the order stayed in Funded even after every item shipped
+    # (J12 mainnet smoke bug, order #1).
+    await _sync_order_global_status(order, services)
+
 
 async def handle_group_arrived(
     event: Any, db: AsyncSession, services: dict[str, Any]
@@ -253,6 +281,11 @@ async def handle_group_arrived(
     for item in group.items:
         if item.status == ItemStatus.SHIPPED:
             item.status = ItemStatus.ARRIVED
+
+    # Order may transition from AllShipped → PartiallyDelivered.
+    order = await _get_order_by_onchain_id(db, args["orderId"])
+    if order is not None:
+        await _sync_order_global_status(order, services)
 
 
 async def handle_partial_release_triggered(
@@ -293,6 +326,15 @@ async def handle_item_released(
     # If the full item value (gross) was paid out, mark Released
     if amount >= item.item_price_usdt:
         item.status = ItemStatus.RELEASED
+
+    # Order may transition AllShipped/PartiallyDelivered → Completed
+    # if this was the last item, but the contract's OrderCompleted
+    # event handler already covers that final hop. Sync anyway in case
+    # PartiallyDelivered isn't reached via GroupArrived first (e.g.
+    # the contract releases without an arrival proof).
+    order = await _get_order_by_onchain_id(db, args["orderId"])
+    if order is not None:
+        await _sync_order_global_status(order, services)
 
 
 async def handle_order_completed(
