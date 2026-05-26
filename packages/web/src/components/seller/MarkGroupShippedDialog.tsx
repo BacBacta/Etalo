@@ -27,6 +27,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  ChainMismatchBanner,
+  useChainMatch,
+} from "@/components/wallet/ChainMismatchBanner";
 import escrowAbiJson from "@/abis/v2/EtaloEscrow.json";
 import { etaloChain } from "@/lib/chain";
 import {
@@ -60,6 +64,7 @@ export function MarkGroupShippedDialog({
   const publicClient = usePublicClient();
   const chainId = useChainId();
   const { address } = useAccount();
+  const { isMatch: chainMatches } = useChainMatch();
   const [trackingNumber, setTrackingNumber] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [txHash, setTxHash] = useState<`0x${string}` | null>(null);
@@ -188,6 +193,7 @@ export function MarkGroupShippedDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          <ChainMismatchBanner />
           <div>
             <label
               htmlFor="tracking-input"
@@ -241,7 +247,12 @@ export function MarkGroupShippedDialog({
           <Button
             type="button"
             onClick={handleConfirm}
-            disabled={submitting || !itemIds || itemIds.length === 0}
+            disabled={
+              submitting ||
+              !itemIds ||
+              itemIds.length === 0 ||
+              !chainMatches
+            }
             className="min-h-[44px]"
           >
             {submitting ? "Confirming…" : "Mark as shipped"}
