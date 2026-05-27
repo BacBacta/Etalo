@@ -29,7 +29,7 @@
  */
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQueryClient, type QueryKey } from "@tanstack/react-query";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 
@@ -72,6 +72,21 @@ export interface TxWriteOptions<TArgs> {
    */
   invalidateOnSuccess?: readonly QueryKey[];
   /**
+   * After the initial success-time invalidation, keep re-invalidating
+   * the given keys at `intervalMs` for `durationMs` total. Bridges the
+   * 0-30 s indexer lag : the chain-mirror tables don't reflect the new
+   * state immediately after our tx confirms, so a single invalidate
+   * refetches stale data. The burst keeps refetching until the indexer
+   * catches up, then the regular staleTime/refetchInterval takes over.
+   *
+   * Defaults : intervalMs 5_000, durationMs 30_000.
+   */
+  burstPollOnSuccess?: {
+    keys: readonly QueryKey[];
+    intervalMs?: number;
+    durationMs?: number;
+  };
+  /**
    * Friendly error message if the contract address env var is
    * missing. Defaults to "Contract not configured."
    */
@@ -102,9 +117,24 @@ export function useTxWriteHook<TArgs>(
   const optsRef = useRef(options);
   optsRef.current = options;
 
+  // Track the active burst-poll interval so we can cancel it on
+  // unmount or when a new run kicks off (avoids stacking intervals
+  // when the consumer fires several txs in quick succession).
+  const burstTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const cancelBurst = useCallback(() => {
+    if (burstTimerRef.current !== null) {
+      clearInterval(burstTimerRef.current);
+      burstTimerRef.current = null;
+    }
+  }, []);
+  useEffect(() => cancelBurst, [cancelBurst]);
+
   const run = useCallback(
     async (runArgs: TArgs) => {
       const opts = optsRef.current;
+      // A new run kicks off : cancel any burst still firing from the
+      // previous tx so we don't pile intervals.
+      cancelBurst();
 
       if (!publicClient) {
         setState({
@@ -190,15 +220,43 @@ export function useTxWriteHook<TArgs>(
           }
         }
 
+        // Burst polling : repeatedly invalidate the configured keys
+        // for `durationMs` to absorb the indexer lag between our tx
+        // landing and the mirror tables catching up. The first
+        // invalidation also runs here so a caller that uses ONLY
+        // burstPollOnSuccess (no invalidateOnSuccess) still gets an
+        // immediate refresh kick.
+        const burst = opts.burstPollOnSuccess;
+        if (burst && burst.keys.length > 0) {
+          const intervalMs = burst.intervalMs ?? 5_000;
+          const durationMs = burst.durationMs ?? 30_000;
+          for (const key of burst.keys) {
+            void queryClient.invalidateQueries({ queryKey: key });
+          }
+          let elapsed = 0;
+          burstTimerRef.current = setInterval(() => {
+            elapsed += intervalMs;
+            for (const key of burst.keys) {
+              void queryClient.invalidateQueries({ queryKey: key });
+            }
+            if (elapsed >= durationMs) {
+              cancelBurst();
+            }
+          }, intervalMs);
+        }
+
         setState({ phase: "success", txHash });
       } catch (err) {
         setState({ phase: "error", error: classifyCheckoutError(err) });
       }
     },
-    [publicClient, resolveWalletClient, address, queryClient, chainId],
+    [publicClient, resolveWalletClient, address, queryClient, chainId, cancelBurst],
   );
 
-  const reset = useCallback(() => setState({ phase: "idle" }), []);
+  const reset = useCallback(() => {
+    cancelBurst();
+    setState({ phase: "idle" });
+  }, [cancelBurst]);
 
   return { state, run, reset };
 }

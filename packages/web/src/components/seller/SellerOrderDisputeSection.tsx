@@ -121,3 +121,34 @@ function DisputedItemBlock({
 // useResolveN1Amicable's invalidateOnSuccess targeting the buyer
 // order detail ; the seller-side mirror needs a separate refetch).
 export { DISPUTE_FOR_ITEM_QUERY_KEY };
+
+/**
+ * useOrderHasDispute — reads the same `/orders/{uuid}/items` cache
+ * slot the SellerOrderDisputeSection populates, returning a single
+ * boolean : is there at least one item with status "Disputed"?
+ *
+ * Designed for OrdersTab.OrderRow to flip the row's visual treatment
+ * (rose border + Dispute badge) the moment a dispute lands without
+ * having to mount the full SellerOrderDisputeSection upfront. Since
+ * the SellerOrderDisputeSection already fetches with `refetchInterval:
+ * 30_000`, a row that mounts this hook AFTER the section has fetched
+ * gets the data for free from the cache.
+ */
+export function useOrderHasDispute(
+  orderUuid: string,
+  globalStatus: string,
+): boolean {
+  const enabled = STATUSES_THAT_CAN_HAVE_DISPUTES.has(globalStatus);
+  const { data: items } = useQuery<OrderItemMin[]>({
+    queryKey: [ORDER_ITEMS_QUERY_KEY, orderUuid],
+    enabled,
+    queryFn: async () => {
+      const res = await fetchApi(`/orders/${orderUuid}/items`);
+      if (!res.ok) throw new Error(`Items fetch failed: ${res.status}`);
+      return (await res.json()) as OrderItemMin[];
+    },
+    refetchInterval: 30_000,
+  });
+  if (!items) return false;
+  return items.some((it) => it.status === "Disputed");
+}

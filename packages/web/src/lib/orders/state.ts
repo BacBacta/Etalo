@@ -92,6 +92,24 @@ const COMPLETED_ITEM_STATUSES: ReadonlySet<ItemStatus> = new Set<ItemStatus>([
   "Refunded",
 ]);
 
+// Order-level statuses that may still flip without explicit user
+// action (indexer mirrors a state-transition event). Used by the
+// list/detail hooks to decide whether background polling is worth it.
+// A list with zero transient rows is effectively static — don't burn
+// mobile data refetching it.
+export const TRANSIENT_ORDER_STATUSES: ReadonlySet<OrderStatus> =
+  new Set<OrderStatus>([
+    "Funded",
+    "PartiallyShipped",
+    "AllShipped",
+    "PartiallyDelivered",
+    "Disputed",
+  ]);
+
+export function isTransientStatus(status: OrderStatus | string): boolean {
+  return TRANSIENT_ORDER_STATUSES.has(status as OrderStatus);
+}
+
 /**
  * Earliest auto-release timestamp across the order, or null if no
  * shipment group has been shipped yet (and therefore no timer started).

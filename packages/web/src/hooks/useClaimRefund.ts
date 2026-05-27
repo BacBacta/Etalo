@@ -14,6 +14,7 @@
 "use client";
 
 import escrowAbi from "@/abis/v2/EtaloEscrow.json";
+import { BUYER_ORDERS_QUERY_KEY } from "@/hooks/useBuyerOrders";
 import { BUYER_ORDER_DETAIL_QUERY_KEY } from "@/hooks/useBuyerOrderDetail";
 import {
   useTxWriteHook,
@@ -33,6 +34,11 @@ export function useClaimRefund(): TxWriteHookReturn<ClaimRefundRunArgs> {
     functionName: "triggerAutoRefundIfInactive",
     buildArgs: ({ orderId }) => [orderId],
     invalidateOnSuccess: [[BUYER_ORDER_DETAIL_QUERY_KEY]],
+    // Both the detail page AND the buyer orders list want to flip
+    // Funded → Refunded immediately. Burst polls both for 30 s.
+    burstPollOnSuccess: {
+      keys: [[BUYER_ORDER_DETAIL_QUERY_KEY], [BUYER_ORDERS_QUERY_KEY]],
+    },
     missingAddressMessage: "Escrow contract not configured.",
   });
 }

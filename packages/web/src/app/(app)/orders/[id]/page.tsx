@@ -143,6 +143,9 @@ function BuyerOrderDetailLoaded({
 
   return (
     <article className="flex flex-col gap-6" data-testid="order-detail-loaded">
+      {/* Chain mismatch must surface FIRST — every action below
+          depends on the wallet being on the right chain. */}
+      <ChainMismatchBanner />
       <OrderDetailHeader order={data} />
       {autoReleaseAt && (
         <AutoReleaseTimer autoReleaseAt={autoReleaseAt} />
@@ -153,7 +156,6 @@ function BuyerOrderDetailLoaded({
         orderId={data.onchain_order_id}
       />
       <DisputedItemResolutionCards order={data} caller={caller} />
-      <ChainMismatchBanner />
       <BuyerOrderActions order={data} />
     </article>
   );

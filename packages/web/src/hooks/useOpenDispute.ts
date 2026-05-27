@@ -14,6 +14,7 @@
 
 import disputeAbi from "@/abis/v2/EtaloDispute.json";
 import { BUYER_ORDER_DETAIL_QUERY_KEY } from "@/hooks/useBuyerOrderDetail";
+import { DISPUTE_FOR_ITEM_QUERY_KEY } from "@/hooks/useDisputeForItem";
 import {
   useTxWriteHook,
   type TxWriteHookReturn,
@@ -34,6 +35,16 @@ export function useOpenDispute(): TxWriteHookReturn<OpenDisputeRunArgs> {
     functionName: "openDispute",
     buildArgs: ({ orderId, itemId, reason }) => [orderId, itemId, reason],
     invalidateOnSuccess: [[BUYER_ORDER_DETAIL_QUERY_KEY]],
+    // Burst the detail (item pill → Disputed) AND the dispute lookup
+    // (N1ResolutionCard reads it via useDisputeForItem). Without the
+    // dispute key, the buyer would see "Disputed" on the item but no
+    // N1 card for up to 30 s.
+    burstPollOnSuccess: {
+      keys: [
+        [BUYER_ORDER_DETAIL_QUERY_KEY],
+        [DISPUTE_FOR_ITEM_QUERY_KEY],
+      ],
+    },
     missingAddressMessage: "Dispute contract not configured.",
   });
 }

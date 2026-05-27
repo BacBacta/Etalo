@@ -40,7 +40,23 @@ function CartHydrationGate({ children }: { children: React.ReactNode }) {
 }
 
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
+  // Centralized defaults so every useQuery shares the same baseline.
+  // staleTime 30 s aligns with the indexer polling cycle ; refetch on
+  // window focus is critical for the MiniPay back-from-background flow
+  // where a buyer/seller returns to the app expecting fresh state.
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            staleTime: 30_000,
+            retry: 1,
+            refetchOnReconnect: true,
+            refetchOnWindowFocus: true,
+          },
+        },
+      }),
+  );
 
   return (
     <MotionProvider>

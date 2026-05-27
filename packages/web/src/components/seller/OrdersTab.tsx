@@ -13,7 +13,10 @@ import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddre
 // seller couldn't ship. The bundle delta isn't worth a broken core
 // flow ; switched to a static import.
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
-import { SellerOrderDisputeSection } from "@/components/seller/SellerOrderDisputeSection";
+import {
+  SellerOrderDisputeSection,
+  useOrderHasDispute,
+} from "@/components/seller/SellerOrderDisputeSection";
 import { PickListView } from "@/components/seller/PickListView";
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
@@ -461,14 +464,22 @@ const OrderRow = memo(function OrderRow({
   const buyer = buyerLabel(order.delivery_address_snapshot, order.onchain_order_id);
   const lineItems = order.line_items ?? [];
   const snapshot = order.delivery_address_snapshot ?? null;
+  // Dispute escalation : when any item is in dispute, override the
+  // ship-deadline visual (which is meaningless mid-dispute) with a
+  // rose border + badge so the seller spots the row immediately.
+  // Cache slot is shared with SellerOrderDisputeSection below so this
+  // hook adds zero network round-trips for the common case.
+  const hasDispute = useOrderHasDispute(order.id, order.global_status);
 
   // 4 px left border keyed to urgency lets sellers scan a long list and
   // pick what to ship next without reading every label. Falls back to
   // a neutral border for orders without an active deadline (Created /
-  // Completed / Disputed / Refunded).
-  const borderColor = dl
-    ? URGENCY_BORDER_CLASSES[dl.urgency]
-    : "border-l-neutral-200 dark:border-l-celo-light/10";
+  // Completed / Disputed / Refunded). Disputes win over urgency.
+  const borderColor = hasDispute
+    ? "border-l-rose-500 dark:border-l-rose-400"
+    : dl
+      ? URGENCY_BORDER_CLASSES[dl.urgency]
+      : "border-l-neutral-200 dark:border-l-celo-light/10";
 
   const statusDotColor =
     STATUS_DOT_CLASSES[order.global_status] ?? "bg-neutral-400";
@@ -518,6 +529,14 @@ const OrderRow = memo(function OrderRow({
           <span className="truncate text-sm tabular-nums text-neutral-500 dark:text-celo-light/60">
             #{order.onchain_order_id}
           </span>
+          {hasDispute ? (
+            <span
+              data-testid="order-row-dispute-badge"
+              className="ml-1 inline-flex flex-shrink-0 items-center rounded-full bg-rose-100 px-2 py-0.5 text-sm font-medium text-rose-800 dark:bg-rose-900/40 dark:text-rose-200"
+            >
+              Dispute
+            </span>
+          ) : null}
         </div>
         <span className="flex-shrink-0 text-base font-semibold tabular-nums text-celo-dark dark:text-celo-light">
           {formatRawUsdt(order.total_amount_usdt)} USDT

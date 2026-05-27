@@ -16,7 +16,10 @@
  */
 import { useQuery } from "@tanstack/react-query";
 
+import { isTransientStatus } from "@/lib/orders/state";
 import { fetchSellerOrders, type SellerOrdersPage } from "@/lib/seller-api";
+
+const TRANSIENT_REFETCH_INTERVAL_MS = 15_000;
 
 export const SELLER_ORDERS_QUERY_KEY = ["seller-orders"] as const;
 
@@ -67,5 +70,17 @@ export function useSellerOrders(options: UseSellerOrdersOptions) {
     enabled: enabled && !!address,
     staleTime: 30_000,
     retry: 1,
+    // Background poll only while at least one row is in a transient
+    // state (Funded / shipping in-flight / disputed). A list with only
+    // terminal rows doesn't move ; we skip the indexer round-trip and
+    // wait for window-focus/manual invalidation. Saves mobile data on
+    // sellers with hundreds of completed orders.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || data.orders.length === 0) return false;
+      return data.orders.some((o) => isTransientStatus(o.global_status))
+        ? TRANSIENT_REFETCH_INTERVAL_MS
+        : false;
+    },
   });
 }

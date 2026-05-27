@@ -12,6 +12,8 @@
 
 import disputeAbi from "@/abis/v2/EtaloDispute.json";
 import { BUYER_ORDER_DETAIL_QUERY_KEY } from "@/hooks/useBuyerOrderDetail";
+import { DISPUTE_FOR_ITEM_QUERY_KEY } from "@/hooks/useDisputeForItem";
+import { N1_PROPOSAL_QUERY_KEY } from "@/hooks/useN1Proposal";
 import {
   useTxWriteHook,
   type TxWriteHookReturn,
@@ -35,6 +37,17 @@ export function useResolveN1Amicable(): TxWriteHookReturn<ResolveN1AmicableRunAr
     // updates when the resolution lands (DisputeResolved event → item
     // status flips to Released/Refunded depending on amount).
     invalidateOnSuccess: [[BUYER_ORDER_DETAIL_QUERY_KEY]],
+    // Burst : detail (item pill), dispute lookup (N1 card mounted vs
+    // unmounted state), AND the chain-read N1 proposal so the
+    // counterparty's amount appears immediately after the first
+    // unilateral proposal lands.
+    burstPollOnSuccess: {
+      keys: [
+        [BUYER_ORDER_DETAIL_QUERY_KEY],
+        [DISPUTE_FOR_ITEM_QUERY_KEY],
+        [N1_PROPOSAL_QUERY_KEY],
+      ],
+    },
     missingAddressMessage: "Dispute contract not configured.",
   });
 }

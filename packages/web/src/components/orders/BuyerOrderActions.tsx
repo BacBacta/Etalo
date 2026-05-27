@@ -80,33 +80,63 @@ export function BuyerOrderActions({ order, className }: BuyerOrderActionsProps) 
       )
     : undefined;
 
+  // A primary action is what the buyer is most likely here to do :
+  // confirm a delivery, claim an overdue refund, or open a dispute.
+  // We surface the dock only when at least one of the three is
+  // eligible — otherwise the page is informational and the secondary
+  // row (share + blockscout) sits flush at the bottom on its own.
+  const hasPrimaryAction =
+    Boolean(confirmableItem) ||
+    Boolean(disputableItem) ||
+    actions.canClaimRefund;
+
   return (
     <section
       data-testid="buyer-order-actions"
       aria-label="Order actions"
-      className={cn("flex flex-col gap-3", className)}
+      className={cn("flex flex-col gap-4", className)}
     >
-      {confirmableItem && (
-        <ConfirmDeliveryButton
-          orderId={BigInt(order.onchain_order_id)}
-          itemId={BigInt(confirmableItem.onchain_item_id)}
-          itemLabel={itemLabel(confirmableItem)}
-        />
-      )}
-      {disputableItem && (
-        <OpenDisputeButton
-          orderId={BigInt(order.onchain_order_id)}
-          itemId={BigInt(disputableItem.onchain_item_id)}
-          itemLabel={itemLabel(disputableItem)}
-        />
-      )}
-      {actions.canClaimRefund && (
-        <ClaimRefundButton orderId={BigInt(order.onchain_order_id)} />
-      )}
-      <div className="flex flex-wrap gap-2">
+      {/* Secondary actions row — always visible, but small and out of
+          the primary CTA visual weight. WhatsApp deeplink + on-chain
+          explorer are useful any time but should never compete with
+          Confirm Delivery for the buyer's tap. */}
+      <div
+        data-testid="buyer-order-actions-secondary"
+        className="flex flex-wrap gap-2"
+      >
         <WhatsAppShareButton order={order} />
         <BlockscoutLinkButton />
       </div>
+
+      {/* Primary action dock — sticky at the bottom of the order
+          page so the CTA stays within thumb reach during scroll.
+          Pattern adapted from ProfileTab.tsx:309 (sticky bottom-2).
+          The parent page wraps content in `pb-[env(safe-area-inset-
+          bottom)]` so the dock clears the MiniPay nav bar on iOS. */}
+      {hasPrimaryAction ? (
+        <div
+          data-testid="buyer-order-actions-primary"
+          className="sticky bottom-2 z-10 -mx-1 flex flex-col gap-2 rounded-2xl border border-celo-dark/5 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-celo-light/10 dark:bg-celo-dark-elevated/95"
+        >
+          {confirmableItem && (
+            <ConfirmDeliveryButton
+              orderId={BigInt(order.onchain_order_id)}
+              itemId={BigInt(confirmableItem.onchain_item_id)}
+              itemLabel={itemLabel(confirmableItem)}
+            />
+          )}
+          {actions.canClaimRefund && (
+            <ClaimRefundButton orderId={BigInt(order.onchain_order_id)} />
+          )}
+          {disputableItem && (
+            <OpenDisputeButton
+              orderId={BigInt(order.onchain_order_id)}
+              itemId={BigInt(disputableItem.onchain_item_id)}
+              itemLabel={itemLabel(disputableItem)}
+            />
+          )}
+        </div>
+      ) : null}
     </section>
   );
 }

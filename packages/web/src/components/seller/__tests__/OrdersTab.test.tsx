@@ -62,11 +62,13 @@ vi.mock("@/hooks/useMilestoneOnce", () => ({
 
 // SellerOrderDisputeSection internally uses real react-query
 // (`useQuery`) which needs a QueryClientProvider. These specs render
-// OrdersTab in isolation without one ; stub the section since none
-// of these specs cover the dispute surface (covered separately by
-// the N1ResolutionCard tests + dispute-section unit tests).
+// OrdersTab in isolation without one ; stub the section AND the new
+// `useOrderHasDispute` lookup OrderRow consumes (Block E of the
+// J12-pre reactivity sprint). The dispute surface itself is covered
+// separately by the N1ResolutionCard + dispute-section unit tests.
 vi.mock("@/components/seller/SellerOrderDisputeSection", () => ({
   SellerOrderDisputeSection: () => null,
+  useOrderHasDispute: () => false,
 }));
 
 // ============================================================

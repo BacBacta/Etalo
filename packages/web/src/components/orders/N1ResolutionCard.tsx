@@ -23,6 +23,7 @@
 import { CheckCircle, Spinner, Warning } from "@phosphor-icons/react";
 import { useState } from "react";
 
+import { DeadlineCountdown } from "@/components/orders/AutoReleaseTimer";
 import {
   ChainMismatchBanner,
   useChainMatch,
@@ -152,6 +153,15 @@ export function N1ResolutionCard({
   const inFlight =
     tx.state.phase === "preparing" || tx.state.phase === "confirming";
 
+  // ADR-019 N1 deadline. Backend payload carries `n1_deadline` as an
+  // ISO string ; we parse once per render — cheap. When the deadline
+  // is past, both sides can still see the in-flight proposals but
+  // submitting a NEW proposal is contractually pointless (the
+  // contract allows it but escalation should take over) — we hide
+  // the form to keep the surface honest.
+  const n1Deadline = dispute.n1_deadline ? new Date(dispute.n1_deadline) : null;
+  const n1Elapsed = n1Deadline ? n1Deadline.getTime() <= Date.now() : false;
+
   return (
     <div
       data-testid="n1-resolution-card"
@@ -163,15 +173,24 @@ export function N1ResolutionCard({
           className="mt-0.5 h-5 w-5 flex-shrink-0 text-rose-700 dark:text-rose-300"
           aria-hidden
         />
-        <div>
+        <div className="space-y-2 min-w-0 flex-1">
           <p className="font-medium text-rose-900 dark:text-rose-100">
             Dispute open — bilateral 48 h window
           </p>
           {dispute.reason ? (
-            <p className="mt-1 text-rose-900/80 dark:text-rose-100/80">
+            <p className="text-rose-900/80 dark:text-rose-100/80">
               <span className="font-medium">Reason : </span>
               {dispute.reason}
             </p>
+          ) : null}
+          {n1Deadline ? (
+            <DeadlineCountdown
+              deadline={n1Deadline}
+              idleLabel="Respond within"
+              elapsedLabel="N1 window closed — escalation available"
+              tone="rose"
+              testId="n1-deadline-countdown"
+            />
           ) : null}
         </div>
       </header>
@@ -217,7 +236,11 @@ export function N1ResolutionCard({
         </p>
       ) : null}
 
-      {/* Form to submit (or update) my proposal */}
+      {/* Form to submit (or update) my proposal — hidden once the N1
+          window has elapsed. The on-chain function still accepts
+          proposals past deadline but the meaningful action is to
+          escalate (V1.5+ UI) ; surfacing the form would mislead. */}
+      {n1Elapsed ? null : (
       <div className="space-y-2 border-t border-rose-200 pt-3 dark:border-rose-800">
         <label
           htmlFor="n1-amount-input"
@@ -271,6 +294,7 @@ export function N1ResolutionCard({
           auto-settles and the funds split immediately.
         </p>
       </div>
+      )}
     </div>
   );
 }

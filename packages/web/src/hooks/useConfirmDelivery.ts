@@ -30,6 +30,10 @@ export function useConfirmDelivery(): TxWriteHookReturn<ConfirmDeliveryRunArgs> 
     functionName: "confirmItemDelivery",
     buildArgs: ({ orderId, itemId }) => [orderId, itemId],
     invalidateOnSuccess: [[BUYER_ORDER_DETAIL_QUERY_KEY]],
+    // Burst the same key for 30 s : the buyer expects the item pill
+    // to flip Shipped → Released as soon as the tx confirms, but the
+    // indexer needs a beat to catch the `ItemDelivered` event.
+    burstPollOnSuccess: { keys: [[BUYER_ORDER_DETAIL_QUERY_KEY]] },
     missingAddressMessage: "Escrow contract not configured.",
   });
 }

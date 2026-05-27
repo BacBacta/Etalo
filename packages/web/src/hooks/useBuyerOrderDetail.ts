@@ -17,7 +17,9 @@ import {
   BuyerOrderNotFoundError,
   fetchBuyerOrderDetail,
 } from "@/lib/orders/api";
-import type { OrderResponse } from "@/lib/orders/state";
+import { isTransientStatus, type OrderResponse } from "@/lib/orders/state";
+
+const TRANSIENT_REFETCH_INTERVAL_MS = 15_000;
 
 export const BUYER_ORDER_DETAIL_QUERY_KEY = "buyer-order-detail";
 
@@ -45,6 +47,16 @@ export function useBuyerOrderDetail({
       // do not retry. Other errors get one retry like elsewhere.
       if (error instanceof BuyerOrderNotFoundError) return false;
       return failureCount < 1;
+    },
+    // Poll while the order can still flip — when the seller ships,
+    // when the auto-release timer fires, when a dispute opens. Stops
+    // automatically once the order reaches a terminal status.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data) return false;
+      return isTransientStatus(data.global_status)
+        ? TRANSIENT_REFETCH_INTERVAL_MS
+        : false;
     },
   });
 }

@@ -16,7 +16,9 @@ import {
   BUYER_ORDERS_DEFAULT_LIMIT,
   fetchBuyerOrders,
 } from "@/lib/orders/api";
-import type { OrderListResponse } from "@/lib/orders/state";
+import { isTransientStatus, type OrderListResponse } from "@/lib/orders/state";
+
+const TRANSIENT_REFETCH_INTERVAL_MS = 15_000;
 
 export const BUYER_ORDERS_QUERY_KEY = "buyer-orders";
 
@@ -43,5 +45,15 @@ export function useBuyerOrders({
     enabled: enabled && Boolean(buyer),
     staleTime: 30_000,
     retry: 1,
+    // Same predicate as useSellerOrders : poll only when at least one
+    // order is mid-flight. The buyer list shape is `items[]` (not
+    // `orders[]`) since it reuses the FastAPI paginated container.
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      if (!data || data.items.length === 0) return false;
+      return data.items.some((o) => isTransientStatus(o.global_status))
+        ? TRANSIENT_REFETCH_INTERVAL_MS
+        : false;
+    },
   });
 }
