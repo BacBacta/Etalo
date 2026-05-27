@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 
@@ -43,15 +44,22 @@ function LoadingShell() {
   );
 }
 
+type ErrorKind = "expired" | "invalid" | "missing-token" | "unknown";
+
+interface ErrorState {
+  kind: ErrorKind;
+  message: string;
+}
+
 function CheckoutPageInner() {
   const params = useSearchParams();
   const token = params.get("token");
   const [resolvedCart, setResolvedCart] = useState<ResolvedCart | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<ErrorState | null>(null);
 
   useEffect(() => {
     if (!token) {
-      setError("No cart token provided.");
+      setError({ kind: "missing-token", message: "No cart link provided." });
       return;
     }
     let cancelled = false;
@@ -62,13 +70,22 @@ function CheckoutPageInner() {
       .catch((err) => {
         if (cancelled) return;
         if (err instanceof CartTokenExpiredError) {
-          setError(
-            "Your cart link has expired. Please go back and start checkout again.",
-          );
+          setError({
+            kind: "expired",
+            message:
+              "Your cart link expired. Go back to your cart to start a fresh checkout — your items are still saved.",
+          });
         } else if (err instanceof CartTokenInvalidError) {
-          setError("Invalid cart link.");
+          setError({
+            kind: "invalid",
+            message:
+              "This cart link can't be verified. Open your cart and start checkout again.",
+          });
         } else {
-          setError("Failed to load cart. Please try again.");
+          setError({
+            kind: "unknown",
+            message: "Couldn't load your cart. Please try again.",
+          });
         }
       });
     return () => {
@@ -77,6 +94,12 @@ function CheckoutPageInner() {
   }, [token]);
 
   if (error) {
+    // Every kind that can be recovered with a fresh cart-token (i.e.
+    // "go back to /cart and re-submit") gets the same primary CTA.
+    // 'unknown' could be a transient network/backend issue ; surface a
+    // soft "try again" alongside the cart fallback so the user has a
+    // path regardless.
+    const showRetry = error.kind === "unknown";
     return (
       <main
         id="main"
@@ -84,7 +107,27 @@ function CheckoutPageInner() {
       >
         <div className="max-w-md text-center">
           <h2 className="mb-3 text-xl font-semibold">Checkout error</h2>
-          <p className="text-base text-neutral-700">{error}</p>
+          <p className="mb-5 text-base text-neutral-700 dark:text-celo-light/70">
+            {error.message}
+          </p>
+          <div className="flex flex-col gap-2 sm:flex-row sm:justify-center">
+            <Link
+              href="/cart"
+              data-testid="checkout-error-back-to-cart"
+              className="inline-flex min-h-[44px] items-center justify-center rounded-pill bg-celo-forest px-5 text-sm font-medium text-celo-light hover:bg-celo-forest-dark dark:bg-celo-green dark:text-celo-dark dark:hover:bg-celo-green-hover"
+            >
+              Back to my cart
+            </Link>
+            {showRetry ? (
+              <button
+                type="button"
+                onClick={() => window.location.reload()}
+                className="inline-flex min-h-[44px] items-center justify-center rounded-pill border border-neutral-300 px-5 text-sm font-medium text-celo-dark hover:bg-neutral-50 dark:border-celo-light/30 dark:text-celo-light dark:hover:bg-celo-dark-elevated"
+              >
+                Try again
+              </button>
+            ) : null}
+          </div>
         </div>
       </main>
     );
