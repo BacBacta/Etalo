@@ -13,6 +13,7 @@ import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddre
 // seller couldn't ship. The bundle delta isn't worth a broken core
 // flow ; switched to a static import.
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
+import { SellerOrderDisputeSection } from "@/components/seller/SellerOrderDisputeSection";
 import { PickListView } from "@/components/seller/PickListView";
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
@@ -347,6 +348,7 @@ export function OrdersTab({ address }: Props) {
             <OrderRow
               key={o.id}
               order={o}
+              sellerAddress={address}
               optimisticShipped={optimisticallyShipped.has(o.onchain_order_id)}
               onShipClick={() => {
                 setShipTarget({
@@ -438,6 +440,9 @@ interface OrderRowProps {
   // shippable. Drives the "syncing" pill + button hide so the seller
   // can't double-tap during the 0-30 s indexer lag.
   optimisticShipped: boolean;
+  // Seller's own wallet — passed down to the inline dispute section
+  // so N1ResolutionCard knows which party the current user is.
+  sellerAddress: string;
 }
 
 // memo'd : OrdersTab renders 20+ rows in a .map() and the parent
@@ -449,6 +454,7 @@ const OrderRow = memo(function OrderRow({
   order,
   onShipClick,
   optimisticShipped,
+  sellerAddress,
 }: OrderRowProps) {
   const canShip = isShippable(order.global_status) && !optimisticShipped;
   const dl = deadlineInfo(order.funded_at, order.global_status);
@@ -644,6 +650,15 @@ const OrderRow = memo(function OrderRow({
           />
         </div>
       ) : null}
+
+      {/* Inline dispute resolution — renders nothing unless the order
+          contains a disputed item. Seller has no per-order detail
+          page in V1, so the N1 amicable surface folds into the row. */}
+      <SellerOrderDisputeSection
+        orderUuid={order.id}
+        globalStatus={order.global_status}
+        sellerAddress={sellerAddress}
+      />
     </li>
   );
 });
