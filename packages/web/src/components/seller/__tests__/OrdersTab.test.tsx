@@ -60,6 +60,15 @@ vi.mock("@/hooks/useMilestoneOnce", () => ({
   useMilestoneOnce: (...args: unknown[]) => useMilestoneOnceMock(...args),
 }));
 
+// SellerOrderDisputeSection internally uses real react-query
+// (`useQuery`) which needs a QueryClientProvider. These specs render
+// OrdersTab in isolation without one ; stub the section since none
+// of these specs cover the dispute surface (covered separately by
+// the N1ResolutionCard tests + dispute-section unit tests).
+vi.mock("@/components/seller/SellerOrderDisputeSection", () => ({
+  SellerOrderDisputeSection: () => null,
+}));
+
 // ============================================================
 // Helpers
 // ============================================================
