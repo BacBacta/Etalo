@@ -19,7 +19,14 @@ from datetime import datetime, timedelta, timezone
 
 from app.config import settings
 
-TTL_MINUTES = 15
+# 60 min covers : user arrives at /checkout, fills the inline delivery
+# address (recipient name + 5 fields), reads the auto-release timer +
+# terms, may switch app to copy a WhatsApp tracking ref, then signs the
+# (up to 3) txs in MiniPay. Spotty African connectivity + multi-tab
+# behaviour easily exceeds the original 15 min cap. The window is still
+# short enough that a price-shift between issuance + checkout stays
+# meaningful (mainnet USDT-pegged prices barely move in an hour).
+TTL_MINUTES = 60
 
 
 def _sign(payload_b64: bytes) -> str:
