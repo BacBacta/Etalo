@@ -36,7 +36,7 @@ const otherSellerItem = {
 };
 
 beforeEach(() => {
-  useCartStore.getState().clearCart();
+  useCartStore.setState({ items: [], ownerAddress: null });
 });
 
 describe("addItem", () => {
@@ -95,6 +95,48 @@ describe("getSellerGroups", () => {
     const aissa = groups.find((g) => g.sellerHandle === "aissa");
     expect(aissa?.items).toHaveLength(1);
     expect(aissa?.subtotalUsdt).toBeCloseTo(45.0, 2);
+  });
+});
+
+describe("reconcileOwner", () => {
+  const ADDR_A = "0xAbC0000000000000000000000000000000000001";
+  const ADDR_B = "0xdEf0000000000000000000000000000000000002";
+
+  it("is a no-op when address is null (keeps cart + owner on transient disconnect)", () => {
+    const store = useCartStore.getState();
+    store.reconcileOwner(ADDR_A);
+    store.addItem(baseItem);
+    store.reconcileOwner(null);
+    expect(useCartStore.getState().items).toHaveLength(1);
+    expect(useCartStore.getState().ownerAddress).toBe(ADDR_A.toLowerCase());
+  });
+
+  it("clears a legacy unowned cart on the first connecting account", () => {
+    // owner starts null (e.g. a cart persisted before this scoping fix).
+    useCartStore.getState().addItem(baseItem);
+    expect(useCartStore.getState().items).toHaveLength(1);
+    useCartStore.getState().reconcileOwner(ADDR_A);
+    expect(useCartStore.getState().items).toHaveLength(0);
+    expect(useCartStore.getState().ownerAddress).toBe(ADDR_A.toLowerCase());
+  });
+
+  it("empties + re-owns the cart when a different account connects", () => {
+    const store = useCartStore.getState();
+    store.reconcileOwner(ADDR_A);
+    store.addItem(baseItem);
+    expect(useCartStore.getState().items).toHaveLength(1);
+    store.reconcileOwner(ADDR_B);
+    expect(useCartStore.getState().items).toHaveLength(0);
+    expect(useCartStore.getState().ownerAddress).toBe(ADDR_B.toLowerCase());
+  });
+
+  it("keeps the cart when the same account reconnects (case-insensitive)", () => {
+    const store = useCartStore.getState();
+    store.reconcileOwner(ADDR_A);
+    store.addItem(baseItem);
+    store.reconcileOwner(ADDR_A.toUpperCase());
+    expect(useCartStore.getState().items).toHaveLength(1);
+    expect(useCartStore.getState().ownerAddress).toBe(ADDR_A.toLowerCase());
   });
 });
 

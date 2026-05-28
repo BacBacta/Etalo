@@ -28,6 +28,12 @@ export interface SellerGroup {
 
 interface CartState {
   items: CartItem[];
+  // Lowercased wallet address that owns the persisted cart. The cart
+  // lives in localStorage (device-scoped, not account-scoped), so
+  // without this every account on the same device/browser would inherit
+  // whatever items a previous session left behind. `null` until a wallet
+  // first claims the cart (or while disconnected / on the public funnel).
+  ownerAddress: string | null;
 
   addItem: (
     item: Omit<CartItem, "qty" | "addedAt"> & { qty?: number },
@@ -36,6 +42,10 @@ interface CartState {
   removeItem: (productId: string) => void;
   clearCart: () => void;
   clearSellerItems: (sellerHandle: string) => void;
+  // Called on mount (post-hydration) and on every wagmi account change.
+  // Empties + re-owns the cart when the connected address differs from
+  // the current owner so a new account never inherits a stale cart.
+  reconcileOwner: (address: string | null) => void;
 
   getItemCount: () => number;
   getSellerGroups: () => SellerGroup[];
@@ -47,6 +57,7 @@ export const useCartStore = create<CartState>()(
   persist(
     (set, get) => ({
       items: [],
+      ownerAddress: null,
 
       addItem: (item) => {
         set((state) => {
@@ -112,6 +123,18 @@ export const useCartStore = create<CartState>()(
             (i) => i.sellerHandle !== sellerHandle,
           ),
         }));
+      },
+
+      reconcileOwner: (address) => {
+        // No wallet (disconnected / public funnel) → leave the cart
+        // untouched. We only ever wipe on a concrete account change, not
+        // on a transient disconnect, so a returning user keeps their
+        // cart and the public funnel can still stage items pre-connect.
+        if (!address) return;
+        const normalized = address.toLowerCase();
+        if (get().ownerAddress === normalized) return;
+        // Different (or legacy null) owner → fresh cart for this account.
+        set({ items: [], ownerAddress: normalized });
       },
 
       getItemCount: () =>
