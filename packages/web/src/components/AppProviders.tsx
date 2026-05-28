@@ -26,16 +26,26 @@
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { ThemeProvider } from "next-themes";
-import { useState } from "react";
-import { WagmiProvider } from "wagmi";
+import { useEffect, useState } from "react";
+import { useAccount, WagmiProvider } from "wagmi";
 
 import { MotionProvider } from "@/components/MotionProvider";
 import { SilentReconnectGate } from "@/components/SilentReconnectGate";
-import { useCartHydration } from "@/lib/cart-store";
+import { useCartHydration, useCartStore } from "@/lib/cart-store";
 import { wagmiConfig } from "@/lib/wagmi-config";
 
 function CartHydrationGate({ children }: { children: React.ReactNode }) {
-  useCartHydration();
+  const hydrated = useCartHydration();
+  const { address } = useAccount();
+  const reconcileOwner = useCartStore((s) => s.reconcileOwner);
+  // After the persisted cart is read back, claim/clear it for the
+  // connected account. Runs again on every account switch so a new
+  // wallet never inherits the previous one's items (cart is stored in
+  // device-scoped localStorage, not per account).
+  useEffect(() => {
+    if (!hydrated) return;
+    reconcileOwner(address ?? null);
+  }, [hydrated, address, reconcileOwner]);
   return <>{children}</>;
 }
 
