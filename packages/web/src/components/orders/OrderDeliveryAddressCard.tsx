@@ -16,21 +16,23 @@
  */
 "use client";
 
+import { WhatsappLogo } from "@phosphor-icons/react";
+
 import { countryName } from "@/lib/country";
 import { buildWhatsAppCoordinateUrl } from "@/lib/whatsapp";
 
-// Anchor styled to match the primary Button without importing Button
-// (which uses base-ui Button as a slot — incompatible with anchor as
-// a child element). Keeps 44 x 44 touch target + WCAG-friendly focus
-// outline + dark-mode parity.
+// WhatsApp brand anchor — filled green + logo, instantly recognizable
+// and premium. Styled directly (not via Button) because Button uses
+// base-ui Button as a slot, incompatible with an anchor child. Keeps a
+// 44 x 44 touch target, WCAG-friendly focus outline, dark-mode parity.
 const WHATSAPP_ANCHOR_CLASSES = [
-  "inline-flex items-center justify-center gap-2",
-  "min-h-[44px] px-5 py-2",
-  "rounded-md text-base font-medium",
-  "bg-primary text-primary-foreground hover:bg-primary/90",
+  "inline-flex w-full items-center justify-center gap-2",
+  "min-h-[48px] px-5 py-2",
+  "rounded-lg text-base font-medium",
+  "bg-celo-green text-white hover:bg-celo-green-hover",
   "transition-colors duration-200",
-  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
-  "focus-visible:ring-offset-2",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-green",
+  "focus-visible:ring-offset-2 dark:focus-visible:ring-offset-celo-dark-elevated",
 ].join(" ");
 
 export interface DeliveryAddressSnapshot {
@@ -92,7 +94,7 @@ export function OrderDeliveryAddressCard({
     <section
       data-testid="order-delivery-card"
       aria-label="Delivery address"
-      className="rounded-md border border-neutral-200 bg-white p-4 dark:border-celo-light/10 dark:bg-celo-dark-elevated"
+      className="rounded-2xl border border-neutral-200 bg-white p-4 shadow-celo-sm dark:border-celo-light/10 dark:bg-celo-dark-elevated"
     >
       <header className="mb-2 flex items-center justify-between gap-2">
         <h3 className="text-base font-medium text-neutral-900 dark:text-celo-light">
@@ -196,8 +198,12 @@ export function OrderDeliveryAddressCard({
             data-testid="order-delivery-whatsapp"
             className={WHATSAPP_ANCHOR_CLASSES}
           >
-            Coordinate via WhatsApp
+            <WhatsappLogo className="h-5 w-5" weight="fill" aria-hidden />
+            Coordinate on WhatsApp
           </a>
+          <p className="mt-1.5 text-center text-sm text-neutral-500 dark:text-celo-light/55">
+            Opens a chat tied to this order — no number shared.
+          </p>
         </div>
       ) : null}
     </section>

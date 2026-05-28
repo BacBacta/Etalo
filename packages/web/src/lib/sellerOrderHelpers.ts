@@ -117,6 +117,88 @@ export function statusBadgeClass(globalStatus: string): string {
   }
 }
 
+/** Human-friendly status label. The raw on-chain enum values
+ *  (Funded / AllShipped / PartiallyDelivered) are not seller-friendly —
+ *  map them to plain language for the dashboard. */
+export function statusLabel(globalStatus: string): string {
+  switch (globalStatus) {
+    case "Created":
+      return "Awaiting payment";
+    case "Funded":
+      return "To ship";
+    case "PartiallyShipped":
+      return "Partially shipped";
+    case "AllShipped":
+      return "Shipped";
+    case "PartiallyDelivered":
+      return "Partially delivered";
+    case "Completed":
+      return "Completed";
+    case "Disputed":
+      return "Disputed";
+    case "Refunded":
+      return "Refunded";
+    default:
+      return globalStatus;
+  }
+}
+
+export interface StatusPill {
+  label: string;
+  /** Soft pill bg + text classes, dark-mode aware. */
+  className: string;
+  /** Leading status-dot color class. */
+  dotClassName: string;
+}
+
+/** Status → premium pill (humanized label + soft bg/text + dot color).
+ *  Consolidates the per-status palette so the row markup stays
+ *  declarative and the buyer side can reuse the same mapping later. */
+export function statusPill(globalStatus: string): StatusPill {
+  const label = statusLabel(globalStatus);
+  switch (globalStatus) {
+    case "Funded":
+    case "PartiallyShipped":
+      return {
+        label,
+        className:
+          "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+        dotClassName: "bg-amber-500",
+      };
+    case "AllShipped":
+    case "PartiallyDelivered":
+      return {
+        label,
+        className:
+          "bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300",
+        dotClassName: "bg-blue-500",
+      };
+    case "Completed":
+      return {
+        label,
+        className:
+          "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+        dotClassName: "bg-emerald-500",
+      };
+    case "Disputed":
+      return {
+        label,
+        className:
+          "bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300",
+        dotClassName: "bg-rose-500",
+      };
+    case "Created":
+    case "Refunded":
+    default:
+      return {
+        label,
+        className:
+          "bg-neutral-100 text-neutral-600 dark:bg-celo-light/10 dark:text-celo-light/70",
+        dotClassName: "bg-neutral-400",
+      };
+  }
+}
+
 export function ipfsImageUrl(
   hash: string | null | undefined,
 ): string | null {

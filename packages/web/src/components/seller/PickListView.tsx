@@ -35,10 +35,10 @@ interface Props {
 }
 
 const URGENCY_BADGE_CLASSES: Record<DeadlineUrgency, string> = {
-  expired: "bg-rose-100 text-rose-800",
-  urgent: "bg-rose-100 text-rose-800",
-  warn: "bg-amber-100 text-amber-800",
-  safe: "bg-emerald-50 text-emerald-700",
+  expired: "bg-rose-500 text-white",
+  urgent: "bg-rose-500 text-white",
+  warn: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+  safe: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
 };
 
 export function PickListView({ orders }: Props) {
@@ -71,9 +71,9 @@ function PickListRow({ sku }: { sku: AggregatedSku }) {
   return (
     <li
       data-testid="pick-list-row"
-      className="flex items-start gap-3 rounded-md border border-neutral-200 p-3 dark:border-celo-light/10"
+      className="flex items-start gap-3 rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-celo-sm dark:border-celo-light/10 dark:bg-celo-dark-elevated"
     >
-      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded bg-neutral-100 dark:bg-celo-dark-elevated">
+      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-celo-dark-bg">
         {imageUrl ? (
           // Plain <img> avoids next/image domain config for a 48 px
           // thumbnail — bundle/perf cost is negligible at this size.
@@ -106,7 +106,7 @@ function PickListRow({ sku }: { sku: AggregatedSku }) {
             <span
               data-testid="pick-list-urgency"
               data-urgency={sku.earliestUrgency}
-              className={`rounded px-2 py-0.5 text-sm font-medium ${URGENCY_BADGE_CLASSES[sku.earliestUrgency]}`}
+              className={`rounded-full px-2.5 py-0.5 text-sm font-medium ${URGENCY_BADGE_CLASSES[sku.earliestUrgency]}`}
             >
               {sku.earliestUrgency === "expired"
                 ? "Past deadline"
