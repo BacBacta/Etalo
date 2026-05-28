@@ -17,6 +17,8 @@ import {
   isShippable,
   SELLER_INACTIVITY_WINDOW_MS,
   statusBadgeClass,
+  statusLabel,
+  statusPill,
   summarizeOrders,
 } from "@/lib/sellerOrderHelpers";
 
@@ -147,6 +149,40 @@ describe("statusBadgeClass", () => {
 
   it("falls back to neutral for unknown statuses", () => {
     expect(statusBadgeClass("WhateverUnknown")).toContain("neutral");
+  });
+});
+
+describe("statusLabel", () => {
+  it("humanizes the raw on-chain enum values", () => {
+    expect(statusLabel("Funded")).toBe("To ship");
+    expect(statusLabel("AllShipped")).toBe("Shipped");
+    expect(statusLabel("Created")).toBe("Awaiting payment");
+    expect(statusLabel("PartiallyDelivered")).toBe("Partially delivered");
+  });
+
+  it("passes unknown statuses through unchanged", () => {
+    expect(statusLabel("WhateverUnknown")).toBe("WhateverUnknown");
+  });
+});
+
+describe("statusPill", () => {
+  it("carries the humanized label + amber palette for shippable orders", () => {
+    const pill = statusPill("Funded");
+    expect(pill.label).toBe("To ship");
+    expect(pill.className).toContain("amber");
+    expect(pill.dotClassName).toContain("amber");
+  });
+
+  it("maps shipped to blue, completed to emerald, disputed to rose", () => {
+    expect(statusPill("AllShipped").className).toContain("blue");
+    expect(statusPill("Completed").className).toContain("emerald");
+    expect(statusPill("Disputed").className).toContain("rose");
+  });
+
+  it("falls back to neutral for created / refunded / unknown", () => {
+    expect(statusPill("Created").className).toContain("neutral");
+    expect(statusPill("Refunded").className).toContain("neutral");
+    expect(statusPill("Nope").className).toContain("neutral");
   });
 });
 

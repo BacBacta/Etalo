@@ -416,6 +416,49 @@ describe("OrdersTab — anonymized buyer + deadline + line items (Block 8 hotfix
     expect(banner.textContent).toContain("articles");
   });
 
+  it("renders the humanized status label (Funded → 'To ship'), not the raw enum", async () => {
+    applyFundedOrder();
+    render(<OrdersTab address={ADDRESS} />);
+    const status = await screen.findByTestId("order-row-status");
+    expect(status.textContent).toContain("To ship");
+    expect(status.textContent).not.toContain("Funded");
+  });
+
+  it("surfaces the WhatsApp coordinate action with the correct wa.me deeplink", async () => {
+    applyFundedOrder();
+    render(<OrdersTab address={ADDRESS} />);
+    const wa = (await screen.findByTestId(
+      "order-row-whatsapp",
+    )) as HTMLAnchorElement;
+    expect(wa.tagName).toBe("A");
+    const href = wa.getAttribute("href")!;
+    expect(href).toMatch(/^https:\/\/wa\.me\/2349011234567\?text=/);
+    expect(href).toContain("Etalo%20order%20%2342");
+    expect(wa.getAttribute("target")).toBe("_blank");
+    expect(wa.getAttribute("rel")).toBe("noopener noreferrer");
+  });
+
+  it("omits the WhatsApp action when the order has no delivery snapshot", async () => {
+    applyHookState({
+      kind: "success",
+      data: {
+        orders: [
+          {
+            ...FUNDED_ORDER,
+            id: "order-no-snapshot",
+            onchain_order_id: 77,
+            delivery_address_snapshot: null,
+          } as never,
+        ],
+        pagination: { total: 1, has_more: false, next_cursor: null } as never,
+      },
+    });
+    render(<OrdersTab address={ADDRESS} />);
+    // Mark shipped still renders (it's a Funded order) but no WhatsApp.
+    await screen.findByTestId("order-row-status");
+    expect(screen.queryByTestId("order-row-whatsapp")).toBeNull();
+  });
+
   it("toggles into the pick-list view and aggregates SKUs by title across orders", async () => {
     applyHookState({
       kind: "success",

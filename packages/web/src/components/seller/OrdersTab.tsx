@@ -1,12 +1,19 @@
 "use client";
 
-import { Clock, Copy, MapPin, Package, Truck } from "@phosphor-icons/react";
+import {
+  Clock,
+  Copy,
+  MapPin,
+  Package,
+  Truck,
+  WhatsappLogo,
+} from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { OrderDeliveryAddressCard } from "@/components/orders/OrderDeliveryAddressCard";
+import { type DeliveryAddressSnapshot } from "@/components/orders/OrderDeliveryAddressCard";
 // MarkGroupShippedDialog was previously dynamic-imported (Phase A P0-2,
 // ~10-15 kB saving), but MiniPay's WebView returned an error while
 // fetching the chunk so the click had no observable effect and the
@@ -27,6 +34,7 @@ import {
   useSellerOrders,
 } from "@/hooks/useSellerOrders";
 import { fireMilestone } from "@/lib/confetti/milestones";
+import { countryName } from "@/lib/country";
 import { formatRowDate } from "@/lib/format";
 import { type SellerOrderItem } from "@/lib/seller-api";
 import {
@@ -34,10 +42,13 @@ import {
   deadlineInfo,
   ipfsImageUrl,
   isShippable,
+  statusPill,
   summarizeOrders,
+  type DeadlineInfo,
   type DeadlineUrgency,
 } from "@/lib/sellerOrderHelpers";
 import { formatRawUsdt } from "@/lib/usdt";
+import { buildWhatsAppCoordinateUrl } from "@/lib/whatsapp";
 
 // Block 6 sub-block 6.3 — MilestoneDialogV5 imported dynamically with
 // ssr:false. The dialog is shown at most once per seller-wallet
@@ -58,48 +69,37 @@ interface Props {
 
 const STATUS_OPTIONS: Array<{ value: string; label: string }> = [
   { value: "", label: "All" },
-  { value: "Created", label: "Created" },
-  { value: "Funded", label: "Funded" },
+  { value: "Created", label: "Awaiting payment" },
+  { value: "Funded", label: "To ship" },
   { value: "PartiallyShipped", label: "Partially shipped" },
-  { value: "AllShipped", label: "All shipped" },
+  { value: "AllShipped", label: "Shipped" },
   { value: "PartiallyDelivered", label: "Partially delivered" },
   { value: "Completed", label: "Completed" },
   { value: "Disputed", label: "Disputed" },
   { value: "Refunded", label: "Refunded" },
 ];
 
-// Status → dot color (Shopify pattern). Pre-fund / created = neutral,
-// shippable orange (action needed), shipped blue (in transit),
-// completed green, disputed red.
-const STATUS_DOT_CLASSES: Record<string, string> = {
-  Created: "bg-neutral-400",
-  Funded: "bg-amber-500",
-  PartiallyShipped: "bg-blue-500",
-  AllShipped: "bg-blue-500",
-  PartiallyDelivered: "bg-blue-600",
-  Completed: "bg-emerald-500",
-  Disputed: "bg-rose-500",
-  Refunded: "bg-neutral-500",
-};
-
-// Per-urgency left-border + deadline-strip palette. The 4 px left
-// border on each card lets the seller scan a long list and prioritize
-// in one sweep (Shopify / Linear / Robinhood pattern).
+// Per-urgency left-border palette. A 4 px left edge on each card lets the
+// seller scan a long list and prioritize in one sweep (Shopify / Linear
+// / Robinhood pattern). Kept subtle until the deadline turns loud ;
+// disputes override it with rose (see OrderRow).
 const URGENCY_BORDER_CLASSES: Record<DeadlineUrgency, string> = {
   expired: "border-l-rose-500 dark:border-l-rose-400",
   urgent: "border-l-rose-500 dark:border-l-rose-400",
-  warn: "border-l-amber-500 dark:border-l-amber-400",
-  safe: "border-l-emerald-500 dark:border-l-emerald-400",
+  warn: "border-l-amber-400 dark:border-l-amber-400",
+  safe: "border-l-emerald-400 dark:border-l-emerald-400",
 };
 
-const URGENCY_STRIP_CLASSES: Record<DeadlineUrgency, string> = {
-  expired:
-    "bg-rose-50 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
-  urgent:
-    "bg-rose-50 text-rose-900 dark:bg-rose-950/40 dark:text-rose-200",
-  warn: "bg-amber-50 text-amber-900 dark:bg-amber-950/40 dark:text-amber-200",
-  safe: "bg-emerald-50 text-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-200",
-};
+// WhatsApp brand action — filled green, recognizable, premium. Reused on
+// every shippable/snapshot-bearing row so the seller can coordinate
+// delivery without hunting for a buried button.
+const WHATSAPP_ACTION_CLASSES = [
+  "inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5",
+  "rounded-lg bg-celo-green px-4 text-base font-medium text-white",
+  "transition-colors hover:bg-celo-green-hover",
+  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-green",
+  "focus-visible:ring-offset-2 dark:focus-visible:ring-offset-celo-dark-elevated",
+].join(" ");
 
 type ViewMode = "orders" | "pick-list";
 
@@ -314,7 +314,7 @@ export function OrdersTab({ address }: Props) {
             id="status-filter"
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="min-h-[44px] flex-1 rounded-md border border-neutral-300 bg-white px-3 text-base text-celo-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light sm:flex-none"
+            className="min-h-[44px] flex-1 rounded-lg border border-neutral-300 bg-white px-3 text-base text-celo-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light sm:flex-none"
           >
             {STATUS_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>
@@ -417,13 +417,13 @@ function KpiTile({ label, value, sub, icon, urgency, testId }: KpiTileProps) {
     <div
       data-testid={testId}
       data-urgency={urgency}
-      className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-celo-light/10 dark:bg-celo-dark-elevated"
+      className="rounded-2xl border border-neutral-200 bg-white p-3.5 shadow-celo-sm dark:border-celo-light/10 dark:bg-celo-dark-elevated"
     >
-      <div className="mb-1 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-celo-light/60">
+      <div className="mb-1.5 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-celo-light/60">
         {icon}
         <span>{label}</span>
       </div>
-      <div className={`text-xl font-semibold tabular-nums ${urgencyText}`}>
+      <div className={`text-2xl font-semibold tabular-nums ${urgencyText}`}>
         {value}
       </div>
       {sub ? (
@@ -461,9 +461,11 @@ const OrderRow = memo(function OrderRow({
 }: OrderRowProps) {
   const canShip = isShippable(order.global_status) && !optimisticShipped;
   const dl = deadlineInfo(order.funded_at, order.global_status);
-  const buyer = buyerLabel(order.delivery_address_snapshot, order.onchain_order_id);
+  const snapshot = (order.delivery_address_snapshot ??
+    null) as DeliveryAddressSnapshot | null;
+  const buyer = buyerLabel(snapshot, order.onchain_order_id);
   const lineItems = order.line_items ?? [];
-  const snapshot = order.delivery_address_snapshot ?? null;
+  const pill = statusPill(order.global_status);
   // Dispute escalation : when any item is in dispute, override the
   // ship-deadline visual (which is meaningless mid-dispute) with a
   // rose border + badge so the seller spots the row immediately.
@@ -471,18 +473,23 @@ const OrderRow = memo(function OrderRow({
   // hook adds zero network round-trips for the common case.
   const hasDispute = useOrderHasDispute(order.id, order.global_status);
 
+  const waUrl = snapshot
+    ? buildWhatsAppCoordinateUrl({
+        phone: snapshot.phone_number,
+        country: snapshot.country,
+        orderId: order.onchain_order_id,
+      })
+    : null;
+
   // 4 px left border keyed to urgency lets sellers scan a long list and
-  // pick what to ship next without reading every label. Falls back to
-  // a neutral border for orders without an active deadline (Created /
-  // Completed / Disputed / Refunded). Disputes win over urgency.
+  // pick what to ship next without reading every label. Neutral edge for
+  // orders without an active deadline (Created / Shipped / Completed).
+  // Disputes win over urgency.
   const borderColor = hasDispute
     ? "border-l-rose-500 dark:border-l-rose-400"
     : dl
       ? URGENCY_BORDER_CLASSES[dl.urgency]
       : "border-l-neutral-200 dark:border-l-celo-light/10";
-
-  const statusDotColor =
-    STATUS_DOT_CLASSES[order.global_status] ?? "bg-neutral-400";
 
   const handleCopyAddress = () => {
     if (!snapshot) return;
@@ -491,7 +498,7 @@ const OrderRow = memo(function OrderRow({
       snapshot.address_line,
       snapshot.area,
       [snapshot.city, snapshot.region].filter(Boolean).join(", "),
-      snapshot.country,
+      countryName(snapshot.country) ?? snapshot.country,
     ]
       .filter(Boolean)
       .join("\n");
@@ -501,87 +508,73 @@ const OrderRow = memo(function OrderRow({
       .catch(() => toast.error("Couldn't copy"));
   };
 
+  const hasActions =
+    canShip || optimisticShipped || waUrl !== null || snapshot !== null;
+
   return (
     <li
-      className={`overflow-hidden rounded-xl border border-neutral-200 border-l-4 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated ${borderColor}`}
+      className={`overflow-hidden rounded-2xl border border-neutral-200 border-l-4 bg-white shadow-celo-sm transition-shadow hover:shadow-celo-md dark:border-celo-light/10 dark:bg-celo-dark-elevated ${borderColor}`}
     >
-      {/* Header strip : order id + status + amount. Distinct visual
-          band so the list reads like a feed of cards, not a flat
-          stack of paragraphs. */}
-      <div className="flex items-center justify-between gap-2 border-b border-neutral-100 px-4 py-3 dark:border-celo-light/10">
-        <div className="flex items-center gap-2 min-w-0">
-          <span
-            aria-hidden
-            className={`inline-block h-2 w-2 rounded-full ${statusDotColor}`}
-          />
-          <span
-            data-testid="order-row-status"
-            className="text-sm font-medium text-celo-dark dark:text-celo-light"
-          >
-            {order.global_status}
-          </span>
-          <span
-            aria-hidden
-            className="text-neutral-300 dark:text-celo-light/30"
-          >
-            ·
-          </span>
-          <span className="truncate text-sm tabular-nums text-neutral-500 dark:text-celo-light/60">
-            #{order.onchain_order_id}
-          </span>
-          {hasDispute ? (
+      {/* Header — status pill (+ dispute badge) + meta on the left,
+          amount on the right. The pill carries the humanized status +
+          dot ; the meta line folds order id / date / item count into one
+          quiet row so the card reads top-to-bottom without competing
+          signals. */}
+      <div className="flex items-start justify-between gap-3 px-4 pt-4">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2">
             <span
-              data-testid="order-row-dispute-badge"
-              className="ml-1 inline-flex flex-shrink-0 items-center rounded-full bg-rose-100 px-2 py-0.5 text-sm font-medium text-rose-800 dark:bg-rose-900/40 dark:text-rose-200"
+              data-testid="order-row-status"
+              className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-sm font-medium ${pill.className}`}
             >
-              Dispute
+              <span
+                aria-hidden
+                className={`inline-block h-1.5 w-1.5 rounded-full ${pill.dotClassName}`}
+              />
+              {pill.label}
             </span>
-          ) : null}
+            {hasDispute ? (
+              <span
+                data-testid="order-row-dispute-badge"
+                className="inline-flex flex-shrink-0 items-center rounded-full bg-rose-100 px-2.5 py-1 text-sm font-medium text-rose-800 dark:bg-rose-900/40 dark:text-rose-200"
+              >
+                Dispute
+              </span>
+            ) : null}
+          </div>
+          <div className="truncate text-sm tabular-nums text-neutral-500 dark:text-celo-light/60">
+            #{order.onchain_order_id} · {formatRowDate(order.created_at_chain)} ·{" "}
+            {order.item_count} {order.item_count === 1 ? "item" : "items"}
+          </div>
         </div>
-        <span className="flex-shrink-0 text-base font-semibold tabular-nums text-celo-dark dark:text-celo-light">
+        <span className="flex-shrink-0 text-lg font-semibold tabular-nums text-celo-dark dark:text-celo-light">
           {formatRawUsdt(order.total_amount_usdt)} USDT
         </span>
       </div>
 
-      {/* Body : buyer + date + item count, more compact than the previous
-          dense one-line `·`-separated string. Two visible rows now :
-          a primary "buyer" line and a small meta line. */}
-      <div className="px-4 pt-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <BuyerAvatar label={buyer} />
-            <span className="truncate text-base font-medium text-celo-dark dark:text-celo-light">
-              {buyer}
-            </span>
-          </div>
-          <span className="flex-shrink-0 text-sm text-neutral-500 tabular-nums dark:text-celo-light/60">
-            {formatRowDate(order.created_at_chain)}
-          </span>
-        </div>
-        <div className="mt-0.5 text-sm text-neutral-500 dark:text-celo-light/60">
-          {order.item_count} {order.item_count === 1 ? "item" : "items"}
-        </div>
-      </div>
-
-      {/* Deadline strip — full-width band, color-coded urgency. Only
-          for shippable orders past funding. */}
-      {dl ? (
-        <div
-          data-testid="order-row-deadline"
-          data-urgency={dl.urgency}
-          className={`mt-3 flex items-center gap-2 px-4 py-2 text-sm font-medium ${URGENCY_STRIP_CLASSES[dl.urgency]}`}
-        >
-          <Clock className="h-4 w-4 flex-shrink-0" weight="regular" />
-          <span>
-            {dl.urgency === "expired"
-              ? "Past auto-refund deadline — funds may return to buyer"
-              : `Ship within ${dl.label} or order auto-refunds`}
+      {/* Buyer line — only when a snapshot gives us a meaningful,
+          privacy-safe label (never the 0x… wallet, CLAUDE.md rule 5).
+          Anonymous orders skip this row : the #id above already names
+          them, so repeating "Order #N" here would be noise. */}
+      {snapshot ? (
+        <div className="flex items-center gap-2.5 px-4 pt-3">
+          <BuyerAvatar snapshot={snapshot} fallbackLabel={buyer} />
+          <span className="truncate text-base font-medium text-celo-dark dark:text-celo-light">
+            {buyer}
           </span>
         </div>
       ) : null}
 
-      {/* Line items — 40 px thumbnails with breathing room. qty pill
-          right-aligned. */}
+      {/* Deadline — progressive urgency. Calm inline chip while there's
+          time ; loud full-width pulsing strip once it's urgent / past so
+          the seller can't miss the auto-refund risk. */}
+      {dl ? (
+        <div className="px-4 pt-3">
+          <DeadlineBadge dl={dl} />
+        </div>
+      ) : null}
+
+      {/* Line items — 40 px thumbnails, qty pill right-aligned. */}
       {lineItems.length > 0 ? (
         <ul
           className="mx-4 mt-3 space-y-2 border-t border-neutral-100 pt-3 dark:border-celo-light/10"
@@ -597,11 +590,11 @@ const OrderRow = memo(function OrderRow({
                 <img
                   src={ipfsImageUrl(item.image_ipfs_hash) ?? ""}
                   alt=""
-                  className="h-10 w-10 flex-shrink-0 rounded-md object-cover"
+                  className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
                   loading="lazy"
                 />
               ) : (
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-md bg-neutral-100 dark:bg-celo-dark-bg">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-celo-dark-bg">
                   <Package
                     className="h-5 w-5 text-neutral-400 dark:text-celo-light/40"
                     aria-hidden
@@ -619,54 +612,64 @@ const OrderRow = memo(function OrderRow({
         </ul>
       ) : null}
 
-      {/* Action zone — primary CTA + secondary actions. Separated from
-          the data zone by spacing + alignment so the seller's eye
-          lands here when scanning a row top-to-bottom. */}
-      <div className="flex flex-wrap items-center gap-2 px-4 py-3">
-        {canShip ? (
-          <Button
-            type="button"
-            variant="default"
-            onClick={onShipClick}
-            className="min-h-[44px] flex-1 text-base sm:flex-none"
-          >
-            <Truck className="mr-2 h-4 w-4" />
-            Mark shipped
-          </Button>
-        ) : optimisticShipped ? (
-          <div
-            data-testid="order-row-shipped-syncing"
-            className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-2 rounded-md bg-emerald-50 px-3 text-base font-medium text-emerald-800 sm:flex-none dark:bg-emerald-950/40 dark:text-emerald-200"
-          >
-            <Truck className="h-4 w-4" weight="fill" />
-            <span>Shipped — syncing on-chain…</span>
-          </div>
-        ) : null}
-        {snapshot ? (
-          <button
-            type="button"
-            onClick={handleCopyAddress}
-            aria-label="Copy delivery address"
-            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-neutral-200 px-3 text-sm font-medium text-celo-dark hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/20 dark:text-celo-light dark:hover:bg-celo-dark-bg"
-          >
-            <Copy className="h-4 w-4" weight="regular" />
-            Copy address
-          </button>
-        ) : null}
-      </div>
+      {/* Compact ship-to summary — recipient + area · city, country.
+          The full standalone card stays on the buyer-facing order page ;
+          here we keep it tight and let the action row own WhatsApp. */}
+      {snapshot ? <ShipToSummary snapshot={snapshot} /> : null}
 
-      {/* Delivery card — folded into the row when snapshot present. */}
-      {snapshot ? (
-        <div className="px-4 pb-4">
-          <div className="mb-1.5 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-celo-light/60">
-            <MapPin className="h-4 w-4" weight="regular" />
-            <span>Ship to</span>
-          </div>
-          <OrderDeliveryAddressCard
-            snapshot={snapshot}
-            orderId={order.onchain_order_id}
-            hideWhenEmpty
-          />
+      {/* Action zone — primary CTA (or the post-ship syncing chip), then
+          WhatsApp + copy as a balanced pair. WhatsApp is now first-class
+          (was buried inside the old address card) so the seller can
+          coordinate delivery in one tap. */}
+      {hasActions ? (
+        <div className="space-y-2 px-4 py-4">
+          {canShip ? (
+            <Button
+              type="button"
+              variant="default"
+              onClick={onShipClick}
+              className="min-h-[44px] w-full text-base"
+            >
+              <Truck className="mr-2 h-4 w-4" />
+              Mark shipped
+            </Button>
+          ) : optimisticShipped ? (
+            <div
+              data-testid="order-row-shipped-syncing"
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-3 text-base font-medium text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-200"
+            >
+              <Truck className="h-4 w-4" weight="fill" />
+              <span>Shipped — syncing on-chain…</span>
+            </div>
+          ) : null}
+          {waUrl || snapshot ? (
+            <div className="flex gap-2">
+              {waUrl ? (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  data-testid="order-row-whatsapp"
+                  aria-label="Coordinate delivery via WhatsApp"
+                  className={WHATSAPP_ACTION_CLASSES}
+                >
+                  <WhatsappLogo className="h-5 w-5" weight="fill" aria-hidden />
+                  WhatsApp
+                </a>
+              ) : null}
+              {snapshot ? (
+                <button
+                  type="button"
+                  onClick={handleCopyAddress}
+                  aria-label="Copy delivery address"
+                  className="inline-flex min-h-[44px] flex-1 items-center justify-center gap-1.5 rounded-lg border border-neutral-200 px-4 text-base font-medium text-celo-dark transition-colors hover:bg-neutral-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/20 dark:text-celo-light dark:hover:bg-celo-dark-bg"
+                >
+                  <Copy className="h-4 w-4" weight="regular" aria-hidden />
+                  Copy
+                </button>
+              ) : null}
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -683,15 +686,109 @@ const OrderRow = memo(function OrderRow({
 });
 OrderRow.displayName = "OrderRow";
 
-// Compact avatar : first letter of buyer label, monogram-style. Cheap
-// alternative to a real photo since we never display the buyer's wallet
-// or any PII to the seller (CLAUDE.md rule #5 + ADR-043).
-function BuyerAvatar({ label }: { label: string }) {
-  const initial = (label.match(/[A-Za-z0-9]/)?.[0] ?? "?").toUpperCase();
+/** Compact delivery summary for a seller row. Privacy-safe : the buyer
+ *  phone is never printed (escrow-bypass risk) — coordination happens
+ *  through the WhatsApp deeplink in the action row. */
+function ShipToSummary({ snapshot }: { snapshot: DeliveryAddressSnapshot }) {
+  const locality = [
+    snapshot.area,
+    snapshot.city,
+    countryName(snapshot.country) ?? snapshot.country,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  if (!snapshot.recipient_name && !locality && !snapshot.address_line) {
+    return null;
+  }
+
+  return (
+    <div className="mx-4 mt-3 rounded-xl border border-neutral-200 bg-neutral-50/60 p-3 dark:border-celo-light/10 dark:bg-celo-dark-bg/40">
+      <div className="mb-1.5 flex items-center gap-1.5 text-sm text-neutral-500 dark:text-celo-light/60">
+        <MapPin className="h-4 w-4" weight="regular" aria-hidden />
+        <span>Ship to</span>
+      </div>
+      {snapshot.recipient_name ? (
+        <p className="text-base font-medium text-celo-dark dark:text-celo-light">
+          {snapshot.recipient_name}
+        </p>
+      ) : null}
+      {locality ? (
+        <p className="text-sm text-neutral-700 dark:text-celo-light/75">
+          {locality}
+        </p>
+      ) : null}
+      {snapshot.address_line ? (
+        <p className="mt-0.5 break-words text-sm text-neutral-500 dark:text-celo-light/55">
+          {snapshot.address_line}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+const DEADLINE_LOUD_CLASSES: Record<"urgent" | "expired", string> = {
+  urgent: "bg-rose-500 text-white",
+  expired: "bg-rose-600 text-white",
+};
+
+const DEADLINE_SOFT_CLASSES: Record<"safe" | "warn", string> = {
+  safe: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300",
+  warn: "bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300",
+};
+
+function deadlineCopy(dl: DeadlineInfo): string {
+  switch (dl.urgency) {
+    case "expired":
+      return "Past auto-refund deadline — funds may return to buyer";
+    case "urgent":
+      return `Urgent — ship within ${dl.label}`;
+    case "warn":
+      return `Ship soon — ${dl.label} left`;
+    case "safe":
+    default:
+      return `Ships within ${dl.label}`;
+  }
+}
+
+function DeadlineBadge({ dl }: { dl: DeadlineInfo }) {
+  const loud = dl.urgency === "urgent" || dl.urgency === "expired";
+  const className = loud
+    ? `flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold animate-celo-pulse ${DEADLINE_LOUD_CLASSES[dl.urgency as "urgent" | "expired"]}`
+    : `inline-flex w-fit items-center gap-1.5 rounded-full px-3 py-1 text-sm font-medium ${DEADLINE_SOFT_CLASSES[dl.urgency as "safe" | "warn"]}`;
+  return (
+    <div
+      data-testid="order-row-deadline"
+      data-urgency={dl.urgency}
+      className={className}
+    >
+      <Clock className="h-4 w-4 flex-shrink-0" weight="regular" aria-hidden />
+      <span>{deadlineCopy(dl)}</span>
+    </div>
+  );
+}
+
+// Compact avatar : first letter of the recipient name (or city) as a
+// monogram. We never display the buyer's wallet or any PII to the seller
+// (CLAUDE.md rule 5 + ADR-043), so the snapshot is the only identity
+// source — anonymous orders never reach this component (the buyer line
+// is skipped when there's no snapshot).
+function BuyerAvatar({
+  snapshot,
+  fallbackLabel,
+}: {
+  snapshot: DeliveryAddressSnapshot;
+  fallbackLabel: string;
+}) {
+  const source =
+    snapshot.recipient_name?.trim() ||
+    snapshot.city?.trim() ||
+    fallbackLabel;
+  const initial = (source.match(/[A-Za-z0-9]/)?.[0] ?? "?").toUpperCase();
   return (
     <span
       aria-hidden
-      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-celo-forest-soft text-sm font-semibold text-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-light"
+      className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full bg-celo-forest-soft text-sm font-semibold text-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-light"
     >
       {initial}
     </span>
