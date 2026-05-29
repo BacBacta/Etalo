@@ -24,6 +24,7 @@ import { CheckCircle, Spinner, Warning } from "@phosphor-icons/react";
 import { useState } from "react";
 
 import { DeadlineCountdown } from "@/components/orders/AutoReleaseTimer";
+import { EscalatedDisputeStatus } from "@/components/orders/EscalatedDisputeStatus";
 import {
   ChainMismatchBanner,
   useChainMatch,
@@ -88,22 +89,11 @@ export function N1ResolutionCard({
     );
   }
 
-  // Past N1 but not resolved → N2 mediation / N3 voting. In-app tooling
-  // for those tiers is a separate workstream ; surface a clear notice.
+  // Past N1 but not resolved → render the read-only N2/N3 status card
+  // so the parties can follow mediation / voting from this surface
+  // (ADR-056 / PR 3 of the dispute escalation workstream).
   if (dispute.level !== "N1_Amicable") {
-    return (
-      <div
-        data-testid="n1-card-escalated"
-        className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-700 dark:bg-amber-950/40"
-      >
-        <p className="text-amber-900 dark:text-amber-100">
-          This dispute has escalated past the bilateral 48 h window
-          (current level : <span className="font-medium">{dispute.level}</span>).
-          A mediator is now handling it ; we&apos;ll surface mediation +
-          voting tooling in the next release.
-        </p>
-      </div>
-    );
+    return <EscalatedDisputeStatus dispute={dispute} />;
   }
 
   const isBuyer =
