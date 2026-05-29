@@ -68,3 +68,26 @@ export async function resolveCartToken(token: string): Promise<ResolvedCart> {
   }
   return (await res.json()) as ResolvedCart;
 }
+
+export type FinalizeStatus = "finalized" | "already_finalized" | "indexer_pending";
+
+export async function finalizeCart(params: {
+  token: string;
+  onchainOrderId: number | bigint;
+  sellerHandle: string;
+}): Promise<FinalizeStatus> {
+  const res = await fetchApi("/cart/finalize", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      token: params.token,
+      onchain_order_id: Number(params.onchainOrderId),
+      seller_handle: params.sellerHandle,
+    }),
+  });
+  if (!res.ok && res.status !== 202) {
+    throw new Error(`Cart finalize failed: ${res.status}`);
+  }
+  const body = (await res.json()) as { status: FinalizeStatus };
+  return body.status;
+}

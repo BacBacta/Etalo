@@ -1,15 +1,18 @@
 import { useCallback, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { erc20Abi, parseUnits, type Abi } from "viem";
 import { useAccount, useChainId, usePublicClient } from "wagmi";
 
 import escrowAbiJson from "@/abis/v2/EtaloEscrow.json";
 import { etaloChain } from "@/lib/chain";
 import { useResolvedWalletClient } from "@/hooks/useResolvedWalletClient";
+import { MARKETPLACE_PRODUCTS_QUERY_KEY } from "@/hooks/useMarketplaceProducts";
+import { MY_PRODUCTS_QUERY_KEY } from "@/hooks/useMyProducts";
 
 // JSON-imported ABIs lose literal-type narrowing on `type: "function"|"event"`,
 // so viem's strict `Abi` type rejects them. Cast once at module scope.
 const escrowAbi = escrowAbiJson as Abi;
-import type { ResolvedCart } from "@/lib/checkout";
+import { finalizeCart, type ResolvedCart } from "@/lib/checkout";
 import {
   classifyError,
   parseOrderIdFromLog,
@@ -90,11 +93,17 @@ export interface UseSequentialCheckoutArgs {
    *  filled (parent enforces via `isCheckoutAddressReady`).
    */
   deliveryFormData: InlineDeliveryAddressData | null;
+  /** Cart-token HMAC. Forwarded to POST /cart/finalize after each
+   *  successful fund so the backend can stamp Order.product_ids and
+   *  decrement Product.stock by qty. Optional for tests / legacy
+   *  callers ; when absent, finalize is skipped (stock stays stale).
+   */
+  token?: string;
 }
 
 export function useSequentialCheckout(
   cart: ResolvedCart,
-  { deliveryFormData }: UseSequentialCheckoutArgs = {
+  { deliveryFormData, token }: UseSequentialCheckoutArgs = {
     deliveryFormData: null,
   },
 ) {
@@ -102,6 +111,7 @@ export function useSequentialCheckout(
   const { resolve: resolveWalletClient } = useResolvedWalletClient();
   const publicClient = usePublicClient();
   const chainId = useChainId();
+  const queryClient = useQueryClient();
 
   const [state, setState] = useState<CheckoutState>(() => ({
     phase: "idle",
@@ -146,9 +156,20 @@ export function useSequentialCheckout(
       else if (canceled > 0) nextPhase = "canceled";
       else nextPhase = "error";
 
+      // If any seller succeeded, the backend just decremented stock on
+      // their products → invalidate the marketplace + seller dashboard
+      // caches so other tabs/devices see fresh stock without waiting on
+      // the 30s staleTime.
+      if (succeeded > 0) {
+        queryClient.invalidateQueries({
+          queryKey: MARKETPLACE_PRODUCTS_QUERY_KEY,
+        });
+        queryClient.invalidateQueries({ queryKey: MY_PRODUCTS_QUERY_KEY });
+      }
+
       return { ...s, phase: nextPhase, currentSellerIndex: -1 };
     });
-  }, []);
+  }, [queryClient]);
 
   const markRemainingCanceled = useCallback((fromIndex: number) => {
     setState((s) => ({
@@ -345,6 +366,42 @@ export function useSequentialCheckout(
             }
           }
 
+          // Stamp Order.product_ids + decrement Product.stock by qty.
+          // Best-effort like the snapshot above : the on-chain fund tx
+          // is already final, so a finalize error here would not be
+          // recoverable by reverting. Retry once on "indexer_pending"
+          // since the indexer can lag a few seconds behind the fund tx.
+          if (token && orderId !== undefined) {
+            try {
+              let res = await finalizeCart({
+                token,
+                onchainOrderId: orderId,
+                sellerHandle: group.seller_handle,
+              });
+              if (res === "indexer_pending") {
+                await new Promise((r) => setTimeout(r, 2_000));
+                res = await finalizeCart({
+                  token,
+                  onchainOrderId: orderId,
+                  sellerHandle: group.seller_handle,
+                });
+              }
+              if (res === "indexer_pending") {
+                // eslint-disable-next-line no-console
+                console.warn(
+                  "Cart finalize still pending after retry — stock will lag for orderId",
+                  orderId,
+                );
+              }
+            } catch (finErr) {
+              // eslint-disable-next-line no-console
+              console.warn(
+                "Cart finalize failed, stock may be stale :",
+                finErr,
+              );
+            }
+          }
+
           updateSeller(i, { status: "success" });
         } catch (err) {
           updateSeller(i, { status: "error", error: classifyError(err) });
@@ -371,6 +428,7 @@ export function useSequentialCheckout(
     chainId,
     cart,
     deliveryFormData,
+    token,
     updateSeller,
     finalizePhase,
     markRemainingCanceled,

@@ -79,7 +79,7 @@ export function CheckoutSuccessView({ sellers, chainId }: Props) {
             View my orders
           </Link>
           <Link
-            href="/"
+            href="/marketplace"
             className="block text-center text-sm text-neutral-600 underline dark:text-celo-light/70"
           >
             Browse more shops
