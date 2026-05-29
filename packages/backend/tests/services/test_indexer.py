@@ -38,10 +38,14 @@ from app.services.indexer_handlers import (
     handle_auto_refund_inactive,
     handle_dispute_escalated,
     handle_item_dispute_resolved,
+    handle_mediator_approved,
     handle_order_funded,
     handle_order_recorded,
     handle_stake_slashed,
     handle_tier_auto_downgraded,
+    handle_vote_created,
+    handle_vote_finalized,
+    handle_vote_submitted,
 )
 
 
@@ -511,3 +515,112 @@ async def test_handle_dispute_escalated_no_op_when_dispute_missing():
     await handle_dispute_escalated(
         {"args": {"disputeId": 999, "newLevel": 2}, "blockNumber": 100}, session, {}
     )  # passes if no exception
+
+
+# ============================================================
+# Mediator whitelist + N3 vote mirror handlers (ADR-056 / PR1)
+# ============================================================
+@pytest.mark.asyncio
+async def test_handle_mediator_approved_creates_row_on_first_approval():
+    session = _SeqSession([None])  # no existing mediator row
+    celo = MagicMock()
+    celo._w3.eth.get_block = AsyncMock(return_value={"timestamp": 1700000000})
+
+    event = {
+        "args": {
+            "mediator": "0xMED0000000000000000000000000000000000001",
+            "approved": True,
+        },
+        "blockNumber": 100,
+    }
+    await handle_mediator_approved(event, session, {"celo": celo})
+
+    meds = [a for a in session.added if a.__class__.__name__ == "Mediator"]
+    assert len(meds) == 1
+    assert meds[0].address == "0xmed0000000000000000000000000000000000001"
+    assert meds[0].approved is True
+    assert meds[0].removed_at is None
+
+
+@pytest.mark.asyncio
+async def test_handle_mediator_approved_revokes_existing_row():
+    existing = MagicMock(approved=True, removed_at=None)
+    session = _SeqSession([existing])
+    celo = MagicMock()
+    celo._w3.eth.get_block = AsyncMock(return_value={"timestamp": 1700000000})
+
+    event = {
+        "args": {
+            "mediator": "0xMED0000000000000000000000000000000000001",
+            "approved": False,
+        },
+        "blockNumber": 100,
+    }
+    await handle_mediator_approved(event, session, {"celo": celo})
+
+    assert existing.approved is False
+    assert existing.removed_at is not None
+
+
+@pytest.mark.asyncio
+async def test_handle_vote_created_inserts_row_with_zero_tallies():
+    session = FakeAsyncSession()
+    celo = MagicMock()
+    celo._w3.eth.get_block = AsyncMock(return_value={"timestamp": 1700000000})
+
+    event = {
+        "args": {"voteId": 9, "disputeId": 3, "deadline": 1700100000},
+        "blockNumber": 100,
+    }
+    await handle_vote_created(event, session, {"celo": celo})
+
+    votes = [a for a in session.added if a.__class__.__name__ == "DisputeVote"]
+    assert len(votes) == 1
+    assert votes[0].onchain_vote_id == 9
+    assert votes[0].onchain_dispute_id == 3
+    assert votes[0].for_buyer == 0
+    assert votes[0].for_seller == 0
+    assert votes[0].finalized is False
+
+
+@pytest.mark.asyncio
+async def test_handle_vote_submitted_increments_correct_tally():
+    vote = MagicMock(for_buyer=0, for_seller=0)
+    session = _SeqSession([vote])
+
+    await handle_vote_submitted(
+        {"args": {"voteId": 9, "voter": "0xX", "favorBuyer": True}, "blockNumber": 1},
+        session,
+        {},
+    )
+    assert vote.for_buyer == 1
+    assert vote.for_seller == 0
+
+    # Second ballot, against buyer — only the other tally moves.
+    await handle_vote_submitted(
+        {"args": {"voteId": 9, "voter": "0xY", "favorBuyer": False}, "blockNumber": 2},
+        _SeqSession([vote]),
+        {},
+    )
+    assert vote.for_buyer == 1
+    assert vote.for_seller == 1
+
+
+@pytest.mark.asyncio
+async def test_handle_vote_finalized_sets_terminal_state():
+    vote = MagicMock(finalized=False, buyer_won=None, for_buyer=0, for_seller=0)
+    session = _SeqSession([vote])
+
+    await handle_vote_finalized(
+        {
+            "args": {"voteId": 9, "buyerWon": True, "forBuyer": 3, "forSeller": 1},
+            "blockNumber": 1,
+        },
+        session,
+        {},
+    )
+    assert vote.finalized is True
+    assert vote.buyer_won is True
+    # Authoritative tallies from the event win over incrementally counted ones.
+    assert vote.for_buyer == 3
+    assert vote.for_seller == 1

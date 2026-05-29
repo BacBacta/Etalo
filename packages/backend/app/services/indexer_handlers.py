@@ -22,6 +22,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dispute import Dispute
+from app.models.dispute_vote import DisputeVote
+from app.models.mediator import Mediator
 from app.models.enums import (
     DisputeLevel,
     ItemStatus,
@@ -546,6 +548,94 @@ async def handle_dispute_resolved(
 
 
 # ============================================================
+# Mediator whitelist + N3 vote handlers (ADR-056)
+# ============================================================
+async def handle_mediator_approved(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """MediatorApproved(mediator, approved) — Safe toggles the N2/N3
+    mediator whitelist. Mirrors EtaloDispute.isMediatorApproved."""
+    args = event["args"]
+    address = _to_lower(args["mediator"])
+    approved = args["approved"]
+    block_ts = (
+        await services["celo"]._w3.eth.get_block(event["blockNumber"])
+    )["timestamp"]
+    ts = _to_dt(block_ts)
+
+    result = await db.execute(select(Mediator).where(Mediator.address == address))
+    med = result.scalar_one_or_none()
+    if med is None:
+        med = Mediator(address=address, approved=approved, approved_at=ts)
+        db.add(med)
+    else:
+        med.approved = approved
+        if approved:
+            med.approved_at = ts
+    med.removed_at = None if approved else ts
+
+
+async def handle_vote_created(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """VoteCreated(voteId, disputeId, deadline) — N3 community vote opened."""
+    args = event["args"]
+    block_ts = (
+        await services["celo"]._w3.eth.get_block(event["blockNumber"])
+    )["timestamp"]
+    db.add(
+        DisputeVote(
+            onchain_vote_id=args["voteId"],
+            onchain_dispute_id=args["disputeId"],
+            deadline=_to_dt(args["deadline"]),
+            for_buyer=0,
+            for_seller=0,
+            finalized=False,
+            created_at=_to_dt(block_ts),
+        )
+    )
+
+
+async def handle_vote_submitted(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """VoteSubmitted(voteId, voter, favorBuyer) — increment the tally.
+
+    Safe to increment unconditionally: the dispatcher skips already-
+    processed (tx_hash, log_index) events, so each ballot lands once.
+    """
+    args = event["args"]
+    result = await db.execute(
+        select(DisputeVote).where(DisputeVote.onchain_vote_id == args["voteId"])
+    )
+    vote = result.scalar_one_or_none()
+    if vote is None:
+        return
+    if args["favorBuyer"]:
+        vote.for_buyer += 1
+    else:
+        vote.for_seller += 1
+
+
+async def handle_vote_finalized(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """VoteFinalized(voteId, buyerWon, forBuyer, forSeller) — terminal
+    tallies from the event win over the incrementally-counted ones."""
+    args = event["args"]
+    result = await db.execute(
+        select(DisputeVote).where(DisputeVote.onchain_vote_id == args["voteId"])
+    )
+    vote = result.scalar_one_or_none()
+    if vote is None:
+        return
+    vote.finalized = True
+    vote.buyer_won = args["buyerWon"]
+    vote.for_buyer = args["forBuyer"]
+    vote.for_seller = args["forSeller"]
+
+
+# ============================================================
 # Stake handlers (3)
 # ============================================================
 async def handle_stake_deposited(
@@ -699,7 +789,11 @@ HANDLERS: dict[tuple[str, str], HandlerType] = {
     ("EtaloDispute", "DisputeOpened"): handle_dispute_opened,
     ("EtaloDispute", "DisputeEscalated"): handle_dispute_escalated,
     ("EtaloDispute", "MediatorAssigned"): handle_mediator_assigned,
+    ("EtaloDispute", "MediatorApproved"): handle_mediator_approved,
     ("EtaloDispute", "DisputeResolved"): handle_dispute_resolved,
+    ("EtaloVoting", "VoteCreated"): handle_vote_created,
+    ("EtaloVoting", "VoteSubmitted"): handle_vote_submitted,
+    ("EtaloVoting", "VoteFinalized"): handle_vote_finalized,
     ("EtaloStake", "StakeDeposited"): handle_stake_deposited,
     ("EtaloStake", "StakeSlashed"): handle_stake_slashed,
     ("EtaloStake", "TierAutoDowngraded"): handle_tier_auto_downgraded,
