@@ -31,11 +31,13 @@ def _reset_indexer_start_block(monkeypatch):
     can use small, readable block numbers."""
     monkeypatch.setattr(settings, "indexer_start_block", 0)
     yield
-from app.models.enums import OrderStatus, StakeTier
+from app.models.enums import DisputeLevel, OrderStatus, StakeTier
 from app.services.indexer import Indexer
 from app.models.enums import ItemStatus
 from app.services.indexer_handlers import (
     handle_auto_refund_inactive,
+    handle_dispute_escalated,
+    handle_item_dispute_resolved,
     handle_order_funded,
     handle_order_recorded,
     handle_stake_slashed,
@@ -418,3 +420,94 @@ async def test_handle_auto_refund_inactive_no_op_when_order_missing():
     await handle_auto_refund_inactive(
         {"args": {"orderId": 999, "refundedAt": 0}}, session, {}
     )  # No assertion — the test passes if no exception is raised.
+
+
+# ============================================================
+# Dispute mirror handlers (PR A — escalation + resolution close-out)
+# ============================================================
+class _SeqSession(FakeAsyncSession):
+    """Returns queued objects from successive execute() calls (item, order…)."""
+
+    def __init__(self, returns):
+        super().__init__()
+        self._returns = list(returns)
+
+    async def execute(self, stmt):  # noqa: ARG002
+        result = MagicMock()
+        nxt = self._returns.pop(0) if self._returns else None
+        result.scalar_one_or_none = MagicMock(return_value=nxt)
+        return result
+
+
+@pytest.mark.asyncio
+async def test_handle_item_dispute_resolved_full_refund_marks_refunded():
+    """Full refund (refundAmount == itemPrice) → item flips Disputed→Refunded
+    and the order status is resynced from chain (so the seller row clears)."""
+    item = MagicMock(status=ItemStatus.DISPUTED, item_price_usdt=15_000_000)
+    order = MagicMock(onchain_order_id=42, global_status=OrderStatus.FUNDED)
+    session = _SeqSession([item, order])
+
+    celo = MagicMock()
+    celo.get_order = AsyncMock(return_value=MagicMock(global_status="AllShippedSentinel"))
+
+    event = {"args": {"orderId": 42, "itemId": 7, "refundAmount": 15_000_000}}
+    await handle_item_dispute_resolved(event, session, {"celo": celo})
+
+    assert item.status == ItemStatus.REFUNDED
+    assert order.global_status == "AllShippedSentinel"  # resynced from chain
+
+
+@pytest.mark.asyncio
+async def test_handle_item_dispute_resolved_partial_refund_marks_released():
+    """Partial refund (< itemPrice) → item flips Disputed→Released."""
+    item = MagicMock(status=ItemStatus.DISPUTED, item_price_usdt=15_000_000)
+    order = MagicMock(onchain_order_id=42, global_status=OrderStatus.FUNDED)
+    session = _SeqSession([item, order])
+    celo = MagicMock()
+    celo.get_order = AsyncMock(return_value=MagicMock(global_status=OrderStatus.FUNDED))
+
+    event = {"args": {"orderId": 42, "itemId": 7, "refundAmount": 5_000_000}}
+    await handle_item_dispute_resolved(event, session, {"celo": celo})
+
+    assert item.status == ItemStatus.RELEASED
+
+
+@pytest.mark.asyncio
+async def test_handle_item_dispute_resolved_no_op_when_item_missing():
+    """Indexer can replay for items we never saw — must not raise."""
+    session = _SeqSession([None])
+    await handle_item_dispute_resolved(
+        {"args": {"orderId": 1, "itemId": 999, "refundAmount": 0}}, session, {}
+    )  # passes if no exception
+
+
+@pytest.mark.asyncio
+async def test_handle_dispute_escalated_to_n2_sets_level_and_deadline():
+    dispute = MagicMock(level=DisputeLevel.N1_AMICABLE, n2_deadline=None)
+    session = _SeqSession([dispute])
+    celo = MagicMock()
+    celo._w3.eth.get_block = AsyncMock(return_value={"timestamp": 1700000000})
+
+    event = {"args": {"disputeId": 3, "newLevel": 2}, "blockNumber": 100}
+    await handle_dispute_escalated(event, session, {"celo": celo})
+
+    assert dispute.level == DisputeLevel.N2_MEDIATION
+    assert dispute.n2_deadline is not None  # 7-day window opened
+
+
+@pytest.mark.asyncio
+async def test_handle_dispute_escalated_to_n3_sets_level():
+    dispute = MagicMock(level=DisputeLevel.N2_MEDIATION, n2_deadline=None)
+    session = _SeqSession([dispute])
+    event = {"args": {"disputeId": 3, "newLevel": 3}, "blockNumber": 100}
+    await handle_dispute_escalated(event, session, {})
+
+    assert dispute.level == DisputeLevel.N3_VOTING
+
+
+@pytest.mark.asyncio
+async def test_handle_dispute_escalated_no_op_when_dispute_missing():
+    session = _SeqSession([None])
+    await handle_dispute_escalated(
+        {"args": {"disputeId": 999, "newLevel": 2}, "blockNumber": 100}, session, {}
+    )  # passes if no exception
