@@ -59,6 +59,18 @@ interface Props {
   /** Order id for the WhatsApp pre-filled message. Use the on-chain
    *  ID (cleaner buyer-facing reference than a uuid). */
   orderId: string | number;
+  /** Seller's WhatsApp number (from SellerProfile.socials.whatsapp,
+   *  surfaced via OrderResponse.seller_whatsapp). Used to build the
+   *  "Coordinate on WhatsApp" deeplink on the buyer-facing order
+   *  detail page — the previous behaviour built the link from
+   *  snapshot.phone_number, which is the BUYER's own phone, so
+   *  clicking it tried to open a chat with themselves. When null
+   *  (seller hasn't set a WhatsApp on their profile) the button
+   *  hides. */
+  sellerWhatsapp?: string | null;
+  /** Seller's shop name for the WhatsApp CTA label / pre-filled
+   *  message. Falls back to "the seller" when null. */
+  sellerShopName?: string | null;
   /** When true, the empty/pre-fund branch renders nothing instead of a
    *  neutral notice card. Used by the seller orders list where the
    *  per-row delivery card is noise on pre-fund orders. Default false
@@ -70,6 +82,8 @@ interface Props {
 export function OrderDeliveryAddressCard({
   snapshot,
   orderId,
+  sellerWhatsapp,
+  sellerShopName,
   hideWhenEmpty = false,
 }: Props) {
   if (!snapshot) {
@@ -84,11 +98,18 @@ export function OrderDeliveryAddressCard({
     );
   }
 
-  const waUrl = buildWhatsAppCoordinateUrl({
-    phone: snapshot.phone_number,
-    country: snapshot.country,
-    orderId,
-  });
+  // Build the WhatsApp link to reach the SELLER (not the buyer's own
+  // snapshot.phone_number — which would open a chat with themselves).
+  // The seller's WA number is stored with country code, so we pass
+  // country=null and let the helper accept any already-international
+  // format.
+  const waUrl = sellerWhatsapp
+    ? buildWhatsAppCoordinateUrl({
+        phone: sellerWhatsapp,
+        country: null,
+        orderId,
+      })
+    : null;
 
   return (
     <section
@@ -194,15 +215,21 @@ export function OrderDeliveryAddressCard({
             href={waUrl}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Coordinate delivery via WhatsApp"
+            aria-label={
+              sellerShopName
+                ? `Coordinate delivery on WhatsApp with ${sellerShopName}`
+                : "Coordinate delivery on WhatsApp with the seller"
+            }
             data-testid="order-delivery-whatsapp"
             className={WHATSAPP_ANCHOR_CLASSES}
           >
             <WhatsappLogo className="h-5 w-5" weight="fill" aria-hidden />
-            Coordinate on WhatsApp
+            {sellerShopName
+              ? `Message ${sellerShopName} on WhatsApp`
+              : "Message the seller on WhatsApp"}
           </a>
           <p className="mt-1.5 text-center text-sm text-neutral-500 dark:text-celo-light/55">
-            Opens a chat tied to this order — no number shared.
+            Opens a chat tied to this order — your number stays private.
           </p>
         </div>
       ) : null}

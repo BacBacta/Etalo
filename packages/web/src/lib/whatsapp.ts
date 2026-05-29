@@ -11,6 +11,7 @@ const COUNTRY_CODES: Record<string, string> = {
   NGA: "234",
   GHA: "233",
   KEN: "254",
+  ZAF: "27",
 };
 
 /**

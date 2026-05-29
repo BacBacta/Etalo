@@ -147,3 +147,26 @@ class Order(Base):
         if self.seller is None or self.seller.seller_profile is None:
             return None
         return self.seller.seller_profile.shop_handle
+
+    @property
+    def seller_shop_name(self) -> str | None:
+        """Display name of the seller's shop. Same eager-load requirement
+        as `seller_handle`. Surfaced to the buyer-side order detail page
+        so the WhatsApp coordination CTA can read "Coordinate with
+        {shop_name}" instead of a generic label."""
+        if self.seller is None or self.seller.seller_profile is None:
+            return None
+        return self.seller.seller_profile.shop_name
+
+    @property
+    def seller_whatsapp(self) -> str | None:
+        """Seller's WhatsApp number from SellerProfile.socials.whatsapp
+        (set during seller onboarding). Surfaced so the buyer-side order
+        detail page can build a `wa.me/{seller_whatsapp}` deeplink — the
+        previous behaviour built the link from the buyer's own phone,
+        which opened a chat with themselves."""
+        if self.seller is None or self.seller.seller_profile is None:
+            return None
+        socials = self.seller.seller_profile.socials or {}
+        wa = socials.get("whatsapp")
+        return wa if isinstance(wa, str) and wa.strip() else None

@@ -1441,6 +1441,10 @@ export interface components {
             seller_address: string;
             /** Seller Handle */
             seller_handle?: string | null;
+            /** Seller Shop Name */
+            seller_shop_name?: string | null;
+            /** Seller Whatsapp */
+            seller_whatsapp?: string | null;
             /** Total Amount Usdt */
             total_amount_usdt: number;
             /** Total Commission Usdt */
