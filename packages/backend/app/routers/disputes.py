@@ -15,8 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_async_db
 from app.models.dispute import Dispute
+from app.models.dispute_vote import DisputeVote
 from app.models.order_item import OrderItem
 from app.schemas.dispute import DisputeResponse
+from app.schemas.mediator import DisputeVoteResponse
 
 
 router = APIRouter(prefix="/disputes", tags=["disputes"])
@@ -53,6 +55,30 @@ async def get_dispute_by_onchain_id(
     if dispute is None:
         raise HTTPException(status_code=404, detail="Dispute not found")
     return DisputeResponse.model_validate(dispute)
+
+
+@router.get("/{dispute_id}/vote", response_model=DisputeVoteResponse)
+async def get_dispute_vote(
+    dispute_id: uuid.UUID,
+    db: AsyncSession = Depends(get_async_db),
+) -> DisputeVoteResponse:
+    """N3 community-vote state for a dispute (ADR-056). 404 until the
+    dispute escalates to N3 and a vote is created."""
+    dispute = (
+        await db.execute(select(Dispute).where(Dispute.id == dispute_id))
+    ).scalar_one_or_none()
+    if dispute is None:
+        raise HTTPException(status_code=404, detail="Dispute not found")
+    vote = (
+        await db.execute(
+            select(DisputeVote).where(
+                DisputeVote.onchain_dispute_id == dispute.onchain_dispute_id
+            )
+        )
+    ).scalar_one_or_none()
+    if vote is None:
+        raise HTTPException(status_code=404, detail="No vote for this dispute")
+    return DisputeVoteResponse.model_validate(vote)
 
 
 @router.get("/{dispute_id}", response_model=DisputeResponse)

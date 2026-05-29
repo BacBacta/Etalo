@@ -4101,3 +4101,55 @@ Bounded by ADR-026 50K USDT TVL cap. Acceptable for V1.
 5. ⏳ `transfer-ownership.ts --network celoMainnet` execution.
 
 Audit firm engagement (ADR-039) in parallel.
+
+## ADR-056 — N2/N3 dispute resolution surfaces live as wallet-gated routes in the main app (not a separate NextAuth admin)
+
+**Status:** Accepted (2026-05-29)
+
+**Context.** The N1 amicable dispute UI shipped, but the on-chain
+escalation path (N2 assigned mediator, N3 community vote) had no product
+surface at all: no admin app, `admin.py` dispute routes are stubs, and no
+mediator/voting UI. CLAUDE.md had pencilled in a separate "Admin: Next.js
++ NextAuth.js + JWT" app, but that predates the wallet-native dispute
+model. Key facts that shape the decision:
+
+- `approveMediator` and `assignN2Mediator` are `onlyOwner` → the 2-of-3
+  Safe. Mediator onboarding + N2 assignment are **governance/multisig**
+  acts, not hot-key admin features.
+- `resolveN2Mediation` (onlyAssignedMediator), `submitVote` (eligible
+  voter), `finalizeVote` (permissionless) are plain wallet txs, contract-
+  gated. No backend mutation is involved.
+- ADR-034 forbids new EIP-191 signed-message backend auth.
+
+**Decision.**
+1. The mediator console (N2) and voting console (N3) are **wallet-gated
+   routes inside the existing web app** (e.g. `/mediator`), gated by the
+   on-chain `isMediatorApproved` read. Actions are on-chain txs from the
+   mediator's wallet — **no new backend auth** (consistent with ADR-034).
+2. Buyer/seller see **read-only** N2/N3 status folded into the existing
+   `/orders/[id]` + seller-row dispute surface (replacing the "handled
+   off-app" placeholder).
+3. Mediator onboarding (`approveMediator`) and N2 assignment
+   (`assignN2Mediator`) stay **Safe multisig** operations. The (later)
+   admin-triage page only *prepares* the calldata + a Safe deeplink;
+   execution is by the signers. No separate NextAuth admin app is built
+   for V1 — this supersedes the CLAUDE.md "Admin: NextAuth+JWT" assumption
+   for the dispute surfaces.
+4. Mirror foundation (indexer + API) is the sole writer to the new
+   on-chain mirror tables (`mediators`, `dispute_votes`), per the V2
+   indexer invariant. All needed events already exist
+   (`MediatorApproved`, `VoteCreated`, `VoteSubmitted`, `VoteFinalized`)
+   → **zero Solidity change**, the contract audit pipeline is not
+   triggered.
+
+**Evidence handling (deferred).** N1/N2 evidence uploads were removed per
+ADR-034 (signed-message auth). For V1.5 mediators decide on the on-chain
+`reason` string + order history; an off-app coordination channel
+(WhatsApp) covers the rest. A first-class evidence channel is deferred to
+a future ADR.
+
+**Consequences.** Lightest path that ships the operational dispute tail
+without a new auth surface. The `/admin/disputes` triage endpoint + its
+access gate are deferred to the admin-triage phase (not needed by the
+mediator console or buyer/seller visibility). Volume is bounded by
+ADR-026 (50K TVL), so manual Safe assignment is acceptable for V1.

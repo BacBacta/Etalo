@@ -5,6 +5,8 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.shipment_group import ShipmentGroup
 from app.models.dispute import Dispute
+from app.models.dispute_vote import DisputeVote
+from app.models.mediator import Mediator
 from app.models.stake import Stake
 from app.models.reputation_cache import ReputationCache
 from app.models.notification import Notification
@@ -23,6 +25,8 @@ __all__ = [
     "OrderItem",
     "ShipmentGroup",
     "Dispute",
+    "DisputeVote",
+    "Mediator",
     "Stake",
     "ReputationCache",
     "Notification",

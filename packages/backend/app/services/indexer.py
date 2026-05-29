@@ -65,15 +65,16 @@ class Indexer:
         self._celo = celo
         self._session_factory = session_factory
         self._stop = asyncio.Event()
-        # Default: index the 5 contracts we have handlers for. Voting is
-        # deferred to V1.5 per Sprint J5 Block 5 scope decision.
-        # Credits added in J7 Block 6.
+        # Default: index the contracts we have handlers for. Credits
+        # added in J7 Block 6 ; EtaloVoting added with the N3 vote mirror
+        # (ADR-056) so the dispute escalation tail is reflected off-chain.
         self._contracts = contracts_to_index or [
             "EtaloEscrow",
             "EtaloDispute",
             "EtaloStake",
             "EtaloReputation",
             "EtaloCredits",
+            "EtaloVoting",
         ]
 
     def stop(self) -> None:
