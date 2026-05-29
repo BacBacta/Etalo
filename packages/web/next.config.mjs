@@ -10,12 +10,24 @@ const bundleAnalyzer = withBundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Barrel packages whose named imports webpack would otherwise pull in
+  // wholesale. @phosphor-icons/react is the big one — dozens of icons
+  // imported across the app via `import { X } from "@phosphor-icons/react"`.
+  // optimizePackageImports rewrites these to per-icon paths at build.
+  experimental: {
+    optimizePackageImports: ["@phosphor-icons/react"],
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "gateway.pinata.cloud" },
       { protocol: "https", hostname: "*.mypinata.cloud" },
       { protocol: "https", hostname: "ipfs.io" },
     ],
+    // IPFS content is immutable (content-addressed by CID), so an
+    // optimized derivative never goes stale — cache it at the Vercel
+    // edge for a year to maximize hit rate and avoid re-optimizing
+    // (which would re-fetch the slow origin gateway).
+    minimumCacheTTL: 31_536_000,
   },
   async rewrites() {
     // Production: /r/{code} forwards to the backend short-link redirector

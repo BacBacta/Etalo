@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 // Phase A P0-2 (2026-05-15) — both dialogs lazy-loaded so the seller
@@ -624,12 +625,12 @@ function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
             identify products at scale without opening each row. */}
         <div className="flex h-18 w-18 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-celo-dark-bg" style={{ height: 72, width: 72 }}>
           {firstImage ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={`${IPFS_GATEWAY}${firstImage}`}
               alt=""
+              width={72}
+              height={72}
               className="h-full w-full object-cover"
-              loading="lazy"
             />
           ) : (
             <ImageSquare
@@ -703,12 +704,12 @@ function ProductGridCard({ product, onEdit, onDelete }: ProductGridCardProps) {
     <li className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated">
       <div className="relative aspect-square w-full bg-neutral-100 dark:bg-celo-dark-bg">
         {firstImage ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={`${IPFS_GATEWAY}${firstImage}`}
             alt=""
-            className="h-full w-full object-cover"
-            loading="lazy"
+            fill
+            sizes="(max-width: 640px) 50vw, 240px"
+            className="object-cover"
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center">

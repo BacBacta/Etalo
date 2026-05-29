@@ -10,6 +10,7 @@ import {
 } from "@phosphor-icons/react";
 import { useQueryClient } from "@tanstack/react-query";
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { toast } from "sonner";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -586,12 +587,12 @@ const OrderRow = memo(function OrderRow({
               className="flex items-center gap-3"
             >
               {item.image_ipfs_hash ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
+                <Image
                   src={ipfsImageUrl(item.image_ipfs_hash) ?? ""}
                   alt=""
+                  width={40}
+                  height={40}
                   className="h-10 w-10 flex-shrink-0 rounded-lg object-cover"
-                  loading="lazy"
                 />
               ) : (
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-neutral-100 dark:bg-celo-dark-bg">

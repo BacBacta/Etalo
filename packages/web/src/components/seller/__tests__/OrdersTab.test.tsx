@@ -71,6 +71,15 @@ vi.mock("@/components/seller/SellerOrderDisputeSection", () => ({
   useOrderHasDispute: () => false,
 }));
 
+// next/image renders a /_next/image optimized URL + srcset in the real
+// component ; stub to a plain <img> so the line-item thumbnails render
+// deterministically in jsdom.
+vi.mock("next/image", () => ({
+  default: ({ src, alt }: { src: string; alt: string }) =>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} />,
+}));
+
 // ============================================================
 // Helpers
 // ============================================================

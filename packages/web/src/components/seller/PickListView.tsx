@@ -19,6 +19,7 @@
 "use client";
 
 import { Package } from "@phosphor-icons/react";
+import Image from "next/image";
 
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
 import {
@@ -75,14 +76,15 @@ function PickListRow({ sku }: { sku: AggregatedSku }) {
     >
       <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center overflow-hidden rounded-lg bg-neutral-100 dark:bg-celo-dark-bg">
         {imageUrl ? (
-          // Plain <img> avoids next/image domain config for a 48 px
-          // thumbnail — bundle/perf cost is negligible at this size.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          // next/image so the Vercel optimizer downscales the (up to
+          // 2048 px) source to a ~48 px WebP — a plain <img> here would
+          // ship the full-resolution original for a thumbnail.
+          <Image
             src={imageUrl}
             alt=""
+            width={48}
+            height={48}
             className="h-full w-full object-cover"
-            loading="lazy"
           />
         ) : (
           <Package
