@@ -57,12 +57,9 @@ import type { ResolvedCart } from "@/lib/checkout";
 
 interface Props {
   cart: ResolvedCart;
-  // token: kept on signature for future Block 7 (order tracking link
-  // back) — currently used only as cancellation context, not rendered.
   token: string;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function CheckoutFlow({ cart, token }: Props) {
   const { address: wallet } = useAccount();
   const walletStr = wallet?.toLowerCase() ?? "";
@@ -83,6 +80,7 @@ export function CheckoutFlow({ cart, token }: Props) {
 
   const { state, start, cancel } = useSequentialCheckout(cart, {
     deliveryFormData: addressReady ? deliveryFormData : null,
+    token,
   });
   const chainId = useChainId();
   const { isMatch: chainMatches } = useChainMatch();

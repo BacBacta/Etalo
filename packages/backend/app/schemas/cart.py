@@ -51,3 +51,13 @@ class CartValidationItemError(BaseModel):
     product_id: UUID
     reason: str  # "not_found" | "inactive" | "qty_exceeds_stock"
     available_qty: int | None = None
+
+
+class CartFinalizeRequest(BaseModel):
+    token: str
+    onchain_order_id: int = Field(ge=0)
+    seller_handle: str
+
+
+class CartFinalizeResponse(BaseModel):
+    status: str  # "finalized" | "indexer_pending" | "already_finalized"

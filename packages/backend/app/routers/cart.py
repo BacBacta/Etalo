@@ -1,17 +1,25 @@
+import base64
+import json
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Annotated
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, Header, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.database import get_async_db
+from app.models.enums import OrderStatus
+from app.models.order import Order
 from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
 from app.schemas.cart import (
+    CartFinalizeRequest,
+    CartFinalizeResponse,
     CartTokenRequest,
     CartTokenResponse,
     CartValidationItemError,
@@ -20,6 +28,8 @@ from app.schemas.cart import (
     ResolvedCartSellerGroup,
 )
 from app.services.cart_token import issue_token, verify_token
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cart", tags=["cart"])
 
@@ -219,3 +229,113 @@ async def resolve_cart_token(token: str) -> ResolvedCart:
         issued_at=datetime.fromtimestamp(envelope["iat"], tz=timezone.utc),
         expires_at=datetime.fromtimestamp(envelope["exp"], tz=timezone.utc),
     )
+
+
+# OrderStatus values that mean the order is already terminal — finalize
+# is a no-op for these (the indexer has moved past funding).
+_FINALIZE_TERMINAL_STATUSES = {
+    OrderStatus.COMPLETED,
+    OrderStatus.REFUNDED,
+    OrderStatus.CANCELLED,
+}
+
+
+@router.post("/finalize", response_model=CartFinalizeResponse)
+async def finalize_cart(
+    body: CartFinalizeRequest,
+    response: Response,
+    db: Annotated[AsyncSession, Depends(get_async_db)],
+) -> CartFinalizeResponse:
+    """Stamp the off-chain link from the cart token onto the on-chain
+    Order row and decrement each product's stock by qty.
+
+    Called by the buyer's web app right after `fundOrder` confirms.
+    One call per seller group (the checkout loop iterates seller by
+    seller in `useSequentialCheckout`).
+
+    Idempotent : safe to retry. Token is accepted even past its TTL
+    (the fund tx can confirm > 60 min after token issuance ; no price
+    re-check happens here).
+
+    Returns 200 with status :
+      - "finalized"           — wrote product_ids and decremented stock
+      - "already_finalized"   — Order.product_ids already populated
+      - "indexer_pending"     — Order row not yet inserted (response
+                                code 202) ; caller may retry.
+    """
+    try:
+        envelope = verify_token(body.token)
+    except ValueError as exc:
+        reason = str(exc)
+        if reason == "expired":
+            # Fund txs may confirm after the 60-min TTL on slow mobile
+            # networks. Signature was already valid (verify_token would
+            # have raised invalid_signature first), so decode and reuse
+            # the envelope.
+            try:
+                b64_part = body.token.split(".", 1)[0]
+                payload = base64.urlsafe_b64decode(b64_part.encode("ascii"))
+                envelope = json.loads(payload)
+            except Exception as decode_exc:  # noqa: BLE001
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid cart token: malformed_payload",
+                ) from decode_exc
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Invalid cart token: {reason}",
+            ) from exc
+
+    cart = envelope["cart"]
+    seller_handle = body.seller_handle.lower()
+    group = next(
+        (g for g in cart["groups"] if g["seller_handle"].lower() == seller_handle),
+        None,
+    )
+    if group is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Seller handle '{body.seller_handle}' not in cart token.",
+        )
+
+    order = (
+        await db.execute(
+            select(Order).where(Order.onchain_order_id == body.onchain_order_id)
+        )
+    ).scalar_one_or_none()
+
+    if order is None:
+        # Indexer race — the fund tx confirmed but our event handler
+        # hasn't inserted the row yet. Tell the caller to retry.
+        response.status_code = status.HTTP_202_ACCEPTED
+        return CartFinalizeResponse(status="indexer_pending")
+
+    if order.product_ids is not None or order.global_status in _FINALIZE_TERMINAL_STATUSES:
+        return CartFinalizeResponse(status="already_finalized")
+
+    expanded_product_ids: list[UUID] = []
+    for item in group["items"]:
+        product_id = UUID(item["product_id"])
+        qty = int(item["qty"])
+
+        # Conditional decrement — stock stays ≥ 0 even under concurrent
+        # finalize calls for the same product (different orders).
+        result = await db.execute(
+            update(Product)
+            .where(Product.id == product_id, Product.stock >= qty)
+            .values(stock=Product.stock - qty)
+        )
+        if result.rowcount == 0:
+            logger.warning(
+                "cart_finalize: stock decrement skipped product_id=%s qty=%s "
+                "(insufficient or already decremented) onchain_order_id=%s",
+                product_id,
+                qty,
+                body.onchain_order_id,
+            )
+        expanded_product_ids.extend([product_id] * qty)
+
+    order.product_ids = expanded_product_ids
+    await db.commit()
+    return CartFinalizeResponse(status="finalized")
