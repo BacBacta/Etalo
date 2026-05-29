@@ -9,6 +9,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ProductsTab } from "@/components/seller/ProductsTab";
 
+// next/image renders a /_next/image optimized URL + srcset in the real
+// component ; stub to a plain <img> so product thumbnails render
+// deterministically in jsdom.
+vi.mock("next/image", () => ({
+  default: ({ src, alt }: { src: string; alt: string }) =>
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt={alt} />,
+}));
+
 // Mock the TanStack Query hook directly so the test stays focused on
 // presentation + interaction, no QueryClientProvider scaffolding
 // required (matches the pattern used by OverviewTab + MarketingTab
