@@ -394,8 +394,41 @@ async def handle_item_disputed(
         item.status = ItemStatus.DISPUTED
 
 
+async def handle_item_dispute_resolved(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """ItemDisputeResolved(orderId, itemId, refundAmount) — emitted by
+    Escrow.resolveItemDispute when a dispute settles via any tier (N1/N2/N3).
+
+    Mirrors the on-chain item transition: Refunded iff the full item price
+    was refunded, otherwise Released (EtaloEscrow.resolveItemDispute:
+    "Refunded iff refundAmount == itemPrice"). Without this the item stays
+    Disputed in the mirror forever — the seller row keeps its rose border +
+    Dispute badge and useOrderHasDispute never clears after resolution.
+    """
+    args = event["args"]
+    item_id = args["itemId"]
+    refund_amount = args["refundAmount"]
+
+    item = await _get_item_by_onchain_id(db, item_id)
+    if item is None:
+        return
+    if refund_amount == item.item_price_usdt:
+        item.status = ItemStatus.REFUNDED
+    else:
+        item.status = ItemStatus.RELEASED
+
+    # resolveItemDispute recomputes order.globalStatus on-chain and emits
+    # OrderCompleted only on the terminal hop (handled separately). Resync
+    # from chain so non-terminal transitions (e.g. back to AllShipped) are
+    # mirrored too.
+    order = await _get_order_by_onchain_id(db, args["orderId"])
+    if order is not None:
+        await _sync_order_global_status(order, services)
+
+
 # ============================================================
-# Dispute handlers (3)
+# Dispute handlers (4)
 # ============================================================
 async def handle_dispute_opened(
     event: Any, db: AsyncSession, services: dict[str, Any]
@@ -451,6 +484,39 @@ async def handle_mediator_assigned(
     dispute = result.scalar_one_or_none()
     if dispute is not None:
         dispute.n2_mediator_address = mediator
+
+
+async def handle_dispute_escalated(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """DisputeEscalated(disputeId, newLevel) — N1→N2 (mediation) or
+    N2→N3 (voting).
+
+    Without this handler the mirror stays frozen at N1 forever: the UI
+    keeps showing the N1 amicable card and never reflects that the case
+    advanced to a mediator / community vote.
+    """
+    args = event["args"]
+    dispute_id = args["disputeId"]
+    new_level = args["newLevel"]  # uint8 — 2 = N2, 3 = N3
+
+    result = await db.execute(
+        select(Dispute).where(Dispute.onchain_dispute_id == dispute_id)
+    )
+    dispute = result.scalar_one_or_none()
+    if dispute is None:
+        return
+
+    # DisputeLevel is ordered None=0, N1=1, N2=2, N3=3, Resolved=4 — the
+    # uint8 maps directly (same convention as handle_dispute_opened).
+    dispute.level = list(DisputeLevel)[new_level]
+
+    # N2 opens a 7-day mediation window (EtaloDispute.N2_DURATION).
+    if dispute.level == DisputeLevel.N2_MEDIATION:
+        block_ts = (
+            await services["celo"]._w3.eth.get_block(event["blockNumber"])
+        )["timestamp"]
+        dispute.n2_deadline = _to_dt(block_ts + 7 * 24 * 3600)
 
 
 async def handle_dispute_resolved(
@@ -629,7 +695,9 @@ HANDLERS: dict[tuple[str, str], HandlerType] = {
     ("EtaloEscrow", "OrderCompleted"): handle_order_completed,
     ("EtaloEscrow", "AutoRefundInactive"): handle_auto_refund_inactive,
     ("EtaloEscrow", "ItemDisputed"): handle_item_disputed,
+    ("EtaloEscrow", "ItemDisputeResolved"): handle_item_dispute_resolved,
     ("EtaloDispute", "DisputeOpened"): handle_dispute_opened,
+    ("EtaloDispute", "DisputeEscalated"): handle_dispute_escalated,
     ("EtaloDispute", "MediatorAssigned"): handle_mediator_assigned,
     ("EtaloDispute", "DisputeResolved"): handle_dispute_resolved,
     ("EtaloStake", "StakeDeposited"): handle_stake_deposited,
