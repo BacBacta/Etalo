@@ -8,6 +8,8 @@ import { etaloChain } from "@/lib/chain";
 import { useResolvedWalletClient } from "@/hooks/useResolvedWalletClient";
 import { MARKETPLACE_PRODUCTS_QUERY_KEY } from "@/hooks/useMarketplaceProducts";
 import { MY_PRODUCTS_QUERY_KEY } from "@/hooks/useMyProducts";
+import { SELLER_ORDERS_QUERY_KEY } from "@/hooks/useSellerOrders";
+import { BUYER_ORDERS_QUERY_KEY } from "@/hooks/useBuyerOrders";
 
 // JSON-imported ABIs lose literal-type narrowing on `type: "function"|"event"`,
 // so viem's strict `Abi` type rejects them. Cast once at module scope.
@@ -157,14 +159,18 @@ export function useSequentialCheckout(
       else nextPhase = "error";
 
       // If any seller succeeded, the backend just decremented stock on
-      // their products → invalidate the marketplace + seller dashboard
-      // caches so other tabs/devices see fresh stock without waiting on
-      // the 30s staleTime.
+      // their products and a new order row exists. Invalidate every
+      // query that reads either product stock or the buyer/seller order
+      // lists so all open tabs reflect the new state without waiting
+      // on the 30s staleTime — important in solo-dev testing where the
+      // buyer and seller are the same wallet on the same device.
       if (succeeded > 0) {
         queryClient.invalidateQueries({
           queryKey: MARKETPLACE_PRODUCTS_QUERY_KEY,
         });
         queryClient.invalidateQueries({ queryKey: MY_PRODUCTS_QUERY_KEY });
+        queryClient.invalidateQueries({ queryKey: SELLER_ORDERS_QUERY_KEY });
+        queryClient.invalidateQueries({ queryKey: [BUYER_ORDERS_QUERY_KEY] });
       }
 
       return { ...s, phase: nextPhase, currentSellerIndex: -1 };

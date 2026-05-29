@@ -154,6 +154,8 @@ function BuyerOrderDetailLoaded({
       <OrderDeliveryAddressCard
         snapshot={data.delivery_address_snapshot ?? null}
         orderId={data.onchain_order_id}
+        sellerWhatsapp={data.seller_whatsapp ?? null}
+        sellerShopName={data.seller_shop_name ?? null}
       />
       <DisputedItemResolutionCards order={data} caller={caller} />
       <BuyerOrderActions order={data} />

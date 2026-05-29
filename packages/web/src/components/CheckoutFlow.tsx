@@ -48,6 +48,8 @@ import {
   EMPTY_INLINE_DELIVERY_FORM,
   type InlineDeliveryAddressData,
 } from "@/components/checkout/InlineDeliveryAddressForm";
+import { CheckoutProgressStepper } from "@/components/checkout/CheckoutProgressStepper";
+import { PremiumOrderSummary } from "@/components/checkout/PremiumOrderSummary";
 import { Button } from "@/components/ui/button";
 import { useBuyerCountry } from "@/hooks/useBuyerCountry";
 import { useCheckoutBalanceGate } from "@/hooks/useCheckoutBalanceGate";
@@ -106,9 +108,7 @@ export function CheckoutFlow({ cart, token }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase, state.sellers.length, clearCart, clearSellerItems]);
 
-  const itemCount = cart.groups.reduce((sum, g) => sum + g.items.length, 0);
   const sellerCount = cart.groups.length;
-  const sellerLabel = sellerCount === 1 ? "seller" : "sellers";
 
   // Pre-flight balance gate (J11 #1). Backend serializes total_usdt as
   // a Decimal-string ("25.98"); convert to raw 6-decimal bigint for
@@ -119,54 +119,27 @@ export function CheckoutFlow({ cart, token }: Props) {
   if (state.phase === "idle") {
     const txCount = sellerCount === 1 ? "up to 3" : `up to ${1 + sellerCount * 2}`;
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
-        <div className="w-full max-w-md rounded-lg bg-white p-6 shadow dark:bg-celo-dark-elevated dark:shadow-none dark:ring-1 dark:ring-celo-light/10">
-          <h1 className="mb-4 text-xl font-semibold text-celo-dark dark:text-celo-light">
-            Confirm checkout
-          </h1>
-          <div className="mb-6 space-y-3">
-            <p className="text-base text-celo-dark dark:text-celo-light">
-              {sellerCount} {sellerLabel} · {itemCount} items
-            </p>
-            <p className="text-base font-semibold tabular-nums text-celo-dark dark:text-celo-light">
-              Total: {cart.total_usdt} USDT
-            </p>
-            <p className="text-sm text-neutral-600 dark:text-celo-light/70">
-              You will sign {txCount} transactions (one USDT approval if
-              needed, then create + fund per seller).
-            </p>
-          </div>
+      <main
+        id="main"
+        className="min-h-screen bg-celo-light-subtle pb-32 dark:bg-celo-dark-bg"
+      >
+        <div className="mx-auto w-full max-w-md space-y-4 px-4 pt-6">
+          <PremiumOrderSummary cart={cart} buyerCountry={buyerCountry} />
 
           {walletStr ? (
             <>
-              <div className="mb-4">
-                <CheckoutDeliveryAddressStep
-                  wallet={walletStr}
-                  value={deliveryFormData}
-                  onChange={setDeliveryFormData}
-                  expectedCountry={buyerCountry}
-                />
-              </div>
+              <CheckoutDeliveryAddressStep
+                wallet={walletStr}
+                value={deliveryFormData}
+                onChange={setDeliveryFormData}
+                expectedCountry={buyerCountry}
+              />
 
-              <div className="mb-4">
-                <ChainMismatchBanner />
-              </div>
+              <ChainMismatchBanner />
+
               {balanceGate.hasInsufficient ? (
                 <InsufficientBalanceCTA deficitRaw={balanceGate.deficitRaw} />
-              ) : (
-                <Button
-                  className="min-h-[44px] w-full text-base"
-                  onClick={start}
-                  disabled={
-                    balanceGate.isLoading || !addressReady || !chainMatches
-                  }
-                  data-testid="checkout-start"
-                >
-                  {addressReady
-                    ? "Start checkout"
-                    : "Fill the delivery address to continue"}
-                </Button>
-              )}
+              ) : null}
             </>
           ) : (
             // ADR-053 — no wallet detected (Chrome without injected
@@ -176,18 +149,50 @@ export function CheckoutFlow({ cart, token }: Props) {
             // button auto-shows "Connect wallet" if MetaMask/Trust
             // is injected, "Get MiniPay" otherwise.
             <div
-              className="flex flex-col items-stretch gap-3"
+              className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-celo-sm dark:border-celo-light/10 dark:bg-celo-dark-elevated"
               data-testid="checkout-connect-prompt"
             >
-              <p className="text-sm text-neutral-700 dark:text-celo-light/70">
-                Connect a wallet to enter your delivery address and pay
-                with USDT escrow.
+              <p className="mb-3 text-base text-celo-dark dark:text-celo-light">
+                Connect a wallet to enter your delivery address and pay with
+                USDT escrow.
               </p>
               <ConnectWalletButton />
             </div>
           )}
         </div>
-      </div>
+
+        {walletStr && !balanceGate.hasInsufficient ? (
+          // Sticky bottom CTA — keeps "Start checkout" within reach
+          // however far the buyer scrolls through the delivery form,
+          // which is the recurring pain point on long African form
+          // fills. Pairs the action button with a single quiet line
+          // recapping the sign cost so the buyer commits with eyes
+          // open. Safe-area inset preserves the home-bar gap on iOS.
+          <div
+            className="pointer-events-none fixed bottom-0 left-0 right-0 z-30 px-4 pb-[env(safe-area-inset-bottom,0)] pt-3"
+            data-testid="checkout-sticky-cta"
+          >
+            <div className="pointer-events-auto mx-auto w-full max-w-md rounded-2xl border border-neutral-200 bg-white/95 p-3 shadow-celo-md backdrop-blur dark:border-celo-light/10 dark:bg-celo-dark-elevated/95">
+              <Button
+                className="min-h-[48px] w-full text-base"
+                onClick={start}
+                disabled={
+                  balanceGate.isLoading || !addressReady || !chainMatches
+                }
+                data-testid="checkout-start"
+              >
+                {addressReady
+                  ? `Pay ${Number(cart.total_usdt).toFixed(2)} USDT`
+                  : "Fill the delivery address to continue"}
+              </Button>
+              <p className="mt-1.5 text-center text-sm text-neutral-500 dark:text-celo-light/55">
+                You&apos;ll sign {txCount} {txCount === "up to 3" ? "txs" : "transactions"}.
+                Escrow holds funds until delivery.
+              </p>
+            </div>
+          </div>
+        ) : null}
+      </main>
     );
   }
 
@@ -211,16 +216,32 @@ export function CheckoutFlow({ cart, token }: Props) {
   }
 
   // Phases: 'allowance' | 'executing' — show progress.
+  // approveSkipped lets the stepper render the approve dot as already
+  // done for buyers whose USDT allowance was sufficient at idle time
+  // (the hook skips the approve writeContract in that case). We infer
+  // it from state.approveTxHash : absent in executing phase = skipped.
+  const approveSkipped =
+    state.phase === "executing" && !state.approveTxHash;
   return (
-    <main id="main" className="min-h-screen p-4">
-      <div className="mx-auto w-full max-w-md rounded-lg bg-white p-6 shadow dark:bg-celo-dark-elevated dark:shadow-none dark:ring-1 dark:ring-celo-light/10">
-        <h1 className="mb-4 text-xl font-semibold text-celo-dark dark:text-celo-light">
-          Processing checkout
-        </h1>
+    <main
+      id="main"
+      className="min-h-screen bg-celo-light-subtle p-4 dark:bg-celo-dark-bg"
+    >
+      <div className="mx-auto w-full max-w-md rounded-2xl border border-neutral-200 bg-white p-5 shadow-celo-sm dark:border-celo-light/10 dark:bg-celo-dark-elevated">
+        <div className="mb-5">
+          <CheckoutProgressStepper
+            phase={state.phase}
+            sellers={state.sellers}
+            approveSkipped={approveSkipped}
+          />
+        </div>
 
         {state.phase === "allowance" ? (
-          <div className="mb-4 rounded-md bg-blue-50 p-3 text-base text-blue-900 dark:bg-blue-900/30 dark:text-blue-100">
-            Approving USDT spending… (one-time per cart total)
+          <div className="mb-4 rounded-md bg-celo-yellow-soft p-3 text-base text-celo-dark dark:bg-celo-yellow/20 dark:text-celo-light">
+            Approving USDT spending in your wallet…
+            <span className="ml-1 text-sm text-neutral-600 dark:text-celo-light/60">
+              one-time per cart total
+            </span>
           </div>
         ) : null}
 
@@ -235,15 +256,26 @@ export function CheckoutFlow({ cart, token }: Props) {
           ))}
         </div>
 
+        <div className="mt-5 flex items-start gap-2 rounded-lg bg-celo-forest-soft px-3 py-2.5 text-sm text-celo-forest-dark dark:bg-celo-forest-bright-soft dark:text-celo-forest-bright">
+          <span
+            aria-hidden
+            className="mt-0.5 inline-block h-2 w-2 flex-shrink-0 rounded-full bg-current"
+          />
+          <p>
+            Each paid seller is now held in escrow. Auto-release in 3 days
+            if you don&apos;t flag a problem.
+          </p>
+        </div>
+
         <Button
           variant="outline"
-          className="mt-6 min-h-[44px] w-full text-base"
+          className="mt-5 min-h-[44px] w-full text-base"
           onClick={cancel}
         >
           Cancel remaining
         </Button>
 
-        <p className="mt-3 text-center text-sm text-neutral-500">
+        <p className="mt-3 text-center text-sm text-neutral-500 dark:text-celo-light/55">
           Cancel only stops upcoming transactions. Sellers already paid
           stay paid; auto-refund kicks in if items don&apos;t ship.
         </p>

@@ -58,17 +58,25 @@ describe("OrderDeliveryAddressCard", () => {
     expect(screen.getByTestId("order-delivery-line")).toBeDefined();
   });
 
-  it("renders the WhatsApp button with the correct deeplink href", () => {
-    render(<OrderDeliveryAddressCard snapshot={FULL_SNAPSHOT} orderId={42} />);
+  it("renders the WhatsApp button pointing at the seller's number when sellerWhatsapp is provided", () => {
+    render(
+      <OrderDeliveryAddressCard
+        snapshot={FULL_SNAPSHOT}
+        orderId={42}
+        sellerWhatsapp="+2348012345678"
+        sellerShopName="Atelier Mia"
+      />,
+    );
     const anchor = screen.getByTestId(
       "order-delivery-whatsapp",
     ) as HTMLAnchorElement;
     expect(anchor.tagName).toBe("A");
     const href = anchor.getAttribute("href")!;
-    expect(href).toMatch(/^https:\/\/wa\.me\/2349011234567\?text=/);
+    expect(href).toMatch(/^https:\/\/wa\.me\/2348012345678\?text=/);
     expect(href).toContain("Etalo%20order%20%2342");
     expect(anchor.getAttribute("target")).toBe("_blank");
     expect(anchor.getAttribute("rel")).toBe("noopener noreferrer");
+    expect(anchor.textContent).toContain("Atelier Mia");
   });
 
   it("renders neutral pre-fund message when snapshot is null", () => {
@@ -81,12 +89,14 @@ describe("OrderDeliveryAddressCard", () => {
     expect(screen.queryByTestId("order-delivery-whatsapp")).toBeNull();
   });
 
-  it("hides the WhatsApp button when phone is missing", () => {
-    const noPhone: DeliveryAddressSnapshot = {
-      ...FULL_SNAPSHOT,
-      phone_number: null,
-    };
-    render(<OrderDeliveryAddressCard snapshot={noPhone} orderId={42} />);
+  it("hides the WhatsApp button when the seller has no WhatsApp on file", () => {
+    render(
+      <OrderDeliveryAddressCard
+        snapshot={FULL_SNAPSHOT}
+        orderId={42}
+        sellerWhatsapp={null}
+      />,
+    );
     expect(screen.queryByTestId("order-delivery-whatsapp")).toBeNull();
     // Other fields still render.
     expect(screen.getByText("12 Allen Avenue, Ikeja")).toBeDefined();

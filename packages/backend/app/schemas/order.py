@@ -66,6 +66,12 @@ class OrderResponse(BaseModel):
     buyer_address: str
     seller_address: str
     seller_handle: str | None = None
+    seller_shop_name: str | None = None
+    # Seller's WhatsApp number from SellerProfile.socials.whatsapp. The
+    # buyer-side order detail page uses this to build the WhatsApp
+    # coordination deeplink — the snapshot.phone_number is the BUYER's
+    # phone (useless for the buyer to message themselves).
+    seller_whatsapp: str | None = None
     total_amount_usdt: int
     total_commission_usdt: int
     is_cross_border: bool
