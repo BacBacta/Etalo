@@ -28,6 +28,7 @@ import {
   ChainMismatchBanner,
   useChainMatch,
 } from "@/components/wallet/ChainMismatchBanner";
+import { useEscalateToMediation } from "@/hooks/useEscalateToMediation";
 import { useN1Proposal } from "@/hooks/useN1Proposal";
 import { useResolveN1Amicable } from "@/hooks/useResolveN1Amicable";
 import type { DisputeResponse } from "@/hooks/useDisputeForItem";
@@ -65,27 +66,14 @@ export function N1ResolutionCard({
   const { isMatch: chainMatches } = useChainMatch();
   const proposalQuery = useN1Proposal(dispute.onchain_dispute_id);
   const tx = useResolveN1Amicable();
+  const escalateTx = useEscalateToMediation();
   const [amountInput, setAmountInput] = useState<string>(
     formatRawUsdt(itemPriceRawUsdt), // default = full refund (most generous-to-buyer)
   );
 
-  // Out-of-V1-scope guard rails.
-  if (dispute.level !== "N1_Amicable") {
-    return (
-      <div
-        data-testid="n1-card-escalated"
-        className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-700 dark:bg-amber-950/40"
-      >
-        <p className="text-amber-900 dark:text-amber-100">
-          This dispute has escalated past the bilateral 48 h window
-          (current level : <span className="font-medium">{dispute.level}</span>).
-          Resolution is handled off-app for now ; we&apos;ll surface
-          mediation + voting tooling in the next release.
-        </p>
-      </div>
-    );
-  }
-
+  // Guard rails — resolved wins over level so a settled dispute (whose
+  // level is "Resolved") shows the success state, not the escalated
+  // "off-app" notice.
   if (dispute.resolved) {
     return (
       <div
@@ -96,6 +84,24 @@ export function N1ResolutionCard({
           <CheckCircle weight="fill" className="h-5 w-5" />
           <span className="font-medium">Dispute resolved</span>
         </div>
+      </div>
+    );
+  }
+
+  // Past N1 but not resolved → N2 mediation / N3 voting. In-app tooling
+  // for those tiers is a separate workstream ; surface a clear notice.
+  if (dispute.level !== "N1_Amicable") {
+    return (
+      <div
+        data-testid="n1-card-escalated"
+        className="rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-700 dark:bg-amber-950/40"
+      >
+        <p className="text-amber-900 dark:text-amber-100">
+          This dispute has escalated past the bilateral 48 h window
+          (current level : <span className="font-medium">{dispute.level}</span>).
+          A mediator is now handling it ; we&apos;ll surface mediation +
+          voting tooling in the next release.
+        </p>
       </div>
     );
   }
@@ -150,8 +156,16 @@ export function N1ResolutionCard({
 
   const handleAcceptTheirs = () => handleSubmit(theirAmount);
 
+  const handleEscalate = () => {
+    escalateTx.reset();
+    void escalateTx.run({ disputeId: BigInt(dispute.onchain_dispute_id) });
+  };
+
   const inFlight =
     tx.state.phase === "preparing" || tx.state.phase === "confirming";
+  const escalateInFlight =
+    escalateTx.state.phase === "preparing" ||
+    escalateTx.state.phase === "confirming";
 
   // ADR-019 N1 deadline. Backend payload carries `n1_deadline` as an
   // ISO string ; we parse once per render — cheap. When the deadline
@@ -236,10 +250,46 @@ export function N1ResolutionCard({
         </p>
       ) : null}
 
+      {/* Past the 48 h window : the buyer can escalate to mediation
+          (permissionless on-chain once the deadline passes). We keep the
+          "accept their proposal" path above available, but replace the
+          new-proposal form with the escalate CTA so the buyer isn't left
+          at a dead-end. */}
+      {n1Elapsed && isBuyer ? (
+        <div className="space-y-2 border-t border-rose-200 pt-3 dark:border-rose-800">
+          <p className="text-celo-dark dark:text-celo-light">
+            The 48 h amicable window has passed. You can escalate to
+            mediation — a neutral mediator will review the order and decide
+            the outcome.
+          </p>
+          <button
+            type="button"
+            data-testid="n1-escalate-btn"
+            onClick={handleEscalate}
+            disabled={escalateInFlight || !chainMatches}
+            className="min-h-[44px] w-full rounded-pill bg-rose-600 px-4 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+          >
+            {escalateInFlight ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner weight="regular" className="h-4 w-4 animate-spin" />
+                {escalateTx.state.phase === "preparing"
+                  ? "Preparing…"
+                  : "Confirming on-chain…"}
+              </span>
+            ) : (
+              "Escalate to mediation"
+            )}
+          </button>
+          {escalateTx.state.phase === "error" ? (
+            <p className="text-rose-700 dark:text-rose-300">
+              {escalateTx.state.error.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+
       {/* Form to submit (or update) my proposal — hidden once the N1
-          window has elapsed. The on-chain function still accepts
-          proposals past deadline but the meaningful action is to
-          escalate (V1.5+ UI) ; surfacing the form would mislead. */}
+          window has elapsed (the escalate CTA above takes over). */}
       {n1Elapsed ? null : (
       <div className="space-y-2 border-t border-rose-200 pt-3 dark:border-rose-800">
         <label
