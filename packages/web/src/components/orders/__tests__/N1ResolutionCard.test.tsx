@@ -84,7 +84,7 @@ describe("N1ResolutionCard — guard ordering", () => {
     expect(screen.queryByTestId("n1-card-escalated")).toBeNull();
   });
 
-  it("renders the escalated notice for a non-resolved dispute past N1", () => {
+  it("delegates to EscalatedDisputeStatus for a non-resolved dispute past N1", () => {
     render(
       <N1ResolutionCard
         dispute={makeDispute({ level: "N2_Mediation" })}
@@ -92,7 +92,10 @@ describe("N1ResolutionCard — guard ordering", () => {
         itemPriceRawUsdt={15_000_000}
       />,
     );
-    expect(screen.getByTestId("n1-card-escalated")).toBeInTheDocument();
+    // Replaces the old `n1-card-escalated` amber placeholder with the
+    // real N2/N3 status surface (ADR-056 / PR 3).
+    expect(screen.getByTestId("n2-status-card")).toBeInTheDocument();
+    expect(screen.queryByTestId("n1-card-escalated")).toBeNull();
   });
 });
 
