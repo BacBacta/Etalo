@@ -12,11 +12,16 @@
  *    `DisputeResolved` ; the indexer flips `item.status` and the
  *    parent re-renders without this card
  *
+ * Escalation : the buyer can `escalateToMediation` at ANY time during
+ * N1 (the contract gates on `msg.sender == buyer || past deadline`), so
+ * the escalate CTA is offered to the buyer throughout the window — not
+ * only after the 48 h elapse — letting them skip negotiation and go
+ * straight to a mediator. The seller can only escalate post-deadline
+ * on-chain, so no seller-facing escalate CTA is shown.
+ *
  * Out of V1 scope (deferred to V1.5+ dispute UI sprint) :
  *  - N2 Mediation surfaces (mediator chat, evidence uploads)
  *  - N3 Community Voting surfaces
- *  - `escalateToMediation` button (post-N1-deadline ; can be
- *    triggered via Celoscan in the interim)
  */
 "use client";
 
@@ -240,46 +245,8 @@ export function N1ResolutionCard({
         </p>
       ) : null}
 
-      {/* Past the 48 h window : the buyer can escalate to mediation
-          (permissionless on-chain once the deadline passes). We keep the
-          "accept their proposal" path above available, but replace the
-          new-proposal form with the escalate CTA so the buyer isn't left
-          at a dead-end. */}
-      {n1Elapsed && isBuyer ? (
-        <div className="space-y-2 border-t border-rose-200 pt-3 dark:border-rose-800">
-          <p className="text-celo-dark dark:text-celo-light">
-            The 48 h amicable window has passed. You can escalate to
-            mediation — a neutral mediator will review the order and decide
-            the outcome.
-          </p>
-          <button
-            type="button"
-            data-testid="n1-escalate-btn"
-            onClick={handleEscalate}
-            disabled={escalateInFlight || !chainMatches}
-            className="min-h-[44px] w-full rounded-pill bg-rose-600 px-4 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
-          >
-            {escalateInFlight ? (
-              <span className="inline-flex items-center gap-2">
-                <Spinner weight="regular" className="h-4 w-4 animate-spin" />
-                {escalateTx.state.phase === "preparing"
-                  ? "Preparing…"
-                  : "Confirming on-chain…"}
-              </span>
-            ) : (
-              "Escalate to mediation"
-            )}
-          </button>
-          {escalateTx.state.phase === "error" ? (
-            <p className="text-rose-700 dark:text-rose-300">
-              {escalateTx.state.error.message}
-            </p>
-          ) : null}
-        </div>
-      ) : null}
-
       {/* Form to submit (or update) my proposal — hidden once the N1
-          window has elapsed (the escalate CTA above takes over). */}
+          window has elapsed (the escalate CTA below takes over). */}
       {n1Elapsed ? null : (
       <div className="space-y-2 border-t border-rose-200 pt-3 dark:border-rose-800">
         <label
@@ -335,6 +302,49 @@ export function N1ResolutionCard({
         </p>
       </div>
       )}
+
+      {/* Escalate to mediation — offered to the buyer throughout N1
+          (the contract lets the buyer escalate at any time, and anyone
+          once the deadline passes). During the window it's a secondary
+          action under the proposal form ("skip negotiation") ; after the
+          window it's the only actionable path left (the form is hidden).
+          Not shown to the seller — they can't escalate early on-chain. */}
+      {isBuyer ? (
+        <div className="space-y-2 border-t border-rose-200 pt-3 dark:border-rose-800">
+          <p className="text-celo-dark dark:text-celo-light">
+            {n1Elapsed
+              ? "The 48 h amicable window has passed. Escalate to mediation — a neutral mediator will review the order and decide the outcome."
+              : "Prefer not to negotiate? You can escalate to mediation now — a neutral mediator will review the order and decide the outcome. This ends the amicable window."}
+          </p>
+          <button
+            type="button"
+            data-testid="n1-escalate-btn"
+            onClick={handleEscalate}
+            disabled={escalateInFlight || !chainMatches}
+            className={
+              n1Elapsed
+                ? "min-h-[44px] w-full rounded-pill bg-rose-600 px-4 text-sm font-medium text-white hover:bg-rose-700 disabled:opacity-50"
+                : "min-h-[44px] w-full rounded-pill border border-rose-300 bg-transparent px-4 text-sm font-medium text-rose-700 hover:bg-rose-100 disabled:opacity-50 dark:border-rose-700 dark:text-rose-200 dark:hover:bg-rose-900/30"
+            }
+          >
+            {escalateInFlight ? (
+              <span className="inline-flex items-center justify-center gap-2">
+                <Spinner weight="regular" className="h-4 w-4 animate-spin" />
+                {escalateTx.state.phase === "preparing"
+                  ? "Preparing…"
+                  : "Confirming on-chain…"}
+              </span>
+            ) : (
+              "Escalate to mediation"
+            )}
+          </button>
+          {escalateTx.state.phase === "error" ? (
+            <p className="text-rose-700 dark:text-rose-300">
+              {escalateTx.state.error.message}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
