@@ -81,7 +81,20 @@ export function classifyError(err: unknown): string {
     return "Transaction was cancelled.";
   }
 
-  // 2. Celo gas-funding pitfall: Chrome/MetaMask users without CELO
+  // 2. Wrong chain — viem throws "The current chain of the wallet (id:
+  //    X) does not match the target chain for the transaction (id: Y)"
+  //    when the wallet is on a chain other than Celo. wagmi's store
+  //    can lie about this when the wallet sits on a chain not in
+  //    wagmiConfig.chains, so the ChainMismatchBanner sometimes misses
+  //    it ; this catches the same case at the user-facing layer.
+  if (
+    haystack.includes("does not match the target chain") ||
+    haystack.includes("chain mismatch")
+  ) {
+    return "Your wallet is on the wrong network. Open your wallet, switch to Celo Mainnet (chain 42220), then try again.";
+  }
+
+  // 3. Celo gas-funding pitfall: Chrome/MetaMask users without CELO
   //    can't pay the network fee, and the RPC bubbles up as a generic
   //    "internal" / "unknown" error from viem. Surface an actionable
   //    hint instead of leaving them guessing. CIP-64 USDT-as-gas is V1.5
