@@ -239,6 +239,28 @@ export function useSequentialCheckout(
       return;
     }
 
+    // Authoritative chain check — wagmi's `useChainId()` (used above and
+    // by ChainMismatchBanner) reads from its own store, which can lag or
+    // default to the configured chain when the wallet is on a chain
+    // wagmi doesn't know about (e.g. MetaMask on Ethereum mainnet while
+    // wagmiConfig.chains = [etaloChain]). Querying the walletClient
+    // directly hits the wallet's `eth_chainId` and never lies.
+    try {
+      const walletChainId = await walletClient.getChainId();
+      if (walletChainId !== etaloChain.id) {
+        setState((s) => ({
+          ...s,
+          phase: "error",
+          globalError: `Your wallet is on chain ${walletChainId}. Open your wallet, switch to ${etaloChain.name} (chain ${etaloChain.id}), then try again.`,
+        }));
+        return;
+      }
+    } catch {
+      // getChainId can transiently fail on some WC wallets ; fall
+      // through and let viem's writeContract chain guard surface the
+      // mismatch with its own (less friendly) message.
+    }
+
     startedRef.current = true;
     cancelRef.current = false;
 
