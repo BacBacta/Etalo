@@ -1,15 +1,3 @@
-/**
- * MediatorConsole — wallet-gated entry for `EtaloDispute.isMediatorApproved`
- * wallets. Lists open N2 disputes assigned to the connected mediator and
- * renders the per-dispute resolution form (ADR-056).
- *
- * Read flow: `useIsMediator` (on-chain) decides whether to render the
- * console at all ; `useMediatorQueue` then pulls the assigned N2 disputes
- * from the backend mirror.
- *
- * No nav entry surfaces this route — mediators reach it via off-app
- * communication.
- */
 "use client";
 
 import { Spinner } from "@phosphor-icons/react";
@@ -32,8 +20,8 @@ export function MediatorConsole() {
     return (
       <SimpleState testId="mediator-no-wallet">
         {isConnecting
-          ? "Connecting to your wallet…"
-          : "Connect your wallet to access the mediator console."}
+          ? "Connecting…"
+          : "Open this page from your mediator wallet to access your dispute cases."}
       </SimpleState>
     );
   }
@@ -45,9 +33,8 @@ export function MediatorConsole() {
   if (!isMediator) {
     return (
       <SimpleState testId="mediator-not-approved">
-        This wallet is not on the approved mediator whitelist. If you
-        believe this is wrong, contact the team — mediator approval is a
-        Safe multisig operation.
+        This wallet doesn&apos;t have mediator access. Contact the Etalo team
+        if you think this is wrong.
       </SimpleState>
     );
   }
@@ -56,25 +43,30 @@ export function MediatorConsole() {
     return <LoadingState />;
   }
 
+  const count = queue.assigned_n2.length;
+
   return (
     <section className="space-y-4 p-4" data-testid="mediator-console">
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold text-celo-dark dark:text-celo-light">
-          Mediator console
+      <header className="space-y-0.5">
+        <h1 className="text-display-4 font-semibold text-celo-dark dark:text-celo-light">
+          Your dispute cases
         </h1>
-        <p className="text-sm text-neutral-500 dark:text-celo-light/60">
-          {queue.assigned_n2.length} dispute
-          {queue.assigned_n2.length === 1 ? "" : "s"} assigned to you (N2).
+        <p className="text-base text-neutral-500 dark:text-celo-light/60">
+          {count === 0
+            ? "No cases assigned to you right now."
+            : count === 1
+              ? "1 case waiting for your decision."
+              : `${count} cases waiting for your decision.`}
         </p>
       </header>
 
-      {queue.assigned_n2.length === 0 ? (
+      {count === 0 ? (
         <SimpleState testId="mediator-empty">
-          No disputes assigned to you right now. New cases will appear here
-          automatically once the Safe assigns them.
+          When a dispute is assigned to you, it will appear here. Check back
+          later or refresh the page.
         </SimpleState>
       ) : (
-        <ul className="space-y-3" data-testid="mediator-queue-list">
+        <ul className="space-y-4" data-testid="mediator-queue-list">
           {queue.assigned_n2.map((dispute) => (
             <li key={dispute.id}>
               <N2ResolutionForm dispute={dispute} />
@@ -107,10 +99,10 @@ function LoadingState() {
   return (
     <div
       data-testid="mediator-loading"
-      className="flex items-center justify-center gap-2 p-6 text-sm text-neutral-500 dark:text-celo-light/60"
+      className="flex items-center justify-center gap-2 p-6 text-base text-neutral-500 dark:text-celo-light/60"
     >
-      <Spinner weight="regular" className="h-4 w-4 animate-spin" />
-      Loading mediator console…
+      <Spinner weight="regular" className="h-5 w-5 animate-spin" />
+      Loading your cases…
     </div>
   );
 }

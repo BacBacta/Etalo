@@ -129,7 +129,7 @@ describe("EscalatedDisputeStatus — N2", () => {
       />,
     );
     expect(screen.getByTestId("n2-status-card")).toBeInTheDocument();
-    expect(screen.getByText(/Awaiting mediator assignment/i)).toBeInTheDocument();
+    expect(screen.getByText(/We are assigning a neutral mediator/i)).toBeInTheDocument();
   });
 });
 
@@ -151,7 +151,7 @@ describe("EscalatedDisputeStatus — N3 read-only", () => {
     useDisputeVoteMock.mockReturnValue({ data: null, isPending: false });
 
     render(<EscalatedDisputeStatus dispute={dispute({ level: "N3_Voting" })} />);
-    expect(screen.getByText(/Awaiting vote details from the indexer/i)).toBeInTheDocument();
+    expect(screen.getByText(/Our mediators are reviewing your case/i)).toBeInTheDocument();
     expect(screen.queryByTestId("n3-tally-for-buyer")).toBeNull();
   });
 });
@@ -206,7 +206,7 @@ describe("EscalatedDisputeStatus — N3 mediator vote actions", () => {
 
     render(<EscalatedDisputeStatus dispute={dispute({ level: "N3_Voting" })} />);
     expect(screen.getByTestId("n3-finalized")).toBeInTheDocument();
-    expect(screen.getByText(/buyer wins/i)).toBeInTheDocument();
+    expect(screen.getByText(/buyer refunded/i)).toBeInTheDocument();
     expect(screen.queryByTestId("n3-finalize-btn")).toBeNull();
   });
 });
