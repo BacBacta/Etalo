@@ -115,7 +115,7 @@ describe("N1ResolutionCard — escalate CTA", () => {
     expect(screen.queryByTestId("n1-propose-btn")).toBeNull();
   });
 
-  it("does NOT show the escalate button before the deadline (proposal form instead)", () => {
+  it("offers the buyer the escalate button DURING the window, alongside the proposal form", () => {
     render(
       <N1ResolutionCard
         dispute={makeDispute({ n1_deadline: "2999-01-01T00:00:00Z" })}
@@ -123,6 +123,23 @@ describe("N1ResolutionCard — escalate CTA", () => {
         itemPriceRawUsdt={15_000_000}
       />,
     );
+    // The contract lets the buyer escalate at any time — both the
+    // amicable proposal form AND the escalate CTA are available.
+    expect(screen.getByTestId("n1-propose-btn")).toBeInTheDocument();
+    const btn = screen.getByTestId("n1-escalate-btn");
+    fireEvent.click(btn);
+    expect(escalateRun).toHaveBeenCalledWith({ disputeId: BigInt(5) });
+  });
+
+  it("does NOT show the escalate button to the seller during the window", () => {
+    render(
+      <N1ResolutionCard
+        dispute={makeDispute({ n1_deadline: "2999-01-01T00:00:00Z" })}
+        currentUserAddress={SELLER}
+        itemPriceRawUsdt={15_000_000}
+      />,
+    );
+    // The seller can't escalate early on-chain — only the proposal form.
     expect(screen.queryByTestId("n1-escalate-btn")).toBeNull();
     expect(screen.getByTestId("n1-propose-btn")).toBeInTheDocument();
   });
