@@ -111,7 +111,11 @@ export function useSequentialCheckout(
 ) {
   const { address: buyer } = useAccount();
   const { resolve: resolveWalletClient } = useResolvedWalletClient();
-  const publicClient = usePublicClient();
+  // Pin the read client to the target chain so wagmi never returns
+  // undefined when the wallet's *current* chain has no transport in
+  // wagmiConfig (e.g. user briefly on Ethereum mainnet). The
+  // ChainMismatchBanner still blocks the Start CTA on real mismatches.
+  const publicClient = usePublicClient({ chainId: etaloChain.id });
   const chainId = useChainId();
   const queryClient = useQueryClient();
 
@@ -190,11 +194,21 @@ export function useSequentialCheckout(
 
   const start = useCallback(async () => {
     if (startedRef.current) return;
-    if (!buyer || !publicClient) {
+    if (!buyer) {
       setState((s) => ({
         ...s,
         phase: "error",
-        globalError: "Wallet not connected.",
+        globalError:
+          "Wallet address unavailable. Please reconnect your wallet and try again.",
+      }));
+      return;
+    }
+    if (!publicClient) {
+      setState((s) => ({
+        ...s,
+        phase: "error",
+        globalError:
+          "Network connection unavailable. Please refresh the page and try again.",
       }));
       return;
     }
@@ -219,7 +233,8 @@ export function useSequentialCheckout(
       setState((s) => ({
         ...s,
         phase: "error",
-        globalError: "Wallet not connected.",
+        globalError:
+          "Wallet signing client could not be resolved. Please reconnect your wallet (and unlock your mobile wallet if you used WalletConnect).",
       }));
       return;
     }
