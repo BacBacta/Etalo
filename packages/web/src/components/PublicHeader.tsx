@@ -1,6 +1,6 @@
 "use client";
 
-import { MoonStars, Receipt, SunDim } from "@phosphor-icons/react";
+import { MoonStars, Receipt, Scales, ShieldCheck, SunDim } from "@phosphor-icons/react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -11,7 +11,22 @@ import { CartDrawer } from "@/components/CartDrawer";
 import { CartTrigger } from "@/components/CartTrigger";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { ButtonV4 } from "@/components/ui/v4/Button";
+import { useIsMediator } from "@/hooks/useIsMediator";
+import { useIsSafeOwner } from "@/hooks/useIsSafeOwner";
 import { cn } from "@/lib/utils";
+
+// Shared icon-nav-link styling (44×44 touch target, active highlight).
+// Used by the My-orders / admin / mediator header entries.
+function navLinkClass(active: boolean): string {
+  return cn(
+    "inline-flex items-center justify-center min-h-[44px] min-w-[44px] rounded-pill",
+    "text-celo-dark dark:text-celo-light",
+    "hover:bg-celo-forest-soft dark:hover:bg-celo-forest-bright-soft",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 dark:focus-visible:ring-celo-forest-bright",
+    "transition-colors duration-150",
+    active && "bg-celo-forest-soft dark:bg-celo-forest-bright-soft",
+  );
+}
 
 // V4 logo (J10 Block 2) — exact SVG from docs/DESIGN_V4_PREVIEW.md
 // §63-80. Rounded rectangle dark background + yellow circle + arc +
@@ -42,8 +57,20 @@ const EtaloLogo = () => (
 export function PublicHeader() {
   const { theme, setTheme } = useTheme();
   const [cartOpen, setCartOpen] = useState(false);
-  const { isConnected } = useAccount();
+  const { isConnected, address } = useAccount();
   const pathname = usePathname();
+
+  // ADR-056 — privileged dispute-management entries. Both links are
+  // conditionally rendered (and the pages themselves gated) so a normal
+  // buyer/seller never sees them. Safe-owner check is a free local
+  // address compare ; the mediator check is a single cached on-chain
+  // read (isMediatorApproved), enabled only when a wallet is connected.
+  const isSafeOwner = useIsSafeOwner(address);
+  const { data: isMediatorData } = useIsMediator(address);
+  const isMediator = Boolean(isMediatorData);
+  const isAdminDisputesActive = pathname === "/admin/disputes";
+  const isMediatorActive =
+    pathname === "/mediator" || pathname?.startsWith("/mediator/") === true;
   // next-themes resolves `theme` only on the client; rendering an icon
   // server-side based on it would mismatch hydration. Render a sized
   // placeholder until mounted to keep the header width stable.
@@ -120,6 +147,36 @@ export function PublicHeader() {
               >
                 <Receipt size={20} weight="regular" aria-hidden="true" />
                 <span className="sr-only">My orders</span>
+              </Link>
+            )}
+            {/* ADR-056 — Safe-owner triage entry (assign N2 mediators via
+                Safe calldata). Hidden for everyone else. */}
+            {isSafeOwner && (
+              <Link
+                href="/admin/disputes"
+                aria-label="Disputes admin"
+                aria-current={isAdminDisputesActive ? "page" : undefined}
+                data-testid="nav-admin-disputes"
+                data-active={isAdminDisputesActive}
+                className={navLinkClass(isAdminDisputesActive)}
+              >
+                <ShieldCheck size={20} weight="regular" aria-hidden="true" />
+                <span className="sr-only">Disputes admin</span>
+              </Link>
+            )}
+            {/* ADR-056 — approved-mediator console entry (resolve N2).
+                Shown only to wallets on the on-chain whitelist. */}
+            {isMediator && (
+              <Link
+                href="/mediator"
+                aria-label="Mediator console"
+                aria-current={isMediatorActive ? "page" : undefined}
+                data-testid="nav-mediator"
+                data-active={isMediatorActive}
+                className={navLinkClass(isMediatorActive)}
+              >
+                <Scales size={20} weight="regular" aria-hidden="true" />
+                <span className="sr-only">Mediator console</span>
               </Link>
             )}
             <CartTrigger onClick={() => setCartOpen(true)} />
