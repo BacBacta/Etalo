@@ -197,6 +197,12 @@ class Settings(BaseSettings):
     reputation_contract_address: str = ""
     usdt_contract_address: str = ""
 
+    # Bearer-style token required on the /admin/* routes (ADR-056 — the
+    # admin triage page reads dispute PII so we keep it gated). Empty in
+    # dev → all admin endpoints reject. Set via ADMIN_API_TOKEN env var
+    # in production / on Fly.
+    admin_api_token: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
