@@ -13,8 +13,10 @@ import { PublicHeader } from "@/components/PublicHeader";
 
 const usePathnameMock = vi.hoisted(() => vi.fn(() => "/"));
 const useAccountMock = vi.hoisted(() =>
-  vi.fn(() => ({ isConnected: false })),
+  vi.fn(() => ({ isConnected: false, address: undefined as string | undefined })),
 );
+const useIsSafeOwnerMock = vi.hoisted(() => vi.fn(() => false));
+const useIsMediatorMock = vi.hoisted(() => vi.fn(() => ({ data: false })));
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: vi.fn(), replace: vi.fn() }),
@@ -23,6 +25,15 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("wagmi", () => ({
   useAccount: useAccountMock,
+}));
+
+// ADR-056 privileged-nav hooks — mocked so the spec controls owner /
+// mediator visibility without an on-chain read.
+vi.mock("@/hooks/useIsSafeOwner", () => ({
+  useIsSafeOwner: useIsSafeOwnerMock,
+}));
+vi.mock("@/hooks/useIsMediator", () => ({
+  useIsMediator: useIsMediatorMock,
 }));
 
 vi.mock("next-themes", () => ({
@@ -46,7 +57,9 @@ vi.mock("@/components/ConnectWalletButton", () => ({
 
 afterEach(() => {
   usePathnameMock.mockReturnValue("/");
-  useAccountMock.mockReturnValue({ isConnected: false });
+  useAccountMock.mockReturnValue({ isConnected: false, address: undefined });
+  useIsSafeOwnerMock.mockReturnValue(false);
+  useIsMediatorMock.mockReturnValue({ data: false });
 });
 
 describe("PublicHeader — Switch mode removal (Block 4c)", () => {
@@ -66,13 +79,13 @@ describe("PublicHeader — Switch mode removal (Block 4c)", () => {
 
 describe("PublicHeader — My orders entry (J11.5 Block 5)", () => {
   it("does NOT render the My orders link when wallet is disconnected", () => {
-    useAccountMock.mockReturnValue({ isConnected: false });
+    useAccountMock.mockReturnValue({ isConnected: false, address: undefined });
     render(<PublicHeader />);
     expect(screen.queryByTestId("nav-my-orders")).not.toBeInTheDocument();
   });
 
   it("renders the My orders link when wallet is connected", () => {
-    useAccountMock.mockReturnValue({ isConnected: true });
+    useAccountMock.mockReturnValue({ isConnected: true, address: undefined });
     render(<PublicHeader />);
     const link = screen.getByTestId("nav-my-orders");
     expect(link).toHaveAttribute("href", "/orders");
@@ -80,7 +93,7 @@ describe("PublicHeader — My orders entry (J11.5 Block 5)", () => {
   });
 
   it("highlights active when on /orders", () => {
-    useAccountMock.mockReturnValue({ isConnected: true });
+    useAccountMock.mockReturnValue({ isConnected: true, address: undefined });
     usePathnameMock.mockReturnValue("/orders");
     render(<PublicHeader />);
     const link = screen.getByTestId("nav-my-orders");
@@ -89,7 +102,7 @@ describe("PublicHeader — My orders entry (J11.5 Block 5)", () => {
   });
 
   it("highlights active when on /orders/[id]", () => {
-    useAccountMock.mockReturnValue({ isConnected: true });
+    useAccountMock.mockReturnValue({ isConnected: true, address: undefined });
     usePathnameMock.mockReturnValue("/orders/abc-123");
     render(<PublicHeader />);
     const link = screen.getByTestId("nav-my-orders");
@@ -97,11 +110,51 @@ describe("PublicHeader — My orders entry (J11.5 Block 5)", () => {
   });
 
   it("does NOT highlight active on unrelated routes", () => {
-    useAccountMock.mockReturnValue({ isConnected: true });
+    useAccountMock.mockReturnValue({ isConnected: true, address: undefined });
     usePathnameMock.mockReturnValue("/marketplace");
     render(<PublicHeader />);
     const link = screen.getByTestId("nav-my-orders");
     expect(link).toHaveAttribute("data-active", "false");
     expect(link).not.toHaveAttribute("aria-current");
+  });
+});
+
+describe("PublicHeader — privileged dispute nav (ADR-056)", () => {
+  it("hides both admin + mediator links for a normal wallet", () => {
+    useAccountMock.mockReturnValue({ isConnected: true, address: "0xabc" });
+    useIsSafeOwnerMock.mockReturnValue(false);
+    useIsMediatorMock.mockReturnValue({ data: false });
+    render(<PublicHeader />);
+    expect(screen.queryByTestId("nav-admin-disputes")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nav-mediator")).not.toBeInTheDocument();
+  });
+
+  it("shows the admin disputes link to a Safe owner", () => {
+    useAccountMock.mockReturnValue({ isConnected: true, address: "0xowner" });
+    useIsSafeOwnerMock.mockReturnValue(true);
+    render(<PublicHeader />);
+    const link = screen.getByTestId("nav-admin-disputes");
+    expect(link).toHaveAttribute("href", "/admin/disputes");
+    expect(link).toHaveAttribute("aria-label", "Disputes admin");
+  });
+
+  it("shows the mediator link to an approved mediator", () => {
+    useAccountMock.mockReturnValue({ isConnected: true, address: "0xmed" });
+    useIsMediatorMock.mockReturnValue({ data: true });
+    render(<PublicHeader />);
+    const link = screen.getByTestId("nav-mediator");
+    expect(link).toHaveAttribute("href", "/mediator");
+    expect(link).toHaveAttribute("aria-label", "Mediator console");
+  });
+
+  it("highlights the admin link active on /admin/disputes", () => {
+    useAccountMock.mockReturnValue({ isConnected: true, address: "0xowner" });
+    useIsSafeOwnerMock.mockReturnValue(true);
+    usePathnameMock.mockReturnValue("/admin/disputes");
+    render(<PublicHeader />);
+    expect(screen.getByTestId("nav-admin-disputes")).toHaveAttribute(
+      "data-active",
+      "true",
+    );
   });
 });
