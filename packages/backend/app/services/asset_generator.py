@@ -138,45 +138,50 @@ ENHANCE_BACKDROP_RGB = (247, 245, 240)
 #    (texture noise / fabric patterns amplify ugly with hard sharpening)
 #  - margin: more air for fashion (tall garments / shoes) ; tighter for
 #    beauty/home where the product is the whole story
+# Sharpen percents are deliberately gentle : the matte now carries a
+# feathered edge and sources are compressed phone JPEGs, so aggressive
+# UnsharpMask amplified noise / halos / JPEG blocks ("crunchy" look).
+# Higher thresholds keep flat / noisy regions untouched and only crisp
+# genuine product edges.
 ENHANCE_PRESETS: dict[str, dict] = {
     "fashion": {
         "backdrop": (247, 245, 240),  # #F7F5F0 cream
         "saturation": 1.05,
         "sharpen_radius": 1,
-        "sharpen_percent": 20,
-        "sharpen_threshold": 4,
+        "sharpen_percent": 12,
+        "sharpen_threshold": 5,
         "margin": 0.07,
     },
     "beauty": {
         "backdrop": (250, 247, 242),  # #FAF7F2 warmer cream
         "saturation": 1.12,
         "sharpen_radius": 1,
-        "sharpen_percent": 28,
-        "sharpen_threshold": 3,
+        "sharpen_percent": 18,
+        "sharpen_threshold": 4,
         "margin": 0.06,
     },
     "food": {
         "backdrop": (250, 245, 235),  # #FAF5EB warm cream
         "saturation": 1.08,
         "sharpen_radius": 1,
-        "sharpen_percent": 15,
-        "sharpen_threshold": 5,
+        "sharpen_percent": 10,
+        "sharpen_threshold": 6,
         "margin": 0.05,
     },
     "home": {
         "backdrop": (245, 245, 245),  # #F5F5F5 neutral light gray
         "saturation": 1.0,
         "sharpen_radius": 1,
-        "sharpen_percent": 32,
-        "sharpen_threshold": 3,
+        "sharpen_percent": 20,
+        "sharpen_threshold": 4,
         "margin": 0.05,
     },
     "other": {
         "backdrop": ENHANCE_BACKDROP_RGB,
         "saturation": 1.05,
         "sharpen_radius": 1,
-        "sharpen_percent": 22,
-        "sharpen_threshold": 4,
+        "sharpen_percent": 14,
+        "sharpen_threshold": 5,
         "margin": 0.05,
     },
 }
@@ -500,6 +505,89 @@ def _erode_alpha_edges(rgba_image, erosion_pixels: int = 3):
     return Image.merge("RGBA", (r, g, b, a_eroded))
 
 
+def _refine_alpha_edges(rgba_image, erosion_pixels: int = 1, feather_radius: float = 1.0):
+    """Premium edge treatment for the matte. Replaces the blunt 3px
+    erosion : a hard 3px shave kills color bleed but also eats thin
+    product parts (straps, handles, jewellery) and leaves a crisp
+    "sticker" cut-out outline that reads as fake.
+
+    Two gentle steps instead :
+    1. Erode 1px — strips only the worst birefnet edge-bleed pixel.
+    2. Gaussian-feather the alpha — softens the boundary so the product
+       melts into the backdrop like a real photograph rather than a
+       detoured layer. Thin parts survive because we only shave 1px.
+
+    RGB channels untouched ; only the alpha band is refined.
+    """
+    from PIL import Image, ImageFilter
+
+    r, g, b, a = rgba_image.split()
+    if erosion_pixels >= 1:
+        a = a.filter(ImageFilter.MinFilter(size=erosion_pixels * 2 + 1))
+    if feather_radius > 0:
+        a = a.filter(ImageFilter.GaussianBlur(radius=feather_radius))
+    return Image.merge("RGBA", (r, g, b, a))
+
+
+def _studio_backdrop(out_dim: int, base_rgb: tuple[int, int, int]):
+    """Generate a studio-sweep backdrop instead of a flat fill. A soft
+    radial light pool sits slightly above centre (where the product
+    lands) and falls off toward the edges into a gentle vignette — the
+    same light gradient a seamless paper sweep produces under a softbox.
+    A flat solid colour is the tell-tale sign of a cheap cut-out tool ;
+    this single change does most of the "studio" lift.
+
+    Brightness ranges from +6 % at the light centre to ~-12 % at the far
+    corners, applied multiplicatively to the per-category base colour so
+    each preset keeps its hue (cream / cool grey / warm).
+    """
+    import numpy as np
+    from PIL import Image
+
+    yy, xx = np.mgrid[0:out_dim, 0:out_dim].astype(np.float32)
+    cx, cy = out_dim * 0.5, out_dim * 0.42  # light pool a touch above centre
+    dist = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
+    dist /= dist.max()  # normalise 0..1
+    # Smooth falloff : bright near the pool, vignette at the corners.
+    factor = 1.06 - 0.18 * np.clip(dist, 0.0, 1.0) ** 1.4
+    base = np.array(base_rgb, dtype=np.float32)
+    arr = np.clip(base[None, None, :] * factor[:, :, None], 0, 255).astype(np.uint8)
+    return Image.fromarray(arr, "RGB")
+
+
+def _paste_silhouette_shadow(canvas, product_rgba, paste_x, paste_y, out_dim):
+    """Cast a shadow shaped like the product's actual silhouette, squashed
+    onto the floor and softly blurred — replaces the generic blurred
+    ellipse (which reads as a floating blob detached from the product).
+
+    Build : fill the product's alpha with black → squash vertically to
+    ~22 % height (foreshortened ground cast) → heavy gaussian blur →
+    drop opacity to ~45 % → anchor at the product's base with a slight
+    overlap so the contact point reads as grounded.
+    """
+    from PIL import Image, ImageFilter
+
+    pw, ph = product_rgba.size
+    alpha = product_rgba.split()[3]
+    black = Image.new("RGBA", (pw, ph), (0, 0, 0, 255))
+    transparent = Image.new("RGBA", (pw, ph), (0, 0, 0, 0))
+    shadow = Image.composite(black, transparent, alpha)
+
+    squash_h = max(8, int(ph * 0.22))
+    shadow = shadow.resize((pw, squash_h), Image.LANCZOS)
+
+    blur = max(10, int(out_dim * 0.018))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=blur))
+
+    r, g, b, a = shadow.split()
+    a = a.point(lambda v: int(v * 0.45))
+    shadow = Image.merge("RGBA", (r, g, b, a))
+
+    sx = paste_x
+    sy = paste_y + ph - int(squash_h * 0.55)  # overlap base for contact
+    canvas.paste(shadow, (sx, sy), shadow)
+
+
 def _composite_square(
     transparent_bytes: bytes,
     preset: dict | None = None,
@@ -526,12 +614,11 @@ def _composite_square(
     out_dim = ENHANCE_OUTPUT_DIM
     src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
 
-    # Strip the contaminated alpha-blended edge pixels BEFORE color
-    # correction so autocontrast / saturation operate on clean product
-    # pixels only. Always-on (3 px) — the cost is sub-millisecond and
-    # the benefit is universal (no light/dark product gives bleed-free
-    # edges out of birefnet).
-    src = _erode_alpha_edges(src, erosion_pixels=3)
+    # Refine the matte edge (1px erode + feather) BEFORE color correction
+    # so autocontrast / saturation operate on clean product pixels and the
+    # boundary melts into the backdrop instead of reading as a sticker
+    # cut-out. Gentler than the old blunt 3px shave → thin parts survive.
+    src = _refine_alpha_edges(src, erosion_pixels=1, feather_radius=1.0)
     src = _auto_correct_rgba(src, preset)
 
     bbox = src.getbbox()
@@ -546,16 +633,17 @@ def _composite_square(
     new_h = max(1, int(src_h * scale))
     resized = src.resize((new_w, new_h), Image.LANCZOS) if scale != 1.0 else src
 
+    # Studio-sweep backdrop (radial light pool + vignette) instead of a
+    # flat fill — the single biggest "studio" lift. Keeps the preset hue.
     backdrop = preset.get("backdrop", ENHANCE_BACKDROP_RGB)
-    canvas = Image.new("RGB", (out_dim, out_dim), backdrop)
+    canvas = _studio_backdrop(out_dim, backdrop)
     paste_x = (out_dim - new_w) // 2
     paste_y = (out_dim - new_h) // 2
 
-    # Soft elliptical ground shadow under the product BEFORE pasting it,
-    # so the product naturally overlaps the top of the shadow (no double-
-    # shadow with any storefront-card CSS box-shadow). Anchored at the
-    # product's bottom edge, ~85 % of product width, blurred heavily.
-    _paste_ground_shadow(canvas, new_w, new_h, paste_x, paste_y, out_dim)
+    # Silhouette-shaped contact shadow BEFORE pasting the product, so the
+    # product overlaps the shadow's top edge and reads as grounded (not a
+    # floating blob, and no double-shadow with any storefront CSS shadow).
+    _paste_silhouette_shadow(canvas, resized, paste_x, paste_y, out_dim)
 
     canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
 
