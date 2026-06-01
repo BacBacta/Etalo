@@ -57,6 +57,9 @@ class ProductRead(BaseModel):
     metadata_ipfs_hash: str | None = None
     image_ipfs_hashes: list[str] | None = None
     category: str | None = None
+    # ADR-049 — null until the hero photo has been studio-enhanced. Drives
+    # the seller-side "enhance for boutique quality" nudges.
+    enhanced_at: datetime | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -77,6 +80,9 @@ class ProductDetail(BaseModel):
     status: str
     image_ipfs_hashes: list[str] | None = None
     category: str | None = None
+    # ADR-049 — null until the hero photo has been studio-enhanced. Lets
+    # the owner UI nudge un-enhanced photos toward boutique quality.
+    enhanced_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

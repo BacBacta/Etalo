@@ -133,6 +133,9 @@ class MyProductsListItem(BaseModel):
     stock: int
     status: str
     image_ipfs_hashes: list[str] | None = None
+    # ADR-049 — null until the hero photo has been studio-enhanced.
+    # Drives the dashboard "Enhance photo" nudge badge.
+    enhanced_at: datetime | None = None
     created_at: datetime
     updated_at: datetime
 

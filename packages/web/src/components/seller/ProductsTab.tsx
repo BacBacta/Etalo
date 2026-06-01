@@ -6,6 +6,7 @@ import {
   MagnifyingGlass,
   PencilSimple,
   Plus,
+  Sparkle,
   SquaresFour,
   Trash,
   Warning,
@@ -617,6 +618,9 @@ function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
   const isActive = product.status === "active";
   const isOutOfStock = isActive && product.stock === 0;
   const isLowStock = isActive && product.stock > 0 && product.stock < LOW_STOCK_THRESHOLD;
+  // ADR-049 — has a photo but it's still a raw upload. Surface a quick
+  // path to enhancement (taps straight into the edit dialog's nudge).
+  const needsEnhance = firstImage !== null && !product.enhanced_at;
 
   return (
     <li className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated">
@@ -665,6 +669,17 @@ function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
               isLowStock={isLowStock}
             />
           </div>
+          {needsEnhance ? (
+            <button
+              type="button"
+              onClick={onEdit}
+              data-testid="row-enhance-nudge"
+              className="mt-1.5 inline-flex items-center gap-1 rounded-full bg-celo-forest-soft px-2 py-0.5 text-sm font-medium text-celo-forest hover:bg-celo-forest/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-forest-bright"
+            >
+              <Sparkle weight="fill" className="h-3.5 w-3.5" aria-hidden />
+              Enhance photo
+            </button>
+          ) : null}
         </div>
 
         <div className="flex flex-shrink-0 items-center gap-1">
@@ -699,6 +714,7 @@ function ProductGridCard({ product, onEdit, onDelete }: ProductGridCardProps) {
   const isActive = product.status === "active";
   const isOutOfStock = isActive && product.stock === 0;
   const isLowStock = isActive && product.stock > 0 && product.stock < LOW_STOCK_THRESHOLD;
+  const needsEnhance = firstImage !== null && !product.enhanced_at;
 
   return (
     <li className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated">
@@ -719,6 +735,17 @@ function ProductGridCard({ product, onEdit, onDelete }: ProductGridCardProps) {
             />
           </div>
         )}
+        {needsEnhance ? (
+          <button
+            type="button"
+            onClick={onEdit}
+            data-testid="grid-enhance-nudge"
+            className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-celo-forest px-2 py-0.5 text-sm font-medium text-celo-light shadow-sm hover:bg-celo-forest-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 dark:bg-celo-forest-bright dark:text-celo-dark"
+          >
+            <Sparkle weight="fill" className="h-3.5 w-3.5" aria-hidden />
+            Enhance
+          </button>
+        ) : null}
         <span
           className={`absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/90 px-2 py-0.5 text-sm font-medium shadow-sm backdrop-blur dark:bg-celo-dark-bg/90`}
         >
