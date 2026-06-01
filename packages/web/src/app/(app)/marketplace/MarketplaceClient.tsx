@@ -138,13 +138,12 @@ function MarketplaceClientInner() {
   const updateCountryFilter = useCallback(
     (next: CountryFilterValue) => {
       const params = new URLSearchParams(searchParams?.toString() ?? "");
-      if (next === "all") {
-        params.delete("country");
-      } else {
-        params.set("country", next);
-      }
-      const qs = params.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname);
+      // Set "all" explicitly in the URL so the memo doesn't fall back to
+      // buyerCountry when the user deliberately clears the country filter.
+      // Deleting the param would make urlCountry=null → countryFilter=buyerCountry
+      // (e.g. NGA), ignoring the user's intent.
+      params.set("country", next);
+      router.replace(`${pathname}?${params.toString()}`);
     },
     [pathname, router, searchParams],
   );

@@ -82,6 +82,7 @@ export default async function MarketplacePage({ searchParams }: PageProps) {
   });
   // Best-effort prefetch — if the backend is down or slow the client
   // will refetch on mount. We never block the page render on this.
+  let dehydratedState: ReturnType<typeof dehydrate> | null = null;
   try {
     await queryClient.prefetchInfiniteQuery({
       queryKey: [
@@ -102,14 +103,15 @@ export default async function MarketplacePage({ searchParams }: PageProps) {
         }),
       initialPageParam: null as string | null,
     });
+    dehydratedState = dehydrate(queryClient);
   } catch {
-    // Silent fallback — let the client retry. The `/marketplace`
+    // Silent fallback — let the client fetch fresh. The `/marketplace`
     // backend has its own Cache-Control so this rarely costs more
     // than a CDN hit.
   }
 
   return (
-    <HydrationBoundary state={dehydrate(queryClient)}>
+    <HydrationBoundary state={dehydratedState ?? undefined}>
       <MarketplaceClient />
     </HydrationBoundary>
   );
