@@ -27,15 +27,16 @@
 import { dehydrate, HydrationBoundary, QueryClient } from "@tanstack/react-query";
 
 import MarketplaceClient from "@/app/(app)/marketplace/MarketplaceClient";
-import { isValidCategoryCode } from "@/lib/categories";
-import { isValidCountryCode } from "@/components/CountrySelector";
 import { fetchMarketplaceProducts } from "@/lib/api";
 import { MARKETPLACE_PRODUCTS_QUERY_KEY } from "@/hooks/useMarketplaceProducts";
 
-// `searchParams` arrive as a Record<string, string | string[]> in
-// Next.js 14 App Router. Force-dynamic because the prefetch depends
-// on URL state — static prerender of /marketplace?country=NGA wouldn't
-// match /marketplace?country=GHA.
+// force-dynamic so the server reads the correct searchParams on each
+// request. SSR prefetch is restricted to the initial load (no country/
+// category/sort/q filters) so that HydrationBoundary's `state` prop
+// never changes during client-side country-filter navigation.
+// Changing the dehydrated state on subsequent RSC renders caused
+// TanStack Query to re-hydrate while the client was mid-reconciliation,
+// producing a crash. Country filter changes are purely client-side.
 export const dynamic = "force-dynamic";
 
 interface PageProps {
@@ -49,65 +50,61 @@ function getStringParam(value: string | string[] | undefined): string | null {
 }
 
 export default async function MarketplacePage({ searchParams }: PageProps) {
-  // Resolve filters from URL — same shape as the client's URL-derived
-  // memos so the prefetched cache key matches what the client computes.
   const rawCountry = getStringParam(searchParams?.country);
   const rawCategory = getStringParam(searchParams?.category);
   const rawSort = getStringParam(searchParams?.sort);
   const rawQ = getStringParam(searchParams?.q)?.trim() ?? "";
 
-  const country =
-    rawCountry && rawCountry !== "all" && isValidCountryCode(rawCountry)
-      ? rawCountry
-      : null;
-  const category =
-    rawCategory && rawCategory !== "all" && isValidCategoryCode(rawCategory)
-      ? rawCategory
-      : null;
-  const sort =
-    rawSort === "price_asc" || rawSort === "price_desc" ? rawSort : null;
-  const q = rawQ.length > 0 ? rawQ : null;
+  // Only SSR-prefetch the unfiltered first page (initial load).
+  // Once the user applies a country / category / sort / search filter,
+  // the client fetches those results independently. This prevents the
+  // HydrationBoundary from receiving a new `state` prop on every filter
+  // navigation, which caused a hydration-during-reconciliation crash.
+  const isInitialUnfilteredLoad =
+    (!rawCountry || rawCountry === "all") &&
+    (!rawCategory || rawCategory === "all") &&
+    (!rawSort || rawSort === "newest") &&
+    rawQ.length === 0;
+
+  if (!isInitialUnfilteredLoad) {
+    // Filtered navigations — let the client handle data fetching.
+    return <MarketplaceClient />;
+  }
 
   // TanStack Query v5 defaults skip dehydrating queries with the
-  // server's default staleTime of 0 — they're considered "stale at
-  // birth" and excluded from the dehydrated state, which would make
-  // the prefetch a no-op (the client useQuery would still hit the
-  // network on mount). Set staleTime to mirror the client hook's
-  // 30 s so the query is "fresh" at dehydration time and survives
-  // the round-trip to the client cache.
+  // server's default staleTime of 0. Match the client hook's 30 s so
+  // the prefetched data survives the round-trip to the client cache.
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: { staleTime: 30_000 },
     },
   });
-  // Best-effort prefetch — if the backend is down or slow the client
-  // will refetch on mount. We never block the page render on this.
+
+  // Best-effort prefetch of the unfiltered first page for LCP.
   let dehydratedState: ReturnType<typeof dehydrate> | null = null;
   try {
     await queryClient.prefetchInfiniteQuery({
       queryKey: [
         ...MARKETPLACE_PRODUCTS_QUERY_KEY,
-        country ?? "all",
-        q ?? "",
-        category ?? "all",
-        sort ?? "newest",
+        "all",
+        "",
+        "all",
+        "newest",
       ],
       queryFn: () =>
         fetchMarketplaceProducts({
           cursor: null,
           limit: 20,
-          country,
-          q,
-          category,
-          sort,
+          country: null,
+          q: null,
+          category: null,
+          sort: null,
         }),
       initialPageParam: null as string | null,
     });
     dehydratedState = dehydrate(queryClient);
   } catch {
-    // Silent fallback — let the client fetch fresh. The `/marketplace`
-    // backend has its own Cache-Control so this rarely costs more
-    // than a CDN hit.
+    // Silent fallback — client will fetch on mount.
   }
 
   return (
