@@ -15,6 +15,12 @@ class MarketplaceProductItem(BaseModel):
     seller_shop_name: str
     seller_country: str | None = None
     created_at: datetime
+    # Real social proof sourced from the on-chain reputation mirror via a
+    # read-only LEFT JOIN — no on-chain state is written from the route
+    # handler, so V2 invariant #14 is preserved. Defaults to 0 / False
+    # for sellers without a reputation row yet (honest: "no orders yet").
+    seller_orders_completed: int = 0
+    seller_is_top_seller: bool = False
 
 
 class MarketplacePagination(BaseModel):

@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_async_db
 from app.models.enums import Country, ProductCategory
 from app.models.product import Product
+from app.models.reputation_cache import ReputationCache
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
 from app.schemas.marketplace import (
@@ -118,9 +119,18 @@ async def list_marketplace_products(
         order_by_clauses = (Product.created_at.desc(),)
 
     stmt = (
-        select(Product, SellerProfile, User)
+        select(Product, SellerProfile, User, ReputationCache)
         .join(SellerProfile, Product.seller_id == SellerProfile.id)
         .join(User, SellerProfile.user_id == User.id)
+        # Read-only LEFT JOIN to the reputation mirror for social proof.
+        # User.wallet_address is normalised lowercase at write time
+        # (get_current_wallet + cart upserts), matching the lowercased-hex
+        # reputation_cache.seller_address PK. OUTER so a seller without a
+        # reputation row still returns (rep = None → 0 / False defaults).
+        .outerjoin(
+            ReputationCache,
+            ReputationCache.seller_address == User.wallet_address,
+        )
         .where(Product.status == "active")
         # V1 quality bar — public marketplace excludes products with no
         # primary image. The IS NOT NULL guard handles legacy NULL rows ;
@@ -178,8 +188,10 @@ async def list_marketplace_products(
             seller_shop_name=sp.shop_name,
             seller_country=u.country,
             created_at=p.created_at,
+            seller_orders_completed=(rep.orders_completed if rep else 0),
+            seller_is_top_seller=(rep.is_top_seller if rep else False),
         )
-        for p, sp, u in page_rows
+        for p, sp, u, rep in page_rows
     ]
 
     next_cursor: str | None = None

@@ -1,4 +1,4 @@
-import { ArrowUpRight, SealCheck, ShieldCheck, Truck } from "@phosphor-icons/react/dist/ssr";
+import { ArrowUpRight, ShieldCheck, Truck } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -174,13 +174,8 @@ export default async function ProductPage({ params }: PageProps) {
             </div>
           )}
           <div className="flex min-w-0 flex-col">
-            <span className="flex items-center gap-1 truncate text-base font-semibold text-celo-dark dark:text-celo-light">
+            <span className="truncate text-base font-semibold text-celo-dark dark:text-celo-light">
               {product.seller.shop_name}
-              <SealCheck
-                weight="fill"
-                className="h-4 w-4 shrink-0 text-celo-forest dark:text-celo-forest-bright"
-                aria-label="Verified seller"
-              />
             </span>
             <span className="truncate text-sm text-celo-dark/55 dark:text-celo-light/55">
               {sellerFlag ? `${sellerFlag} ` : ""}

@@ -30,7 +30,15 @@ export type BoutiquePublic =
 export type MarketplaceListResponse =
   paths["/api/v1/marketplace/products"]["get"]["responses"]["200"]["content"]["application/json"];
 
-export type MarketplaceProductItem = MarketplaceListResponse["products"][number];
+// Augmented with the P4 social-proof fields the backend now returns
+// from the reputation-mirror join. Optional intersection until
+// `pnpm gen:api` re-runs against the live backend — at which point the
+// generated type carries them natively and this becomes redundant.
+export type MarketplaceProductItem =
+  MarketplaceListResponse["products"][number] & {
+    seller_orders_completed?: number;
+    seller_is_top_seller?: boolean;
+  };
 
 // Lightweight seller summary derived from marketplace data — used by
 // the public landing page (Étape 7.3) to show a few featured sellers

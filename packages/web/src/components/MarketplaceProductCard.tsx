@@ -1,6 +1,6 @@
 "use client";
 
-import { Storefront } from "@phosphor-icons/react";
+import { Crown, Storefront } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
@@ -77,6 +77,12 @@ function MarketplaceProductCardImpl({
   // Only darken the image bottom when the country chip actually sits
   // there — otherwise the scrim needlessly mutes clean product photos.
   const showFlag = Boolean(flag) && !hideSellerCountry;
+
+  // Real social proof from the reputation-mirror join (P4) — both are
+  // seller-level signals, so they read as boutique credibility, never
+  // as this product's own sales. Absent / zero → simply not shown.
+  const isTopSeller = product.seller_is_top_seller === true;
+  const ordersCompleted = product.seller_orders_completed ?? 0;
 
   return (
     <div className="group relative">
@@ -183,8 +189,15 @@ function MarketplaceProductCardImpl({
             <h3 className="mt-1 line-clamp-2 text-sm font-medium leading-snug text-celo-dark/85 dark:text-celo-light/85">
               {product.title}
             </h3>
+            {isTopSeller ? (
+              <span className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full bg-celo-forest-soft px-2 py-0.5 text-sm font-medium text-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-forest-bright">
+                <Crown weight="fill" className="h-3.5 w-3.5" aria-hidden />
+                Top seller
+              </span>
+            ) : null}
             <p className="mt-1 truncate text-sm text-celo-dark/50 dark:text-celo-light/50">
               {product.seller_shop_name}
+              {ordersCompleted > 0 ? ` · ${ordersCompleted} sold` : ""}
             </p>
           </div>
         </Link>
