@@ -44,13 +44,13 @@ export function ProductImageGallery({ images, alt }: Props) {
 
   if (images.length === 0) {
     return (
-      <div className="aspect-square rounded-lg bg-neutral-100 dark:bg-neutral-800" />
+      <div className="aspect-square rounded-3xl bg-celo-sand/40 dark:bg-celo-dark-elevated" />
     );
   }
 
   if (images.length === 1) {
     return (
-      <div className="overflow-hidden rounded-lg bg-neutral-100 dark:bg-neutral-800">
+      <div className="overflow-hidden rounded-3xl bg-celo-sand/40 dark:bg-celo-dark-elevated">
         <Image
           src={images[0]}
           alt={alt}
@@ -70,7 +70,7 @@ export function ProductImageGallery({ images, alt }: Props) {
     <div className="relative">
       <div
         ref={trackRef}
-        className="flex aspect-square snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-lg bg-neutral-100 dark:bg-neutral-800 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        className="flex aspect-square snap-x snap-mandatory overflow-x-auto overflow-y-hidden rounded-3xl bg-celo-sand/40 dark:bg-celo-dark-elevated [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         aria-roledescription="carousel"
         aria-label={`${alt} — ${images.length} photos`}
       >

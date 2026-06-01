@@ -1,8 +1,9 @@
 "use client";
 
+import { ShoppingBagOpen } from "@phosphor-icons/react";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
+import { ButtonV4 } from "@/components/ui/v4/Button";
 import { useCartStore } from "@/lib/cart-store";
 
 interface Props {
@@ -53,20 +54,23 @@ export function ProductAddToCartButton({
   if (outOfStock) {
     label = "Out of stock";
   } else if (inCartQty > 0) {
-    label = `Add another (in cart: ${inCartQty})`;
+    label = `Add another · ${inCartQty} in cart`;
   } else {
     label = "Add to cart";
   }
 
   return (
-    <Button
+    <ButtonV4
       type="button"
       onClick={handleClick}
       disabled={outOfStock}
       size="lg"
-      className="h-12 w-full text-base font-medium"
+      className="h-12 flex-1"
     >
+      {!outOfStock ? (
+        <ShoppingBagOpen weight="bold" className="h-5 w-5" aria-hidden />
+      ) : null}
       {label}
-    </Button>
+    </ButtonV4>
   );
 }

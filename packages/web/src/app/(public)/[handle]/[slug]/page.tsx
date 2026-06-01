@@ -1,12 +1,21 @@
+import { ArrowUpRight, SealCheck, ShieldCheck, Truck } from "@phosphor-icons/react/dist/ssr";
 import type { Metadata } from "next";
 import Image from "next/image";
+import Link from "next/link";
 import { notFound, permanentRedirect } from "next/navigation";
 
 import { ProductAddToCartButton } from "@/components/ProductAddToCartButton";
 import { ProductImageGallery } from "@/components/ProductImageGallery";
 import { ShareButtons } from "@/components/ShareButtons";
 import { fetchPublicProduct } from "@/lib/api";
+import { countryName } from "@/lib/country";
 import { displayUsdtFromDecimalString } from "@/lib/usdt";
+
+const COUNTRY_FLAGS: Record<string, string> = {
+  NGA: "🇳🇬",
+  GHA: "🇬🇭",
+  KEN: "🇰🇪",
+};
 
 interface PageProps {
   params: { handle: string; slug: string };
@@ -96,6 +105,11 @@ export default async function ProductPage({ params }: PageProps) {
   const url = `${BASE_URL}/${product.seller.shop_handle}/${product.slug}`;
   const outOfStock = product.stock <= 0 || product.status !== "active";
   const priceNumber = Number(product.price_usdt).toFixed(2);
+  const lowStock = !outOfStock && product.stock <= 3;
+  const sellerCountry = countryName(product.seller.country);
+  const sellerFlag = product.seller.country
+    ? COUNTRY_FLAGS[product.seller.country]
+    : undefined;
 
   // Schema.org Product. priceCurrency uses "USD" — USDT pegs 1:1 and is
   // not in ISO 4217. Crawlers expect a standard code.
@@ -135,69 +149,153 @@ export default async function ProductPage({ params }: PageProps) {
           __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c"),
         }}
       />
-      <main id="main" className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 py-6 sm:px-6">
-        <header className="flex items-center gap-3">
+      <main
+        id="main"
+        className="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-4 pb-32 pt-5 sm:px-6"
+      >
+        {/* Seller header — tappable card that leads to the boutique.
+            Establishes brand trust before the product itself. */}
+        <Link
+          href={`/${product.seller.shop_handle}`}
+          className="group flex items-center gap-3 rounded-2xl border border-celo-dark/[6%] bg-celo-light p-2.5 pr-3 shadow-celo-sm transition-colors hover:bg-celo-sand/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/[8%] dark:bg-celo-dark-elevated dark:hover:bg-celo-dark-surface"
+        >
           {product.seller.logo_url ? (
             <Image
               src={product.seller.logo_url}
               alt=""
-              width={40}
-              height={40}
-              sizes="40px"
-              className="h-10 w-10 rounded-full object-cover"
+              width={44}
+              height={44}
+              sizes="44px"
+              className="h-11 w-11 rounded-full object-cover ring-1 ring-celo-dark/[8%] dark:ring-celo-light/10"
             />
           ) : (
-            <div className="h-10 w-10 rounded-full bg-neutral-200" />
+            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-celo-sand text-base font-semibold text-celo-forest dark:bg-celo-dark-surface dark:text-celo-forest-bright">
+              {product.seller.shop_name.charAt(0).toUpperCase()}
+            </div>
           )}
-          <div className="flex flex-col">
-            <span className="text-sm font-semibold">
+          <div className="flex min-w-0 flex-col">
+            <span className="flex items-center gap-1 truncate text-base font-semibold text-celo-dark dark:text-celo-light">
               {product.seller.shop_name}
+              <SealCheck
+                weight="fill"
+                className="h-4 w-4 shrink-0 text-celo-forest dark:text-celo-forest-bright"
+                aria-label="Verified seller"
+              />
             </span>
-            <span className="text-sm text-neutral-500">
-              @{product.seller.shop_handle}
+            <span className="truncate text-sm text-celo-dark/55 dark:text-celo-light/55">
+              {sellerFlag ? `${sellerFlag} ` : ""}
+              {sellerCountry ?? `@${product.seller.shop_handle}`}
             </span>
           </div>
-        </header>
+          <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-celo-forest transition-transform group-hover:translate-x-0.5 dark:text-celo-forest-bright">
+            Boutique
+            <ArrowUpRight weight="bold" className="h-4 w-4" aria-hidden />
+          </span>
+        </Link>
 
-        <ProductImageGallery
-          images={product.image_urls}
-          alt={product.title}
-        />
+        <ProductImageGallery images={product.image_urls} alt={product.title} />
 
-        <div className="flex flex-col gap-2">
-          <h1 className="text-2xl font-semibold">{product.title}</h1>
-          <p className="text-2xl font-semibold">
-            {displayUsdtFromDecimalString(product.price_usdt)}
-          </p>
+        {/* Title + price block — confident display typography. */}
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1">
+            <h1 className="font-display text-display-3 text-celo-dark dark:text-celo-light">
+              {product.title}
+            </h1>
+            <div className="flex items-baseline gap-1.5">
+              <span className="font-display text-display-2 tabular-nums text-celo-dark dark:text-celo-light">
+                {priceNumber}
+              </span>
+              <span className="text-base font-medium text-celo-dark/45 dark:text-celo-light/45">
+                USDT
+              </span>
+            </div>
+          </div>
+
+          {/* Stock status pill */}
           {outOfStock ? (
-            <p className="text-sm text-red-600">Out of stock.</p>
+            <span className="inline-flex w-fit items-center rounded-full bg-celo-red-soft px-3 py-1 text-sm font-medium text-celo-red dark:bg-celo-red-bright-soft dark:text-celo-red-bright">
+              Out of stock
+            </span>
+          ) : lowStock ? (
+            <span className="inline-flex w-fit items-center rounded-full bg-celo-yellow-soft px-3 py-1 text-sm font-medium text-celo-dark">
+              Only {product.stock} left
+            </span>
           ) : (
-            <p className="text-sm text-neutral-500">
-              {product.stock} left in stock.
-            </p>
+            <span className="inline-flex w-fit items-center rounded-full bg-celo-forest-soft px-3 py-1 text-sm font-medium text-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-forest-bright">
+              In stock
+            </span>
           )}
         </div>
 
         {product.description ? (
-          <p className="whitespace-pre-line text-base text-neutral-700">
+          <p className="whitespace-pre-line text-base leading-relaxed text-celo-dark/75 dark:text-celo-light/75">
             {product.description}
           </p>
         ) : null}
 
-        <ProductAddToCartButton
-          productId={product.id}
-          productSlug={product.slug}
-          sellerHandle={product.seller.shop_handle}
-          sellerShopName={product.seller.shop_name}
-          title={product.title}
-          priceUsdt={String(product.price_usdt)}
-          imageUrl={product.image_urls[0] ?? null}
-          stock={product.stock}
-          outOfStock={outOfStock}
-        />
+        {/* Trust strip — buyer-protection reassurance, the core Etalo
+            value prop, surfaced at the point of decision. */}
+        <div className="flex flex-col gap-3 rounded-2xl border border-celo-dark/[6%] bg-celo-sand/25 p-4 dark:border-celo-light/[8%] dark:bg-celo-dark-elevated">
+          <div className="flex items-start gap-3">
+            <ShieldCheck
+              weight="duotone"
+              className="mt-0.5 h-5 w-5 shrink-0 text-celo-forest dark:text-celo-forest-bright"
+              aria-hidden
+            />
+            <p className="text-sm text-celo-dark/75 dark:text-celo-light/75">
+              <span className="font-medium text-celo-dark dark:text-celo-light">
+                Buyer protection.
+              </span>{" "}
+              Funds are held in escrow and only released once you confirm
+              delivery.
+            </p>
+          </div>
+          <div className="flex items-start gap-3">
+            <Truck
+              weight="duotone"
+              className="mt-0.5 h-5 w-5 shrink-0 text-celo-forest dark:text-celo-forest-bright"
+              aria-hidden
+            />
+            <p className="text-sm text-celo-dark/75 dark:text-celo-light/75">
+              <span className="font-medium text-celo-dark dark:text-celo-light">
+                Ships from {sellerCountry ?? "within your market"}.
+              </span>{" "}
+              Coordinated directly with {product.seller.shop_name}.
+            </p>
+          </div>
+        </div>
 
         <ShareButtons url={url} title={product.title} />
       </main>
+
+      {/* Sticky purchase bar — mobile-commerce standard. Price recap +
+          primary CTA, safe-area aware so it clears the gesture nav. */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-celo-dark/[8%] bg-celo-light/90 px-4 pt-3 backdrop-blur-lg [padding-bottom:calc(0.75rem+env(safe-area-inset-bottom))] dark:border-celo-light/[8%] dark:bg-celo-dark-bg/90">
+        <div className="mx-auto flex max-w-2xl items-center gap-4">
+          <div className="flex shrink-0 flex-col leading-tight">
+            <span className="text-sm text-celo-dark/50 dark:text-celo-light/50">
+              Price
+            </span>
+            <span className="font-display text-display-4 tabular-nums text-celo-dark dark:text-celo-light">
+              {priceNumber}
+              <span className="ml-1 text-sm font-medium text-celo-dark/45 dark:text-celo-light/45">
+                USDT
+              </span>
+            </span>
+          </div>
+          <ProductAddToCartButton
+            productId={product.id}
+            productSlug={product.slug}
+            sellerHandle={product.seller.shop_handle}
+            sellerShopName={product.seller.shop_name}
+            title={product.title}
+            priceUsdt={String(product.price_usdt)}
+            imageUrl={product.image_urls[0] ?? null}
+            stock={product.stock}
+            outOfStock={outOfStock}
+          />
+        </div>
+      </div>
     </>
   );
 }
