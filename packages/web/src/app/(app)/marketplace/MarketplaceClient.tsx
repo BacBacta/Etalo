@@ -41,6 +41,7 @@ import {
   type CountryFilterValue,
 } from "@/components/marketplace/CountryFilterChips";
 import { FeaturedHero } from "@/components/marketplace/FeaturedHero";
+import { MarketplaceRail } from "@/components/marketplace/MarketplaceRail";
 import { MarketplaceSearchInput } from "@/components/marketplace/MarketplaceSearchInput";
 import {
   SortDropdown,
@@ -50,6 +51,7 @@ import { Button } from "@/components/ui/button";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import { useBuyerCountry } from "@/hooks/useBuyerCountry";
 import { useMarketplaceProducts } from "@/hooks/useMarketplaceProducts";
+import { useMarketplaceSections } from "@/hooks/useMarketplaceSections";
 import { isValidCountryCode } from "@/components/CountrySelector";
 import { isValidCategoryCode } from "@/lib/categories";
 import { countryName } from "@/lib/country";
@@ -238,18 +240,29 @@ function MarketplaceClientInner() {
     [query.data],
   );
 
-  // Editorial featured hero — only on the unfiltered discovery view
-  // (default sort, no category, no search). A country filter is fine:
-  // a featured pick from that market still reads as curated. Gated on
-  // >4 results so promoting the lead never guts a thin grid. The hero
-  // product is then excluded from the grid to avoid a duplicate card.
-  const showFeatured =
+  // The "discovery" view = no search, no category, default sort. Both
+  // the editorial hero and the curated rails only surface here ; search
+  // and category results stay a clean utilitarian grid.
+  const isDiscovery =
     sortValue === "newest" &&
     categoryFilter === "all" &&
-    urlQ.trim().length === 0 &&
-    products.length > 4;
+    urlQ.trim().length === 0;
+
+  // Editorial featured hero — gated on >4 results so promoting the lead
+  // never guts a thin grid. The hero product is excluded from the grid
+  // to avoid a duplicate card. A country filter is fine: a featured pick
+  // from that market still reads as curated.
+  const showFeatured = isDiscovery && products.length > 4;
   const featuredProduct = showFeatured ? products[0] : null;
   const gridProducts = showFeatured ? products.slice(1) : products;
+
+  // Curated discovery rails (New this week / Top-rated boutiques). Only
+  // fetched on the discovery view ; scoped to the active country filter.
+  const sectionsQuery = useMarketplaceSections({
+    country: countryFilter,
+    enabled: isDiscovery,
+  });
+  const sections = isDiscovery ? sectionsQuery.data?.sections ?? [] : [];
 
   // Sub-block 2.3b — pull-to-refresh state. `pullDistance` is the
   // visible translateY in px ; `isReleased` toggles the CSS transition
@@ -545,6 +558,25 @@ function MarketplaceClientInner() {
             <div className="mt-5">
               <FeaturedHero product={featuredProduct} />
             </div>
+          ) : null}
+
+          {/* Curated rails — horizontal carousels of New this week +
+              Top-rated boutiques. Empty rails are omitted server-side. */}
+          {sections.map((section) => (
+            <MarketplaceRail
+              key={section.key}
+              title={section.title}
+              products={section.products}
+              hideSellerCountry={countryFilter !== "all"}
+            />
+          ))}
+
+          {/* "Browse all" divider — only when rails precede the grid, so
+              the full listing reads as a distinct zone below the curation. */}
+          {sections.length > 0 ? (
+            <h2 className="mt-7 font-display text-display-4 text-celo-dark dark:text-celo-light">
+              Browse all
+            </h2>
           ) : null}
 
           {/* Results meta strip — active filter chips on the left,

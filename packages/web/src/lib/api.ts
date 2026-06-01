@@ -203,6 +203,35 @@ export async function fetchMarketplaceProducts(
   return (await res.json()) as MarketplaceListResponse;
 }
 
+// Curated discovery rails (editorial merchandising). Typed manually
+// until `pnpm gen:api` re-runs against the live backend — the endpoint
+// is new so api.gen.ts doesn't carry it yet.
+export interface MarketplaceSection {
+  key: string;
+  title: string;
+  products: MarketplaceProductItem[];
+}
+
+export interface MarketplaceSectionsResponse {
+  sections: MarketplaceSection[];
+}
+
+export async function fetchMarketplaceSections(
+  country?: string | null,
+): Promise<MarketplaceSectionsResponse> {
+  const params = new URLSearchParams();
+  if (country && country !== "all") params.set("country", country);
+  const qs = params.toString();
+  const res = await fetchApi(
+    `/marketplace/sections${qs ? `?${qs}` : ""}`,
+    { next: { revalidate: 60 } },
+  );
+  if (!res.ok) {
+    throw new Error(`Marketplace sections fetch failed: ${res.status}`);
+  }
+  return (await res.json()) as MarketplaceSectionsResponse;
+}
+
 export async function fetchFeaturedSellers(
   limit: number = 6,
 ): Promise<FeaturedSeller[]> {

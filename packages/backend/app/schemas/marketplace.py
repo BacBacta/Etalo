@@ -33,3 +33,17 @@ class MarketplacePagination(BaseModel):
 class MarketplaceListResponse(BaseModel):
     products: list[MarketplaceProductItem]
     pagination: MarketplacePagination
+
+
+class MarketplaceSection(BaseModel):
+    # Stable machine key the frontend keys rails + analytics on.
+    key: str
+    # Human title rendered as the rail heading.
+    title: str
+    products: list[MarketplaceProductItem]
+
+
+class MarketplaceSectionsResponse(BaseModel):
+    # Curated editorial rails for the discovery view. Empty sections are
+    # omitted server-side so a thin-data launch never renders bare rails.
+    sections: list[MarketplaceSection]
