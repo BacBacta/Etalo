@@ -40,6 +40,7 @@ import {
   CountryFilterChips,
   type CountryFilterValue,
 } from "@/components/marketplace/CountryFilterChips";
+import { FeaturedHero } from "@/components/marketplace/FeaturedHero";
 import { MarketplaceSearchInput } from "@/components/marketplace/MarketplaceSearchInput";
 import {
   SortDropdown,
@@ -236,6 +237,19 @@ function MarketplaceClientInner() {
     () => query.data?.pages.flatMap((page) => page.products) ?? [],
     [query.data],
   );
+
+  // Editorial featured hero — only on the unfiltered discovery view
+  // (default sort, no category, no search). A country filter is fine:
+  // a featured pick from that market still reads as curated. Gated on
+  // >4 results so promoting the lead never guts a thin grid. The hero
+  // product is then excluded from the grid to avoid a duplicate card.
+  const showFeatured =
+    sortValue === "newest" &&
+    categoryFilter === "all" &&
+    urlQ.trim().length === 0 &&
+    products.length > 4;
+  const featuredProduct = showFeatured ? products[0] : null;
+  const gridProducts = showFeatured ? products.slice(1) : products;
 
   // Sub-block 2.3b — pull-to-refresh state. `pullDistance` is the
   // visible translateY in px ; `isReleased` toggles the CSS transition
@@ -526,6 +540,13 @@ function MarketplaceClientInner() {
             />
           </div>
 
+          {/* Editorial focal point on the unfiltered discovery view */}
+          {featuredProduct ? (
+            <div className="mt-5">
+              <FeaturedHero product={featuredProduct} />
+            </div>
+          ) : null}
+
           {/* Results meta strip — active filter chips on the left,
               count + sort dropdown on the right. Always rendered so
               the layout stays stable between filter states. */}
@@ -555,7 +576,7 @@ function MarketplaceClientInner() {
 
           <div className="mt-5">
             <MarketplaceGrid
-              products={products}
+              products={gridProducts}
               hideSellerCountry={countryFilter !== "all"}
             />
           </div>
