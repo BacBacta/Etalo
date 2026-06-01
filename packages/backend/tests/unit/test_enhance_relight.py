@@ -49,9 +49,10 @@ def test_prep_subject_returns_grey_rgb_jpeg_plus_alpha_mask():
     mask = Image.open(BytesIO(mask_bytes))
     assert subj.mode == "RGB"  # IC-Light keys off a grey field, not alpha
     assert mask.mode in ("L", "P")  # single-channel silhouette mask
-    # cropped to the product bbox (~300px ellipse, inclusive coords → 301)
+    # SQUARE with margin so IC-Light returns a square scene (no crop).
     assert subj.size == mask.size
-    assert 298 <= subj.size[0] <= 303 and 298 <= subj.size[1] <= 303
+    assert subj.size[0] == subj.size[1], "subject must be square"
+    assert subj.size[0] > 301, "should add margin beyond the ~301px bbox"
     # background pixels are neutral grey (~127), not black/transparent
     corner = subj.getpixel((5, 5))
     assert all(abs(c - 127) < 5 for c in corner)
@@ -103,7 +104,7 @@ async def test_variants_use_relight_when_enabled(monkeypatch):
         ("Neutral cool", {"backdrop": (245, 247, 250)}),
     ]
     variants = await ag._build_enhance_variants(
-        _transparent_product_png(), "fashion", presets
+        _transparent_product_png(), "beauty", presets
     )
 
     assert calls["relight"] == 1, "exactly one variant relit (budget=1)"
@@ -145,9 +146,50 @@ async def test_relight_failure_falls_back_to_compositor(monkeypatch):
         ("Neutral cool", {"backdrop": (245, 247, 250)}),
     ]
     variants = await ag._build_enhance_variants(
-        _transparent_product_png(), "fashion", presets
+        _transparent_product_png(), "beauty", presets
     )
 
     assert calls["relight"] == 1, "relight attempted"
     assert calls["composite"] == 3, "all three variants fell back to compositor"
     assert len(variants) == 3
+
+
+@pytest.mark.asyncio
+async def test_flat_category_skips_relight_entirely(monkeypatch):
+    """A flat-goods category (fashion) must NOT trigger relight even when
+    it's enabled — the studio compositor is better for laid-flat products
+    (probe evidence). All three variants come from the compositor."""
+    calls = {"relight": 0, "composite": 0}
+
+    async def _fake_relight(transparent_bytes, category, initial_latent="Top"):
+        calls["relight"] += 1
+        return b"RELIT"
+
+    def _fake_composite(transparent_bytes, preset):
+        calls["composite"] += 1
+        return b"COMP"
+
+    async def _fake_upload(image_bytes, filename):
+        return "Qmx"
+
+    monkeypatch.setattr(ag.settings, "enhance_relight_enabled", True)
+    monkeypatch.setattr(ag.settings, "fal_key", "test-key")
+    monkeypatch.setattr(ag.settings, "enhance_relight_variants", 1)
+    monkeypatch.setattr(ag, "_relight_via_fal", _fake_relight)
+    monkeypatch.setattr(ag, "_composite_square", _fake_composite)
+    monkeypatch.setattr(ag.ipfs_service, "upload_image", _fake_upload)
+    monkeypatch.setattr(ag.ipfs_service, "get_url", lambda h: f"https://ipfs/{h}")
+
+    presets = [
+        ("Recommended", {"backdrop": (247, 245, 240)}),
+        ("White bright", {"backdrop": (252, 252, 252)}),
+        ("Neutral cool", {"backdrop": (245, 247, 250)}),
+    ]
+    variants = await ag._build_enhance_variants(
+        _transparent_product_png(), "fashion", presets
+    )
+
+    assert calls["relight"] == 0, "flat category must not call relight"
+    assert calls["composite"] == 3
+    assert len(variants) == 3
+

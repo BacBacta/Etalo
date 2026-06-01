@@ -766,6 +766,20 @@ _RELIGHT_NEGATIVE = (
 # Light directions cycled across variants so the 3 choices differ.
 _RELIGHT_LIGHT_DIRECTIONS = ["Top", "Left", "Right"]
 
+# Categories where generative relight HELPS : 3D-leaning products
+# (bottles, jars, appliances, bags) gain real volume + lighting. Flat
+# goods photographed laid-out (fashion garments, food on a plate) have no
+# 3D form to relight and IC-Light degrades their framing — the classical
+# studio compositor wins there. Probe evidence (Ndop textile) drove this.
+_RELIGHT_CATEGORIES = {"beauty", "home", "other"}
+
+
+def _relight_suitable(category: str | None) -> bool:
+    """Whether generative relight is appropriate for this category.
+    Unknown / None → treated as 'other' (allowed). Flat goods (fashion,
+    food) are excluded → they keep the classical studio compositor."""
+    return (category or "other") in _RELIGHT_CATEGORIES
+
 
 def _relight_prompt(category: str | None) -> str:
     """Category-aware studio prompt for IC-Light. Falls back to 'other'."""
@@ -774,12 +788,20 @@ def _relight_prompt(category: str | None) -> str:
     return _RELIGHT_PROMPTS.get(category, _RELIGHT_PROMPTS["other"])
 
 
-def _prep_subject_for_relight(transparent_bytes: bytes) -> tuple[bytes, bytes]:
+def _prep_subject_for_relight(
+    transparent_bytes: bytes, pad_ratio: float = 0.08
+) -> tuple[bytes, bytes]:
     """From a birefnet transparent matte, build the two inputs IC-Light
     wants : (1) the subject composited on neutral mid-grey (RGB JPEG —
     IC-Light keys lighting off a grey field, not transparency), and (2)
     the alpha as an L-mode mask PNG so the model conditions on the exact
-    product silhouette. Both are cropped to the product bbox first.
+    product silhouette.
+
+    Both are produced SQUARE (product cropped to bbox, then centred on a
+    square grey canvas with `pad_ratio` breathing room). A square subject
+    makes IC-Light return a square scene, so the whole product stays
+    visible — the earlier non-square output forced a destructive
+    cover-crop that ate the product's edges.
     """
     from PIL import Image
 
@@ -789,28 +811,60 @@ def _prep_subject_for_relight(transparent_bytes: bytes) -> tuple[bytes, bytes]:
         src = src.crop(bbox)
 
     alpha = src.split()[3]
-    grey = Image.new("RGB", src.size, (127, 127, 127))
-    grey.paste(src, (0, 0), mask=alpha)
+    w, h = src.size
+    side = max(1, int(max(w, h) * (1 + 2 * pad_ratio)))
+    ox, oy = (side - w) // 2, (side - h) // 2
+
+    grey = Image.new("RGB", (side, side), (127, 127, 127))
+    grey.paste(src, (ox, oy), mask=alpha)
+
+    mask_canvas = Image.new("L", (side, side), 0)
+    mask_canvas.paste(alpha, (ox, oy))
 
     subj_buf = BytesIO()
     grey.save(subj_buf, format="JPEG", quality=92)
 
     mask_buf = BytesIO()
-    alpha.save(mask_buf, format="PNG")
+    mask_canvas.save(mask_buf, format="PNG")
 
     return subj_buf.getvalue(), mask_buf.getvalue()
 
 
+def _edge_color(im) -> tuple[int, int, int]:
+    """Average colour of an image's four edges — used to pad letterbox
+    bars with the scene's own background so they blend invisibly."""
+    px = im.load()
+    w, h = im.size
+    samples = []
+    for x in range(0, w, max(1, w // 20)):
+        samples.append(px[x, 0])
+        samples.append(px[x, h - 1])
+    for y in range(0, h, max(1, h // 20)):
+        samples.append(px[0, y])
+        samples.append(px[w - 1, y])
+    n = len(samples)
+    return tuple(sum(c[i] for c in samples) // n for i in range(3))  # type: ignore[return-value]
+
+
 def _normalize_to_square(image_bytes: bytes, out_dim: int = ENHANCE_OUTPUT_DIM) -> bytes:
-    """Cover-crop + resize an arbitrary IC-Light output to a centred
-    out_dim×out_dim PNG so relit photos match the compositor's framing
-    contract (uniform square hero across the grid + storefront)."""
+    """Fit an IC-Light output into a centred out_dim×out_dim PNG WITHOUT
+    cropping the product (contain, not cover). With a square subject the
+    output is already square → a plain resize ; the contain+pad path is a
+    safety net for any non-square output, padding the bars with the
+    scene's own edge colour so they blend in."""
     from PIL import Image, ImageOps
 
     im = Image.open(BytesIO(image_bytes)).convert("RGB")
-    im = ImageOps.fit(im, (out_dim, out_dim), method=Image.LANCZOS, centering=(0.5, 0.45))
+    fitted = ImageOps.contain(im, (out_dim, out_dim), method=Image.LANCZOS)
+
+    if fitted.size != (out_dim, out_dim):
+        canvas = Image.new("RGB", (out_dim, out_dim), _edge_color(fitted))
+        fw, fh = fitted.size
+        canvas.paste(fitted, ((out_dim - fw) // 2, (out_dim - fh) // 2))
+        fitted = canvas
+
     out = BytesIO()
-    im.save(out, format="PNG", optimize=True)
+    fitted.save(out, format="PNG", optimize=True)
     return out.getvalue()
 
 
@@ -953,9 +1007,14 @@ async def enhance_product_photo(
                 preset.get("backdrop"), preset.get("margin"),
                 preset.get("sharpen_percent"))
 
-    # Tier-1 relight gate (single hero photo) : try IC-Light, fall back to
-    # the verified studio compositor on any failure.
-    if settings.enhance_relight_enabled and settings.fal_key:
+    # Tier-1 relight gate (single hero photo) : only for suitable (3D-
+    # leaning) categories ; try IC-Light, fall back to the verified studio
+    # compositor on any failure.
+    if (
+        settings.enhance_relight_enabled
+        and settings.fal_key
+        and _relight_suitable(category)
+    ):
         try:
             relit = await _relight_via_fal(
                 transparent_bytes, category, initial_latent="Top"
@@ -1126,7 +1185,11 @@ async def _build_enhance_variants(
     always gets a full set of usable choices. Extracted module-level so
     the control flow is unit-testable without the upstream birefnet call.
     """
-    relight_on = bool(settings.enhance_relight_enabled and settings.fal_key)
+    relight_on = bool(
+        settings.enhance_relight_enabled
+        and settings.fal_key
+        and _relight_suitable(category)
+    )
     relight_budget = settings.enhance_relight_variants if relight_on else 0
 
     async def _build_variant(index: int, label: str, preset: dict) -> EnhanceVariant:
