@@ -709,6 +709,163 @@ def _paste_ground_shadow(canvas, prod_w, prod_h, paste_x, paste_y, canvas_dim):
     canvas.paste(shadow_blurred, (0, 0), shadow_blurred)
 
 
+# =====================================================================
+# ADR-049 Tier-1 — generative subject relighting (fal IC-Light v2).
+#
+# Pipeline when settings.enhance_relight_enabled :
+#   birefnet matte (already paid) → composite the cut-out on neutral grey
+#   + extract its alpha mask → IC-Light v2 relights ONLY the subject into
+#   a coherent studio scene (real soft light + cast shadow) driven by a
+#   category-aware prompt + a light direction → normalise to 2048².
+#
+# IC-Light is a *relighting* model : it preserves the subject's structure
+# (more faithful to brand text / logos than a full restage) and changes
+# lighting + background. ANY failure raises → caller falls back to the
+# verified classical studio compositor, so enabling is always safe.
+# =====================================================================
+
+# Per-category studio-photography prompts. Kept product-neutral (no
+# invented props) so IC-Light stages a clean professional scene without
+# hallucinating objects onto the product.
+_RELIGHT_PROMPTS: dict[str, str] = {
+    "fashion": (
+        "professional fashion product photography, soft diffused studio "
+        "lighting, clean seamless light-grey backdrop, gentle natural "
+        "shadow, high-end e-commerce catalogue, photorealistic"
+    ),
+    "beauty": (
+        "premium beauty product photography, soft glowing studio light, "
+        "clean minimal backdrop, subtle reflection, luxury cosmetics "
+        "advertisement, crisp and photorealistic"
+    ),
+    "food": (
+        "appetising food product photography, warm soft natural light, "
+        "clean neutral backdrop, gentle shadow, fresh and vibrant, "
+        "professional menu photography, photorealistic"
+    ),
+    "home": (
+        "professional homeware product photography, even studio lighting, "
+        "clean light backdrop, soft realistic shadow, modern catalogue "
+        "look, sharp and photorealistic"
+    ),
+    "other": (
+        "professional product photography, soft studio lighting, clean "
+        "seamless backdrop, natural soft shadow, high-end e-commerce, "
+        "photorealistic"
+    ),
+}
+
+# Negative prompt — steer away from the classic generative failure modes
+# on product shots.
+_RELIGHT_NEGATIVE = (
+    "blurry, distorted, deformed product, extra objects, text artifacts, "
+    "watermark, oversaturated, harsh shadows, cluttered background, "
+    "low quality, jpeg artifacts"
+)
+
+# Light directions cycled across variants so the 3 choices differ.
+_RELIGHT_LIGHT_DIRECTIONS = ["Top", "Left", "Right"]
+
+
+def _relight_prompt(category: str | None) -> str:
+    """Category-aware studio prompt for IC-Light. Falls back to 'other'."""
+    if category is None:
+        return _RELIGHT_PROMPTS["other"]
+    return _RELIGHT_PROMPTS.get(category, _RELIGHT_PROMPTS["other"])
+
+
+def _prep_subject_for_relight(transparent_bytes: bytes) -> tuple[bytes, bytes]:
+    """From a birefnet transparent matte, build the two inputs IC-Light
+    wants : (1) the subject composited on neutral mid-grey (RGB JPEG —
+    IC-Light keys lighting off a grey field, not transparency), and (2)
+    the alpha as an L-mode mask PNG so the model conditions on the exact
+    product silhouette. Both are cropped to the product bbox first.
+    """
+    from PIL import Image
+
+    src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
+    bbox = src.getbbox()
+    if bbox is not None:
+        src = src.crop(bbox)
+
+    alpha = src.split()[3]
+    grey = Image.new("RGB", src.size, (127, 127, 127))
+    grey.paste(src, (0, 0), mask=alpha)
+
+    subj_buf = BytesIO()
+    grey.save(subj_buf, format="JPEG", quality=92)
+
+    mask_buf = BytesIO()
+    alpha.save(mask_buf, format="PNG")
+
+    return subj_buf.getvalue(), mask_buf.getvalue()
+
+
+def _normalize_to_square(image_bytes: bytes, out_dim: int = ENHANCE_OUTPUT_DIM) -> bytes:
+    """Cover-crop + resize an arbitrary IC-Light output to a centred
+    out_dim×out_dim PNG so relit photos match the compositor's framing
+    contract (uniform square hero across the grid + storefront)."""
+    from PIL import Image, ImageOps
+
+    im = Image.open(BytesIO(image_bytes)).convert("RGB")
+    im = ImageOps.fit(im, (out_dim, out_dim), method=Image.LANCZOS, centering=(0.5, 0.45))
+    out = BytesIO()
+    im.save(out, format="PNG", optimize=True)
+    return out.getvalue()
+
+
+async def _relight_via_fal(
+    transparent_bytes: bytes,
+    category: str | None,
+    initial_latent: str = "Top",
+) -> bytes:
+    """Relight an isolated product into a studio scene via fal IC-Light v2.
+    Raises on any failure so the caller can fall back to the compositor.
+
+    Input/response shape per the fal IC-Light v2 API contract :
+    in  = {image_url, mask_image_url, prompt, negative_prompt,
+           initial_latent, output_format, guidance_scale}
+    out = {images: [{url, ...}], ...}
+    """
+    import fal_client  # local import — avoid module-load cost
+
+    subject_bytes, mask_bytes = await asyncio.to_thread(
+        _prep_subject_for_relight, transparent_bytes
+    )
+    subject_url, mask_url = await asyncio.gather(
+        fal_client.upload_async(subject_bytes, content_type="image/jpeg"),
+        fal_client.upload_async(mask_bytes, content_type="image/png"),
+    )
+
+    t = time.monotonic()
+    handler = await fal_client.subscribe_async(
+        settings.enhance_relight_model,
+        arguments={
+            "image_url": subject_url,
+            "mask_image_url": mask_url,
+            "prompt": _relight_prompt(category),
+            "negative_prompt": _RELIGHT_NEGATIVE,
+            "initial_latent": initial_latent,
+            "output_format": "png",
+            "guidance_scale": 5,
+        },
+    )
+    images = handler.get("images") if isinstance(handler, dict) else None
+    if not images or not images[0].get("url"):
+        raise RuntimeError(
+            f"IC-Light returned no image (keys={list(handler.keys()) if isinstance(handler, dict) else type(handler)})"
+        )
+    relit_url = images[0]["url"]
+
+    async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
+        resp = await client.get(relit_url)
+        resp.raise_for_status()
+        relit_bytes = resp.content
+    logger.info("step.relight: %.2fs (dir=%s)", time.monotonic() - t, initial_latent)
+
+    return await asyncio.to_thread(_normalize_to_square, relit_bytes)
+
+
 async def enhance_product_photo(
     image_url: str,
     category: str | None = None,
@@ -795,6 +952,20 @@ async def enhance_product_photo(
     logger.info("step.preset: backdrop=%s margin=%.2f sharpen=%d",
                 preset.get("backdrop"), preset.get("margin"),
                 preset.get("sharpen_percent"))
+
+    # Tier-1 relight gate (single hero photo) : try IC-Light, fall back to
+    # the verified studio compositor on any failure.
+    if settings.enhance_relight_enabled and settings.fal_key:
+        try:
+            relit = await _relight_via_fal(
+                transparent_bytes, category, initial_latent="Top"
+            )
+            logger.info("step.relight: hero photo relit via IC-Light")
+            return relit
+        except Exception as exc:  # noqa: BLE001 — any failure → compositor
+            logger.warning(
+                "relight failed (%s) — falling back to studio compositor", exc
+            )
 
     t = time.monotonic()
     composite = await asyncio.to_thread(
@@ -931,16 +1102,61 @@ async def enhance_product_photo_variants(
     ]
 
     t = time.monotonic()
+    variants = await _build_enhance_variants(transparent_bytes, category, presets)
+    logger.info(
+        "step.variants: %d variants + pins in %.2fs",
+        len(variants),
+        time.monotonic() - t,
+    )
 
-    async def _build_variant(label: str, preset: dict) -> EnhanceVariant:
-        composite = await asyncio.to_thread(
-            _composite_square, transparent_bytes, preset
-        )
+    return list(variants), 1
+
+
+async def _build_enhance_variants(
+    transparent_bytes: bytes,
+    category: str | None,
+    presets: list[tuple[str, dict]],
+) -> list[EnhanceVariant]:
+    """Build + pin one EnhanceVariant per (label, preset).
+
+    Tier-1 relight gate : when enabled, the first N variants are relit via
+    IC-Light (1 fal call each, bounded by `enhance_relight_variants`); the
+    rest stay on the verified classical compositor. ANY relight error for
+    a given variant falls back to its compositor output, so the seller
+    always gets a full set of usable choices. Extracted module-level so
+    the control flow is unit-testable without the upstream birefnet call.
+    """
+    relight_on = bool(settings.enhance_relight_enabled and settings.fal_key)
+    relight_budget = settings.enhance_relight_variants if relight_on else 0
+
+    async def _build_variant(index: int, label: str, preset: dict) -> EnhanceVariant:
         bd = preset["backdrop"]
         backdrop_hex = f"#{bd[0]:02X}{bd[1]:02X}{bd[2]:02X}"
+        image_bytes: bytes | None = None
+
+        if index < relight_budget:
+            direction = _RELIGHT_LIGHT_DIRECTIONS[
+                index % len(_RELIGHT_LIGHT_DIRECTIONS)
+            ]
+            try:
+                image_bytes = await _relight_via_fal(
+                    transparent_bytes, category, initial_latent=direction
+                )
+            except Exception as exc:  # noqa: BLE001 — any failure → fallback
+                logger.warning(
+                    "relight variant %d failed (%s) — falling back to compositor",
+                    index,
+                    exc,
+                )
+
+        if image_bytes is None:
+            image_bytes = await asyncio.to_thread(
+                _composite_square, transparent_bytes, preset
+            )
+
         slug = label.replace(" ", "_").lower()
         filename = f"variant_{slug}_{int(time.monotonic())}.png"
-        ipfs_hash = await ipfs_service.upload_image(composite, filename)
+        ipfs_hash = await ipfs_service.upload_image(image_bytes, filename)
         return EnhanceVariant(
             label=label,
             backdrop_hex=backdrop_hex,
@@ -948,16 +1164,14 @@ async def enhance_product_photo_variants(
             image_url=ipfs_service.get_url(ipfs_hash),
         )
 
-    variants = await asyncio.gather(
-        *(_build_variant(label, preset) for label, preset in presets)
+    return list(
+        await asyncio.gather(
+            *(
+                _build_variant(i, label, preset)
+                for i, (label, preset) in enumerate(presets)
+            )
+        )
     )
-    logger.info(
-        "step.variants: %d composites + pins in %.2fs",
-        len(variants),
-        time.monotonic() - t,
-    )
-
-    return list(variants), 1
 
 
 def _neutralize_warm_white_casts(rgb):

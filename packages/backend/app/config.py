@@ -62,6 +62,17 @@ class Settings(BaseSettings):
     # composite that triggered the J7 quality complaint.
     fal_key: str = ""
 
+    # ADR-049 Tier-1 — generative subject relighting (fal IC-Light v2).
+    # OFF by default : when enabled, the enhance pipeline relights the
+    # isolated product into a coherent studio scene (real light + shadow)
+    # instead of the classical studio compositor. ANY relight error falls
+    # back to the (verified) compositor, so enabling is always safe.
+    # `enhance_relight_variants` bounds cost : only the first N of the 3
+    # variants are relit (1 fal call ≈ $0.03), the rest use the compositor.
+    enhance_relight_enabled: bool = False
+    enhance_relight_model: str = "fal-ai/iclight-v2"
+    enhance_relight_variants: int = 1
+
     # Twilio WhatsApp
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
