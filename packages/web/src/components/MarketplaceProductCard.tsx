@@ -1,12 +1,15 @@
+"use client";
+
 import { Storefront } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import { AddToCartIcon } from "@/components/AddToCartIcon";
 import { CardV4 } from "@/components/ui/v4/Card";
 import type { MarketplaceProductItem } from "@/lib/api";
 import { countryName } from "@/lib/country";
+import { cn } from "@/lib/utils";
 
 interface Props {
   product: MarketplaceProductItem;
@@ -59,6 +62,22 @@ function MarketplaceProductCardImpl({
     return Date.now() - created < NEW_BADGE_THRESHOLD_MS;
   })();
 
+  // Image "develop" reveal — heterogeneous seller photos pop in harshly
+  // on a fast connection. Fading each in on decode gives the grid a
+  // calm, uniform load rhythm regardless of per-image latency.
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // Guard the cached/priority case: a fast-cached image can fire `load`
+  // before React attaches onLoad, which would strand it at opacity-0.
+  // On mount, if the underlying img is already complete, reveal it.
+  useEffect(() => {
+    if (imgRef.current?.complete) setImgLoaded(true);
+  }, []);
+
+  // Only darken the image bottom when the country chip actually sits
+  // there — otherwise the scrim needlessly mutes clean product photos.
+  const showFlag = Boolean(flag) && !hideSellerCountry;
+
   return (
     <div className="group relative">
       <CardV4
@@ -72,17 +91,23 @@ function MarketplaceProductCardImpl({
           href={`/${product.seller_handle}/${product.slug}`}
           className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2"
         >
-          {/* Image area — portrait 3:4 for boutique gallery feel.
-              Gradient overlay at bottom creates depth and separates
-              the floating country chip from the product background. */}
-          <div className="relative aspect-[3/4] overflow-hidden rounded-t-3xl rounded-b-none bg-celo-sand/40 dark:bg-celo-dark-elevated">
+          {/* Image area — portrait 3:4 for boutique gallery feel. An
+              inset ring frames every photo identically so heterogeneous
+              seller uploads (white-bg studio shots vs full-bleed photos)
+              share one consistent edge treatment. */}
+          <div className="relative aspect-[3/4] overflow-hidden rounded-t-3xl rounded-b-none bg-celo-sand/40 ring-1 ring-inset ring-celo-dark/[5%] dark:bg-celo-dark-elevated dark:ring-celo-light/[6%]">
             {product.primary_image_url ? (
               <Image
+                ref={imgRef}
                 src={product.primary_image_url}
                 alt={product.title}
                 fill
                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                onLoad={() => setImgLoaded(true)}
+                className={cn(
+                  "object-cover transition-[transform,opacity] duration-500 ease-out group-hover:scale-105",
+                  imgLoaded ? "opacity-100" : "opacity-0",
+                )}
                 priority={priority}
               />
             ) : (
@@ -98,12 +123,14 @@ function MarketplaceProductCardImpl({
               </div>
             )}
 
-            {/* Bottom gradient overlay — darkens the lower third so
-                the country flag chip reads legibly over any image. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-celo-dark/50 to-transparent"
-            />
+            {/* Bottom gradient overlay — only when the country chip sits
+                there ; otherwise we'd needlessly mute clean photos. */}
+            {showFlag ? (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-celo-dark/50 to-transparent"
+              />
+            ) : null}
 
             {/* "New" badge — top-left, fixes text-xs → text-sm violation */}
             {isNew ? (
@@ -116,7 +143,7 @@ function MarketplaceProductCardImpl({
             ) : null}
 
             {/* Country flag chip — bottom-left over gradient overlay */}
-            {flag && !hideSellerCountry ? (
+            {showFlag ? (
               <span
                 aria-label={`Ships from ${country ?? product.seller_country ?? ""}`}
                 title={country ?? product.seller_country ?? undefined}
