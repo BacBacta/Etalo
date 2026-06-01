@@ -97,8 +97,8 @@ export function CountryFilterChips({
               "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2",
               "disabled:opacity-50 disabled:cursor-not-allowed",
               checked
-                ? "border-celo-dark bg-celo-dark text-celo-light shadow-sm hover:bg-celo-dark/90 dark:border-celo-light dark:bg-celo-light dark:text-celo-dark dark:hover:bg-celo-light/90"
-                : "border-neutral-200 bg-white text-neutral-800 hover:border-neutral-300 hover:bg-neutral-50 dark:border-celo-light/15 dark:bg-celo-dark-elevated dark:text-celo-light/85 dark:hover:bg-celo-dark-bg",
+                ? "border-celo-forest bg-celo-forest text-celo-light shadow-celo-sm hover:bg-celo-forest-dark dark:border-celo-forest-bright dark:bg-celo-forest-bright dark:text-celo-light dark:hover:bg-celo-forest"
+                : "border-celo-sand/80 bg-celo-light text-celo-dark/80 shadow-celo-sm hover:border-celo-forest/30 hover:bg-celo-sand/40 hover:text-celo-dark dark:border-celo-light/10 dark:bg-celo-dark-surface dark:text-celo-light/70 dark:hover:border-celo-forest-bright/30 dark:hover:bg-celo-dark-elevated dark:hover:text-celo-light",
             )}
           >
             {opt.flag ? (

@@ -91,7 +91,7 @@ describe("MarketplaceProductCard — CardV4 wrapper migration (P4 B2)", () => {
     const card = screen.getByTestId("marketplace-product-card-wrapper");
     expect(card).toBeInTheDocument();
     expect(card).toHaveClass("rounded-3xl");
-    expect(card).toHaveClass("shadow-celo-md");
+    expect(card).toHaveClass("shadow-celo-lg"); // elevated variant
     expect(card.className).not.toMatch(/\bp-[46]\b/);
     expect(card).toHaveAttribute("data-interactive", "true");
 

@@ -13,7 +13,7 @@
  */
 "use client";
 
-import { ArrowsClockwise, X } from "@phosphor-icons/react";
+import { ArrowsClockwise, GlobeHemisphereWest, MagnifyingGlass, Storefront, X } from "@phosphor-icons/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Suspense,
@@ -68,11 +68,11 @@ function readDismissedFromStorage(): boolean {
 function MarketplaceLoadingShell() {
   return (
     <main id="main" className="min-h-screen" data-testid="marketplace-detecting">
-      <div className="mx-auto max-w-3xl px-4 py-6">
-        <h1 className="mb-1 text-xl font-semibold">Marketplace</h1>
+      <div className="mx-auto max-w-3xl px-4 py-4">
+        <MarketplaceHero refreshDisabled />
         <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 6 }).map((_, i) => (
-            <SkeletonV5 key={i} variant="card" />
+            <SkeletonCardV2 key={i} />
           ))}
         </div>
       </div>
@@ -284,7 +284,7 @@ function MarketplaceClientInner() {
   if (query.isPending) {
     return (
       <main id="main" className="min-h-screen" data-testid="marketplace-loading">
-        <div className="mx-auto max-w-3xl px-4 py-6">
+        <div className="mx-auto max-w-3xl px-4 py-4">
           <MarketplaceHero refreshDisabled />
           <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 8 }).map((_, i) => (
@@ -346,14 +346,28 @@ function MarketplaceClientInner() {
           />
           <div
             data-testid="marketplace-empty"
-            className="flex flex-col items-center justify-center rounded-lg border border-neutral-200 bg-white p-8 text-center dark:border-celo-light/[8%] dark:bg-celo-dark-elevated"
+            className="flex flex-col items-center gap-4 rounded-3xl border border-celo-sand bg-gradient-to-br from-celo-light to-celo-sand/40 p-8 text-center shadow-celo-sm dark:border-celo-light/[8%] dark:from-celo-dark-elevated dark:to-celo-dark-surface"
           >
+            {/* Contextual icon — visual anchor for each empty state */}
+            <span
+              aria-hidden
+              className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-celo-sand dark:bg-celo-dark-surface"
+            >
+              {hasSearchQuery ? (
+                <MagnifyingGlass className="h-7 w-7 text-celo-forest dark:text-celo-forest-bright" weight="light" />
+              ) : filteredOnCountry ? (
+                <GlobeHemisphereWest className="h-7 w-7 text-celo-forest dark:text-celo-forest-bright" weight="light" />
+              ) : (
+                <Storefront className="h-7 w-7 text-celo-forest dark:text-celo-forest-bright" weight="light" />
+              )}
+            </span>
+
             {hasSearchQuery ? (
-              <>
-                <h2 className="mb-2 text-lg font-medium">
+              <div className="space-y-2">
+                <h2 className="font-display text-display-4 text-celo-dark dark:text-celo-light">
                   No products match &ldquo;{urlQ}&rdquo;
                 </h2>
-                <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+                <p className="text-sm text-celo-dark/60 dark:text-celo-light/60">
                   Try a different word or clear the search.
                 </p>
                 <Button
@@ -365,14 +379,14 @@ function MarketplaceClientInner() {
                 >
                   Clear search
                 </Button>
-              </>
+              </div>
             ) : filteredOnCountry ? (
-              <>
-                <h2 className="mb-2 text-lg font-medium">
+              <div className="space-y-2">
+                <h2 className="font-display text-display-4 text-celo-dark dark:text-celo-light">
                   No sellers in {countryName(countryFilter) ?? countryFilter}{" "}
                   yet
                 </h2>
-                <p className="mb-4 text-sm text-neutral-600 dark:text-neutral-400">
+                <p className="text-sm text-celo-dark/60 dark:text-celo-light/60">
                   Try &quot;All countries&quot; or check back soon.
                 </p>
                 <Button
@@ -384,15 +398,17 @@ function MarketplaceClientInner() {
                 >
                   + All countries
                 </Button>
-              </>
+              </div>
             ) : (
-              <>
-                <h2 className="mb-2 text-lg font-medium">No products yet</h2>
-                <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              <div className="space-y-2">
+                <h2 className="font-display text-display-4 text-celo-dark dark:text-celo-light">
+                  No products yet
+                </h2>
+                <p className="text-sm text-celo-dark/60 dark:text-celo-light/60">
                   Etalo&apos;s marketplace is just getting started. Check back
                   soon!
                 </p>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -579,36 +595,48 @@ function MarketplaceHero({
   refreshDisabled = false,
   onRefresh,
 }: MarketplaceHeroProps) {
-  // Compact header — title left + refresh button right. The previous
-  // gradient card + pill + 2-line trust subline ate 140 px above the
-  // fold ; on a 360 px viewport that pushed the first product card
-  // way below the scroll line. The filter chips + cards already
-  // communicate "marketplace of African boutiques" without needing
-  // a marketing block here.
+  // Warm gradient strip with subtle dot pattern + two-level typographic
+  // lockup. -mx-4 bleeds to page edges (same pattern as filter chips).
+  // rounded-b-3xl matches CardV4 language. Stays compact on 360 px.
   return (
-    <div className="flex items-center justify-between gap-3">
-      <h1 className="text-2xl font-semibold tracking-tight text-celo-dark dark:text-celo-light">
-        Marketplace
-      </h1>
-      {onRefresh ? (
-        <button
-          type="button"
-          onClick={onRefresh}
-          disabled={isRefreshing || refreshDisabled}
-          aria-label="Refresh marketplace products"
-          data-testid="marketplace-refresh"
-          className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-celo-dark transition-colors hover:bg-celo-forest-soft disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:text-celo-light dark:hover:bg-celo-forest-bright-soft"
-        >
-          <ArrowsClockwise
-            className={cn("h-5 w-5", isRefreshing && "animate-spin")}
-            aria-hidden="true"
-          />
-        </button>
-      ) : (
-        // Placeholder during the skeleton state so the header height
-        // doesn't change when the real button mounts.
-        <div className="h-11 w-11 flex-shrink-0" aria-hidden />
-      )}
+    <div className="relative -mx-4 overflow-hidden rounded-b-3xl bg-gradient-to-r from-celo-light to-celo-sand px-4 py-4 dark:from-celo-dark-elevated dark:to-celo-dark-surface">
+      {/* Decorative dot pattern — purely visual, aria-hidden */}
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.04] dark:opacity-[0.06]"
+        style={{
+          backgroundImage:
+            "radial-gradient(circle, #476520 1px, transparent 1px)",
+          backgroundSize: "16px 16px",
+        }}
+      />
+      <div className="relative flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-medium uppercase tracking-widest text-celo-forest/70 dark:text-celo-forest-bright/70">
+            Etalo
+          </p>
+          <h1 className="font-display text-display-3 text-celo-dark dark:text-celo-light">
+            Marketplace
+          </h1>
+        </div>
+        {onRefresh ? (
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={isRefreshing || refreshDisabled}
+            aria-label="Refresh marketplace products"
+            data-testid="marketplace-refresh"
+            className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full text-celo-dark transition-colors hover:bg-celo-forest/10 disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:text-celo-light dark:hover:bg-celo-forest-bright/15"
+          >
+            <ArrowsClockwise
+              className={cn("h-5 w-5", isRefreshing && "animate-spin")}
+              aria-hidden="true"
+            />
+          </button>
+        ) : (
+          <div className="h-11 w-11 flex-shrink-0" aria-hidden />
+        )}
+      </div>
     </div>
   );
 }
@@ -726,19 +754,26 @@ function FilterPill({ label, onRemove }: FilterPillProps) {
 }
 
 // =====================================================================
-// SkeletonCardV2 — visual shape mirror of the new MarketplaceProductCard.
-// Square image area + 3 text rows (price, title, seller) so the layout
-// stays put when real cards arrive.
+// SkeletonCardV2 — mirrors the premium MarketplaceProductCard shape:
+// portrait 3:4 image + price (h-6) + 2 title rows + seller row.
 // =====================================================================
 
 function SkeletonCardV2() {
   return (
-    <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated">
-      <SkeletonV5 variant="rectangle" className="aspect-square w-full" />
-      <div className="space-y-2 p-3">
-        <SkeletonV5 variant="text" className="h-5 w-20" />
+    <div
+      className="overflow-hidden rounded-3xl border border-celo-dark/[8%] bg-celo-light shadow-celo-md dark:border-celo-light/[8%] dark:bg-celo-dark-elevated"
+      role="status"
+      aria-label="Loading product"
+    >
+      <SkeletonV5
+        variant="rectangle"
+        className="aspect-[3/4] w-full rounded-t-3xl rounded-b-none"
+      />
+      <div className="space-y-2 px-3 pb-3 pt-2.5">
+        <SkeletonV5 variant="text" className="h-6 w-16" />
         <SkeletonV5 variant="text" className="h-4 w-full" />
-        <SkeletonV5 variant="text" className="h-3 w-2/3" />
+        <SkeletonV5 variant="text" className="h-4 w-3/4" />
+        <SkeletonV5 variant="text" className="h-4 w-1/2" />
       </div>
     </div>
   );

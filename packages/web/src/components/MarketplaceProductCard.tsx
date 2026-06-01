@@ -1,3 +1,4 @@
+import { Storefront } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 import { memo } from "react";
@@ -61,20 +62,20 @@ function MarketplaceProductCardImpl({
   return (
     <div className="group relative">
       <CardV4
-        variant="default"
+        variant="elevated"
         padding="none"
         interactive
-        className="overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:hover:shadow-celo-light/5"
+        className="overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-celo-hero"
         data-testid="marketplace-product-card-wrapper"
       >
         <Link
           href={`/${product.seller_handle}/${product.slug}`}
           className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2"
         >
-          {/* Image area — square. Light/dark backdrops kept from the
-              previous design ; on hover the image subtly zooms (1.05)
-              to give the card a tactile feel. */}
-          <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-celo-dark-elevated">
+          {/* Image area — portrait 3:4 for boutique gallery feel.
+              Gradient overlay at bottom creates depth and separates
+              the floating country chip from the product background. */}
+          <div className="relative aspect-[3/4] overflow-hidden rounded-t-3xl rounded-b-none bg-celo-sand/40 dark:bg-celo-dark-elevated">
             {product.primary_image_url ? (
               <Image
                 src={product.primary_image_url}
@@ -85,35 +86,46 @@ function MarketplaceProductCardImpl({
                 priority={priority}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-celo-light/50">
-                No image
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+                <Storefront
+                  className="h-8 w-8 text-celo-dark/20 dark:text-celo-light/20"
+                  weight="light"
+                  aria-hidden
+                />
+                <span className="text-sm text-celo-dark/40 dark:text-celo-light/40">
+                  No image
+                </span>
               </div>
             )}
 
-            {/* Floating overlays on the image. Top-left : country flag
-                chip (hidden when the marketplace is already filtered to
-                that country). Top-right : the cart "+" button. Bottom-
-                left : "New" pill for recently-pinned products. All use
-                backdrop-blur so they don't fight the underlying photo. */}
+            {/* Bottom gradient overlay — darkens the lower third so
+                the country flag chip reads legibly over any image. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-celo-dark/50 to-transparent"
+            />
+
+            {/* "New" badge — top-left, fixes text-xs → text-sm violation */}
+            {isNew ? (
+              <span
+                className="absolute left-2 top-2 inline-flex items-center rounded-full bg-celo-yellow px-2.5 py-0.5 text-sm font-semibold uppercase tracking-wider text-celo-dark"
+                aria-label="Recently added product"
+              >
+                New
+              </span>
+            ) : null}
+
+            {/* Country flag chip — bottom-left over gradient overlay */}
             {flag && !hideSellerCountry ? (
               <span
                 aria-label={`Ships from ${country ?? product.seller_country ?? ""}`}
                 title={country ?? product.seller_country ?? undefined}
-                className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-celo-light/90 px-2 py-1 text-sm font-medium leading-none text-celo-dark shadow-sm backdrop-blur dark:bg-celo-dark-bg/85 dark:text-celo-light"
+                className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-sm font-medium leading-none text-celo-dark shadow-celo-sm backdrop-blur-sm dark:bg-celo-dark-surface/85 dark:text-celo-light"
               >
                 <span aria-hidden className="text-base leading-none">
                   {flag}
                 </span>
                 {country ?? product.seller_country}
-              </span>
-            ) : null}
-
-            {isNew ? (
-              <span
-                className="absolute bottom-2 left-2 inline-flex items-center rounded-full bg-celo-yellow/95 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-celo-dark shadow-sm backdrop-blur"
-                aria-label="Recently added product"
-              >
-                New
               </span>
             ) : null}
 
@@ -130,23 +142,21 @@ function MarketplaceProductCardImpl({
             />
           </div>
 
-          {/* Card meta : price-prominent over title (Robinhood / Shop
-              pattern). USDT suffix is muted so the eye lands on the
-              number first. Seller name in a smaller, lighter row to
-              keep the hierarchy clean even on long boutique names. */}
-          <div className="p-3">
+          {/* Card meta — price is the visual hero (display-4 scale),
+              title and seller descend in weight and size. */}
+          <div className="px-3 pb-3 pt-2.5">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-semibold tabular-nums text-celo-dark dark:text-celo-light">
+              <span className="font-display text-display-4 tabular-nums text-celo-dark dark:text-celo-light">
                 {Number(product.price_usdt).toFixed(2)}
               </span>
-              <span className="text-sm text-neutral-500 dark:text-celo-light/60">
+              <span className="text-sm font-medium text-celo-dark/50 dark:text-celo-light/50">
                 USDT
               </span>
             </div>
-            <h3 className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-celo-dark dark:text-celo-light">
+            <h3 className="mt-1 line-clamp-2 text-sm font-medium leading-snug text-celo-dark/85 dark:text-celo-light/85">
               {product.title}
             </h3>
-            <p className="mt-1.5 truncate text-sm text-neutral-500 dark:text-celo-light/60">
+            <p className="mt-1 truncate text-sm text-celo-dark/50 dark:text-celo-light/50">
               {product.seller_shop_name}
             </p>
           </div>
