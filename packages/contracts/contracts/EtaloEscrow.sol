@@ -61,6 +61,14 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     uint256 public constant MAX_TVL_USDT = 50_000 * 10 ** 6;
     uint256 public constant MAX_ORDER_USDT = 500 * 10 ** 6;
     uint256 public constant MAX_SELLER_WEEKLY_VOLUME = 5_000 * 10 ** 6;
+    // Audit finding #3: per-buyer concurrent-escrow cap. The single
+    // global MAX_TVL is a shared resource one actor could fully consume
+    // with self-dealing orders (reclaimed 100% via 7-day auto-refund),
+    // freezing platform-wide funding at ~zero cost. Bounding a single
+    // buyer's concurrent escrow raises the bar to many funded addresses
+    // each locking real capital. 2,500 USDT = 5 max-size orders, well
+    // above normal concurrent buyer activity; tune via redeploy.
+    uint256 public constant MAX_BUYER_ESCROW_USDT = 2_500 * 10 ** 6;
     uint256 public constant EMERGENCY_PAUSE_MAX = 7 days;
     uint256 public constant EMERGENCY_PAUSE_COOLDOWN = 30 days;
 
@@ -106,6 +114,9 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
 
     // TVL and weekly volume tracking (§9)
     uint256 public totalEscrowedAmount;
+    // Audit finding #3: per-buyer concurrent escrow, kept in lockstep
+    // with totalEscrowedAmount via _addEscrow/_subEscrow.
+    mapping(address => uint256) public buyerActiveEscrow;
     mapping(address => uint256) public sellerWeeklyVolume;
     mapping(address => uint256) public sellerWeekStartTimestamp;
 
@@ -205,6 +216,14 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         require(seller != msg.sender, "Cannot buy from self");
         require(itemPrices.length > 0, "No items");
         require(itemPrices.length <= MAX_ITEMS_PER_ORDER, "Too many items");
+        // V1 scope (ADR-041): intra-Africa only. The cross-border release
+        // machinery (staged 20/70/10, self-attestable arrival, stake
+        // interactions) is deferred to V2 and not yet audited for live
+        // use. Enforce the intra-only invariant at the contract boundary
+        // — the backend hardcodes isCrossBorder=false, but this contract
+        // is permissionless, so without this guard a direct caller could
+        // reach the entire deferred cross-border surface. Audit finding #1.
+        require(!isCrossBorder, "Cross-border disabled in V1 (ADR-041)");
 
         uint256 totalAmount = 0;
         for (uint256 i = 0; i < itemPrices.length; i++) {
@@ -310,10 +329,21 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
             totalEscrowedAmount + order.totalAmount <= MAX_TVL_USDT,
             "Global TVL cap reached"
         );
-        _updateSellerWeeklyVolume(order.seller, order.totalAmount);
+        // Audit finding #3: bound a single buyer's concurrent escrow so
+        // one actor cannot consume the whole global TVL with self-dealing
+        // orders and reclaim it free via the inactivity auto-refund.
+        require(
+            buyerActiveEscrow[order.buyer] + order.totalAmount <= MAX_BUYER_ESCROW_USDT,
+            "Buyer escrow cap reached"
+        );
 
         // Effects
-        totalEscrowedAmount += order.totalAmount;
+        // Audit finding #4: the seller weekly-volume cap is now recorded
+        // at SHIP time (shipItemsGrouped), not at fund — otherwise a buyer
+        // could saturate a victim seller's weekly cap with funded-but-
+        // never-shipped orders, blocking that seller's real customers,
+        // then reclaim 100% via the inactivity auto-refund.
+        _addEscrow(order.buyer, order.totalAmount);
         order.globalStatus = EtaloTypes.OrderStatus.Funded;
         order.fundedAt = block.timestamp;
 
@@ -375,12 +405,24 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         );
         require(proofHash != bytes32(0), "Missing proof hash");
 
-        // Validate all items before mutating state.
+        // Validate all items before mutating state, and accumulate the
+        // value being shipped for the weekly-volume cap.
+        uint256 shippedValue = 0;
         for (uint256 i = 0; i < itemIds.length; i++) {
             EtaloTypes.Item storage item = _items[itemIds[i]];
             require(item.orderId == orderId, "Item not in order");
             require(item.status == EtaloTypes.ItemStatus.Pending, "Item not Pending");
+            shippedValue += item.itemPrice;
         }
+
+        // Audit finding #4: record the seller's weekly volume here (at
+        // ship), not at fund. This makes the cap reflect real shipped
+        // sales and prevents a buyer from saturating a seller's weekly
+        // cap with funded-but-unshipped orders. Reverts "Seller weekly
+        // cap" if the seller has already shipped MAX_SELLER_WEEKLY_VOLUME
+        // this week — those funded orders then await next week or the
+        // buyer's inactivity auto-refund.
+        _updateSellerWeeklyVolume(order.seller, shippedValue);
 
         groupId = ++_nextGroupId;
 
@@ -429,7 +471,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
             }
             group.releaseStage = 1;
             if (totalRelease > 0) {
-                totalEscrowedAmount -= totalRelease;
+                _subEscrow(order.buyer, totalRelease);
                 require(
                     usdt.transfer(order.seller, totalRelease),
                     "USDT transfer failed"
@@ -449,10 +491,13 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         require(group.orderId == orderId, "Group not in order");
         EtaloTypes.Order storage order = _orders[orderId];
         require(order.isCrossBorder, "Intra order has no arrival step");
-        require(
-            msg.sender == order.buyer || msg.sender == order.seller,
-            "Not buyer or seller"
-        );
+        // Audit finding #2: arrival is the trust anchor that starts the
+        // 72h majority + 5d final release timers. The seller is the party
+        // PAID by those releases, so they must not be able to self-attest
+        // delivery (ship an empty box, mark "arrived", drain escrow before
+        // the buyer can dispute). Only the buyer (or, in V2, a trusted
+        // logistics oracle) may attest arrival.
+        require(msg.sender == order.buyer, "Only buyer can mark arrived");
         require(
             group.status == EtaloTypes.ShipmentStatus.Shipped,
             "Group not Shipped"
@@ -567,7 +612,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         group.releaseStage = 2;
 
         if (totalRelease > 0) {
-            totalEscrowedAmount -= totalRelease;
+            _subEscrow(order.buyer, totalRelease);
             require(
                 usdt.transfer(order.seller, totalRelease),
                 "USDT transfer failed"
@@ -669,7 +714,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         order.globalStatus = EtaloTypes.OrderStatus.Refunded;
 
         uint256 refundAmount = order.totalAmount;
-        totalEscrowedAmount -= refundAmount;
+        _subEscrow(order.buyer, refundAmount);
         _releaseSellerWeeklyVolume(order.seller, refundAmount);
 
         require(
@@ -737,7 +782,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
 
         order.globalStatus = EtaloTypes.OrderStatus.Refunded;
         if (totalRefund > 0) {
-            totalEscrowedAmount -= totalRefund;
+            _subEscrow(order.buyer, totalRefund);
             _releaseSellerWeeklyVolume(order.seller, totalRefund);
             require(
                 usdt.transfer(order.buyer, totalRefund),
@@ -890,7 +935,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
             item.status = EtaloTypes.ItemStatus.Released;
             item.releasedAmount += netShare;
         }
-        totalEscrowedAmount -= remainingInEscrow;
+        _subEscrow(order.buyer, remainingInEscrow);
         // Release the buyer-refunded portion from the seller's weekly
         // volume counter (Pashov audit finding #2, ADR-054) — only the
         // refunded slice frees up cap; the released slice stays
@@ -1012,6 +1057,23 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         return (amount * bps) / BPS_DENOMINATOR;
     }
 
+    /// @dev Escrow accounting (audit finding #3). Both helpers move
+    /// `totalEscrowedAmount` and the per-buyer `buyerActiveEscrow`
+    /// together so the two counters can never drift. `_subEscrow`
+    /// saturates the per-buyer counter at 0 — a release/refund path
+    /// must NEVER revert because of buyer-escrow bookkeeping (that would
+    /// lock funds), so under-counting is preferred over an underflow.
+    function _addEscrow(address buyer, uint256 amount) internal {
+        totalEscrowedAmount += amount;
+        buyerActiveEscrow[buyer] += amount;
+    }
+
+    function _subEscrow(address buyer, uint256 amount) internal {
+        totalEscrowedAmount -= amount;
+        uint256 b = buyerActiveEscrow[buyer];
+        buyerActiveEscrow[buyer] = b > amount ? b - amount : 0;
+    }
+
     /// @dev Resets the seller's weekly window if a full week has
     /// elapsed, then validates the incoming amount against the cap
     /// and records it. Reverts with "Seller weekly cap" on exceeding.
@@ -1090,7 +1152,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         // ── Effects ───────────────────────────────────────
         item.releasedAmount = itemNet;
         item.status = EtaloTypes.ItemStatus.Released;
-        totalEscrowedAmount -= payout;
+        _subEscrow(order.buyer, payout);
 
         (EtaloTypes.OrderStatus newStatus, bool shouldDecrementStake) =
             _computeNewOrderStatus(orderId);
