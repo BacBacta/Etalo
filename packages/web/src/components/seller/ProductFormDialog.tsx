@@ -9,12 +9,18 @@ import {
   useState,
   type ReactElement,
 } from "react";
-import { Sparkle } from "@phosphor-icons/react";
+import { Coins, Sparkle } from "@phosphor-icons/react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ImageUploader } from "@/components/seller/ImageUploader";
+import { BuyCreditsDialog } from "@/components/seller/marketing/BuyCreditsDialog";
 import { Button } from "@/components/ui/button";
+import {
+  CREDITS_BALANCE_QUERY_KEY,
+  useCreditsBalance,
+} from "@/hooks/useCreditsBalance";
 import { IPFS_GATEWAY } from "@/lib/ipfs";
 import {
   Dialog,
@@ -128,6 +134,14 @@ export function ProductFormDialog({
     EnhanceVariant[] | null
   >(null);
 
+  // Credits — ADR-049 surfaced enhance (which spends credits) but the
+  // balance + purchase UI used to live only in the hidden MarketingTab,
+  // leaving sellers at a dead-end when credits ran out. Surface both here.
+  const queryClient = useQueryClient();
+  const creditsQuery = useCreditsBalance();
+  const creditBalance = creditsQuery.data?.balance ?? 0;
+  const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && initialProduct) {
@@ -168,6 +182,7 @@ export function ProductFormDialog({
     setOriginalHashAtEnhance(null);
     setEnhanceVariants(null);
     setPublishNudgeOpen(false);
+    setBuyCreditsOpen(false);
   }, [open, mode, initialProduct]);
 
   const heroHash = imageHashes[0] ?? null;
@@ -193,6 +208,11 @@ export function ProductFormDialog({
 
   const handleEnhance = async () => {
     if (!heroHash) return;
+    // No credits → open the purchase dialog instead of a dead-end error.
+    if (creditBalance < 1) {
+      setBuyCreditsOpen(true);
+      return;
+    }
     setEnhancePhase("loading");
     setOriginalHashAtEnhance(heroHash);
     try {
@@ -201,9 +221,9 @@ export function ProductFormDialog({
         heroHash,
         category,
       );
-      // Credit consumed server-side. Stash the variants and flip into
-      // preview phase — image_ipfs_hashes[0] stays on the original
-      // until the seller picks a variant.
+      // Credit consumed server-side. Refresh the balance so the chip +
+      // gating reflect the spend immediately.
+      queryClient.invalidateQueries({ queryKey: [CREDITS_BALANCE_QUERY_KEY] });
       setEnhanceVariants(result.variants);
       setEnhancePhase("preview");
       toast.success(
@@ -213,7 +233,11 @@ export function ProductFormDialog({
       setEnhancePhase("idle");
       setOriginalHashAtEnhance(null);
       if (err instanceof InsufficientCreditsForEnhanceError) {
-        toast.error("Not enough credits to enhance. Buy more from your dashboard.");
+        // Balance drifted to 0 (e.g. spent elsewhere) — offer purchase.
+        queryClient.invalidateQueries({
+          queryKey: [CREDITS_BALANCE_QUERY_KEY],
+        });
+        setBuyCreditsOpen(true);
       } else {
         toast.error(
           err instanceof Error ? err.message : "Photo enhancement failed",
@@ -487,7 +511,10 @@ export function ProductFormDialog({
               originalHash={originalHashAtEnhance ?? heroHash}
               variants={enhanceVariants}
               canEnhance={canEnhance}
+              creditBalance={creditBalance}
+              creditsLoading={creditsQuery.isLoading}
               onEnhance={handleEnhance}
+              onBuyCredits={() => setBuyCreditsOpen(true)}
               onUseVariant={handleUseVariant}
               onKeepOriginal={handleKeepOriginal}
             />
@@ -562,6 +589,19 @@ export function ProductFormDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Credits purchase — on-chain EtaloCredits.purchaseCredits. Opened
+          from the enhance section when the seller has no credits. On
+          success, refresh the balance so they can enhance immediately. */}
+      <BuyCreditsDialog
+        open={buyCreditsOpen}
+        onOpenChange={setBuyCreditsOpen}
+        onSuccess={() =>
+          queryClient.invalidateQueries({
+            queryKey: [CREDITS_BALANCE_QUERY_KEY],
+          })
+        }
+      />
     </Dialog>
   );
 }
@@ -575,6 +615,9 @@ function EnhanceSection({
   isEnhanced,
   originalHash,
   variants,
+  creditBalance,
+  creditsLoading,
+  onBuyCredits,
   canEnhance,
   onEnhance,
   onUseVariant,
@@ -585,6 +628,9 @@ function EnhanceSection({
   originalHash: string;
   variants: EnhanceVariant[] | null;
   canEnhance: boolean;
+  creditBalance: number;
+  creditsLoading: boolean;
+  onBuyCredits: () => void;
   onEnhance: () => void;
   onUseVariant: (variant: EnhanceVariant) => void;
   onKeepOriginal: () => void;
@@ -708,15 +754,38 @@ function EnhanceSection({
             studio backdrop — it&apos;ll look far more professional in the
             marketplace. AI generates 3 backdrops; you pick one.
           </p>
-          <Button
-            type="button"
-            onClick={onEnhance}
-            disabled={!canEnhance}
-            data-testid="enhance-cta"
-            className="mt-3 min-h-[44px] w-full sm:w-auto"
+
+          {/* Balance — always visible so credits aren't a mystery. */}
+          <p
+            className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-celo-dark/80 dark:text-celo-light/80"
+            data-testid="enhance-credit-balance"
           >
-            {phase === "loading" ? "Generating…" : "Enhance photo · 1 credit"}
-          </Button>
+            <Coins weight="fill" className="h-4 w-4 text-celo-forest dark:text-celo-forest-bright" aria-hidden />
+            {creditsLoading
+              ? "Checking credits…"
+              : `${creditBalance} credit${creditBalance === 1 ? "" : "s"} available`}
+          </p>
+
+          {creditBalance < 1 && !creditsLoading ? (
+            <Button
+              type="button"
+              onClick={onBuyCredits}
+              data-testid="enhance-buy-credits"
+              className="mt-3 min-h-[44px] w-full sm:w-auto"
+            >
+              Buy credits
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={onEnhance}
+              disabled={!canEnhance}
+              data-testid="enhance-cta"
+              className="mt-3 min-h-[44px] w-full sm:w-auto"
+            >
+              {phase === "loading" ? "Generating…" : "Enhance photo · 1 credit"}
+            </Button>
+          )}
         </div>
       </div>
     </div>

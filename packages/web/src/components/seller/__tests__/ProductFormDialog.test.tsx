@@ -39,6 +39,32 @@ vi.mock("@/lib/seller-api", async (importOriginal) => {
   };
 });
 
+// Credits hook — controllable per-test so we can assert the balance
+// display + the buy-credits CTA gating without a QueryClient/Wagmi tree.
+const creditsBalanceMock = vi.fn(() => ({ data: { balance: 3 }, isLoading: false }));
+vi.mock("@/hooks/useCreditsBalance", () => ({
+  useCreditsBalance: () => creditsBalanceMock(),
+  CREDITS_BALANCE_QUERY_KEY: "credits-balance",
+}));
+
+// BuyCreditsDialog (on-chain wagmi) → stub to a marker so we can assert
+// it mounts without pulling the WagmiProvider into the spec.
+vi.mock("@/components/seller/marketing/BuyCreditsDialog", () => ({
+  BuyCreditsDialog: ({ open }: { open: boolean }) =>
+    open ? <div data-testid="buy-credits-dialog" /> : null,
+}));
+
+// useQueryClient is the only @tanstack/react-query symbol the dialog
+// needs at runtime here — stub it, keep everything else real.
+vi.mock("@tanstack/react-query", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@tanstack/react-query")>();
+  return {
+    ...actual,
+    useQueryClient: () => ({ invalidateQueries: vi.fn() }),
+  };
+});
+
 describe("ProductFormDialog — FormField label↔input association (Phase 5 Angle E sub-block E.1.b)", () => {
   it("associates the label with the child input via htmlFor + id (getByLabelText resolves)", () => {
     render(
@@ -64,6 +90,10 @@ describe("ProductFormDialog — FormField label↔input association (Phase 5 Ang
 describe("ProductFormDialog — ADR-049 publish enhancement enforcement", () => {
   beforeEach(() => {
     createProductMock.mockClear();
+    creditsBalanceMock.mockReturnValue({
+      data: { balance: 3 },
+      isLoading: false,
+    });
   });
 
   function renderCreate() {
@@ -119,5 +149,52 @@ describe("ProductFormDialog — ADR-049 publish enhancement enforcement", () => 
 
     expect(screen.queryByTestId("publish-enhance-nudge")).not.toBeInTheDocument();
     await waitFor(() => expect(createProductMock).toHaveBeenCalledTimes(1));
+  });
+});
+
+describe("ProductFormDialog — ADR-049 credits visibility + purchase", () => {
+  function renderCreate() {
+    render(
+      <ProductFormDialog
+        open
+        onOpenChange={vi.fn()}
+        walletAddress="0xabc"
+        mode="create"
+        onSuccess={vi.fn()}
+      />,
+    );
+  }
+
+  it("shows the credit balance once a hero photo is uploaded", () => {
+    creditsBalanceMock.mockReturnValue({
+      data: { balance: 2 },
+      isLoading: false,
+    });
+    renderCreate();
+    fireEvent.click(screen.getByTestId("mock-upload"));
+    expect(screen.getByTestId("enhance-credit-balance")).toHaveTextContent(
+      "2 credits available",
+    );
+    // Credits available → the enhance CTA is shown, not the buy CTA.
+    expect(screen.getByTestId("enhance-cta")).toBeInTheDocument();
+    expect(screen.queryByTestId("enhance-buy-credits")).not.toBeInTheDocument();
+  });
+
+  it("swaps the CTA to Buy credits + opens the purchase dialog at 0 balance", () => {
+    creditsBalanceMock.mockReturnValue({
+      data: { balance: 0 },
+      isLoading: false,
+    });
+    renderCreate();
+    fireEvent.click(screen.getByTestId("mock-upload"));
+    expect(screen.getByTestId("enhance-credit-balance")).toHaveTextContent(
+      "0 credits available",
+    );
+    const buyCta = screen.getByTestId("enhance-buy-credits");
+    expect(buyCta).toBeInTheDocument();
+    expect(screen.queryByTestId("enhance-cta")).not.toBeInTheDocument();
+
+    fireEvent.click(buyCta);
+    expect(screen.getByTestId("buy-credits-dialog")).toBeInTheDocument();
   });
 });

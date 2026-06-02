@@ -11,6 +11,7 @@ import { DashboardSkeleton } from "@/app/(app)/seller/dashboard/DashboardSkeleto
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
 import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
+import { CreditsChip } from "@/components/seller/CreditsChip";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 import { useMinipay } from "@/hooks/useMinipay";
 
@@ -360,8 +361,13 @@ export function SellerDashboardInner() {
   return (
     <main id="main" className="min-h-screen">
       <div className="mx-auto w-full max-w-3xl px-4 py-6">
-        <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
-        <p className="mb-6 text-sm text-neutral-600">@{profile.shop_handle}</p>
+        <div className="mb-6 flex items-start justify-between gap-3">
+          <div>
+            <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
+            <p className="text-sm text-neutral-600">@{profile.shop_handle}</p>
+          </div>
+          <CreditsChip />
+        </div>
 
         <TabsV4Root value={safeTab} onValueChange={setTab}>
           {/*
