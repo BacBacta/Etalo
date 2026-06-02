@@ -132,7 +132,24 @@ contract EscrowHandler is Test {
         }
     }
 
+    /// @dev Business-rule guards that are *expected* to revert during
+    /// fuzzing (cap/scope checks), not bugs. ADR-057 added the
+    /// cross-border-disabled, per-buyer-escrow, and ship-time weekly-cap
+    /// guards; the global-TVL / per-order caps were already expected.
+    /// invariant_NoUnexpectedReverts only flags reverts NOT in this set
+    /// (and all raw/panic reverts via _logUnexpectedRaw).
+    function _isExpectedRevert(string memory reason) internal pure returns (bool) {
+        bytes32 h = keccak256(bytes(reason));
+        return
+            h == keccak256("Cross-border disabled in V1 (ADR-041)") ||
+            h == keccak256("Buyer escrow cap reached") ||
+            h == keccak256("Seller weekly cap") ||
+            h == keccak256("Global TVL cap reached") ||
+            h == keccak256("Exceeds per-order cap");
+    }
+
     function _logUnexpected(string memory where, string memory reason) internal {
+        if (_isExpectedRevert(reason)) return; // business-rule guard, not a bug
         console.log("[handler] unexpected revert in", where);
         console.log("  reason:", reason);
         unexpectedRevertCount++;
