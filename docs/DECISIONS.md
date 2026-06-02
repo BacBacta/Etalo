@@ -4153,3 +4153,64 @@ without a new auth surface. The `/admin/disputes` triage endpoint + its
 access gate are deferred to the admin-triage phase (not needed by the
 mediator console or buyer/seller visibility). Volume is bounded by
 ADR-026 (50K TVL), so manual Safe assignment is acceptable for V1.
+
+## ADR-057 — Delivery-chain audit hardening : on-chain intra-only guard, buyer-only arrival, per-buyer escrow cap, ship-time weekly volume (amends ADR-026, ADR-041)
+
+**Status.** Source-level, NOT yet deployed. Branch `fix/escrow-delivery-audit`
+(PR #130). The contracts are live on a non-upgradeable mainnet deploy
+(v1.4, ADR-054/055), so applying these requires a fresh deploy + state
+migration + re-audit before going live.
+
+**Context.** A security review of the EtaloEscrow delivery/order lifecycle
+(buyer-funded escrow → ship → confirm/auto-release → dispute/refund)
+surfaced four issues. The escrow accounting itself is value-conservative;
+the flaws are perimetric.
+
+**Decision.** Four contract-level fixes in `EtaloEscrow.sol`:
+
+1. **Enforce V1 intra-only at the contract boundary.**
+   `createOrderWithItems` now `require(!isCrossBorder)`. ADR-041 declared
+   V1 intra-only, but the *contract* still accepted the flag and the
+   backend hardcoding `false` is not a trust boundary (the contract is
+   permissionless). Without this, a direct caller could reach the entire
+   deferred, less-audited cross-border release machinery (staged 20/70/10,
+   self-attestable arrival, stake interactions). Cross-border is re-enabled
+   in V2 by removing this guard *after* that path is audited.
+
+2. **`markGroupArrived` is buyer-only.** Was buyer OR seller. Arrival
+   starts the 72h-majority + 5d-final release timers that pay the seller,
+   so seller self-attestation (ship empty box → mark arrived → drain
+   before the buyer can dispute) is removed. Defense-in-depth for V2 (the
+   path is unreachable in V1 via decision #1). A trusted logistics oracle
+   may be added as an additional attester in V2.
+
+3. **Per-buyer concurrent-escrow cap — `MAX_BUYER_ESCROW_USDT = 2,500`
+   (new, alongside ADR-026 caps).** The single global `MAX_TVL` (50K) was a
+   shared resource one actor could fully consume with self-dealing orders,
+   reclaimed 100% via the 7-day inactivity auto-refund — a ~zero-cost
+   platform-wide funding freeze. A per-buyer cap raises the bar to many
+   funded addresses each locking real capital. `buyerActiveEscrow` is kept
+   in lockstep with `totalEscrowedAmount` through `_addEscrow`/`_subEscrow`
+   helpers (every escrow-mutation site routes through them; `_subEscrow`
+   saturates at 0 so no release/refund can ever revert on bookkeeping).
+   The value 2,500 USDT (= 5 max-size orders) is **intentionally below
+   `MAX_SELLER_WEEKLY` (5,000)** so no single buyer can saturate a seller
+   alone; it is a product parameter, tunable at redeploy.
+
+4. **Seller weekly volume recorded at ship, not at fund.**
+   `_updateSellerWeeklyVolume` moves from `fundOrder` to `shipItemsGrouped`
+   (summing the shipped group's value). Counting at fund let a buyer
+   saturate a victim seller's weekly cap with funded-but-never-shipped
+   orders, blocking the seller's real customers, then reclaim 100% via
+   auto-refund. Counting at ship makes the cap reflect real sales and the
+   seller's own (consensual) action; unshipped griefing orders no longer
+   consume it.
+
+**Consequences.** The existing Hardhat suite's cross-border tests (25) and
+single-buyer TVL/weekly + fund-time volume tests (6) are `it.skip` with
+annotations — the former test functionality intentionally disabled (#1),
+the latter test invariants superseded by #3/#4 (re-covered in
+`EscrowAuditFixes.test.ts`). Suite: 161 passing · 31 skipped · 0 failing.
+Pre-deploy checklist: re-audit, redeploy + migrate in-flight orders,
+validate `MAX_BUYER_ESCROW`, and re-enable the cross-border/V2 tests when
+that path ships.
