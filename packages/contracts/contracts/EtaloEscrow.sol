@@ -715,7 +715,12 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
 
         uint256 refundAmount = order.totalAmount;
         _subEscrow(order.buyer, refundAmount);
-        _releaseSellerWeeklyVolume(order.seller, refundAmount);
+        // ADR-057 re-audit (FINDING-1): do NOT release seller weekly
+        // volume here. This path only fires on Funded status, i.e. before
+        // shipItemsGrouped ran, so no item was ever counted toward
+        // sellerWeeklyVolume (recording moved to ship time by finding #4).
+        // Releasing phantom volume let a seller bypass
+        // MAX_SELLER_WEEKLY_VOLUME via stale funded-but-unshipped orders.
 
         require(
             usdt.transfer(order.buyer, refundAmount),
@@ -767,6 +772,7 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         );
 
         uint256 totalRefund = 0;
+        uint256 shippedRefund = 0;
         uint256[] storage itemIds = _orderItems[orderId];
         for (uint256 i = 0; i < itemIds.length; i++) {
             EtaloTypes.Item storage item = _items[itemIds[i]];
@@ -775,6 +781,13 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
                 item.status != EtaloTypes.ItemStatus.Refunded
             ) {
                 uint256 itemRefund = item.itemPrice - item.releasedAmount;
+                // ADR-057 re-audit (LEAD-1): only items actually shipped
+                // (shipmentGroupId != 0) were counted toward
+                // sellerWeeklyVolume at ship time. Release weekly volume
+                // for those only — never for never-shipped Pending items.
+                if (item.shipmentGroupId != 0) {
+                    shippedRefund += itemRefund;
+                }
                 item.status = EtaloTypes.ItemStatus.Refunded;
                 totalRefund += itemRefund;
             }
@@ -783,7 +796,9 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         order.globalStatus = EtaloTypes.OrderStatus.Refunded;
         if (totalRefund > 0) {
             _subEscrow(order.buyer, totalRefund);
-            _releaseSellerWeeklyVolume(order.seller, totalRefund);
+            if (shippedRefund > 0) {
+                _releaseSellerWeeklyVolume(order.seller, shippedRefund);
+            }
             require(
                 usdt.transfer(order.buyer, totalRefund),
                 "USDT transfer failed"
@@ -939,8 +954,11 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         // Release the buyer-refunded portion from the seller's weekly
         // volume counter (Pashov audit finding #2, ADR-054) — only the
         // refunded slice frees up cap; the released slice stays
-        // accounted for as a real sale.
-        if (refundAmount > 0) {
+        // accounted for as a real sale. ADR-057 re-audit (FINDING-1):
+        // gate on shipmentGroupId != 0 — an item disputed from Pending
+        // (e.g. buyer contests a non-shipment) was never counted at ship,
+        // so releasing here would corrupt the seller's weekly cap.
+        if (refundAmount > 0 && item.shipmentGroupId != 0) {
             _releaseSellerWeeklyVolume(order.seller, refundAmount);
         }
 

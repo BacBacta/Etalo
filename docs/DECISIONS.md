@@ -4214,3 +4214,58 @@ the latter test invariants superseded by #3/#4 (re-covered in
 Pre-deploy checklist: re-audit, redeploy + migrate in-flight orders,
 validate `MAX_BUYER_ESCROW`, and re-enable the cross-border/V2 tests when
 that path ships.
+
+### Re-audit (2026-06-02) — gate before deploy
+
+The 8-agent `solidity-auditor` re-audit was run on the merged post-fix
+`EtaloEscrow.sol` (commit `d5515c7`) as the deploy gate. It confirmed the
+four fixes resolve their original findings, and surfaced **one new HIGH
+regression introduced by fix #4**:
+
+**FINDING-1 (HIGH) — weekly-volume cap bypass via refund of an
+unshipped order.** Fix #4 moved volume *recording* to ship time
+(`shipItemsGrouped`), but the three refund paths still *released* volume:
+`triggerAutoRefundIfInactive` (permissionless, fires only on `Funded` =
+pre-ship), `forceRefund`, and `resolveItemDispute`. Releasing volume for
+an order that was never shipped (and therefore never counted) drains the
+shared per-seller counter, letting a seller exceed `MAX_SELLER_WEEKLY`
+(ADR-026) by ~2,500 USDT/week per cycle (cap-limited by `MAX_BUYER_ESCROW`
+on the colluding funders). Permissionless and repeatable.
+
+**Fix.** A refund frees weekly volume **only for items actually shipped**,
+keyed on `item.shipmentGroupId != 0` (set in the same `shipItemsGrouped`
+loop that records the volume — the exact inverse marker):
+- `triggerAutoRefundIfInactive`: release call removed entirely (status
+  gate guarantees no item shipped).
+- `forceRefund`: release a `shippedRefund` accumulator (shipped items
+  only), not the full `totalRefund`.
+- `resolveItemDispute`: release gated on `item.shipmentGroupId != 0`
+  (an item disputed from `Pending` — a non-shipment complaint — was never
+  counted).
+
+Regression test added in `EscrowAuditFixes.test.ts` (auto-refund of an
+unshipped order leaves `sellerWeeklyVolume` unchanged). The Foundry
+invariant suite did not catch this originally because the
+`h_triggerAutoRefund` handler reaches 0 successful calls under bounded
+fuzzing and there is no `recorded-vs-shipped` volume invariant — gap
+noted for a future ghost-variable invariant.
+
+**Lower-severity re-audit items, dispositions:**
+- *FINDING-2 (LOW, `confirmItem/GroupDelivery` missing `fundedAt` guard):*
+  not applied — the existing `Shipped|Arrived|Delivered` status gate
+  already makes the path unreachable on unfunded orders; a `fundedAt`
+  check would be dead code.
+- *LEAD-4 (`setDisputeContract` missing zero-check):* **rejected** —
+  `forceRefund` (ADR-023) *requires* `dispute == address(0)`, so the
+  setter must accept the zero address; the asymmetry vs treasury setters
+  is intentional.
+- *LEAD-2 (`_subEscrow` saturation drift), LEAD-3 (cross-week release),
+  LEAD-7 (Top-Seller tier sampled at two points):* V2/cross-border-only
+  or informational; tracked for the V2 cross-border audit.
+- *LEAD-6 (`SafeERC20`):* the Celo-bridged USDT is bool-returning, so the
+  current `require(transfer(...))` is safe on the live deployment;
+  hardening deferred.
+
+Post-re-audit suite: **162 passing · 31 skipped · 0 failing**; Foundry
+**10/10 invariants** green. This commit supersedes the pre-deploy
+"re-audit" checklist item — the gate is now satisfied.
