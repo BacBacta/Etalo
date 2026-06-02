@@ -20,6 +20,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   CREDITS_BALANCE_QUERY_KEY,
   useCreditsBalance,
+  useReconcileCreditsBalance,
 } from "@/hooks/useCreditsBalance";
 
 const fetchCreditsBalanceMock = vi.fn();
@@ -117,5 +118,74 @@ describe("useCreditsBalance — invalidation contract", () => {
       expect(fetchCreditsBalanceMock).toHaveBeenCalledTimes(2),
     );
     expect(result.current.data?.balance).toBe(25);
+  });
+});
+
+describe("useReconcileCreditsBalance — post-purchase indexer-lag UX", () => {
+  const key = [CREDITS_BALANCE_QUERY_KEY, SAMPLE_WALLET];
+
+  it("bumps the balance optimistically and never flashes the stale value", async () => {
+    vi.useFakeTimers();
+    // gcTime Infinity : we drive the cache directly without an active
+    // useCreditsBalance observer here, so the default gcTime:0 wrapper
+    // would garbage-collect the entry between async ticks. In the real
+    // app the chip/form keeps an observer alive.
+    const client = new QueryClient({
+      defaultOptions: { queries: { gcTime: Infinity, retry: false } },
+    });
+    function Wrapper({ children }: { children: React.ReactNode }) {
+      return (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      );
+    }
+    client.setQueryData(key, { balance: 5, wallet_address: SAMPLE_WALLET });
+
+    // Poll #1 returns the still-stale balance (indexer behind); poll #2
+    // returns the caught-up balance.
+    fetchCreditsBalanceMock
+      .mockResolvedValueOnce({ balance: 5, wallet_address: SAMPLE_WALLET })
+      .mockResolvedValueOnce({ balance: 35, wallet_address: SAMPLE_WALLET });
+
+    const { result } = renderHook(() => useReconcileCreditsBalance(), {
+      wrapper: Wrapper,
+    });
+
+    act(() => {
+      result.current(30);
+    });
+
+    // Optimistic value applied immediately — no flash of 0/stale.
+    expect(
+      (client.getQueryData(key) as { balance: number }).balance,
+    ).toBe(35);
+
+    // Poll #1 sees the stale 5 → must KEEP the optimistic 35.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(
+      (client.getQueryData(key) as { balance: number }).balance,
+    ).toBe(35);
+
+    // Poll #2 sees 35 (caught up) → adopt authoritative value + stop.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(
+      (client.getQueryData(key) as { balance: number }).balance,
+    ).toBe(35);
+    expect(fetchCreditsBalanceMock).toHaveBeenCalledTimes(2);
+
+    vi.useRealTimers();
+  });
+
+  it("is a no-op when no wallet is connected", () => {
+    useAccountMock.mockReturnValue({ address: undefined });
+    const { Wrapper } = makeWrapper();
+    const { result } = renderHook(() => useReconcileCreditsBalance(), {
+      wrapper: Wrapper,
+    });
+    expect(() => act(() => result.current(30))).not.toThrow();
+    expect(fetchCreditsBalanceMock).not.toHaveBeenCalled();
   });
 });

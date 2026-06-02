@@ -22,6 +22,7 @@ import {
   useChainMatch,
 } from "@/components/wallet/ChainMismatchBanner";
 import { useBuyCredits, type BuyCreditsPhase } from "@/hooks/useBuyCredits";
+import { useReconcileCreditsBalance } from "@/hooks/useCreditsBalance";
 import {
   buildExplorerUrl,
   shortHash,
@@ -86,6 +87,7 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
   const chainId = useChainId();
   const { isMatch: chainMatches } = useChainMatch();
   const { state, start, reset } = useBuyCredits();
+  const reconcileCredits = useReconcileCreditsBalance();
   const inFlight = isInFlight(state.phase);
 
   const [presetCredits, setPresetCredits] = useState<number | null>(10);
@@ -107,7 +109,14 @@ export function BuyCreditsDialog({ open, onOpenChange, onSuccess }: Props) {
   useEffect(() => {
     if (state.phase === "success") {
       fireMilestone("credit-purchase");
+      // Optimistically reflect the new balance + reconcile against the
+      // indexer in the background, so the chip/flow never flashes 0
+      // while the on-chain → off-chain mirror catches up.
+      if (state.purchasedCredits != null) {
+        reconcileCredits(Number(state.purchasedCredits));
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.phase]);
 
   const creditAmount = useMemo<number | null>(() => {

@@ -590,17 +590,12 @@ export function ProductFormDialog({
         </form>
       </DialogContent>
 
-      {/* Credits purchase — on-chain EtaloCredits.purchaseCredits. Opened
-          from the enhance section when the seller has no credits. On
-          success, refresh the balance so they can enhance immediately. */}
+      {/* Credits purchase — on-chain EtaloCredits.purchaseCredits. The
+          dialog itself optimistically updates + reconciles the balance
+          (no invalidate here, which would refetch the still-stale 0). */}
       <BuyCreditsDialog
         open={buyCreditsOpen}
         onOpenChange={setBuyCreditsOpen}
-        onSuccess={() =>
-          queryClient.invalidateQueries({
-            queryKey: [CREDITS_BALANCE_QUERY_KEY],
-          })
-        }
       />
     </Dialog>
   );

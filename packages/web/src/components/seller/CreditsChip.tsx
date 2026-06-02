@@ -10,18 +10,13 @@
 "use client";
 
 import { Coins } from "@phosphor-icons/react";
-import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
 import { BuyCreditsDialog } from "@/components/seller/marketing/BuyCreditsDialog";
-import {
-  CREDITS_BALANCE_QUERY_KEY,
-  useCreditsBalance,
-} from "@/hooks/useCreditsBalance";
+import { useCreditsBalance } from "@/hooks/useCreditsBalance";
 
 export function CreditsChip() {
   const creditsQuery = useCreditsBalance();
-  const queryClient = useQueryClient();
   const [buyOpen, setBuyOpen] = useState(false);
 
   const balance = creditsQuery.data?.balance ?? 0;
@@ -45,15 +40,9 @@ export function CreditsChip() {
         </span>
       </button>
 
-      <BuyCreditsDialog
-        open={buyOpen}
-        onOpenChange={setBuyOpen}
-        onSuccess={() =>
-          queryClient.invalidateQueries({
-            queryKey: [CREDITS_BALANCE_QUERY_KEY],
-          })
-        }
-      />
+      {/* BuyCreditsDialog self-reconciles the balance (optimistic update
+          + indexer-lag poll), so no invalidate here. */}
+      <BuyCreditsDialog open={buyOpen} onOpenChange={setBuyOpen} />
     </>
   );
 }

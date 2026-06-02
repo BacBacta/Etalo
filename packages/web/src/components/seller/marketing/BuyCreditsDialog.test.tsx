@@ -32,6 +32,13 @@ vi.mock("@/hooks/useBuyCredits", () => ({
   }),
 }));
 
+// The dialog reconciles the credits balance on success — mock the hook
+// so the spec needs no QueryClientProvider / wagmi address.
+const reconcileMock = vi.fn();
+vi.mock("@/hooks/useCreditsBalance", () => ({
+  useReconcileCreditsBalance: () => reconcileMock,
+}));
+
 beforeEach(() => {
   hookState = { phase: "idle" };
   startMock.mockReset();
