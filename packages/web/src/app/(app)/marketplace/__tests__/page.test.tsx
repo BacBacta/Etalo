@@ -37,12 +37,12 @@ vi.mock("@/hooks/useMarketplaceProducts", () => ({
 // assertions are unaffected ; a dedicated spec overrides per-test.
 type MockSection = { key: string; title: string; products: unknown[] };
 const useMarketplaceSectionsMock = vi.fn(
-  (_opts?: unknown): { data: { sections: MockSection[] } } => ({
+  (): { data: { sections: MockSection[] } } => ({
     data: { sections: [] },
   }),
 );
 vi.mock("@/hooks/useMarketplaceSections", () => ({
-  useMarketplaceSections: (opts: unknown) => useMarketplaceSectionsMock(opts),
+  useMarketplaceSections: () => useMarketplaceSectionsMock(),
   MARKETPLACE_SECTIONS_QUERY_KEY: ["marketplace-sections"] as const,
 }));
 
