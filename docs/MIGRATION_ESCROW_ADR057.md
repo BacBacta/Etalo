@@ -41,7 +41,11 @@ partent de 0, ce qui est correct.
 
 ## 3. Fenêtre de drain — choisir une option
 
-### Option A (recommandée, volume faible) — fenêtre de maintenance
+> **✅ SÉLECTIONNÉ : Option A** (fenêtre de maintenance). Option B conservée
+> ci-dessous comme alternative zéro-downtime si le trafic le justifie plus
+> tard.
+
+### Option A (SÉLECTIONNÉE — volume faible) — fenêtre de maintenance
 1. **Geler la création de nouvelles commandes** côté off-chain : le
    frontend/backend cesse d'émettre des `createOrderWithItems` vers
    l'ancien escrow (bannière « maintenance commandes »). Les commandes
@@ -117,3 +121,23 @@ avant (le nouveau contrat reste owner-Safe, `emergencyPause` disponible).
 1. **Re-audit** des 4 fixes (accounting custody) avant tout déploiement.
 2. Valider `MAX_BUYER_ESCROW = 2 500 USDT` (décision produit).
 3. Exécution **owner = Safe 2-of-3** pour tous les setters de bascule.
+
+## 9. Kit d'exécution Option A (scripts fournis)
+
+Outils livrés pour dérouler l'Option A. **Aucun ne touche mainnet
+automatiquement** — le déploiement/bascule reste un acte délibéré des
+signataires.
+
+| Étape | Outil | Nature |
+|---|---|---|
+| Déploiement nouveau escrow + câblage setters | Réutiliser le flow éprouvé `scripts/deploy.v2.ts` / `scripts/deploy.mainnet.ts` (restreint à EtaloEscrow), owner → Safe | tx (deployer/Safe) |
+| Suivi du drain → 0 | `scripts/escrow-drain-monitor.ts` (`--network celoMainnet`) | **read-only** |
+| Calldata de bascule pour le Safe | `scripts/escrow-cutover-calldata.ts` (`NEW_ESCROW=0x...`) | **offline**, génère les `(to, data)` |
+
+Séquence : déployer → surveiller jusqu'à `in-flight = 0` & `totalEscrowed = 0`
+→ générer le calldata → exécuter les 3 (+1) tx via le Safe → swap adresses
+off-chain (§5) → reprendre l'intake → checklist (§6).
+
+> ⚠️ Le déploiement d'un contrat de custody mainnet et la bascule ne sont
+> pas exécutés par l'assistant : ils requièrent le re-audit (§8) et les
+> signatures du Safe 2-of-3.
