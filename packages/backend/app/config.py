@@ -214,6 +214,16 @@ class Settings(BaseSettings):
     auto_release_keeper_interval_hours: float = 2.0
     auto_release_keeper_enabled: bool = True
 
+    # ADR-057 migration — Phase 0 intake freeze. When true, the
+    # `/cart/checkout-token` endpoint returns 503 so NO new order can be
+    # created against the (old) escrow, while already-funded orders
+    # continue their lifecycle normally (the escrow is NOT paused). This
+    # is the hard, runtime-flippable gate (flip the Fly secret + restart)
+    # that starts the drain window ; rollback = set back to false. The
+    # frontend reads the 503 and shows a maintenance message, so this
+    # flag alone produces correct UX without a frontend rebuild.
+    orders_frozen: bool = False
+
     # Legacy V1 fields (kept for the V1 stub in app/services/celo.py;
     # removed in Block 4).
     escrow_contract_address: str = ""

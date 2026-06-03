@@ -11,6 +11,7 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.config import settings
 from app.database import get_async_db
 from app.models.enums import OrderStatus
 from app.models.order import Order
@@ -64,6 +65,25 @@ async def create_cart_token(
     = false`) to avoid the cross-border seller-stake gate that would
     revert with "Seller stake ineligible" without an EtaloStake deposit.
     """
+    # ADR-057 migration Phase 0 — intake freeze. This is the hard gate
+    # that stops NEW order creation during the escrow drain window
+    # (already-funded orders continue normally — the escrow is not
+    # paused). Checked first, before any DB work, so a frozen backend is
+    # cheap and unambiguous. Runtime-flippable via the ORDERS_FROZEN env
+    # var ; rollback = set back to false + restart.
+    if settings.orders_frozen:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail={
+                "reason": "orders_frozen",
+                "message": (
+                    "New orders are paused for scheduled maintenance. "
+                    "Existing orders are unaffected — please check back "
+                    "shortly."
+                ),
+            },
+        )
+
     qty_by_id = {item.product_id: item.qty for item in request.items}
 
     rows = (

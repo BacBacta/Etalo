@@ -16,7 +16,12 @@ import {
 } from "@/components/ui/v4/Sheet";
 import { AnimatedNumber } from "@/components/ui/v4/AnimatedNumber";
 import { type SellerGroup, useCartStore } from "@/lib/cart-store";
-import { CartValidationError, postCartToken } from "@/lib/checkout";
+import {
+  CartValidationError,
+  OrdersFrozenError,
+  postCartToken,
+} from "@/lib/checkout";
+import { ORDERS_FROZEN, ORDERS_FROZEN_MESSAGE } from "@/lib/flags";
 
 interface Props {
   open: boolean;
@@ -103,7 +108,10 @@ export function CartDrawer({ open, onOpenChange }: Props) {
       onOpenChange(false);
       router.push(`/checkout?token=${encodeURIComponent(token)}`);
     } catch (err) {
-      if (err instanceof CartValidationError) {
+      if (err instanceof OrdersFrozenError) {
+        // ADR-057 Phase 0 — intake frozen for the escrow migration.
+        toast.error(err.message);
+      } else if (err instanceof CartValidationError) {
         for (const e of err.errors) {
           const tail =
             e.available_qty != null ? ` (only ${e.available_qty} available)` : "";
@@ -211,6 +219,19 @@ export function CartDrawer({ open, onOpenChange }: Props) {
 
           {sellerCount > 0 ? (
             <div className="mt-auto flex flex-col gap-3 border-t border-neutral-200 px-4 py-4 dark:border-celo-light/10">
+              {/* ADR-057 Phase 0 — proactive intake-freeze notice. The
+                  backend 503 is the hard gate ; this just tells the
+                  buyer before they tap. Shown only when the build flag
+                  is set alongside the backend freeze. */}
+              {ORDERS_FROZEN ? (
+                <div
+                  role="status"
+                  data-testid="cart-orders-frozen-banner"
+                  className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100"
+                >
+                  {ORDERS_FROZEN_MESSAGE}
+                </div>
+              ) : null}
               <div className="flex w-full items-center justify-between">
                 <span className="text-base font-semibold text-celo-dark dark:text-celo-light">
                   Total
@@ -226,10 +247,12 @@ export function CartDrawer({ open, onOpenChange }: Props) {
               <Button
                 type="button"
                 onClick={handleCheckout}
-                disabled={isCheckingOut}
+                disabled={isCheckingOut || ORDERS_FROZEN}
                 className="min-h-[44px] w-full text-base"
               >
-                {isCheckingOut
+                {ORDERS_FROZEN
+                  ? "Orders paused for maintenance"
+                  : isCheckingOut
                   ? "Preparing checkout…"
                   : `Checkout in MiniPay (${sellerCount} ${
                       sellerCount === 1 ? "seller" : "sellers"

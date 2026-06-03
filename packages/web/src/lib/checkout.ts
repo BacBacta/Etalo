@@ -1,4 +1,5 @@
 import { fetchApi } from "@/lib/fetch-api";
+import { ORDERS_FROZEN, ORDERS_FROZEN_MESSAGE } from "@/lib/flags";
 import type { paths } from "@/types/api.gen";
 
 export type CartTokenResponse =
@@ -35,9 +36,25 @@ export class CartTokenInvalidError extends Error {
   }
 }
 
+/** ADR-057 Phase 0 — thrown when the backend has frozen new-order intake
+ *  for the escrow migration (503 on /cart/checkout-token), or when the
+ *  client-side ORDERS_FROZEN flag short-circuits before the request.
+ *  Callers should surface `ORDERS_FROZEN_MESSAGE`, not a generic error. */
+export class OrdersFrozenError extends Error {
+  constructor() {
+    super(ORDERS_FROZEN_MESSAGE);
+    this.name = "OrdersFrozenError";
+  }
+}
+
 export async function postCartToken(
   items: Array<{ productId: string; qty: number }>,
 ): Promise<CartTokenResponse> {
+  // Proactive client gate — avoid a doomed round-trip when the build
+  // flag is set. The backend 503 below is the authoritative gate.
+  if (ORDERS_FROZEN) {
+    throw new OrdersFrozenError();
+  }
   const res = await fetchApi("/cart/checkout-token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -45,6 +62,11 @@ export async function postCartToken(
       items: items.map((i) => ({ product_id: i.productId, qty: i.qty })),
     }),
   });
+  if (res.status === 503) {
+    // Backend intake freeze (ADR-057 Phase 0) — source of truth, works
+    // even if the client build flag is off.
+    throw new OrdersFrozenError();
+  }
   if (res.status === 422) {
     const detail = (await res.json()) as {
       detail: { validation_errors: CartValidationItemError[] };

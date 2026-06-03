@@ -56,6 +56,7 @@ import { useCheckoutBalanceGate } from "@/hooks/useCheckoutBalanceGate";
 import { useSequentialCheckout } from "@/hooks/useSequentialCheckout";
 import { useCartStore } from "@/lib/cart-store";
 import type { ResolvedCart } from "@/lib/checkout";
+import { ORDERS_FROZEN, ORDERS_FROZEN_MESSAGE } from "@/lib/flags";
 
 interface Props {
   cart: ResolvedCart;
@@ -137,6 +138,20 @@ export function CheckoutFlow({ cart, token }: Props) {
 
               <ChainMismatchBanner />
 
+              {/* ADR-057 Phase 0 — if the buyer deep-linked here with a
+                  pre-freeze token, the backend can't block the on-chain
+                  createOrderWithItems, so the frozen CTA below is the
+                  mitigation. Surface the reason. */}
+              {ORDERS_FROZEN ? (
+                <div
+                  role="status"
+                  data-testid="checkout-orders-frozen-banner"
+                  className="rounded-lg bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:bg-amber-900/30 dark:text-amber-100"
+                >
+                  {ORDERS_FROZEN_MESSAGE}
+                </div>
+              ) : null}
+
               {balanceGate.hasInsufficient ? (
                 <InsufficientBalanceCTA deficitRaw={balanceGate.deficitRaw} />
               ) : null}
@@ -177,11 +192,16 @@ export function CheckoutFlow({ cart, token }: Props) {
                 className="min-h-[48px] w-full text-base"
                 onClick={start}
                 disabled={
-                  balanceGate.isLoading || !addressReady || !chainMatches
+                  balanceGate.isLoading ||
+                  !addressReady ||
+                  !chainMatches ||
+                  ORDERS_FROZEN
                 }
                 data-testid="checkout-start"
               >
-                {addressReady
+                {ORDERS_FROZEN
+                  ? "Orders paused for maintenance"
+                  : addressReady
                   ? `Pay ${Number(cart.total_usdt).toFixed(2)} USDT`
                   : "Fill the delivery address to continue"}
               </Button>
