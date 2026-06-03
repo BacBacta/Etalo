@@ -138,45 +138,50 @@ ENHANCE_BACKDROP_RGB = (247, 245, 240)
 #    (texture noise / fabric patterns amplify ugly with hard sharpening)
 #  - margin: more air for fashion (tall garments / shoes) ; tighter for
 #    beauty/home where the product is the whole story
+# Sharpen percents are deliberately gentle : the matte now carries a
+# feathered edge and sources are compressed phone JPEGs, so aggressive
+# UnsharpMask amplified noise / halos / JPEG blocks ("crunchy" look).
+# Higher thresholds keep flat / noisy regions untouched and only crisp
+# genuine product edges.
 ENHANCE_PRESETS: dict[str, dict] = {
     "fashion": {
         "backdrop": (247, 245, 240),  # #F7F5F0 cream
         "saturation": 1.05,
         "sharpen_radius": 1,
-        "sharpen_percent": 20,
-        "sharpen_threshold": 4,
+        "sharpen_percent": 12,
+        "sharpen_threshold": 5,
         "margin": 0.07,
     },
     "beauty": {
         "backdrop": (250, 247, 242),  # #FAF7F2 warmer cream
         "saturation": 1.12,
         "sharpen_radius": 1,
-        "sharpen_percent": 28,
-        "sharpen_threshold": 3,
+        "sharpen_percent": 18,
+        "sharpen_threshold": 4,
         "margin": 0.06,
     },
     "food": {
         "backdrop": (250, 245, 235),  # #FAF5EB warm cream
         "saturation": 1.08,
         "sharpen_radius": 1,
-        "sharpen_percent": 15,
-        "sharpen_threshold": 5,
+        "sharpen_percent": 10,
+        "sharpen_threshold": 6,
         "margin": 0.05,
     },
     "home": {
         "backdrop": (245, 245, 245),  # #F5F5F5 neutral light gray
         "saturation": 1.0,
         "sharpen_radius": 1,
-        "sharpen_percent": 32,
-        "sharpen_threshold": 3,
+        "sharpen_percent": 20,
+        "sharpen_threshold": 4,
         "margin": 0.05,
     },
     "other": {
         "backdrop": ENHANCE_BACKDROP_RGB,
         "saturation": 1.05,
         "sharpen_radius": 1,
-        "sharpen_percent": 22,
-        "sharpen_threshold": 4,
+        "sharpen_percent": 14,
+        "sharpen_threshold": 5,
         "margin": 0.05,
     },
 }
@@ -500,6 +505,89 @@ def _erode_alpha_edges(rgba_image, erosion_pixels: int = 3):
     return Image.merge("RGBA", (r, g, b, a_eroded))
 
 
+def _refine_alpha_edges(rgba_image, erosion_pixels: int = 1, feather_radius: float = 1.0):
+    """Premium edge treatment for the matte. Replaces the blunt 3px
+    erosion : a hard 3px shave kills color bleed but also eats thin
+    product parts (straps, handles, jewellery) and leaves a crisp
+    "sticker" cut-out outline that reads as fake.
+
+    Two gentle steps instead :
+    1. Erode 1px — strips only the worst birefnet edge-bleed pixel.
+    2. Gaussian-feather the alpha — softens the boundary so the product
+       melts into the backdrop like a real photograph rather than a
+       detoured layer. Thin parts survive because we only shave 1px.
+
+    RGB channels untouched ; only the alpha band is refined.
+    """
+    from PIL import Image, ImageFilter
+
+    r, g, b, a = rgba_image.split()
+    if erosion_pixels >= 1:
+        a = a.filter(ImageFilter.MinFilter(size=erosion_pixels * 2 + 1))
+    if feather_radius > 0:
+        a = a.filter(ImageFilter.GaussianBlur(radius=feather_radius))
+    return Image.merge("RGBA", (r, g, b, a))
+
+
+def _studio_backdrop(out_dim: int, base_rgb: tuple[int, int, int]):
+    """Generate a studio-sweep backdrop instead of a flat fill. A soft
+    radial light pool sits slightly above centre (where the product
+    lands) and falls off toward the edges into a gentle vignette — the
+    same light gradient a seamless paper sweep produces under a softbox.
+    A flat solid colour is the tell-tale sign of a cheap cut-out tool ;
+    this single change does most of the "studio" lift.
+
+    Brightness ranges from +6 % at the light centre to ~-12 % at the far
+    corners, applied multiplicatively to the per-category base colour so
+    each preset keeps its hue (cream / cool grey / warm).
+    """
+    import numpy as np
+    from PIL import Image
+
+    yy, xx = np.mgrid[0:out_dim, 0:out_dim].astype(np.float32)
+    cx, cy = out_dim * 0.5, out_dim * 0.42  # light pool a touch above centre
+    dist = np.sqrt((xx - cx) ** 2 + (yy - cy) ** 2)
+    dist /= dist.max()  # normalise 0..1
+    # Smooth falloff : bright near the pool, vignette at the corners.
+    factor = 1.06 - 0.18 * np.clip(dist, 0.0, 1.0) ** 1.4
+    base = np.array(base_rgb, dtype=np.float32)
+    arr = np.clip(base[None, None, :] * factor[:, :, None], 0, 255).astype(np.uint8)
+    return Image.fromarray(arr, "RGB")
+
+
+def _paste_silhouette_shadow(canvas, product_rgba, paste_x, paste_y, out_dim):
+    """Cast a shadow shaped like the product's actual silhouette, squashed
+    onto the floor and softly blurred — replaces the generic blurred
+    ellipse (which reads as a floating blob detached from the product).
+
+    Build : fill the product's alpha with black → squash vertically to
+    ~22 % height (foreshortened ground cast) → heavy gaussian blur →
+    drop opacity to ~45 % → anchor at the product's base with a slight
+    overlap so the contact point reads as grounded.
+    """
+    from PIL import Image, ImageFilter
+
+    pw, ph = product_rgba.size
+    alpha = product_rgba.split()[3]
+    black = Image.new("RGBA", (pw, ph), (0, 0, 0, 255))
+    transparent = Image.new("RGBA", (pw, ph), (0, 0, 0, 0))
+    shadow = Image.composite(black, transparent, alpha)
+
+    squash_h = max(8, int(ph * 0.22))
+    shadow = shadow.resize((pw, squash_h), Image.LANCZOS)
+
+    blur = max(10, int(out_dim * 0.018))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(radius=blur))
+
+    r, g, b, a = shadow.split()
+    a = a.point(lambda v: int(v * 0.45))
+    shadow = Image.merge("RGBA", (r, g, b, a))
+
+    sx = paste_x
+    sy = paste_y + ph - int(squash_h * 0.55)  # overlap base for contact
+    canvas.paste(shadow, (sx, sy), shadow)
+
+
 def _composite_square(
     transparent_bytes: bytes,
     preset: dict | None = None,
@@ -526,12 +614,11 @@ def _composite_square(
     out_dim = ENHANCE_OUTPUT_DIM
     src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
 
-    # Strip the contaminated alpha-blended edge pixels BEFORE color
-    # correction so autocontrast / saturation operate on clean product
-    # pixels only. Always-on (3 px) — the cost is sub-millisecond and
-    # the benefit is universal (no light/dark product gives bleed-free
-    # edges out of birefnet).
-    src = _erode_alpha_edges(src, erosion_pixels=3)
+    # Refine the matte edge (1px erode + feather) BEFORE color correction
+    # so autocontrast / saturation operate on clean product pixels and the
+    # boundary melts into the backdrop instead of reading as a sticker
+    # cut-out. Gentler than the old blunt 3px shave → thin parts survive.
+    src = _refine_alpha_edges(src, erosion_pixels=1, feather_radius=1.0)
     src = _auto_correct_rgba(src, preset)
 
     bbox = src.getbbox()
@@ -546,16 +633,17 @@ def _composite_square(
     new_h = max(1, int(src_h * scale))
     resized = src.resize((new_w, new_h), Image.LANCZOS) if scale != 1.0 else src
 
+    # Studio-sweep backdrop (radial light pool + vignette) instead of a
+    # flat fill — the single biggest "studio" lift. Keeps the preset hue.
     backdrop = preset.get("backdrop", ENHANCE_BACKDROP_RGB)
-    canvas = Image.new("RGB", (out_dim, out_dim), backdrop)
+    canvas = _studio_backdrop(out_dim, backdrop)
     paste_x = (out_dim - new_w) // 2
     paste_y = (out_dim - new_h) // 2
 
-    # Soft elliptical ground shadow under the product BEFORE pasting it,
-    # so the product naturally overlaps the top of the shadow (no double-
-    # shadow with any storefront-card CSS box-shadow). Anchored at the
-    # product's bottom edge, ~85 % of product width, blurred heavily.
-    _paste_ground_shadow(canvas, new_w, new_h, paste_x, paste_y, out_dim)
+    # Silhouette-shaped contact shadow BEFORE pasting the product, so the
+    # product overlaps the shadow's top edge and reads as grounded (not a
+    # floating blob, and no double-shadow with any storefront CSS shadow).
+    _paste_silhouette_shadow(canvas, resized, paste_x, paste_y, out_dim)
 
     canvas.paste(resized, (paste_x, paste_y), mask=resized.split()[3])
 
@@ -619,6 +707,217 @@ def _paste_ground_shadow(canvas, prod_w, prod_h, paste_x, paste_y, canvas_dim):
     )
 
     canvas.paste(shadow_blurred, (0, 0), shadow_blurred)
+
+
+# =====================================================================
+# ADR-049 Tier-1 — generative subject relighting (fal IC-Light v2).
+#
+# Pipeline when settings.enhance_relight_enabled :
+#   birefnet matte (already paid) → composite the cut-out on neutral grey
+#   + extract its alpha mask → IC-Light v2 relights ONLY the subject into
+#   a coherent studio scene (real soft light + cast shadow) driven by a
+#   category-aware prompt + a light direction → normalise to 2048².
+#
+# IC-Light is a *relighting* model : it preserves the subject's structure
+# (more faithful to brand text / logos than a full restage) and changes
+# lighting + background. ANY failure raises → caller falls back to the
+# verified classical studio compositor, so enabling is always safe.
+# =====================================================================
+
+# Per-category studio-photography prompts. Kept product-neutral (no
+# invented props) so IC-Light stages a clean professional scene without
+# hallucinating objects onto the product.
+_RELIGHT_PROMPTS: dict[str, str] = {
+    "fashion": (
+        "professional fashion product photography, soft diffused studio "
+        "lighting, clean seamless light-grey backdrop, gentle natural "
+        "shadow, high-end e-commerce catalogue, photorealistic"
+    ),
+    "beauty": (
+        "premium beauty product photography, soft glowing studio light, "
+        "clean minimal backdrop, subtle reflection, luxury cosmetics "
+        "advertisement, crisp and photorealistic"
+    ),
+    "food": (
+        "appetising food product photography, warm soft natural light, "
+        "clean neutral backdrop, gentle shadow, fresh and vibrant, "
+        "professional menu photography, photorealistic"
+    ),
+    "home": (
+        "professional homeware product photography, even studio lighting, "
+        "clean light backdrop, soft realistic shadow, modern catalogue "
+        "look, sharp and photorealistic"
+    ),
+    "other": (
+        "professional product photography, soft studio lighting, clean "
+        "seamless backdrop, natural soft shadow, high-end e-commerce, "
+        "photorealistic"
+    ),
+}
+
+# Negative prompt — steer away from the classic generative failure modes
+# on product shots.
+_RELIGHT_NEGATIVE = (
+    "blurry, distorted, deformed product, extra objects, text artifacts, "
+    "watermark, oversaturated, harsh shadows, cluttered background, "
+    "low quality, jpeg artifacts"
+)
+
+# Light directions cycled across variants so the 3 choices differ.
+_RELIGHT_LIGHT_DIRECTIONS = ["Top", "Left", "Right"]
+
+# Categories where generative relight HELPS : 3D-leaning products
+# (bottles, jars, appliances, bags) gain real volume + lighting. Flat
+# goods photographed laid-out (fashion garments, food on a plate) have no
+# 3D form to relight and IC-Light degrades their framing — the classical
+# studio compositor wins there. Probe evidence (Ndop textile) drove this.
+_RELIGHT_CATEGORIES = {"beauty", "home", "other"}
+
+
+def _relight_suitable(category: str | None) -> bool:
+    """Whether generative relight is appropriate for this category.
+    Unknown / None → treated as 'other' (allowed). Flat goods (fashion,
+    food) are excluded → they keep the classical studio compositor."""
+    return (category or "other") in _RELIGHT_CATEGORIES
+
+
+def _relight_prompt(category: str | None) -> str:
+    """Category-aware studio prompt for IC-Light. Falls back to 'other'."""
+    if category is None:
+        return _RELIGHT_PROMPTS["other"]
+    return _RELIGHT_PROMPTS.get(category, _RELIGHT_PROMPTS["other"])
+
+
+def _prep_subject_for_relight(
+    transparent_bytes: bytes, pad_ratio: float = 0.08
+) -> tuple[bytes, bytes]:
+    """From a birefnet transparent matte, build the two inputs IC-Light
+    wants : (1) the subject composited on neutral mid-grey (RGB JPEG —
+    IC-Light keys lighting off a grey field, not transparency), and (2)
+    the alpha as an L-mode mask PNG so the model conditions on the exact
+    product silhouette.
+
+    Both are produced SQUARE (product cropped to bbox, then centred on a
+    square grey canvas with `pad_ratio` breathing room). A square subject
+    makes IC-Light return a square scene, so the whole product stays
+    visible — the earlier non-square output forced a destructive
+    cover-crop that ate the product's edges.
+    """
+    from PIL import Image
+
+    src = Image.open(BytesIO(transparent_bytes)).convert("RGBA")
+    bbox = src.getbbox()
+    if bbox is not None:
+        src = src.crop(bbox)
+
+    alpha = src.split()[3]
+    w, h = src.size
+    side = max(1, int(max(w, h) * (1 + 2 * pad_ratio)))
+    ox, oy = (side - w) // 2, (side - h) // 2
+
+    grey = Image.new("RGB", (side, side), (127, 127, 127))
+    grey.paste(src, (ox, oy), mask=alpha)
+
+    mask_canvas = Image.new("L", (side, side), 0)
+    mask_canvas.paste(alpha, (ox, oy))
+
+    subj_buf = BytesIO()
+    grey.save(subj_buf, format="JPEG", quality=92)
+
+    mask_buf = BytesIO()
+    mask_canvas.save(mask_buf, format="PNG")
+
+    return subj_buf.getvalue(), mask_buf.getvalue()
+
+
+def _edge_color(im) -> tuple[int, int, int]:
+    """Average colour of an image's four edges — used to pad letterbox
+    bars with the scene's own background so they blend invisibly."""
+    px = im.load()
+    w, h = im.size
+    samples = []
+    for x in range(0, w, max(1, w // 20)):
+        samples.append(px[x, 0])
+        samples.append(px[x, h - 1])
+    for y in range(0, h, max(1, h // 20)):
+        samples.append(px[0, y])
+        samples.append(px[w - 1, y])
+    n = len(samples)
+    return tuple(sum(c[i] for c in samples) // n for i in range(3))  # type: ignore[return-value]
+
+
+def _normalize_to_square(image_bytes: bytes, out_dim: int = ENHANCE_OUTPUT_DIM) -> bytes:
+    """Fit an IC-Light output into a centred out_dim×out_dim PNG WITHOUT
+    cropping the product (contain, not cover). With a square subject the
+    output is already square → a plain resize ; the contain+pad path is a
+    safety net for any non-square output, padding the bars with the
+    scene's own edge colour so they blend in."""
+    from PIL import Image, ImageOps
+
+    im = Image.open(BytesIO(image_bytes)).convert("RGB")
+    fitted = ImageOps.contain(im, (out_dim, out_dim), method=Image.LANCZOS)
+
+    if fitted.size != (out_dim, out_dim):
+        canvas = Image.new("RGB", (out_dim, out_dim), _edge_color(fitted))
+        fw, fh = fitted.size
+        canvas.paste(fitted, ((out_dim - fw) // 2, (out_dim - fh) // 2))
+        fitted = canvas
+
+    out = BytesIO()
+    fitted.save(out, format="PNG", optimize=True)
+    return out.getvalue()
+
+
+async def _relight_via_fal(
+    transparent_bytes: bytes,
+    category: str | None,
+    initial_latent: str = "Top",
+) -> bytes:
+    """Relight an isolated product into a studio scene via fal IC-Light v2.
+    Raises on any failure so the caller can fall back to the compositor.
+
+    Input/response shape per the fal IC-Light v2 API contract :
+    in  = {image_url, mask_image_url, prompt, negative_prompt,
+           initial_latent, output_format, guidance_scale}
+    out = {images: [{url, ...}], ...}
+    """
+    import fal_client  # local import — avoid module-load cost
+
+    subject_bytes, mask_bytes = await asyncio.to_thread(
+        _prep_subject_for_relight, transparent_bytes
+    )
+    subject_url, mask_url = await asyncio.gather(
+        fal_client.upload_async(subject_bytes, content_type="image/jpeg"),
+        fal_client.upload_async(mask_bytes, content_type="image/png"),
+    )
+
+    t = time.monotonic()
+    handler = await fal_client.subscribe_async(
+        settings.enhance_relight_model,
+        arguments={
+            "image_url": subject_url,
+            "mask_image_url": mask_url,
+            "prompt": _relight_prompt(category),
+            "negative_prompt": _RELIGHT_NEGATIVE,
+            "initial_latent": initial_latent,
+            "output_format": "png",
+            "guidance_scale": 5,
+        },
+    )
+    images = handler.get("images") if isinstance(handler, dict) else None
+    if not images or not images[0].get("url"):
+        raise RuntimeError(
+            f"IC-Light returned no image (keys={list(handler.keys()) if isinstance(handler, dict) else type(handler)})"
+        )
+    relit_url = images[0]["url"]
+
+    async with httpx.AsyncClient(timeout=REMBG_TIMEOUT_SECONDS) as client:
+        resp = await client.get(relit_url)
+        resp.raise_for_status()
+        relit_bytes = resp.content
+    logger.info("step.relight: %.2fs (dir=%s)", time.monotonic() - t, initial_latent)
+
+    return await asyncio.to_thread(_normalize_to_square, relit_bytes)
 
 
 async def enhance_product_photo(
@@ -707,6 +1006,25 @@ async def enhance_product_photo(
     logger.info("step.preset: backdrop=%s margin=%.2f sharpen=%d",
                 preset.get("backdrop"), preset.get("margin"),
                 preset.get("sharpen_percent"))
+
+    # Tier-1 relight gate (single hero photo) : only for suitable (3D-
+    # leaning) categories ; try IC-Light, fall back to the verified studio
+    # compositor on any failure.
+    if (
+        settings.enhance_relight_enabled
+        and settings.fal_key
+        and _relight_suitable(category)
+    ):
+        try:
+            relit = await _relight_via_fal(
+                transparent_bytes, category, initial_latent="Top"
+            )
+            logger.info("step.relight: hero photo relit via IC-Light")
+            return relit
+        except Exception as exc:  # noqa: BLE001 — any failure → compositor
+            logger.warning(
+                "relight failed (%s) — falling back to studio compositor", exc
+            )
 
     t = time.monotonic()
     composite = await asyncio.to_thread(
@@ -843,16 +1161,65 @@ async def enhance_product_photo_variants(
     ]
 
     t = time.monotonic()
+    variants = await _build_enhance_variants(transparent_bytes, category, presets)
+    logger.info(
+        "step.variants: %d variants + pins in %.2fs",
+        len(variants),
+        time.monotonic() - t,
+    )
 
-    async def _build_variant(label: str, preset: dict) -> EnhanceVariant:
-        composite = await asyncio.to_thread(
-            _composite_square, transparent_bytes, preset
-        )
+    return list(variants), 1
+
+
+async def _build_enhance_variants(
+    transparent_bytes: bytes,
+    category: str | None,
+    presets: list[tuple[str, dict]],
+) -> list[EnhanceVariant]:
+    """Build + pin one EnhanceVariant per (label, preset).
+
+    Tier-1 relight gate : when enabled, the first N variants are relit via
+    IC-Light (1 fal call each, bounded by `enhance_relight_variants`); the
+    rest stay on the verified classical compositor. ANY relight error for
+    a given variant falls back to its compositor output, so the seller
+    always gets a full set of usable choices. Extracted module-level so
+    the control flow is unit-testable without the upstream birefnet call.
+    """
+    relight_on = bool(
+        settings.enhance_relight_enabled
+        and settings.fal_key
+        and _relight_suitable(category)
+    )
+    relight_budget = settings.enhance_relight_variants if relight_on else 0
+
+    async def _build_variant(index: int, label: str, preset: dict) -> EnhanceVariant:
         bd = preset["backdrop"]
         backdrop_hex = f"#{bd[0]:02X}{bd[1]:02X}{bd[2]:02X}"
+        image_bytes: bytes | None = None
+
+        if index < relight_budget:
+            direction = _RELIGHT_LIGHT_DIRECTIONS[
+                index % len(_RELIGHT_LIGHT_DIRECTIONS)
+            ]
+            try:
+                image_bytes = await _relight_via_fal(
+                    transparent_bytes, category, initial_latent=direction
+                )
+            except Exception as exc:  # noqa: BLE001 — any failure → fallback
+                logger.warning(
+                    "relight variant %d failed (%s) — falling back to compositor",
+                    index,
+                    exc,
+                )
+
+        if image_bytes is None:
+            image_bytes = await asyncio.to_thread(
+                _composite_square, transparent_bytes, preset
+            )
+
         slug = label.replace(" ", "_").lower()
         filename = f"variant_{slug}_{int(time.monotonic())}.png"
-        ipfs_hash = await ipfs_service.upload_image(composite, filename)
+        ipfs_hash = await ipfs_service.upload_image(image_bytes, filename)
         return EnhanceVariant(
             label=label,
             backdrop_hex=backdrop_hex,
@@ -860,16 +1227,14 @@ async def enhance_product_photo_variants(
             image_url=ipfs_service.get_url(ipfs_hash),
         )
 
-    variants = await asyncio.gather(
-        *(_build_variant(label, preset) for label, preset in presets)
+    return list(
+        await asyncio.gather(
+            *(
+                _build_variant(i, label, preset)
+                for i, (label, preset) in enumerate(presets)
+            )
+        )
     )
-    logger.info(
-        "step.variants: %d composites + pins in %.2fs",
-        len(variants),
-        time.monotonic() - t,
-    )
-
-    return list(variants), 1
 
 
 def _neutralize_warm_white_casts(rgb):

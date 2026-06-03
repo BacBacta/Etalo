@@ -54,20 +54,60 @@ export function useResolvedWalletClient() {
 
   const resolve = useCallback(async (): Promise<WalletClient | null> => {
     if (walletClient) return walletClient;
+
+    // First refetch — covers the wagmi-initial-async race on every
+    // session (PR #103). Fast path : usually returns the client here.
     try {
       const refetched = await refetch();
       if (refetched.data) return refetched.data;
     } catch {
-      // Swallow refetch errors and fall through to the direct path.
+      // Swallow refetch errors and fall through.
     }
-    if (typeof window === "undefined" || !address) return null;
-    const eth = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
-    if (!eth) return null;
-    return createWalletClient({
-      chain: etaloChain,
-      transport: custom(eth),
-      account: address,
-    });
+
+    // Direct injected fallback — works in MiniPay's WebView and in any
+    // injected-wallet browser (MetaMask, Rabby, …). Skipped silently
+    // when no `window.ethereum` exists (e.g. WalletConnect on desktop
+    // Chrome), so the WC path retries refetch below instead of bailing.
+    if (typeof window !== "undefined" && address) {
+      const eth = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+      if (eth) {
+        return createWalletClient({
+          chain: etaloChain,
+          transport: custom(eth),
+          account: address,
+        });
+      }
+    }
+
+    // No injected provider — WalletConnect path. wagmi's
+    // `getWalletClient` against the WC connector can take a moment to
+    // materialize after the user signs in their mobile wallet ; retry
+    // refetch with a small backoff before giving up.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await new Promise((r) => setTimeout(r, 200 * (attempt + 1)));
+      try {
+        const refetched = await refetch();
+        if (refetched.data) return refetched.data;
+      } catch {
+        // Continue to the next attempt.
+      }
+    }
+
+    if (process.env.NODE_ENV !== "production") {
+      // Dev-mode diagnostic so the next failure surfaces exactly which
+      // input was missing instead of a silent null.
+      // eslint-disable-next-line no-console
+      console.warn("[useResolvedWalletClient] resolve returned null", {
+        hasCachedWalletClient: Boolean(walletClient),
+        hasAddress: Boolean(address),
+        hasInjectedEthereum:
+          typeof window !== "undefined" &&
+          Boolean(
+            (window as Window & { ethereum?: EIP1193Provider }).ethereum,
+          ),
+      });
+    }
+    return null;
   }, [walletClient, refetch, address]);
 
   return { walletClient, resolve };

@@ -9,11 +9,18 @@ import {
   useState,
   type ReactElement,
 } from "react";
+import { Coins, Sparkle } from "@phosphor-icons/react";
 import Image from "next/image";
 import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
 
 import { ImageUploader } from "@/components/seller/ImageUploader";
+import { BuyCreditsDialog } from "@/components/seller/marketing/BuyCreditsDialog";
 import { Button } from "@/components/ui/button";
+import {
+  CREDITS_BALANCE_QUERY_KEY,
+  useCreditsBalance,
+} from "@/hooks/useCreditsBalance";
 import { IPFS_GATEWAY } from "@/lib/ipfs";
 import {
   Dialog,
@@ -127,6 +134,14 @@ export function ProductFormDialog({
     EnhanceVariant[] | null
   >(null);
 
+  // Credits — ADR-049 surfaced enhance (which spends credits) but the
+  // balance + purchase UI used to live only in the hidden MarketingTab,
+  // leaving sellers at a dead-end when credits ran out. Surface both here.
+  const queryClient = useQueryClient();
+  const creditsQuery = useCreditsBalance();
+  const creditBalance = creditsQuery.data?.balance ?? 0;
+  const [buyCreditsOpen, setBuyCreditsOpen] = useState(false);
+
   useEffect(() => {
     if (!open) return;
     if (mode === "edit" && initialProduct) {
@@ -166,14 +181,38 @@ export function ProductFormDialog({
     setEnhancePhase("idle");
     setOriginalHashAtEnhance(null);
     setEnhanceVariants(null);
+    setPublishNudgeOpen(false);
+    setBuyCreditsOpen(false);
   }, [open, mode, initialProduct]);
 
   const heroHash = imageHashes[0] ?? null;
   const canEnhance =
     heroHash !== null && enhancePhase === "idle";
 
+  // ADR-049 enforcement — is the current hero photo studio-enhanced?
+  // True if enhanced this session, OR (edit mode) the product carries an
+  // enhanced_at AND the hero hasn't been swapped since load. A swapped
+  // hero invalidates the stale enhanced_at, so we treat it as raw and
+  // nudge the seller to enhance the new photo.
+  const initialHero = initialProduct?.image_ipfs_hashes?.[0] ?? null;
+  const heroIsEnhanced =
+    enhancePhase === "used" ||
+    (mode === "edit" &&
+      Boolean(initialProduct?.enhanced_at) &&
+      heroHash !== null &&
+      heroHash === initialHero);
+
+  // Soft publish-time gate : confirm once before publishing a
+  // buyer-visible product whose hero is still a raw upload.
+  const [publishNudgeOpen, setPublishNudgeOpen] = useState(false);
+
   const handleEnhance = async () => {
     if (!heroHash) return;
+    // No credits → open the purchase dialog instead of a dead-end error.
+    if (creditBalance < 1) {
+      setBuyCreditsOpen(true);
+      return;
+    }
     setEnhancePhase("loading");
     setOriginalHashAtEnhance(heroHash);
     try {
@@ -182,9 +221,9 @@ export function ProductFormDialog({
         heroHash,
         category,
       );
-      // Credit consumed server-side. Stash the variants and flip into
-      // preview phase — image_ipfs_hashes[0] stays on the original
-      // until the seller picks a variant.
+      // Credit consumed server-side. Refresh the balance so the chip +
+      // gating reflect the spend immediately.
+      queryClient.invalidateQueries({ queryKey: [CREDITS_BALANCE_QUERY_KEY] });
       setEnhanceVariants(result.variants);
       setEnhancePhase("preview");
       toast.success(
@@ -194,7 +233,11 @@ export function ProductFormDialog({
       setEnhancePhase("idle");
       setOriginalHashAtEnhance(null);
       if (err instanceof InsufficientCreditsForEnhanceError) {
-        toast.error("Not enough credits to enhance. Buy more from your dashboard.");
+        // Balance drifted to 0 (e.g. spent elsewhere) — offer purchase.
+        queryClient.invalidateQueries({
+          queryKey: [CREDITS_BALANCE_QUERY_KEY],
+        });
+        setBuyCreditsOpen(true);
       } else {
         toast.error(
           err instanceof Error ? err.message : "Photo enhancement failed",
@@ -258,9 +301,20 @@ export function ProductFormDialog({
     return Object.keys(errs).length === 0;
   };
 
-  const handleSubmit = async (event: React.FormEvent) => {
+  const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
     if (!validate()) return;
+    // ADR-049 soft enforcement — a buyer-visible product with a raw hero
+    // photo gets one confirmation step before it ships. Draft / paused
+    // (not buyer-visible) skip the gate.
+    if (status === "active" && heroHash && !heroIsEnhanced) {
+      setPublishNudgeOpen(true);
+      return;
+    }
+    void submitCore();
+  };
+
+  const submitCore = async () => {
     setSubmitting(true);
     try {
       if (mode === "create") {
@@ -453,13 +507,62 @@ export function ProductFormDialog({
           {heroHash ? (
             <EnhanceSection
               phase={enhancePhase}
+              isEnhanced={heroIsEnhanced}
               originalHash={originalHashAtEnhance ?? heroHash}
               variants={enhanceVariants}
               canEnhance={canEnhance}
+              creditBalance={creditBalance}
+              creditsLoading={creditsQuery.isLoading}
               onEnhance={handleEnhance}
+              onBuyCredits={() => setBuyCreditsOpen(true)}
               onUseVariant={handleUseVariant}
               onKeepOriginal={handleKeepOriginal}
             />
+          ) : null}
+
+          {/* ADR-049 soft publish gate — shown once when the seller tries
+              to publish a buyer-visible product with a raw hero photo. */}
+          {publishNudgeOpen ? (
+            <div
+              data-testid="publish-enhance-nudge"
+              className="rounded-md border border-celo-forest/30 bg-celo-forest-soft p-3 dark:border-celo-forest-bright/30 dark:bg-celo-forest-bright-soft"
+            >
+              <p className="text-base font-medium text-celo-dark dark:text-celo-light">
+                Publish without enhancing the photo?
+              </p>
+              <p className="mt-1 text-sm text-celo-dark/70 dark:text-celo-light/70">
+                Enhanced photos get a clean studio backdrop and look far
+                more professional in the marketplace — boutiques that
+                enhance tend to sell more.
+              </p>
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <Button
+                  type="button"
+                  onClick={() => {
+                    setPublishNudgeOpen(false);
+                    handleEnhance();
+                  }}
+                  disabled={!canEnhance}
+                  data-testid="publish-nudge-enhance"
+                  className="min-h-[44px]"
+                >
+                  Enhance first · 1 credit
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => {
+                    setPublishNudgeOpen(false);
+                    void submitCore();
+                  }}
+                  disabled={submitting}
+                  data-testid="publish-nudge-anyway"
+                  className="min-h-[44px]"
+                >
+                  Publish anyway
+                </Button>
+              </div>
+            </div>
           ) : null}
 
           <DialogFooter className="flex-col gap-2 sm:flex-row">
@@ -486,6 +589,14 @@ export function ProductFormDialog({
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {/* Credits purchase — on-chain EtaloCredits.purchaseCredits. The
+          dialog itself optimistically updates + reconciles the balance
+          (no invalidate here, which would refetch the still-stale 0). */}
+      <BuyCreditsDialog
+        open={buyCreditsOpen}
+        onOpenChange={setBuyCreditsOpen}
+      />
     </Dialog>
   );
 }
@@ -496,23 +607,35 @@ export function ProductFormDialog({
 // surrounding ProductFormDialog).
 function EnhanceSection({
   phase,
+  isEnhanced,
   originalHash,
   variants,
+  creditBalance,
+  creditsLoading,
+  onBuyCredits,
   canEnhance,
   onEnhance,
   onUseVariant,
   onKeepOriginal,
 }: {
   phase: "idle" | "loading" | "preview" | "used";
+  isEnhanced: boolean;
   originalHash: string;
   variants: EnhanceVariant[] | null;
   canEnhance: boolean;
+  creditBalance: number;
+  creditsLoading: boolean;
+  onBuyCredits: () => void;
   onEnhance: () => void;
   onUseVariant: (variant: EnhanceVariant) => void;
   onKeepOriginal: () => void;
 }) {
   const wrapperClass =
     "rounded-md border border-neutral-200 bg-neutral-50 p-3 dark:border-celo-light/20 dark:bg-celo-dark-elevated";
+
+  // Already enhanced (this session or a prior one in edit mode) →
+  // confirmation chip, no re-enhance prompt.
+  const enhancedDone = phase === "used" || isEnhanced;
 
   if (phase === "preview" && variants && variants.length > 0) {
     return (
@@ -581,31 +704,84 @@ function EnhanceSection({
     );
   }
 
-  return (
-    <div className={wrapperClass}>
-      <div className="flex items-center justify-between gap-3">
+  // Enhanced confirmation — calm, neutral, no further action needed.
+  if (enhancedDone) {
+    return (
+      <div
+        className="flex items-center gap-2 rounded-md border border-celo-forest/30 bg-celo-forest-soft p-3 dark:border-celo-forest-bright/30 dark:bg-celo-forest-bright-soft"
+        data-testid="enhance-done"
+      >
+        <Sparkle
+          weight="fill"
+          className="h-5 w-5 shrink-0 text-celo-forest dark:text-celo-forest-bright"
+          aria-hidden
+        />
         <div>
           <p className="text-base font-medium text-celo-dark dark:text-celo-light">
-            {phase === "used"
-              ? "✨ Photo enhanced"
-              : "Make this photo look pro"}
+            Photo enhanced
           </p>
-          <p className="text-sm text-neutral-500 dark:text-celo-light/60">
-            {phase === "used"
-              ? "Background removed, studio backdrop applied."
-              : "AI generates 3 backdrop variants — pick the one that fits."}
+          <p className="text-sm text-celo-dark/70 dark:text-celo-light/70">
+            Background removed, studio backdrop applied.
           </p>
         </div>
-        {phase !== "used" ? (
-          <Button
-            type="button"
-            onClick={onEnhance}
-            disabled={!canEnhance}
-            className="min-h-[44px] shrink-0"
+      </div>
+    );
+  }
+
+  // Not yet enhanced → prominent, value-forward callout. This is the
+  // recommended path : a clean studio backdrop is the single biggest
+  // lever on how premium the product reads in the marketplace.
+  return (
+    <div
+      className="rounded-md border border-celo-forest/30 bg-gradient-to-br from-celo-forest-soft to-celo-yellow-soft/40 p-4 dark:border-celo-forest-bright/30 dark:from-celo-forest-bright-soft dark:to-celo-dark-elevated"
+      data-testid="enhance-nudge"
+    >
+      <div className="flex items-start gap-3">
+        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-celo-forest text-celo-light dark:bg-celo-forest-bright">
+          <Sparkle weight="fill" className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="flex-1">
+          <p className="text-base font-medium text-celo-dark dark:text-celo-light">
+            Make this photo boutique-quality
+          </p>
+          <p className="mt-0.5 text-sm text-celo-dark/70 dark:text-celo-light/70">
+            We remove the background and drop your product onto a clean
+            studio backdrop — it&apos;ll look far more professional in the
+            marketplace. AI generates 3 backdrops; you pick one.
+          </p>
+
+          {/* Balance — always visible so credits aren't a mystery. */}
+          <p
+            className="mt-2 inline-flex items-center gap-1 text-sm font-medium text-celo-dark/80 dark:text-celo-light/80"
+            data-testid="enhance-credit-balance"
           >
-            {phase === "loading" ? "Generating…" : "Enhance · 1 credit"}
-          </Button>
-        ) : null}
+            <Coins weight="fill" className="h-4 w-4 text-celo-forest dark:text-celo-forest-bright" aria-hidden />
+            {creditsLoading
+              ? "Checking credits…"
+              : `${creditBalance} credit${creditBalance === 1 ? "" : "s"} available`}
+          </p>
+
+          {creditBalance < 1 && !creditsLoading ? (
+            <Button
+              type="button"
+              onClick={onBuyCredits}
+              data-testid="enhance-buy-credits"
+              className="mt-3 min-h-[44px] w-full sm:w-auto"
+            >
+              Buy credits
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={onEnhance}
+              disabled={!canEnhance}
+              data-testid="enhance-cta"
+              className="mt-3 min-h-[44px] w-full sm:w-auto"
+            >
+              {phase === "loading" ? "Generating…" : "Enhance photo · 1 credit"}
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

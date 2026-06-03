@@ -1,11 +1,15 @@
+"use client";
+
+import { Crown, Storefront } from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 
 import { AddToCartIcon } from "@/components/AddToCartIcon";
 import { CardV4 } from "@/components/ui/v4/Card";
 import type { MarketplaceProductItem } from "@/lib/api";
 import { countryName } from "@/lib/country";
+import { cn } from "@/lib/utils";
 
 interface Props {
   product: MarketplaceProductItem;
@@ -58,62 +62,103 @@ function MarketplaceProductCardImpl({
     return Date.now() - created < NEW_BADGE_THRESHOLD_MS;
   })();
 
+  // Image "develop" reveal — heterogeneous seller photos pop in harshly
+  // on a fast connection. Fading each in on decode gives the grid a
+  // calm, uniform load rhythm regardless of per-image latency.
+  const [imgLoaded, setImgLoaded] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  // Guard the cached/priority case: a fast-cached image can fire `load`
+  // before React attaches onLoad, which would strand it at opacity-0.
+  // On mount, if the underlying img is already complete, reveal it.
+  useEffect(() => {
+    if (imgRef.current?.complete) setImgLoaded(true);
+  }, []);
+
+  // Only darken the image bottom when the country chip actually sits
+  // there — otherwise the scrim needlessly mutes clean product photos.
+  const showFlag = Boolean(flag) && !hideSellerCountry;
+
+  // Real social proof from the reputation-mirror join (P4) — both are
+  // seller-level signals, so they read as boutique credibility, never
+  // as this product's own sales. Absent / zero → simply not shown.
+  const isTopSeller = product.seller_is_top_seller === true;
+  const ordersCompleted = product.seller_orders_completed ?? 0;
+
   return (
     <div className="group relative">
       <CardV4
-        variant="default"
+        variant="elevated"
         padding="none"
         interactive
-        className="overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lg dark:hover:shadow-celo-light/5"
+        className="overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-celo-hero"
         data-testid="marketplace-product-card-wrapper"
       >
         <Link
           href={`/${product.seller_handle}/${product.slug}`}
           className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2"
         >
-          {/* Image area — square. Light/dark backdrops kept from the
-              previous design ; on hover the image subtly zooms (1.05)
-              to give the card a tactile feel. */}
-          <div className="relative aspect-square overflow-hidden bg-neutral-100 dark:bg-celo-dark-elevated">
+          {/* Image area — portrait 3:4 for boutique gallery feel. An
+              inset ring frames every photo identically so heterogeneous
+              seller uploads (white-bg studio shots vs full-bleed photos)
+              share one consistent edge treatment. */}
+          <div className="relative aspect-[3/4] overflow-hidden rounded-t-3xl rounded-b-none bg-celo-sand/40 ring-1 ring-inset ring-celo-dark/[5%] dark:bg-celo-dark-elevated dark:ring-celo-light/[6%]">
             {product.primary_image_url ? (
               <Image
+                ref={imgRef}
                 src={product.primary_image_url}
                 alt={product.title}
                 fill
                 sizes="(max-width: 768px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+                onLoad={() => setImgLoaded(true)}
+                className={cn(
+                  "object-cover transition-[transform,opacity] duration-500 ease-out group-hover:scale-105",
+                  imgLoaded ? "opacity-100" : "opacity-0",
+                )}
                 priority={priority}
               />
             ) : (
-              <div className="flex h-full w-full items-center justify-center text-sm text-neutral-500 dark:text-celo-light/50">
-                No image
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2">
+                <Storefront
+                  className="h-8 w-8 text-celo-dark/20 dark:text-celo-light/20"
+                  weight="light"
+                  aria-hidden
+                />
+                <span className="text-sm text-celo-dark/40 dark:text-celo-light/40">
+                  No image
+                </span>
               </div>
             )}
 
-            {/* Floating overlays on the image. Top-left : country flag
-                chip (hidden when the marketplace is already filtered to
-                that country). Top-right : the cart "+" button. Bottom-
-                left : "New" pill for recently-pinned products. All use
-                backdrop-blur so they don't fight the underlying photo. */}
-            {flag && !hideSellerCountry ? (
+            {/* Bottom gradient overlay — only when the country chip sits
+                there ; otherwise we'd needlessly mute clean photos. */}
+            {showFlag ? (
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-celo-dark/50 to-transparent"
+              />
+            ) : null}
+
+            {/* "New" badge — top-left, fixes text-xs → text-sm violation */}
+            {isNew ? (
+              <span
+                className="absolute left-2 top-2 inline-flex items-center rounded-full bg-celo-yellow px-2.5 py-0.5 text-sm font-semibold uppercase tracking-wider text-celo-dark"
+                aria-label="Recently added product"
+              >
+                New
+              </span>
+            ) : null}
+
+            {/* Country flag chip — bottom-left over gradient overlay */}
+            {showFlag ? (
               <span
                 aria-label={`Ships from ${country ?? product.seller_country ?? ""}`}
                 title={country ?? product.seller_country ?? undefined}
-                className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-celo-light/90 px-2 py-1 text-sm font-medium leading-none text-celo-dark shadow-sm backdrop-blur dark:bg-celo-dark-bg/85 dark:text-celo-light"
+                className="absolute bottom-2 left-2 inline-flex items-center gap-1 rounded-full bg-white/80 px-2.5 py-1 text-sm font-medium leading-none text-celo-dark shadow-celo-sm backdrop-blur-sm dark:bg-celo-dark-surface/85 dark:text-celo-light"
               >
                 <span aria-hidden className="text-base leading-none">
                   {flag}
                 </span>
                 {country ?? product.seller_country}
-              </span>
-            ) : null}
-
-            {isNew ? (
-              <span
-                className="absolute bottom-2 left-2 inline-flex items-center rounded-full bg-celo-yellow/95 px-2 py-0.5 text-xs font-semibold uppercase tracking-wide text-celo-dark shadow-sm backdrop-blur"
-                aria-label="Recently added product"
-              >
-                New
               </span>
             ) : null}
 
@@ -130,24 +175,29 @@ function MarketplaceProductCardImpl({
             />
           </div>
 
-          {/* Card meta : price-prominent over title (Robinhood / Shop
-              pattern). USDT suffix is muted so the eye lands on the
-              number first. Seller name in a smaller, lighter row to
-              keep the hierarchy clean even on long boutique names. */}
-          <div className="p-3">
+          {/* Card meta — price is the visual hero (display-4 scale),
+              title and seller descend in weight and size. */}
+          <div className="px-3 pb-3 pt-2.5">
             <div className="flex items-baseline gap-1.5">
-              <span className="text-lg font-semibold tabular-nums text-celo-dark dark:text-celo-light">
+              <span className="font-display text-display-4 tabular-nums text-celo-dark dark:text-celo-light">
                 {Number(product.price_usdt).toFixed(2)}
               </span>
-              <span className="text-sm text-neutral-500 dark:text-celo-light/60">
+              <span className="text-sm font-medium text-celo-dark/50 dark:text-celo-light/50">
                 USDT
               </span>
             </div>
-            <h3 className="mt-1.5 line-clamp-2 text-sm font-medium leading-snug text-celo-dark dark:text-celo-light">
+            <h3 className="mt-1 line-clamp-2 text-sm font-medium leading-snug text-celo-dark/85 dark:text-celo-light/85">
               {product.title}
             </h3>
-            <p className="mt-1.5 truncate text-sm text-neutral-500 dark:text-celo-light/60">
+            {isTopSeller ? (
+              <span className="mt-1.5 inline-flex w-fit items-center gap-1 rounded-full bg-celo-forest-soft px-2 py-0.5 text-sm font-medium text-celo-forest dark:bg-celo-forest-bright-soft dark:text-celo-forest-bright">
+                <Crown weight="fill" className="h-3.5 w-3.5" aria-hidden />
+                Top seller
+              </span>
+            ) : null}
+            <p className="mt-1 truncate text-sm text-celo-dark/50 dark:text-celo-light/50">
               {product.seller_shop_name}
+              {ordersCompleted > 0 ? ` · ${ordersCompleted} sold` : ""}
             </p>
           </div>
         </Link>

@@ -141,6 +141,56 @@ async def test_marketplace_country_all_returns_both(client: AsyncClient, _seed_b
     assert _GHA_HANDLE in handles
 
 
+# ============================================================
+# Social proof — reputation mirror LEFT JOIN (P4)
+# ============================================================
+async def test_marketplace_surfaces_seller_reputation(
+    client: AsyncClient, _seed_block3
+):
+    """A reputation_cache row for the NGA seller surfaces real
+    orders_completed + is_top_seller on the marketplace item ; the GHA
+    seller (no row) defaults to 0 / False."""
+    from datetime import datetime, timezone
+
+    from app.models.enums import SellerStatus
+    from app.models.reputation_cache import ReputationCache
+
+    factory = get_async_session_factory()
+    async with factory() as s:
+        s.add(
+            ReputationCache(
+                seller_address=_NGA_SELLER_WALLET,
+                orders_completed=7,
+                is_top_seller=True,
+                score=82,
+                status=SellerStatus.ACTIVE,
+                last_synced_at=datetime.now(timezone.utc),
+            )
+        )
+        await s.commit()
+
+    try:
+        r = await client.get("/api/v1/marketplace/products?country=all")
+        assert r.status_code == 200
+        by_handle = {p["seller_handle"]: p for p in r.json()["products"]}
+
+        nga = by_handle[_NGA_HANDLE]
+        assert nga["seller_orders_completed"] == 7
+        assert nga["seller_is_top_seller"] is True
+
+        gha = by_handle[_GHA_HANDLE]
+        assert gha["seller_orders_completed"] == 0
+        assert gha["seller_is_top_seller"] is False
+    finally:
+        async with factory() as s:
+            await s.execute(
+                delete(ReputationCache).where(
+                    ReputationCache.seller_address == _NGA_SELLER_WALLET
+                )
+            )
+            await s.commit()
+
+
 async def test_marketplace_invalid_country_returns_400(client: AsyncClient):
     r = await client.get("/api/v1/marketplace/products?country=USA")
     assert r.status_code == 400

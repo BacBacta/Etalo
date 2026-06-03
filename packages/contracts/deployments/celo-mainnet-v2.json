@@ -3,10 +3,11 @@
   "chainId": 42220,
   "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
   "realUsdt": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+  "_treasuriesNote": "ADR-024: on mainnet all 3 slots point to the 2-of-3 Safe (verified on-chain against the live v1.4 escrow 0x0890… on 2026-06-02). Logical separation is preserved off-chain in V1. The prior Sepolia EOAs (commission 0x9819…, credits 0x4515…, community 0x0B15…) were a templating carry-over and would have mis-routed mainnet revenue — corrected before the ADR-057 redeploy.",
   "treasuries": {
-    "commission": "0x9819c9E1b4F634784fd9A286240ecACd297823fa",
-    "credits": "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
-    "community": "0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6"
+    "commission": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
+    "credits": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
+    "community": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F"
   },
   "contracts": {
     "EtaloReputation": {

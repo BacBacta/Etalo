@@ -152,7 +152,10 @@ describe("useBuyCredits — failure paths", () => {
     });
 
     expect(result.current.state.phase).toBe("error");
-    expect(result.current.state.errorMessage).toContain("Transaction failed");
+    // PR #122 → classifyError now surfaces a more specific
+    // "contract rejected the transaction" message for reverts instead
+    // of the previous generic "Transaction failed" fallback.
+    expect(result.current.state.errorMessage).toContain("contract rejected");
   });
 });
 

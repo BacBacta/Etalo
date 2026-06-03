@@ -32,6 +32,20 @@ vi.mock("@/hooks/useMarketplaceProducts", () => ({
   MARKETPLACE_PRODUCTS_QUERY_KEY: ["marketplace-products"] as const,
 }));
 
+// Curated rails hook — mocked at the boundary (no QueryClientProvider in
+// these specs). Default to no sections so the existing grid-focused
+// assertions are unaffected ; a dedicated spec overrides per-test.
+type MockSection = { key: string; title: string; products: unknown[] };
+const useMarketplaceSectionsMock = vi.fn(
+  (): { data: { sections: MockSection[] } } => ({
+    data: { sections: [] },
+  }),
+);
+vi.mock("@/hooks/useMarketplaceSections", () => ({
+  useMarketplaceSections: () => useMarketplaceSectionsMock(),
+  MARKETPLACE_SECTIONS_QUERY_KEY: ["marketplace-sections"] as const,
+}));
+
 vi.mock("@/lib/minipay-detect", () => ({
   detectMiniPay: () => true,
 }));
@@ -73,6 +87,14 @@ vi.mock("@/components/MarketplaceGrid", () => ({
         <span key={p.id}>{p.title}</span>
       ))}
     </div>
+  ),
+}));
+
+// MarketplaceRail also renders product cards (next/image) — stub it to
+// the rail title so page-level wiring specs stay jsdom-clean.
+vi.mock("@/components/marketplace/MarketplaceRail", () => ({
+  MarketplaceRail: ({ title }: { title: string }) => (
+    <div data-testid={`marketplace-rail-${title}`}>{title}</div>
   ),
 }));
 
@@ -147,6 +169,26 @@ describe("MarketplacePage — sub-block 2.3a", () => {
     render(<MarketplacePage />);
     fireEvent.click(screen.getByTestId("marketplace-refresh"));
     expect(refetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders curated rails + a Browse all divider when sections are present", () => {
+    useMarketplaceSectionsMock.mockReturnValueOnce({
+      data: {
+        sections: [
+          { key: "new", title: "New this week", products: [] },
+          { key: "top_rated", title: "Top-rated boutiques", products: [] },
+        ],
+      },
+    });
+    setQuery({ data: { pages: [makePage()] } });
+    render(<MarketplacePage />);
+    expect(
+      screen.getByTestId("marketplace-rail-New this week"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("marketplace-rail-Top-rated boutiques"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Browse all")).toBeInTheDocument();
   });
 
   it("Refresh button is disabled while a refetch is in flight", () => {

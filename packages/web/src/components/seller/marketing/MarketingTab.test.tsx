@@ -74,6 +74,9 @@ const useCreditsBalanceMock = vi.fn<() => CreditsBalanceMockShape>(() => ({
 
 vi.mock("@/hooks/useCreditsBalance", () => ({
   useCreditsBalance: () => useCreditsBalanceMock(),
+  // BuyCreditsDialog (rendered inside MarketingTab) reconciles balance
+  // on success — stub it so the spec needs no QueryClient/wagmi address.
+  useReconcileCreditsBalance: () => vi.fn(),
   CREDITS_BALANCE_QUERY_KEY: "credits-balance",
 }));
 

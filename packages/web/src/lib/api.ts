@@ -30,7 +30,15 @@ export type BoutiquePublic =
 export type MarketplaceListResponse =
   paths["/api/v1/marketplace/products"]["get"]["responses"]["200"]["content"]["application/json"];
 
-export type MarketplaceProductItem = MarketplaceListResponse["products"][number];
+// Augmented with the P4 social-proof fields the backend now returns
+// from the reputation-mirror join. Optional intersection until
+// `pnpm gen:api` re-runs against the live backend — at which point the
+// generated type carries them natively and this becomes redundant.
+export type MarketplaceProductItem =
+  MarketplaceListResponse["products"][number] & {
+    seller_orders_completed?: number;
+    seller_is_top_seller?: boolean;
+  };
 
 // Lightweight seller summary derived from marketplace data — used by
 // the public landing page (Étape 7.3) to show a few featured sellers
@@ -193,6 +201,35 @@ export async function fetchMarketplaceProducts(
     throw new Error(`Marketplace fetch failed: ${res.status}`);
   }
   return (await res.json()) as MarketplaceListResponse;
+}
+
+// Curated discovery rails (editorial merchandising). Typed manually
+// until `pnpm gen:api` re-runs against the live backend — the endpoint
+// is new so api.gen.ts doesn't carry it yet.
+export interface MarketplaceSection {
+  key: string;
+  title: string;
+  products: MarketplaceProductItem[];
+}
+
+export interface MarketplaceSectionsResponse {
+  sections: MarketplaceSection[];
+}
+
+export async function fetchMarketplaceSections(
+  country?: string | null,
+): Promise<MarketplaceSectionsResponse> {
+  const params = new URLSearchParams();
+  if (country && country !== "all") params.set("country", country);
+  const qs = params.toString();
+  const res = await fetchApi(
+    `/marketplace/sections${qs ? `?${qs}` : ""}`,
+    { next: { revalidate: 60 } },
+  );
+  if (!res.ok) {
+    throw new Error(`Marketplace sections fetch failed: ${res.status}`);
+  }
+  return (await res.json()) as MarketplaceSectionsResponse;
 }
 
 export async function fetchFeaturedSellers(

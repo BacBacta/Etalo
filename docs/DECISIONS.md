@@ -4224,3 +4224,129 @@ proof. 24h was rejected as too tight for that safety margin.
 `ShipmentGroup`, so the existing `_decode_shipment_group` tuple indices
 are unchanged. 7 new Hardhat tests cover shorten/never-extend/one-shot/
 optional-proof/cross-border-gate/non-seller.
+
+**Interaction with ADR-057 (merged after this was drafted).** ADR-057
+added `require(!isCrossBorder)` to `createOrderWithItems`, so cross-border
+orders can no longer be created at all. The intra-only guard added to
+`requestEarlyRelease` by this ADR is therefore defense-in-depth rather
+than the sole protection, but it stays (cheap, and keeps the function
+correct independent of the creation-time guard). Both changes ship in the
+same redeploy.
+
+---
+
+## ADR-057 — Delivery-chain audit hardening : on-chain intra-only guard, buyer-only arrival, per-buyer escrow cap, ship-time weekly volume (amends ADR-026, ADR-041)
+
+**Status.** Source-level, NOT yet deployed. Branch `fix/escrow-delivery-audit`
+(PR #130). The contracts are live on a non-upgradeable mainnet deploy
+(v1.4, ADR-054/055), so applying these requires a fresh deploy + state
+migration + re-audit before going live.
+
+**Context.** A security review of the EtaloEscrow delivery/order lifecycle
+(buyer-funded escrow → ship → confirm/auto-release → dispute/refund)
+surfaced four issues. The escrow accounting itself is value-conservative;
+the flaws are perimetric.
+
+**Decision.** Four contract-level fixes in `EtaloEscrow.sol`:
+
+1. **Enforce V1 intra-only at the contract boundary.**
+   `createOrderWithItems` now `require(!isCrossBorder)`. ADR-041 declared
+   V1 intra-only, but the *contract* still accepted the flag and the
+   backend hardcoding `false` is not a trust boundary (the contract is
+   permissionless). Without this, a direct caller could reach the entire
+   deferred, less-audited cross-border release machinery (staged 20/70/10,
+   self-attestable arrival, stake interactions). Cross-border is re-enabled
+   in V2 by removing this guard *after* that path is audited.
+
+2. **`markGroupArrived` is buyer-only.** Was buyer OR seller. Arrival
+   starts the 72h-majority + 5d-final release timers that pay the seller,
+   so seller self-attestation (ship empty box → mark arrived → drain
+   before the buyer can dispute) is removed. Defense-in-depth for V2 (the
+   path is unreachable in V1 via decision #1). A trusted logistics oracle
+   may be added as an additional attester in V2.
+
+3. **Per-buyer concurrent-escrow cap — `MAX_BUYER_ESCROW_USDT = 2,500`
+   (new, alongside ADR-026 caps).** The single global `MAX_TVL` (50K) was a
+   shared resource one actor could fully consume with self-dealing orders,
+   reclaimed 100% via the 7-day inactivity auto-refund — a ~zero-cost
+   platform-wide funding freeze. A per-buyer cap raises the bar to many
+   funded addresses each locking real capital. `buyerActiveEscrow` is kept
+   in lockstep with `totalEscrowedAmount` through `_addEscrow`/`_subEscrow`
+   helpers (every escrow-mutation site routes through them; `_subEscrow`
+   saturates at 0 so no release/refund can ever revert on bookkeeping).
+   The value 2,500 USDT (= 5 max-size orders) is **intentionally below
+   `MAX_SELLER_WEEKLY` (5,000)** so no single buyer can saturate a seller
+   alone; it is a product parameter, tunable at redeploy.
+
+4. **Seller weekly volume recorded at ship, not at fund.**
+   `_updateSellerWeeklyVolume` moves from `fundOrder` to `shipItemsGrouped`
+   (summing the shipped group's value). Counting at fund let a buyer
+   saturate a victim seller's weekly cap with funded-but-never-shipped
+   orders, blocking the seller's real customers, then reclaim 100% via
+   auto-refund. Counting at ship makes the cap reflect real sales and the
+   seller's own (consensual) action; unshipped griefing orders no longer
+   consume it.
+
+**Consequences.** The existing Hardhat suite's cross-border tests (25) and
+single-buyer TVL/weekly + fund-time volume tests (6) are `it.skip` with
+annotations — the former test functionality intentionally disabled (#1),
+the latter test invariants superseded by #3/#4 (re-covered in
+`EscrowAuditFixes.test.ts`). Suite: 161 passing · 31 skipped · 0 failing.
+Pre-deploy checklist: re-audit, redeploy + migrate in-flight orders,
+validate `MAX_BUYER_ESCROW`, and re-enable the cross-border/V2 tests when
+that path ships.
+
+### Re-audit (2026-06-02) — gate before deploy
+
+The 8-agent `solidity-auditor` re-audit was run on the merged post-fix
+`EtaloEscrow.sol` (commit `d5515c7`) as the deploy gate. It confirmed the
+four fixes resolve their original findings, and surfaced **one new HIGH
+regression introduced by fix #4**:
+
+**FINDING-1 (HIGH) — weekly-volume cap bypass via refund of an
+unshipped order.** Fix #4 moved volume *recording* to ship time
+(`shipItemsGrouped`), but the three refund paths still *released* volume:
+`triggerAutoRefundIfInactive` (permissionless, fires only on `Funded` =
+pre-ship), `forceRefund`, and `resolveItemDispute`. Releasing volume for
+an order that was never shipped (and therefore never counted) drains the
+shared per-seller counter, letting a seller exceed `MAX_SELLER_WEEKLY`
+(ADR-026) by ~2,500 USDT/week per cycle (cap-limited by `MAX_BUYER_ESCROW`
+on the colluding funders). Permissionless and repeatable.
+
+**Fix.** A refund frees weekly volume **only for items actually shipped**,
+keyed on `item.shipmentGroupId != 0` (set in the same `shipItemsGrouped`
+loop that records the volume — the exact inverse marker):
+- `triggerAutoRefundIfInactive`: release call removed entirely (status
+  gate guarantees no item shipped).
+- `forceRefund`: release a `shippedRefund` accumulator (shipped items
+  only), not the full `totalRefund`.
+- `resolveItemDispute`: release gated on `item.shipmentGroupId != 0`
+  (an item disputed from `Pending` — a non-shipment complaint — was never
+  counted).
+
+Regression test added in `EscrowAuditFixes.test.ts` (auto-refund of an
+unshipped order leaves `sellerWeeklyVolume` unchanged). The Foundry
+invariant suite did not catch this originally because the
+`h_triggerAutoRefund` handler reaches 0 successful calls under bounded
+fuzzing and there is no `recorded-vs-shipped` volume invariant — gap
+noted for a future ghost-variable invariant.
+
+**Lower-severity re-audit items, dispositions:**
+- *FINDING-2 (LOW, `confirmItem/GroupDelivery` missing `fundedAt` guard):*
+  not applied — the existing `Shipped|Arrived|Delivered` status gate
+  already makes the path unreachable on unfunded orders; a `fundedAt`
+  check would be dead code.
+- *LEAD-4 (`setDisputeContract` missing zero-check):* **rejected** —
+  `forceRefund` (ADR-023) *requires* `dispute == address(0)`, so the
+  setter must accept the zero address; the asymmetry vs treasury setters
+  is intentional.
+- *LEAD-2 (`_subEscrow` saturation drift), LEAD-3 (cross-week release),
+  LEAD-7 (Top-Seller tier sampled at two points):* V2/cross-border-only
+  or informational; tracked for the V2 cross-border audit.
+- *LEAD-6 (`SafeERC20`):* the Celo-bridged USDT is bool-returning, so the
+  current `require(transfer(...))` is safe on the live deployment;
+  hardening deferred.
+
+Post-re-audit suite: **162 passing · 31 skipped · 0 failing**; Foundry
+**10/10 invariants** green. This commit supersedes the pre-deploy
+"re-audit" checklist item — the gate is now satisfied.

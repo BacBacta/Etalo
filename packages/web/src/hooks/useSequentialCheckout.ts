@@ -111,7 +111,11 @@ export function useSequentialCheckout(
 ) {
   const { address: buyer } = useAccount();
   const { resolve: resolveWalletClient } = useResolvedWalletClient();
-  const publicClient = usePublicClient();
+  // Pin the read client to the target chain so wagmi never returns
+  // undefined when the wallet's *current* chain has no transport in
+  // wagmiConfig (e.g. user briefly on Ethereum mainnet). The
+  // ChainMismatchBanner still blocks the Start CTA on real mismatches.
+  const publicClient = usePublicClient({ chainId: etaloChain.id });
   const chainId = useChainId();
   const queryClient = useQueryClient();
 
@@ -190,11 +194,21 @@ export function useSequentialCheckout(
 
   const start = useCallback(async () => {
     if (startedRef.current) return;
-    if (!buyer || !publicClient) {
+    if (!buyer) {
       setState((s) => ({
         ...s,
         phase: "error",
-        globalError: "Wallet not connected.",
+        globalError:
+          "Wallet address unavailable. Please reconnect your wallet and try again.",
+      }));
+      return;
+    }
+    if (!publicClient) {
+      setState((s) => ({
+        ...s,
+        phase: "error",
+        globalError:
+          "Network connection unavailable. Please refresh the page and try again.",
       }));
       return;
     }
@@ -219,9 +233,32 @@ export function useSequentialCheckout(
       setState((s) => ({
         ...s,
         phase: "error",
-        globalError: "Wallet not connected.",
+        globalError:
+          "Wallet signing client could not be resolved. Please reconnect your wallet (and unlock your mobile wallet if you used WalletConnect).",
       }));
       return;
+    }
+
+    // Authoritative chain check — wagmi's `useChainId()` (used above and
+    // by ChainMismatchBanner) reads from its own store, which can lag or
+    // default to the configured chain when the wallet is on a chain
+    // wagmi doesn't know about (e.g. MetaMask on Ethereum mainnet while
+    // wagmiConfig.chains = [etaloChain]). Querying the walletClient
+    // directly hits the wallet's `eth_chainId` and never lies.
+    try {
+      const walletChainId = await walletClient.getChainId();
+      if (walletChainId !== etaloChain.id) {
+        setState((s) => ({
+          ...s,
+          phase: "error",
+          globalError: `Your wallet is on chain ${walletChainId}. Open your wallet, switch to ${etaloChain.name} (chain ${etaloChain.id}), then try again.`,
+        }));
+        return;
+      }
+    } catch {
+      // getChainId can transiently fail on some WC wallets ; fall
+      // through and let viem's writeContract chain guard surface the
+      // mismatch with its own (less friendly) message.
     }
 
     startedRef.current = true;

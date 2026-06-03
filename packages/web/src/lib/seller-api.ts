@@ -75,14 +75,22 @@ export type SellerOrdersPage = Omit<
 > & { orders: SellerOrderItem[] };
 export type SellerProfileUpdate =
   components["schemas"]["SellerProfileUpdate"] & { country?: string | null };
-export type ProductDetail = components["schemas"]["ProductDetail"];
+// `enhanced_at` augmented until `pnpm gen:api` re-runs against the live
+// backend (ADR-049 — null until the hero photo has been studio-enhanced).
+export type ProductDetail = components["schemas"]["ProductDetail"] & {
+  enhanced_at?: string | null;
+};
 export type ProductCreate = components["schemas"]["ProductCreate"];
 export type ProductUpdate = components["schemas"]["ProductUpdate"];
 export type IpfsUploadResponse = components["schemas"]["IpfsUploadResponse"];
 export type MyProductsListResponse =
   components["schemas"]["MyProductsListResponse"];
 export type MyProductsListItem =
-  components["schemas"]["MyProductsListItem"];
+  components["schemas"]["MyProductsListItem"] & {
+    // ADR-049 — augmented until `pnpm gen:api` re-runs (null until the
+    // hero photo has been studio-enhanced).
+    enhanced_at?: string | null;
+  };
 
 export class ProductSlugConflictError extends Error {
   constructor() {

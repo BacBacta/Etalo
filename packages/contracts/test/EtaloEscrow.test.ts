@@ -27,6 +27,17 @@ const ITEM_RELEASED = 4;
 const SHIP_SHIPPED = 1;
 const SHIP_ARRIVED = 2;
 
+// ─────────────────────────────────────────────────────────────────
+// NOTE (delivery-chain audit fixes): the `it.skip(...)` below are
+// intentional, not flaky.
+//   • Cross-border scenarios are V2-deferred — fix #1 (ADR-041) makes
+//     createOrderWithItems revert on isCrossBorder=true, so the whole
+//     cross-border release machinery is unreachable in V1.
+//   • The single-buyer MAX_TVL / MAX_SELLER_WEEKLY and fund-time
+//     weekly-volume tests are superseded by the new invariants
+//     (per-buyer escrow cap = fix #3, weekly volume recorded at ship =
+//     fix #4), covered in EscrowAuditFixes.test.ts.
+// ─────────────────────────────────────────────────────────────────
 describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", async function () {
   const { viem } = await network.create();
 
@@ -100,7 +111,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(items[1].itemCommission, expected1);
     });
 
-    it("rejects cross-border createOrder when the seller is not staked", async function () {
+    it.skip("rejects cross-border createOrder when the seller is not staked", async function () {
       const { escrow, buyer, nonParty } = await deployEscrow(viem);
       // nonParty has no stake → isEligibleForOrder returns false
       await expectRevert(
@@ -112,7 +123,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
 
-    it("accepts a cross-border order within the Tier 1 cap with a staked seller", async function () {
+    it.skip("accepts a cross-border order within the Tier 1 cap with a staked seller", async function () {
       const { escrow, buyer, seller } = await deployEscrow(viem);
       // Seller is staked at Tier 1 (max 100 USDT per order totalAmount per Q1).
       await escrow.write.createOrderWithItems(
@@ -127,7 +138,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
   });
 
   describe("fundOrder", function () {
-    it("transfers USDT, marks Funded, updates TVL, and increments activeSales for cross-border", async function () {
+    it.skip("transfers USDT, marks Funded, updates TVL, and increments activeSales for cross-border", async function () {
       const { escrow, mockUSDT, stake, buyer, seller } = await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
         [seller.account.address, [toUSDT(60)], true],
@@ -182,7 +193,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
 
-    it("rejects fundOrder when it would exceed MAX_TVL_USDT (50,000)", async function () {
+    it.skip("rejects fundOrder when it would exceed MAX_TVL_USDT (50,000)", async function () {
       const { escrow, mockUSDT, buyer, seller, seller2, seller3, seller4, publicClient } =
         await deployEscrow(viem);
       // Fill escrow to exactly MAX_TVL using 10 sellers × 10 orders × 500 USDT (intra, no stake needed).
@@ -229,7 +240,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
 
-    it("rejects fundOrder exceeding MAX_SELLER_WEEKLY_VOLUME (5,000)", async function () {
+    it.skip("rejects fundOrder exceeding MAX_SELLER_WEEKLY_VOLUME (5,000)", async function () {
       const { escrow, buyer, seller } = await deployEscrow(viem);
       // 10 orders × 500 = 5000 exact cap for same seller.
       for (let i = 1; i <= 10; i++) {
@@ -288,7 +299,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
 
-    it("Tier 1 seller rejected when cross-border totalAmount exceeds tier cap (ADR-020 Q1 canonical)", async function () {
+    it.skip("Tier 1 seller rejected when cross-border totalAmount exceeds tier cap (ADR-020 Q1 canonical)", async function () {
       // ADR-020 cap is per ORDER TOTAL for V2 multi-item (Q1 Block 7).
       // Tier 1 max 100 USDT order total; 2 items [60, 50] summing to
       // 110 exceeds the cap even though each item is individually
@@ -400,7 +411,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(order.shipmentGroupCount, 2n);
     });
 
-    it("releases 20% net to the seller for a cross-border ship", async function () {
+    it.skip("releases 20% net to the seller for a cross-border ship", async function () {
       const { escrow, mockUSDT, buyer, seller } = await deployEscrow(viem);
       // 2 items × 40 = 80 USDT total, cross-border (fits Tier 1 cap 100)
       await escrow.write.createOrderWithItems(
@@ -487,7 +498,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
   });
 
   describe("markGroupArrived", function () {
-    it("sets arrival timers and transitions items to Arrived for a cross-border group", async function () {
+    it.skip("sets arrival timers and transitions items to Arrived for a cross-border group", async function () {
       const { escrow, buyer, seller } = await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
         [seller.account.address, [toUSDT(50)], true],
@@ -568,7 +579,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(item.status, ITEM_RELEASED);
     });
 
-    it("confirmItemDelivery cross-border after 20% ship releases the remaining 80% net + commission", async function () {
+    it.skip("confirmItemDelivery cross-border after 20% ship releases the remaining 80% net + commission", async function () {
       const { escrow, mockUSDT, buyer, seller, commissionTreasury } = await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
         [seller.account.address, [toUSDT(50)], true],
@@ -638,7 +649,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(order.totalCommission, (toUSDT(100) * 120n) / 10000n);
     });
 
-    it("completes the order and decrements cross-border active sales after all items are released", async function () {
+    it.skip("completes the order and decrements cross-border active sales after all items are released", async function () {
       const { escrow, stake, buyer, seller } = await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
         [seller.account.address, [toUSDT(40), toUSDT(40)], true],
@@ -687,7 +698,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
 
   // ── Stage 3 — permissionless triggers ─────────────────────
   describe("triggerMajorityRelease", function () {
-    it("reverts before the 72h window; releases 70% net per item once elapsed", async function () {
+    it.skip("reverts before the 72h window; releases 70% net per item once elapsed", async function () {
       const { escrow, mockUSDT, buyer, seller, publicClient } = await deployEscrow(viem);
       // Cross-border 2 items × 40 USDT
       await escrow.write.createOrderWithItems(
@@ -727,7 +738,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(group.releaseStage, 2);
     });
 
-    it("skips items in Disputed status (sibling-item isolation per ADR-015)", async function () {
+    it.skip("skips items in Disputed status (sibling-item isolation per ADR-015)", async function () {
       const {
         escrow,
         mockUSDT,
@@ -816,7 +827,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(item.status, ITEM_RELEASED);
     });
 
-    it("releases the final 10% net + commission for a cross-border item after 5 days (post-majority)", async function () {
+    it.skip("releases the final 10% net + commission for a cross-border item after 5 days (post-majority)", async function () {
       const { escrow, mockUSDT, buyer, seller, commissionTreasury, publicClient } =
         await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
@@ -984,39 +995,19 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
 
-    it("rejects early release on a cross-border order (intra-only, ADR-041)", async function () {
-      // Cross-border uses the staged 20/70/10 release with a 72h
-      // majority gate ; shortening its window would bypass that, so
-      // requestEarlyRelease is restricted to intra orders.
+    it("cross-border can't be created, so the requestEarlyRelease intra guard is defense-in-depth (ADR-057/ADR-058)", async function () {
+      // ADR-057 added `require(!isCrossBorder)` to createOrderWithItems,
+      // so a cross-border order can no longer even be created — the
+      // requestEarlyRelease `require(!order.isCrossBorder)` guard is the
+      // unreachable second line of defence. Assert the upstream
+      // creation-time guard (the protection that actually fires).
       const { escrow, buyer, seller } = await deployEscrow(viem);
-      await escrow.write.createOrderWithItems(
-        [seller.account.address, [toUSDT(50)], true],
-        { account: buyer.account }
-      );
-      await escrow.write.fundOrder([1n], { account: buyer.account });
-      const itemIds = await escrow.read.getOrderItems([1n]);
-      await escrow.write.shipItemsGrouped(
-        [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
-        { account: seller.account }
-      );
       await expectRevert(
-        escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
-          account: seller.account,
-        }),
-        "Early release intra-only"
-      );
-
-      // And after arrival it is still rejected (not just a pre-arrival
-      // window issue) — proves the intra-only guard, not the timer.
-      await escrow.write.markGroupArrived(
-        [1n, 1n, "0x" + "bb".repeat(32)],
-        { account: seller.account }
-      );
-      await expectRevert(
-        escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
-          account: seller.account,
-        }),
-        "Early release intra-only"
+        escrow.write.createOrderWithItems(
+          [seller.account.address, [toUSDT(50)], true],
+          { account: buyer.account }
+        ),
+        "Cross-border disabled in V1 (ADR-041)"
       );
     });
   });
@@ -1041,7 +1032,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(order.globalStatus, 7); // Refunded
     });
 
-    it("refunds the buyer after 14 days for a cross-border order and decrements active sales", async function () {
+    it.skip("refunds the buyer after 14 days for a cross-border order and decrements active sales", async function () {
       const { escrow, stake, mockUSDT, buyer, seller, publicClient } = await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
         [seller.account.address, [toUSDT(50)], true],
@@ -1087,7 +1078,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
 
-    it("reverts when any item is Disputed (ADR-031)", async function () {
+    it.skip("reverts when any item is Disputed (ADR-031)", async function () {
       const { escrow, buyer, seller, nonParty, publicClient } = await deployEscrow(viem);
       // Use nonParty as stand-in disputeContract so markItemDisputed passes.
       await escrow.write.setDisputeContract([nonParty.account.address]);
@@ -1114,7 +1105,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
 
   // ── Stage 4 — dispute resolution + forceRefund + legalHold + pause ──
   describe("resolveItemDispute", function () {
-    it("partial refund after prior partial release: buyer + seller + treasury sum exactly to remainingInEscrow", async function () {
+    it.skip("partial refund after prior partial release: buyer + seller + treasury sum exactly to remainingInEscrow", async function () {
       const { escrow, mockUSDT, buyer, seller, nonParty, commissionTreasury } =
         await deployEscrow(viem);
       // Use nonParty as stand-in disputeContract.
@@ -1242,7 +1233,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(item.status, ITEM_RELEASED);
     });
 
-    it("sibling-item isolation: disputed item settled doesn't block the order's other items from completing", async function () {
+    it.skip("sibling-item isolation: disputed item settled doesn't block the order's other items from completing", async function () {
       const { escrow, stake, buyer, seller, nonParty, publicClient } =
         await deployEscrow(viem);
       await escrow.write.setDisputeContract([nonParty.account.address]);
@@ -1447,7 +1438,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
 
   // ── ADR-054 Pashov audit fixes ────────────────────────────
   describe("ADR-054 audit fixes (Pashov findings #1, #2, #4)", function () {
-    it("Fix #2: triggerAutoRefundIfInactive releases sellerWeeklyVolume", async function () {
+    it.skip("Fix #2: triggerAutoRefundIfInactive releases sellerWeeklyVolume", async function () {
       const { escrow, buyer, seller, publicClient } = await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
         [seller.account.address, [toUSDT(50)], false],
@@ -1465,7 +1456,7 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       assert.equal(usedAfter, 0n);
     });
 
-    it("Fix #2: resolveItemDispute refund branch releases the refunded slice", async function () {
+    it.skip("Fix #2: resolveItemDispute refund branch releases the refunded slice", async function () {
       const { escrow, buyer, seller, nonParty } = await deployEscrow(viem);
       // Stand-in dispute contract so we can invoke the hooks.
       await escrow.write.setDisputeContract([nonParty.account.address]);
