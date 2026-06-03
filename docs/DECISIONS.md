@@ -4154,6 +4154,87 @@ access gate are deferred to the admin-triage phase (not needed by the
 mediator console or buyer/seller visibility). Volume is bounded by
 ADR-026 (50K TVL), so manual Safe assignment is acceptable for V1.
 
+---
+
+## ADR-058 — Delivery-proof early release + auto-release keeper (seller payout latency fix)
+
+**Status.** Accepted 2026-06-03. Contract change ships with the
+**ADR-057 EtaloEscrow redeploy** (the escrow is `Ownable`, not a proxy,
+so a new function cannot be added in place). The off-chain pieces (keeper,
+UI, indexer handler, migration) deploy independently and are safe to run
+ahead of the redeploy — they stay inert until the new escrow emits
+`EarlyReleaseRequested`.
+
+**Problem.** Two compounding gaps left honest sellers waiting on the
+buyer with no agency and no automatic payout:
+
+1. **No auto-release keeper.** The platform ran an auto-*refund* keeper
+   (pays the buyer back on seller inactivity, ADR-019) but had **no
+   auto-release keeper**. `triggerAutoReleaseForItem` is permissionless
+   on-chain, yet nobody called it automatically — so after the 3-day
+   timer an honest seller still depended on the buyer (zero incentive to
+   confirm) or a manual poke. Funds sat idle. Structurally the buyer was
+   auto-protected while the seller was not auto-paid.
+2. **No way for the seller to assert delivery.** Even with proof in hand
+   (courier POD, photo, buyer's WhatsApp "got it"), the seller could not
+   shorten the wait. Their evidence was worth nothing in the system.
+
+**Non-negotiable kept.** A seller asserting "delivered" must **never**
+release funds directly — that would gut the non-custodial buyer
+protection (ADR-022). An uploaded proof is uncheckable on-chain (only a
+hash is stored), so it can never be an automatic release trigger.
+
+**Decision.**
+
+- **Level 0 (no contract change).**
+  - New `auto_release_keeper.py` — symmetric to the refund keeper. Scans
+    shipped items past their group's `finalReleaseAfter` and calls
+    `triggerAutoReleaseForItem`. Reuses `RELAYER_PRIVATE_KEY`; 2h default
+    interval. Closes the auto-payout asymmetry.
+  - Indexer fix: `handle_shipment_group_created` now re-reads
+    `finalReleaseAfter` from chain for intra orders (the event doesn't
+    carry it). Without this the mirror's `final_release_after` stayed
+    NULL for intra (V1's only flow), starving both the keeper and the
+    seller payout-ETA chip.
+  - Seller dashboard surfaces a payout-ETA chip ("Auto-payout in 1d 4h")
+    sourced from a new computed `SellerOrderItem.auto_release_after`.
+  - Buyer order page gains a confirm-delivery nudge explaining that
+    confirming pays the seller now and that auto-release is the fallback.
+
+- **Level 1 (contract change, rides ADR-057 redeploy).**
+  - New `requestEarlyRelease(orderId, groupId, deliveryProofHash)`,
+    `onlySeller`. Shortens `finalReleaseAfter` to
+    `min(current, now + EARLY_RELEASE_WINDOW)` — **48h, never extends** —
+    emits `EarlyReleaseRequested`. `deliveryProofHash` is **optional**
+    (`bytes32(0)` allowed); a non-zero hash is stored as dispute
+    evidence. One-shot per group (`earlyReleaseRequested` guard). Does
+    **not** move funds — the buyer keeps full dispute rights inside the
+    shortened window, after which the existing permissionless
+    auto-release path (now keeper-driven) pays out.
+  - Cross-border is naturally gated to post-arrival: `finalReleaseAfter`
+    is 0 until `markGroupArrived`, and the function requires it set.
+
+**Why 48h.** Floor that still lets a buyer who is travelling / offline
+notice and open a dispute before funds release on a (potentially forged)
+proof. 24h was rejected as too tight for that safety margin.
+
+**Consequences.** Sellers get paid automatically and can accelerate to
+48h with proof, without weakening buyer protection. New struct fields
+(`deliveryProofHash`, `earlyReleaseRequested`) are appended at the end of
+`ShipmentGroup`, so the existing `_decode_shipment_group` tuple indices
+are unchanged. 7 new Hardhat tests cover shorten/never-extend/one-shot/
+optional-proof/cross-border-gate/non-seller.
+
+**Interaction with ADR-057 (merged after this was drafted).** ADR-057
+added `require(!isCrossBorder)` to `createOrderWithItems`, so cross-border
+orders can no longer be created at all. The intra-only guard added to
+`requestEarlyRelease` by this ADR is therefore defense-in-depth rather
+than the sole protection, but it stays (cheap, and keeps the function
+correct independent of the creation-time guard). Both changes ship in the
+same redeploy.
+
+---
+
 ## ADR-057 — Delivery-chain audit hardening : on-chain intra-only guard, buyer-only arrival, per-buyer escrow cap, ship-time weekly volume (amends ADR-026, ADR-041)
 
 **Status.** Source-level, NOT yet deployed. Branch `fix/escrow-delivery-audit`

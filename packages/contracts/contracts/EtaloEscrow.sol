@@ -48,6 +48,13 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     uint256 public constant AUTO_RELEASE_CROSS_FINAL = 5 days;
     uint256 public constant MAJORITY_RELEASE_DELAY = 72 hours;
 
+    // Delivery-proof early release (ADR-057). When the seller submits a
+    // proof of delivery via requestEarlyRelease, finalReleaseAfter is
+    // shortened to now + this window (never extended). 48h is the floor
+    // that still lets a buyer who's travelling / offline notice and open
+    // a dispute before funds release on a (potentially forged) proof.
+    uint256 public constant EARLY_RELEASE_WINDOW = 48 hours;
+
     // Auto-refund deadlines
     uint256 public constant AUTO_REFUND_INACTIVE_INTRA = 7 days;
     uint256 public constant AUTO_REFUND_INACTIVE_CROSS = 14 days;
@@ -518,6 +525,55 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         }
 
         emit GroupArrived(orderId, groupId, proofHash, block.timestamp);
+    }
+
+    /// @inheritdoc IEtaloEscrow
+    function requestEarlyRelease(
+        uint256 orderId,
+        uint256 groupId,
+        bytes32 deliveryProofHash
+    ) external whenNotPaused orderExistsCheck(orderId) groupExistsCheck(groupId) {
+        EtaloTypes.ShipmentGroup storage group = _groups[groupId];
+        require(group.orderId == orderId, "Group not in order");
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(msg.sender == order.seller, "Only seller");
+        // Intra-only (ADR-041 V1 scope). Cross-border uses the staged
+        // 20/70/10 release schedule where the 70% majority tranche is
+        // gated at majorityReleaseAt (+72h after arrival). Shortening a
+        // cross-border group's finalReleaseAfter below that gate would
+        // let triggerAutoReleaseForItem release the full remainder early,
+        // bypassing the majority window and its buyer-protection period.
+        // Early release is therefore restricted to intra orders, which
+        // have a single finalReleaseAfter timer and no staged tranches.
+        require(!order.isCrossBorder, "Early release intra-only");
+        require(
+            group.status == EtaloTypes.ShipmentStatus.Shipped ||
+                group.status == EtaloTypes.ShipmentStatus.Arrived,
+            "Group not shipped"
+        );
+        // Intra finalReleaseAfter is set at ship time ; this guards the
+        // (defensive) case of a group whose timer somehow isn't set.
+        require(group.finalReleaseAfter != 0, "No release window");
+        require(!group.earlyReleaseRequested, "Early release already requested");
+
+        // Shorten — never extend. If the original window is already
+        // sooner than now+48h (e.g. seller calls this late in the
+        // timer), keep the original.
+        uint256 shortened = block.timestamp + EARLY_RELEASE_WINDOW;
+        if (shortened < group.finalReleaseAfter) {
+            group.finalReleaseAfter = shortened;
+        }
+        group.earlyReleaseRequested = true;
+        if (deliveryProofHash != bytes32(0)) {
+            group.deliveryProofHash = deliveryProofHash;
+        }
+
+        emit EarlyReleaseRequested(
+            orderId,
+            groupId,
+            deliveryProofHash,
+            group.finalReleaseAfter
+        );
     }
 
     /// @inheritdoc IEtaloEscrow

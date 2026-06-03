@@ -20,7 +20,11 @@ name: Contracts self-audit
 
 on:
   push:
-    branches: [main]
+    # feat/** added (was main-only) so contract changes on a feature
+    # branch are audited on push, not only via the PR event — mirrors
+    # ci.yml and avoids the case where a PR's pull_request event doesn't
+    # re-trigger the audit on a later synchronize.
+    branches: [main, "feat/**"]
     paths:
       - "packages/contracts/**"
       - ".github/workflows/contracts-audit.yml"
@@ -30,6 +34,36 @@ on:
       - ".github/workflows/contracts-audit.yml"
 
 jobs:
+  hardhat-test:
+    name: Hardhat unit tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/contracts
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          # Hardhat 3 requires Node 22.10+ (its build system uses
+          # Iterator.prototype.flatMap, which is Node 22+). Node 20
+          # fails with "this[#dependenciesMap].values(...).flatMap is
+          # not a function".
+          node-version: "22"
+
+      - name: Install contracts dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Run Hardhat tests
+        # The full EtaloEscrow / dispute / stake / credits unit suite
+        # (node:test runner). Slither + Solhint + Foundry cover static
+        # analysis + invariants ; this covers behavioural unit tests
+        # (e.g. the ADR-058 requestEarlyRelease cases) that none of the
+        # other three jobs exercise.
+        run: npx hardhat test
+
   solhint:
     name: Solhint (style + security best practice)
     runs-on: ubuntu-latest

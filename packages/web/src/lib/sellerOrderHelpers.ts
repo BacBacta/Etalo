@@ -82,6 +82,37 @@ export function deadlineInfo(
   return { msRemaining, urgency, label: formatDuration(msRemaining) };
 }
 
+export interface PayoutEtaInfo {
+  /** ms until auto-release fires. Negative once the deadline passed
+   *  (the release keeper / permissionless trigger can pay out now). */
+  msRemaining: number;
+  /** true once the deadline has passed — payout is imminent / in flight
+   *  (the auto-release keeper polls every ~2h). */
+  due: boolean;
+  /** Compact "1d 4h" countdown, or "any moment now" once due. */
+  label: string;
+}
+
+/** Post-shipment payout ETA for the seller, rooted in the shipment
+ *  group's `final_release_after` (3 days intra by default, or 48h once
+ *  the seller submits a delivery proof via requestEarlyRelease). Unlike
+ *  `deadlineInfo` (which is the *ship-by* inactivity window), this is the
+ *  *get-paid-by* window — surfaced so the post-shipment wait isn't a
+ *  black box. Returns null when nothing is shipped yet. */
+export function payoutEtaInfo(
+  autoReleaseAfter: string | null | undefined,
+  now: Date = new Date(),
+): PayoutEtaInfo | null {
+  if (!autoReleaseAfter) return null;
+  const deadlineMs = new Date(autoReleaseAfter).getTime();
+  if (Number.isNaN(deadlineMs)) return null;
+  const msRemaining = deadlineMs - now.getTime();
+  if (msRemaining <= 0) {
+    return { msRemaining, due: true, label: "any moment now" };
+  }
+  return { msRemaining, due: false, label: formatDuration(msRemaining) };
+}
+
 /** Compact "5d 12h" / "3h" / "20m" format. Always positive — sign is
  *  carried by `urgency` on the parent struct. */
 export function formatDuration(ms: number): string {

@@ -15,6 +15,7 @@ import {
   formatDuration,
   ipfsImageUrl,
   isShippable,
+  payoutEtaInfo,
   SELLER_INACTIVITY_WINDOW_MS,
   statusBadgeClass,
   statusLabel,
@@ -123,6 +124,36 @@ describe("formatDuration", () => {
   it("returns 'expired' for zero / negative ms", () => {
     expect(formatDuration(0)).toBe("expired");
     expect(formatDuration(-1000)).toBe("expired");
+  });
+});
+
+describe("payoutEtaInfo", () => {
+  const now = new Date("2026-06-03T12:00:00Z");
+
+  it("returns null when no auto_release_after is set", () => {
+    expect(payoutEtaInfo(null, now)).toBeNull();
+    expect(payoutEtaInfo(undefined, now)).toBeNull();
+  });
+
+  it("returns null for an unparseable timestamp", () => {
+    expect(payoutEtaInfo("not-a-date", now)).toBeNull();
+  });
+
+  it("counts down with a compact label when the deadline is in the future", () => {
+    // 26h ahead → "1d 2h", not yet due.
+    const future = new Date(now.getTime() + 26 * 60 * 60 * 1000).toISOString();
+    const info = payoutEtaInfo(future, now)!;
+    expect(info.due).toBe(false);
+    expect(info.label).toBe("1d 2h");
+    expect(info.msRemaining).toBeGreaterThan(0);
+  });
+
+  it("flags due + 'any moment now' once the deadline has passed", () => {
+    const past = new Date(now.getTime() - 60 * 1000).toISOString();
+    const info = payoutEtaInfo(past, now)!;
+    expect(info.due).toBe(true);
+    expect(info.label).toBe("any moment now");
+    expect(info.msRemaining).toBeLessThanOrEqual(0);
   });
 });
 

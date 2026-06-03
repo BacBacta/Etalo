@@ -34,6 +34,7 @@ from sqlalchemy import select
 from app.config import settings
 from app.models.enums import OrderStatus
 from app.models.order import Order
+from app.services.relayer import RELAYER_NONCE_BLOCK, RELAYER_TX_LOCK
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
@@ -166,33 +167,39 @@ class AutoRefundKeeper:
         # Build the call. The contract reverts on already-refunded /
         # not-funded / open-dispute states ; we surface those as warnings,
         # not errors, so the loop keeps going.
-        try:
-            tx = await escrow.functions.triggerAutoRefundIfInactive(
-                int(onchain_order_id)
-            ).build_transaction(
-                {
-                    "from": self._relayer_address,
-                    "nonce": await w3.eth.get_transaction_count(
-                        self._relayer_address
-                    ),
-                    "gas": 250_000,
-                    "gasPrice": await w3.eth.gas_price,
-                    "chainId": await w3.eth.chain_id,
-                }
-            )
-        except Exception as exc:  # noqa: BLE001
-            # Most likely a `eth_estimateGas` revert preview — the build
-            # call itself shouldn't fail unless the node reverts the
-            # simulation. Log + skip.
-            logger.info(
-                "auto_refund_keeper.refund_skipped onchain_id=%s reason=%r",
-                onchain_order_id,
-                exc,
-            )
-            return
+        #
+        # Serialize nonce-read → sign → broadcast across both keepers
+        # (shared relayer key). "pending" nonce + the shared lock prevent
+        # the auto-refund and auto-release keepers from grabbing the same
+        # nonce and dropping each other's tx. Receipt wait stays outside.
+        async with RELAYER_TX_LOCK:
+            try:
+                tx = await escrow.functions.triggerAutoRefundIfInactive(
+                    int(onchain_order_id)
+                ).build_transaction(
+                    {
+                        "from": self._relayer_address,
+                        "nonce": await w3.eth.get_transaction_count(
+                            self._relayer_address, RELAYER_NONCE_BLOCK
+                        ),
+                        "gas": 250_000,
+                        "gasPrice": await w3.eth.gas_price,
+                        "chainId": await w3.eth.chain_id,
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                # Most likely a `eth_estimateGas` revert preview — the
+                # build call itself shouldn't fail unless the node reverts
+                # the simulation. Log + skip.
+                logger.info(
+                    "auto_refund_keeper.refund_skipped onchain_id=%s reason=%r",
+                    onchain_order_id,
+                    exc,
+                )
+                return
 
-        signed = self._account.sign_transaction(tx)
-        tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
+            signed = self._account.sign_transaction(tx)
+            tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
         logger.info(
             "auto_refund_keeper.refund_sent onchain_id=%s tx=%s",
             onchain_order_id,

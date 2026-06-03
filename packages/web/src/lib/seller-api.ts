@@ -64,6 +64,10 @@ export type SellerOrderItemSummary = {
 export type SellerOrderItem = components["schemas"]["SellerOrderItem"] & {
   delivery_address_snapshot?: DeliveryAddressSnapshotJson | null;
   line_items?: SellerOrderItemSummary[];
+  // Earliest auto-release deadline among shipped groups — lets the row
+  // tell the seller when they'll be paid automatically. Local until
+  // `pnpm gen:api` regenerates the schema post-merge.
+  auto_release_after?: string | null;
 };
 export type SellerOrdersPage = Omit<
   components["schemas"]["SellerOrdersPage"],

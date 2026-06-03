@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
+    Boolean,
     DateTime,
     Enum as SAEnum,
     ForeignKey,
@@ -72,6 +73,16 @@ class ShipmentGroup(Base):
     arrived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     majority_release_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     final_release_after: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    # ADR-057 delivery-proof early release. Set by the indexer's
+    # handle_early_release_requested when the seller accelerates the
+    # auto-release window. delivery_proof_hash is the optional proof
+    # artifact (NULL when none attached) ; early_release_requested guards
+    # the one-shot nature mirrored from the contract.
+    delivery_proof_hash: Mapped[bytes | None] = mapped_column(LargeBinary)
+    early_release_requested: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     # --- Relationships ---
     order: Mapped["Order"] = relationship(back_populates="shipment_groups")

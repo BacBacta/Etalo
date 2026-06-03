@@ -201,6 +201,19 @@ class Settings(BaseSettings):
     # true AND `relayer_private_key` is non-empty.
     auto_refund_keeper_enabled: bool = True
 
+    # Auto-RELEASE keeper. Symmetric counterpart to the auto-refund
+    # keeper — pays the seller automatically once a shipped item crosses
+    # its `finalReleaseAfter` deadline (3 days intra, or 48h once the
+    # seller submits a delivery proof via requestEarlyRelease). Before
+    # this keeper existed the platform auto-refunded buyers but never
+    # auto-paid sellers : funds sat until the buyer (no incentive) or
+    # someone manually poked the permissionless trigger. Reuses
+    # `relayer_private_key`. Default interval shorter than the refund
+    # keeper (2h) because seller cash-flow latency is the pain point the
+    # whole feature targets. Set 0.05 (~3 min) in dev.
+    auto_release_keeper_interval_hours: float = 2.0
+    auto_release_keeper_enabled: bool = True
+
     # Legacy V1 fields (kept for the V1 stub in app/services/celo.py;
     # removed in Block 4).
     escrow_contract_address: str = ""

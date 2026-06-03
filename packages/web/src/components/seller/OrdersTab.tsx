@@ -2,6 +2,7 @@
 
 import {
   Clock,
+  Coins,
   Copy,
   MapPin,
   Package,
@@ -21,6 +22,7 @@ import { type DeliveryAddressSnapshot } from "@/components/orders/OrderDeliveryA
 // seller couldn't ship. The bundle delta isn't worth a broken core
 // flow ; switched to a static import.
 import { MarkGroupShippedDialog } from "@/components/seller/MarkGroupShippedDialog";
+import { RequestEarlyReleaseDialog } from "@/components/seller/RequestEarlyReleaseDialog";
 import {
   SellerOrderDisputeSection,
   useOrderHasDispute,
@@ -43,6 +45,7 @@ import {
   deadlineInfo,
   ipfsImageUrl,
   isShippable,
+  payoutEtaInfo,
   statusPill,
   summarizeOrders,
   type DeadlineInfo,
@@ -109,6 +112,12 @@ export function OrdersTab({ address }: Props) {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [view, setView] = useState<ViewMode>("orders");
   const [shipTarget, setShipTarget] = useState<{
+    dbOrderId: string;
+    onchainOrderId: number;
+  } | null>(null);
+  // ADR-057 — target for the "confirm delivery → speed up payout" early
+  // release dialog. Separate from shipTarget so both can't collide.
+  const [earlyReleaseTarget, setEarlyReleaseTarget] = useState<{
     dbOrderId: string;
     onchainOrderId: number;
   } | null>(null);
@@ -360,6 +369,12 @@ export function OrdersTab({ address }: Props) {
                   onchainOrderId: o.onchain_order_id,
                 });
               }}
+              onEarlyReleaseClick={() => {
+                setEarlyReleaseTarget({
+                  dbOrderId: o.id,
+                  onchainOrderId: o.onchain_order_id,
+                });
+              }}
             />
           ))}
         </ul>
@@ -380,6 +395,18 @@ export function OrdersTab({ address }: Props) {
           dbOrderId={shipTarget.dbOrderId}
           onchainOrderId={shipTarget.onchainOrderId}
           onSuccess={() => handleShipSuccess(shipTarget.onchainOrderId)}
+        />
+      ) : null}
+
+      {earlyReleaseTarget ? (
+        <RequestEarlyReleaseDialog
+          open={earlyReleaseTarget !== null}
+          onOpenChange={(open) => {
+            if (!open) setEarlyReleaseTarget(null);
+          }}
+          dbOrderId={earlyReleaseTarget.dbOrderId}
+          onchainOrderId={earlyReleaseTarget.onchainOrderId}
+          onSuccess={refetch}
         />
       ) : null}
 
@@ -439,6 +466,8 @@ function KpiTile({ label, value, sub, icon, urgency, testId }: KpiTileProps) {
 interface OrderRowProps {
   order: SellerOrderItem;
   onShipClick: () => void;
+  // ADR-057 — opens the "confirm delivery → speed up payout" dialog.
+  onEarlyReleaseClick: () => void;
   // True from the moment the seller's ship tx confirms until the
   // indexer-updated `global_status` no longer reports the order as
   // shippable. Drives the "syncing" pill + button hide so the seller
@@ -457,11 +486,16 @@ interface OrderRowProps {
 const OrderRow = memo(function OrderRow({
   order,
   onShipClick,
+  onEarlyReleaseClick,
   optimisticShipped,
   sellerAddress,
 }: OrderRowProps) {
   const canShip = isShippable(order.global_status) && !optimisticShipped;
   const dl = deadlineInfo(order.funded_at, order.global_status);
+  // Post-shipment payout ETA — when the seller will be auto-paid (the
+  // release keeper fires past final_release_after). Shown once the order
+  // is shipped so the wait isn't a black box.
+  const payoutEta = payoutEtaInfo(order.auto_release_after);
   const snapshot = (order.delivery_address_snapshot ??
     null) as DeliveryAddressSnapshot | null;
   const buyer = buyerLabel(snapshot, order.onchain_order_id);
@@ -611,6 +645,43 @@ const OrderRow = memo(function OrderRow({
             </li>
           ))}
         </ul>
+      ) : null}
+
+      {/* Payout ETA — once shipped, tell the seller when they'll be paid
+          automatically (release keeper fires past the auto-release
+          window). Turns the opaque post-shipment wait into a concrete
+          date so the seller isn't left wondering if/when funds arrive. */}
+      {payoutEta ? (
+        <div className="px-4 pt-3" data-testid="order-row-payout-eta">
+          <div
+            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${
+              payoutEta.due
+                ? "bg-celo-forest-soft text-celo-forest-dark dark:bg-celo-forest-bright-soft dark:text-celo-forest-bright"
+                : "bg-neutral-100 text-neutral-700 dark:bg-celo-dark-bg dark:text-celo-light/70"
+            }`}
+          >
+            <Coins className="h-4 w-4 flex-shrink-0" weight="fill" aria-hidden />
+            <span>
+              {payoutEta.due
+                ? "Payout releasing — funds on their way to you"
+                : `Auto-payout in ${payoutEta.label} (or sooner if the buyer confirms)`}
+            </span>
+          </div>
+          {/* ADR-057 — while the payout is still pending, let the seller
+              confirm delivery (with optional proof) to cut the wait to
+              48h. Hidden once due (release already in motion). */}
+          {!payoutEta.due ? (
+            <button
+              type="button"
+              onClick={onEarlyReleaseClick}
+              data-testid="order-row-early-release"
+              className="mt-2 inline-flex min-h-[44px] w-full items-center justify-center gap-1.5 rounded-lg border border-celo-forest/30 px-4 text-sm font-medium text-celo-forest transition-colors hover:bg-celo-forest-soft dark:border-celo-forest-bright/30 dark:text-celo-forest-bright dark:hover:bg-celo-forest-bright-soft"
+            >
+              <Coins className="h-4 w-4" weight="regular" aria-hidden />
+              Delivered already? Speed up payout
+            </button>
+          ) : null}
+        </div>
       ) : null}
 
       {/* Compact ship-to summary — recipient + area · city, country.

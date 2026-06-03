@@ -49,8 +49,12 @@ class ShipmentGroupResponse(BaseModel):
     arrived_at: datetime | None
     majority_release_at: datetime | None
     final_release_after: datetime | None
+    # ADR-057 — lets the seller dashboard hide the "speed up payout" CTA
+    # once an early release has already been requested for this group.
+    delivery_proof_hash: bytes | None = None
+    early_release_requested: bool = False
 
-    @field_serializer('proof_hash', 'arrival_proof_hash')
+    @field_serializer('proof_hash', 'arrival_proof_hash', 'delivery_proof_hash')
     def serialize_hash(self, value: bytes | None) -> str | None:
         if value is None:
             return None

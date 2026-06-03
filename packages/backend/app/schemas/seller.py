@@ -112,6 +112,12 @@ class SellerOrderItem(BaseModel):
     funded_at: datetime | None = None
     delivery_address_snapshot: dict | None = None
     line_items: list[SellerOrderItemSummary] = []
+    # Earliest `final_release_after` among this order's shipped, not-yet-
+    # released shipment groups. Lets the seller dashboard tell the seller
+    # "you'll be paid automatically on <date>" instead of leaving the
+    # post-shipment wait opaque. Null when nothing is shipped yet (or all
+    # shipped groups already released). Computed server-side, not a column.
+    auto_release_after: datetime | None = None
 
     model_config = {"from_attributes": True}
 

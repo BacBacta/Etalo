@@ -868,6 +868,150 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
     });
   });
 
+  describe("requestEarlyRelease (ADR-057 delivery-proof acceleration)", function () {
+    const PROOF = ("0x" + "de".repeat(32)) as `0x${string}`;
+    const ZERO32 = ("0x" + "00".repeat(32)) as `0x${string}`;
+
+    async function shippedIntra() {
+      const ctx = await deployEscrow(viem);
+      await ctx.escrow.write.createOrderWithItems(
+        [ctx.seller.account.address, [toUSDT(50)], false],
+        { account: ctx.buyer.account }
+      );
+      await ctx.escrow.write.fundOrder([1n], { account: ctx.buyer.account });
+      const itemIds = await ctx.escrow.read.getOrderItems([1n]);
+      await ctx.escrow.write.shipItemsGrouped(
+        [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
+        { account: ctx.seller.account }
+      );
+      return { ...ctx, itemIds };
+    }
+
+    it("shortens finalReleaseAfter to ~now+48h and stores the optional proof hash", async function () {
+      const { escrow, seller, publicClient } = await shippedIntra();
+      const before = await escrow.read.getShipmentGroup([1n]);
+      // Intra default window is 3 days.
+      assert.ok(before.finalReleaseAfter > 0n);
+
+      await escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+        account: seller.account,
+      });
+
+      const after = await escrow.read.getShipmentGroup([1n]);
+      assert.ok(
+        after.finalReleaseAfter < before.finalReleaseAfter,
+        "window should shorten"
+      );
+      assert.equal(after.earlyReleaseRequested, true);
+      assert.equal(after.deliveryProofHash, PROOF);
+
+      // The shortened deadline is within a minute of now+48h.
+      const block = await publicClient.getBlock();
+      const expected = block.timestamp + 48n * 3600n;
+      const delta =
+        after.finalReleaseAfter > expected
+          ? after.finalReleaseAfter - expected
+          : expected - after.finalReleaseAfter;
+      assert.ok(delta <= 60n, "shortened window should be ~now+48h");
+    });
+
+    it("accepts an empty proof hash (bytes32(0)) and still shortens", async function () {
+      const { escrow, seller } = await shippedIntra();
+      await escrow.write.requestEarlyRelease([1n, 1n, ZERO32], {
+        account: seller.account,
+      });
+      const after = await escrow.read.getShipmentGroup([1n]);
+      assert.equal(after.earlyReleaseRequested, true);
+      assert.equal(after.deliveryProofHash, ZERO32);
+    });
+
+    it("makes the item auto-releasable after 48h instead of 3 days", async function () {
+      const { escrow, mockUSDT, seller, itemIds, publicClient } =
+        await shippedIntra();
+      await escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+        account: seller.account,
+      });
+
+      // Before 48h: still not releasable.
+      await increaseTime(publicClient, 47 * 3600);
+      await expectRevert(
+        escrow.write.triggerAutoReleaseForItem([1n, itemIds[0]]),
+        "Final release not yet"
+      );
+
+      // Cross 48h: now releasable (would still be blocked under the old
+      // 3-day window).
+      await increaseTime(publicClient, 2 * 3600);
+      const sellerBefore = await mockUSDT.read.balanceOf([seller.account.address]);
+      await escrow.write.triggerAutoReleaseForItem([1n, itemIds[0]]);
+      const sellerAfter = await mockUSDT.read.balanceOf([seller.account.address]);
+      const net = toUSDT(50) - (toUSDT(50) * 180n) / 10000n;
+      assert.equal(sellerAfter - sellerBefore, net);
+    });
+
+    it("never extends the window — calling late keeps the original deadline", async function () {
+      const { escrow, seller, publicClient } = await shippedIntra();
+      const before = await escrow.read.getShipmentGroup([1n]);
+      // 2.5 days in, the original 3-day deadline is only ~12h away —
+      // sooner than now+48h, so the call must NOT push it out.
+      await increaseTime(publicClient, Math.floor(2.5 * 24 * 3600));
+      await escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+        account: seller.account,
+      });
+      const after = await escrow.read.getShipmentGroup([1n]);
+      assert.equal(
+        after.finalReleaseAfter,
+        before.finalReleaseAfter,
+        "must not extend beyond the original deadline"
+      );
+    });
+
+    it("rejects a second early-release request on the same group", async function () {
+      const { escrow, seller } = await shippedIntra();
+      await escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+        account: seller.account,
+      });
+      await expectRevert(
+        escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+          account: seller.account,
+        }),
+        "Early release already requested"
+      );
+    });
+
+    it("rejects a non-seller caller", async function () {
+      const { escrow, buyer, nonParty } = await shippedIntra();
+      await expectRevert(
+        escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+          account: nonParty.account,
+        }),
+        "Only seller"
+      );
+      await expectRevert(
+        escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+          account: buyer.account,
+        }),
+        "Only seller"
+      );
+    });
+
+    it("cross-border can't be created, so the requestEarlyRelease intra guard is defense-in-depth (ADR-057/ADR-058)", async function () {
+      // ADR-057 added `require(!isCrossBorder)` to createOrderWithItems,
+      // so a cross-border order can no longer even be created — the
+      // requestEarlyRelease `require(!order.isCrossBorder)` guard is the
+      // unreachable second line of defence. Assert the upstream
+      // creation-time guard (the protection that actually fires).
+      const { escrow, buyer, seller } = await deployEscrow(viem);
+      await expectRevert(
+        escrow.write.createOrderWithItems(
+          [seller.account.address, [toUSDT(50)], true],
+          { account: buyer.account }
+        ),
+        "Cross-border disabled in V1 (ADR-041)"
+      );
+    });
+  });
+
   describe("triggerAutoRefundIfInactive", function () {
     it("refunds the buyer after 7 days for an intra order in Funded state", async function () {
       const { escrow, mockUSDT, buyer, seller, publicClient } = await deployEscrow(viem);

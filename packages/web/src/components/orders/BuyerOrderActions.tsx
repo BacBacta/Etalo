@@ -119,11 +119,28 @@ export function BuyerOrderActions({ order, className }: BuyerOrderActionsProps) 
           className="sticky bottom-2 z-10 -mx-1 flex flex-col gap-2 rounded-2xl border border-celo-dark/5 bg-white/95 p-3 shadow-lg backdrop-blur dark:border-celo-light/10 dark:bg-celo-dark-elevated/95"
         >
           {confirmableItem && (
-            <ConfirmDeliveryButton
-              orderId={BigInt(order.onchain_order_id)}
-              itemId={BigInt(confirmableItem.onchain_item_id)}
-              itemLabel={itemLabel(confirmableItem)}
-            />
+            <>
+              {/* Nudge — give the buyer a reason to confirm rather than
+                  do nothing. Confirming pays the seller immediately
+                  (it doesn't waive buyer protection — disputes stay open
+                  until release). Framing it as helping the seller +
+                  noting the auto-release fallback removes the "why
+                  bother" friction that otherwise leaves every honest
+                  order to drain the full timer. */}
+              <p
+                data-testid="confirm-delivery-nudge"
+                className="px-1 text-sm text-neutral-600 dark:text-celo-light/65"
+              >
+                Got your order? Confirming releases payment to the seller
+                right away. If you don&apos;t, it releases automatically
+                once the protection window ends.
+              </p>
+              <ConfirmDeliveryButton
+                orderId={BigInt(order.onchain_order_id)}
+                itemId={BigInt(confirmableItem.onchain_item_id)}
+                itemLabel={itemLabel(confirmableItem)}
+              />
+            </>
           )}
           {actions.canClaimRefund && (
             <ClaimRefundButton orderId={BigInt(order.onchain_order_id)} />

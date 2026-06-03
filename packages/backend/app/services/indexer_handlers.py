@@ -15,6 +15,7 @@ or in-line with endpoint needs.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
@@ -42,6 +43,8 @@ from app.models.user import User
 
 
 HandlerType = Callable[[Any, AsyncSession, dict[str, Any]], Awaitable[None]]
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -255,6 +258,31 @@ async def handle_shipment_group_created(
     # (J12 mainnet smoke bug, order #1).
     await _sync_order_global_status(order, services)
 
+    # For intra orders the contract sets finalReleaseAfter = shippedAt +
+    # 3d at ship time (cross-border sets it later at markGroupArrived).
+    # The ShipmentGroupCreated event doesn't carry it, so re-read from
+    # chain — otherwise the mirror's final_release_after stays NULL and
+    # both the auto-release keeper and the seller payout-ETA chip have
+    # nothing to act on (intra is V1's only flow per ADR-041).
+    #
+    # Best-effort: this RPC runs AFTER the critical item-attach + status
+    # sync above, and a failure is swallowed, so a flaky node can never
+    # strand the order in Funded (the J12 bug). A NULL final_release_after
+    # self-heals — if it isn't backfilled here, the seller can still
+    # accelerate via requestEarlyRelease, and a re-index of this event
+    # repopulates it.
+    try:
+        chain_group = await services["celo"].get_shipment_group(group_id)
+        if chain_group is not None and chain_group.final_release_after:
+            group.final_release_after = _to_dt(chain_group.final_release_after)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "handle_shipment_group_created: final_release_after backfill "
+            "failed for group %s (best-effort, order state already synced)",
+            group_id,
+            exc_info=True,
+        )
+
 
 async def handle_group_arrived(
     event: Any, db: AsyncSession, services: dict[str, Any]
@@ -306,6 +334,33 @@ async def handle_partial_release_triggered(
     if group is None:
         return
     group.release_stage = release_stage
+
+
+async def handle_early_release_requested(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """EarlyReleaseRequested(orderId, groupId, deliveryProofHash, shortenedReleaseAfter).
+
+    ADR-057 — the seller submitted proof of delivery to accelerate the
+    auto-release window. The event carries everything we need :
+      - shortenedReleaseAfter → the new (never later) final_release_after,
+        which the auto-release keeper + seller payout-ETA chip both read.
+      - deliveryProofHash → stored as dispute evidence ; bytes32(0) when
+        the seller requested early release without attaching an artifact.
+    """
+    args = event["args"]
+    group_id = args["groupId"]
+    proof = bytes(args["deliveryProofHash"])
+    shortened = args["shortenedReleaseAfter"]
+
+    group = await _get_group_by_onchain_id(db, group_id)
+    if group is None:
+        return
+    group.final_release_after = _to_dt(shortened)
+    group.early_release_requested = True
+    # Only persist a real artifact — bytes32(0) means "no proof attached".
+    if int.from_bytes(proof, "big") != 0:
+        group.delivery_proof_hash = proof
 
 
 async def handle_item_released(
@@ -780,6 +835,7 @@ HANDLERS: dict[tuple[str, str], HandlerType] = {
     ("EtaloEscrow", "OrderFunded"): handle_order_funded,
     ("EtaloEscrow", "ShipmentGroupCreated"): handle_shipment_group_created,
     ("EtaloEscrow", "GroupArrived"): handle_group_arrived,
+    ("EtaloEscrow", "EarlyReleaseRequested"): handle_early_release_requested,
     ("EtaloEscrow", "PartialReleaseTriggered"): handle_partial_release_triggered,
     ("EtaloEscrow", "ItemReleased"): handle_item_released,
     ("EtaloEscrow", "OrderCompleted"): handle_order_completed,
