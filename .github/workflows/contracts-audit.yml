@@ -20,7 +20,11 @@ name: Contracts self-audit
 
 on:
   push:
-    branches: [main]
+    # feat/** added (was main-only) so contract changes on a feature
+    # branch are audited on push, not only via the PR event — mirrors
+    # ci.yml and avoids the case where a PR's pull_request event doesn't
+    # re-trigger the audit on a later synchronize.
+    branches: [main, "feat/**"]
     paths:
       - "packages/contracts/**"
       - ".github/workflows/contracts-audit.yml"
