@@ -492,15 +492,22 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         require(group.orderId == orderId, "Group not in order");
         EtaloTypes.Order storage order = _orders[orderId];
         require(msg.sender == order.seller, "Only seller");
+        // Intra-only (ADR-041 V1 scope). Cross-border uses the staged
+        // 20/70/10 release schedule where the 70% majority tranche is
+        // gated at majorityReleaseAt (+72h after arrival). Shortening a
+        // cross-border group's finalReleaseAfter below that gate would
+        // let triggerAutoReleaseForItem release the full remainder early,
+        // bypassing the majority window and its buyer-protection period.
+        // Early release is therefore restricted to intra orders, which
+        // have a single finalReleaseAfter timer and no staged tranches.
+        require(!order.isCrossBorder, "Early release intra-only");
         require(
             group.status == EtaloTypes.ShipmentStatus.Shipped ||
                 group.status == EtaloTypes.ShipmentStatus.Arrived,
             "Group not shipped"
         );
-        // finalReleaseAfter is 0 for a cross-border group that hasn't
-        // arrived yet (it's set at markGroupArrived). Requiring it to be
-        // set naturally restricts cross-border to post-arrival while
-        // allowing intra immediately after shipping.
+        // Intra finalReleaseAfter is set at ship time ; this guards the
+        // (defensive) case of a group whose timer somehow isn't set.
         require(group.finalReleaseAfter != 0, "No release window");
         require(!group.earlyReleaseRequested, "Early release already requested");
 

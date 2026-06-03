@@ -984,7 +984,10 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
       );
     });
 
-    it("rejects early release on a cross-border group before arrival (no window yet)", async function () {
+    it("rejects early release on a cross-border order (intra-only, ADR-041)", async function () {
+      // Cross-border uses the staged 20/70/10 release with a 72h
+      // majority gate ; shortening its window would bypass that, so
+      // requestEarlyRelease is restricted to intra orders.
       const { escrow, buyer, seller } = await deployEscrow(viem);
       await escrow.write.createOrderWithItems(
         [seller.account.address, [toUSDT(50)], true],
@@ -996,12 +999,24 @@ describe("EtaloEscrow — Stage 1 (creation, funding, cancel, limits, views)", a
         [1n, [itemIds[0]], "0x" + "aa".repeat(32)],
         { account: seller.account }
       );
-      // Cross-border finalReleaseAfter is 0 until markGroupArrived.
       await expectRevert(
         escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
           account: seller.account,
         }),
-        "No release window"
+        "Early release intra-only"
+      );
+
+      // And after arrival it is still rejected (not just a pre-arrival
+      // window issue) — proves the intra-only guard, not the timer.
+      await escrow.write.markGroupArrived(
+        [1n, 1n, "0x" + "bb".repeat(32)],
+        { account: seller.account }
+      );
+      await expectRevert(
+        escrow.write.requestEarlyRelease([1n, 1n, PROOF], {
+          account: seller.account,
+        }),
+        "Early release intra-only"
       );
     });
   });
