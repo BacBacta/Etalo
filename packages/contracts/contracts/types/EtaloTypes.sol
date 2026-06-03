@@ -95,5 +95,13 @@ library EtaloTypes {
         uint256 finalReleaseAfter;      // arrivedAt + 5d (cross-border) or shippedAt + 3d/2d (intra)
         ShipmentStatus status;
         uint8 releaseStage;             // 0=pending, 1=20%, 2=90%, 3=100%
+        // Delivery-proof early release (ADR-057). The seller may submit
+        // proof of delivery to shorten finalReleaseAfter to now+48h
+        // (never extend). The buyer keeps full dispute rights inside the
+        // shortened window. deliveryProofHash is OPTIONAL — bytes32(0)
+        // when the seller requested early release without attaching a
+        // proof artifact. earlyReleaseRequested guards against re-calls.
+        bytes32 deliveryProofHash;
+        bool earlyReleaseRequested;
     }
 }

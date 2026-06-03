@@ -266,6 +266,10 @@ async def list_seller_orders(
             .order_by(Order.created_at_chain.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
+            # Eager-load shipment groups so we can surface the earliest
+            # auto-release deadline per order without an N+1 lazy load
+            # (which would MissingGreenlet under async anyway).
+            .options(selectinload(Order.shipment_groups))
         )
     ).scalars().all()
 
@@ -289,6 +293,7 @@ async def list_seller_orders(
     for o in rows:
         item = SellerOrderItem.model_validate(o)
         item.line_items = _aggregate_seller_order_items(o, products_by_id)
+        item.auto_release_after = _earliest_auto_release(o)
         out.append(item)
 
     return SellerOrdersPage(
@@ -300,6 +305,23 @@ async def list_seller_orders(
             "has_more": page * page_size < total,
         },
     )
+
+
+def _earliest_auto_release(order: Order) -> datetime | None:
+    """Earliest `final_release_after` among the order's shipped groups
+    that haven't fully released yet (release_stage < 3).
+
+    Surfaces to the seller dashboard as "you'll be paid automatically on
+    <date>". Returns None when no group is shipped or all have released.
+    Requires `order.shipment_groups` to be eager-loaded.
+    """
+    groups = getattr(order, "shipment_groups", None) or []
+    deadlines = [
+        g.final_release_after
+        for g in groups
+        if g.final_release_after is not None and g.release_stage < 3
+    ]
+    return min(deadlines) if deadlines else None
 
 
 def _aggregate_seller_order_items(

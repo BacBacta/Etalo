@@ -48,6 +48,13 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
     uint256 public constant AUTO_RELEASE_CROSS_FINAL = 5 days;
     uint256 public constant MAJORITY_RELEASE_DELAY = 72 hours;
 
+    // Delivery-proof early release (ADR-057). When the seller submits a
+    // proof of delivery via requestEarlyRelease, finalReleaseAfter is
+    // shortened to now + this window (never extended). 48h is the floor
+    // that still lets a buyer who's travelling / offline notice and open
+    // a dispute before funds release on a (potentially forged) proof.
+    uint256 public constant EARLY_RELEASE_WINDOW = 48 hours;
+
     // Auto-refund deadlines
     uint256 public constant AUTO_REFUND_INACTIVE_INTRA = 7 days;
     uint256 public constant AUTO_REFUND_INACTIVE_CROSS = 14 days;
@@ -473,6 +480,48 @@ contract EtaloEscrow is IEtaloEscrow, Ownable, ReentrancyGuard {
         }
 
         emit GroupArrived(orderId, groupId, proofHash, block.timestamp);
+    }
+
+    /// @inheritdoc IEtaloEscrow
+    function requestEarlyRelease(
+        uint256 orderId,
+        uint256 groupId,
+        bytes32 deliveryProofHash
+    ) external whenNotPaused orderExistsCheck(orderId) groupExistsCheck(groupId) {
+        EtaloTypes.ShipmentGroup storage group = _groups[groupId];
+        require(group.orderId == orderId, "Group not in order");
+        EtaloTypes.Order storage order = _orders[orderId];
+        require(msg.sender == order.seller, "Only seller");
+        require(
+            group.status == EtaloTypes.ShipmentStatus.Shipped ||
+                group.status == EtaloTypes.ShipmentStatus.Arrived,
+            "Group not shipped"
+        );
+        // finalReleaseAfter is 0 for a cross-border group that hasn't
+        // arrived yet (it's set at markGroupArrived). Requiring it to be
+        // set naturally restricts cross-border to post-arrival while
+        // allowing intra immediately after shipping.
+        require(group.finalReleaseAfter != 0, "No release window");
+        require(!group.earlyReleaseRequested, "Early release already requested");
+
+        // Shorten — never extend. If the original window is already
+        // sooner than now+48h (e.g. seller calls this late in the
+        // timer), keep the original.
+        uint256 shortened = block.timestamp + EARLY_RELEASE_WINDOW;
+        if (shortened < group.finalReleaseAfter) {
+            group.finalReleaseAfter = shortened;
+        }
+        group.earlyReleaseRequested = true;
+        if (deliveryProofHash != bytes32(0)) {
+            group.deliveryProofHash = deliveryProofHash;
+        }
+
+        emit EarlyReleaseRequested(
+            orderId,
+            groupId,
+            deliveryProofHash,
+            group.finalReleaseAfter
+        );
     }
 
     /// @inheritdoc IEtaloEscrow

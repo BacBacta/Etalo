@@ -242,6 +242,16 @@ async def handle_shipment_group_created(
     db.add(group)
     await db.flush()
 
+    # For intra orders the contract sets finalReleaseAfter = shippedAt +
+    # 3d at ship time (cross-border sets it later at markGroupArrived).
+    # The ShipmentGroupCreated event doesn't carry it, so re-read from
+    # chain — otherwise the mirror's final_release_after stays NULL and
+    # both the auto-release keeper and the seller payout-ETA chip have
+    # nothing to act on (intra is V1's only flow per ADR-041).
+    chain_group = await services["celo"].get_shipment_group(group_id)
+    if chain_group is not None and chain_group.final_release_after:
+        group.final_release_after = _to_dt(chain_group.final_release_after)
+
     # Attach items to the group + transition to Shipped
     for iid in item_ids:
         item = await _get_item_by_onchain_id(db, iid)
@@ -306,6 +316,33 @@ async def handle_partial_release_triggered(
     if group is None:
         return
     group.release_stage = release_stage
+
+
+async def handle_early_release_requested(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """EarlyReleaseRequested(orderId, groupId, deliveryProofHash, shortenedReleaseAfter).
+
+    ADR-057 — the seller submitted proof of delivery to accelerate the
+    auto-release window. The event carries everything we need :
+      - shortenedReleaseAfter → the new (never later) final_release_after,
+        which the auto-release keeper + seller payout-ETA chip both read.
+      - deliveryProofHash → stored as dispute evidence ; bytes32(0) when
+        the seller requested early release without attaching an artifact.
+    """
+    args = event["args"]
+    group_id = args["groupId"]
+    proof = bytes(args["deliveryProofHash"])
+    shortened = args["shortenedReleaseAfter"]
+
+    group = await _get_group_by_onchain_id(db, group_id)
+    if group is None:
+        return
+    group.final_release_after = _to_dt(shortened)
+    group.early_release_requested = True
+    # Only persist a real artifact — bytes32(0) means "no proof attached".
+    if int.from_bytes(proof, "big") != 0:
+        group.delivery_proof_hash = proof
 
 
 async def handle_item_released(
@@ -780,6 +817,7 @@ HANDLERS: dict[tuple[str, str], HandlerType] = {
     ("EtaloEscrow", "OrderFunded"): handle_order_funded,
     ("EtaloEscrow", "ShipmentGroupCreated"): handle_shipment_group_created,
     ("EtaloEscrow", "GroupArrived"): handle_group_arrived,
+    ("EtaloEscrow", "EarlyReleaseRequested"): handle_early_release_requested,
     ("EtaloEscrow", "PartialReleaseTriggered"): handle_partial_release_triggered,
     ("EtaloEscrow", "ItemReleased"): handle_item_released,
     ("EtaloEscrow", "OrderCompleted"): handle_order_completed,

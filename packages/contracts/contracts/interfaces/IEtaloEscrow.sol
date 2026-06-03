@@ -42,6 +42,16 @@ interface IEtaloEscrow {
         uint8 releaseStage,
         uint256 amount
     );
+    /// @notice Emitted when the seller submits proof of delivery to
+    /// accelerate the auto-release window (ADR-057). `deliveryProofHash`
+    /// is bytes32(0) when no proof artifact was attached.
+    /// `shortenedReleaseAfter` is the new (never later) finalReleaseAfter.
+    event EarlyReleaseRequested(
+        uint256 indexed orderId,
+        uint256 indexed groupId,
+        bytes32 deliveryProofHash,
+        uint256 shortenedReleaseAfter
+    );
     event ItemReleased(uint256 indexed orderId, uint256 indexed itemId, uint256 amount);
     event ItemCompleted(uint256 indexed orderId, uint256 indexed itemId);
     event OrderCompleted(uint256 indexed orderId);
@@ -112,6 +122,21 @@ interface IEtaloEscrow {
         uint256 orderId,
         uint256 groupId,
         bytes32 proofHash
+    ) external;
+
+    /// @notice Seller submits proof of delivery to accelerate the
+    /// auto-release window for a shipped group (ADR-057). Shortens
+    /// `finalReleaseAfter` to `now + EARLY_RELEASE_WINDOW` (48h) but
+    /// NEVER extends it. `deliveryProofHash` is OPTIONAL — pass
+    /// bytes32(0) to request early release without an artifact ; a
+    /// non-zero hash is stored as dispute evidence. Does NOT release
+    /// funds itself — the buyer keeps full dispute rights inside the
+    /// shortened window, after which the existing permissionless
+    /// auto-release path pays the seller. Callable once per group.
+    function requestEarlyRelease(
+        uint256 orderId,
+        uint256 groupId,
+        bytes32 deliveryProofHash
     ) external;
 
     // ===== Buyer lifecycle (§12.2) =====
