@@ -52,6 +52,21 @@ partent de 0, ce qui est correct.
    déjà financées continuent leur cycle normalement (l'ancien escrow n'est
    **pas** mis en pause — `emergencyPause` bloquerait aussi les
    releases/refunds).
+
+   **Mécanisme livré (Phase 0).** Deux flags, le backend faisant autorité :
+   - **Backend `ORDERS_FROZEN=true`** (Fly secret + restart) — le hard
+     gate : `POST /cart/checkout-token` renvoie **503** avant tout travail
+     DB, donc aucun token = aucune nouvelle commande. **Runtime-flippable**
+     (rollback §7 = repasser à `false` + restart, sans rebuild).
+   - **Frontend `NEXT_PUBLIC_ORDERS_FROZEN=true`** (Vercel + redeploy) —
+     UX proactive : bannière maintenance + CTA checkout désactivé dans le
+     panier et sur `/checkout`. *Optionnel* : le checkout gère déjà le 503
+     backend proprement (message maintenance) même sans ce flag, mais il
+     évite à l'acheteur de taper pour rien et couvre le cas d'un token
+     pré-gel encore en main (le `createOrderWithItems` on-chain étant
+     permissionless, le backend ne peut pas le bloquer — d'où le CTA gelé).
+   Séquence : poser `ORDERS_FROZEN=true` (Fly) → poser
+   `NEXT_PUBLIC_ORDERS_FROZEN=true` (Vercel) → vérifier panier+checkout.
 2. **Laisser drainer** : sur ~7-10 jours, les commandes en vol atteignent
    un état terminal — auto-release intra (3j), auto-refund inactivité
    (7j), résolution de litiges (N1/N2, N3 jusqu'à 14j). Suivre la liste

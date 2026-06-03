@@ -179,6 +179,24 @@ async def test_create_token_happy_path(client: AsyncClient, cart_seed: dict):
 
 
 @pytest.mark.asyncio
+async def test_create_token_503_when_orders_frozen(
+    monkeypatch: pytest.MonkeyPatch,
+    client: AsyncClient,
+    cart_seed: dict,
+):
+    """ADR-057 Phase 0 — when ORDERS_FROZEN is set, the endpoint returns
+    503 before any validation, so no new order can be created against the
+    draining escrow. Already-funded orders are unaffected (not this path)."""
+    monkeypatch.setattr("app.routers.cart.settings.orders_frozen", True)
+    resp = await client.post(
+        "/api/v1/cart/checkout-token",
+        json={"items": [{"product_id": cart_seed["p_active"], "qty": 2}]},
+    )
+    assert resp.status_code == 503
+    assert resp.json()["detail"]["reason"] == "orders_frozen"
+
+
+@pytest.mark.asyncio
 async def test_resolve_token_returns_locked_cart(
     client: AsyncClient, cart_seed: dict
 ):
