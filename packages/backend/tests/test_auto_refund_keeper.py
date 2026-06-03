@@ -28,53 +28,45 @@ def _fake_celo() -> SimpleNamespace:
     return SimpleNamespace(_w3=MagicMock(), _escrow=MagicMock())
 
 
+def _fake_sender() -> SimpleNamespace:
+    # Keeper only reads sender.address; sends are bypassed in the _maybe_*
+    # tests (which patch _send_refund_tx). Sender mechanics: test_relayer.
+    return SimpleNamespace(address="0xRELAYER")
+
+
 def test_build_keeper_returns_none_when_disabled_via_setting() -> None:
     with patch("app.services.auto_refund_keeper.settings") as s:
         s.auto_refund_keeper_enabled = False
-        s.relayer_private_key = DEV_TEST_KEY
         keeper = build_keeper(
-            celo=_fake_celo(), session_factory=MagicMock()
+            celo=_fake_celo(), session_factory=MagicMock(), sender=_fake_sender()
         )
         assert keeper is None
 
 
-def test_build_keeper_returns_none_when_relayer_key_empty() -> None:
+def test_build_keeper_returns_none_when_sender_missing() -> None:
     with patch("app.services.auto_refund_keeper.settings") as s:
         s.auto_refund_keeper_enabled = True
-        s.relayer_private_key = ""
         keeper = build_keeper(
-            celo=_fake_celo(), session_factory=MagicMock()
+            celo=_fake_celo(), session_factory=MagicMock(), sender=None
         )
         assert keeper is None
 
 
-def test_build_keeper_constructs_when_enabled_and_key_present() -> None:
+def test_build_keeper_constructs_when_enabled_and_sender_present() -> None:
     with patch("app.services.auto_refund_keeper.settings") as s:
         s.auto_refund_keeper_enabled = True
-        s.relayer_private_key = DEV_TEST_KEY
         s.auto_refund_keeper_interval_hours = 6.0
         keeper = build_keeper(
-            celo=_fake_celo(), session_factory=MagicMock()
+            celo=_fake_celo(), session_factory=MagicMock(), sender=_fake_sender()
         )
         assert isinstance(keeper, AutoRefundKeeper)
-
-
-def test_keeper_accepts_key_without_0x_prefix() -> None:
-    keeper = AutoRefundKeeper(
-        celo=_fake_celo(),
-        session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY[2:],  # strip "0x"
-        interval_hours=1.0,
-    )
-    # Address derived correctly from the well-known dev key.
-    assert keeper._relayer_address == "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
 
 def test_keeper_clamps_minimum_interval_to_60s() -> None:
     keeper = AutoRefundKeeper(
         celo=_fake_celo(),
         session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY,
+        sender=_fake_sender(),
         interval_hours=0.001,  # ~3.6 seconds — below the 60s floor
     )
     assert keeper._interval_seconds == 60
@@ -92,7 +84,7 @@ def test_keeper_skips_orders_funded_too_recently() -> None:
     keeper = AutoRefundKeeper(
         celo=_fake_celo(),
         session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY,
+        sender=_fake_sender(),
         interval_hours=1.0,
     )
 
@@ -120,7 +112,7 @@ def test_keeper_refunds_orders_past_deadline() -> None:
     keeper = AutoRefundKeeper(
         celo=_fake_celo(),
         session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY,
+        sender=_fake_sender(),
         interval_hours=1.0,
     )
 
@@ -148,7 +140,7 @@ def test_keeper_respects_cross_border_window() -> None:
     keeper = AutoRefundKeeper(
         celo=_fake_celo(),
         session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY,
+        sender=_fake_sender(),
         interval_hours=1.0,
     )
 

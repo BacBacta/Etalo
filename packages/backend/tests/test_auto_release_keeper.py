@@ -16,54 +16,42 @@ from app.services.auto_release_keeper import (
 )
 
 
-# Well-known Hardhat/Foundry dev key — NEVER used for anything real.
-DEV_TEST_KEY = (
-    "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-)
-
-
 def _fake_celo() -> SimpleNamespace:
     return SimpleNamespace(_w3=MagicMock(), _escrow=MagicMock())
+
+
+def _fake_sender() -> SimpleNamespace:
+    # The keeper only reads sender.address (for the init log) + calls
+    # sender.send() — the latter is bypassed in the _maybe_* tests which
+    # patch _send_release_tx. Account/nonce logic is tested in test_relayer.
+    return SimpleNamespace(address="0xRELAYER")
 
 
 def test_build_release_keeper_none_when_disabled_via_setting() -> None:
     with patch("app.services.auto_release_keeper.settings") as s:
         s.auto_release_keeper_enabled = False
-        s.relayer_private_key = DEV_TEST_KEY
-        assert build_release_keeper(_fake_celo(), MagicMock()) is None
+        assert build_release_keeper(_fake_celo(), MagicMock(), _fake_sender()) is None
 
 
-def test_build_release_keeper_none_when_relayer_key_empty() -> None:
+def test_build_release_keeper_none_when_sender_missing() -> None:
     with patch("app.services.auto_release_keeper.settings") as s:
         s.auto_release_keeper_enabled = True
-        s.relayer_private_key = ""
-        assert build_release_keeper(_fake_celo(), MagicMock()) is None
+        assert build_release_keeper(_fake_celo(), MagicMock(), None) is None
 
 
 def test_build_release_keeper_constructs_when_enabled() -> None:
     with patch("app.services.auto_release_keeper.settings") as s:
         s.auto_release_keeper_enabled = True
-        s.relayer_private_key = DEV_TEST_KEY
         s.auto_release_keeper_interval_hours = 2.0
-        keeper = build_release_keeper(_fake_celo(), MagicMock())
+        keeper = build_release_keeper(_fake_celo(), MagicMock(), _fake_sender())
         assert isinstance(keeper, AutoReleaseKeeper)
-
-
-def test_keeper_accepts_key_without_0x_prefix() -> None:
-    keeper = AutoReleaseKeeper(
-        celo=_fake_celo(),
-        session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY[2:],
-        interval_hours=1.0,
-    )
-    assert keeper._relayer_address == "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
 
 
 def test_keeper_clamps_minimum_interval_to_60s() -> None:
     keeper = AutoReleaseKeeper(
         celo=_fake_celo(),
         session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY,
+        sender=_fake_sender(),
         interval_hours=0.001,
     )
     assert keeper._interval_seconds == 60
@@ -73,7 +61,7 @@ def _make_keeper() -> AutoReleaseKeeper:
     return AutoReleaseKeeper(
         celo=_fake_celo(),
         session_factory=MagicMock(),
-        relayer_private_key=DEV_TEST_KEY,
+        sender=_fake_sender(),
         interval_hours=1.0,
     )
 
