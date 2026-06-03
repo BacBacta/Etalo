@@ -14,8 +14,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_async_db, get_db
-from app.models.enums import Country, SellerStatus, StakeTier
+from app.models.enums import Country, ItemStatus, SellerStatus, StakeTier
 from app.models.order import Order
+from app.models.shipment_group import ShipmentGroup
 from app.models.reputation_cache import ReputationCache
 from app.models.seller_credits_ledger import SellerCreditsLedger
 from app.models.seller_profile import SellerProfile
@@ -266,10 +267,16 @@ async def list_seller_orders(
             .order_by(Order.created_at_chain.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
-            # Eager-load shipment groups so we can surface the earliest
-            # auto-release deadline per order without an N+1 lazy load
-            # (which would MissingGreenlet under async anyway).
-            .options(selectinload(Order.shipment_groups))
+            # Eager-load shipment groups + their items so we can surface
+            # the earliest auto-release deadline per order without an N+1
+            # lazy load (which would MissingGreenlet under async anyway).
+            # Items are needed to exclude fully-disputed groups from the
+            # payout ETA (a disputed item won't auto-release).
+            .options(
+                selectinload(Order.shipment_groups).selectinload(
+                    ShipmentGroup.items
+                )
+            )
         )
     ).scalars().all()
 
@@ -309,17 +316,29 @@ async def list_seller_orders(
 
 def _earliest_auto_release(order: Order) -> datetime | None:
     """Earliest `final_release_after` among the order's shipped groups
-    that haven't fully released yet (release_stage < 3).
+    that haven't fully released yet and still have an item the keeper
+    can actually release.
 
     Surfaces to the seller dashboard as "you'll be paid automatically on
-    <date>". Returns None when no group is shipped or all have released.
-    Requires `order.shipment_groups` to be eager-loaded.
+    <date>". A group counts only when:
+      - final_release_after is set (shipped, window known),
+      - release_stage < 3 (not fully released), AND
+      - it has at least one item in SHIPPED/ARRIVED — i.e. something the
+        auto-release keeper will pay out. This excludes fully-disputed
+        groups, so the dashboard doesn't promise a payout (and show the
+        "speed up payout" CTA) for funds frozen in a dispute (ADR-031).
+
+    Returns None when nothing qualifies. Requires `order.shipment_groups`
+    and each group's `.items` to be eager-loaded.
     """
     groups = getattr(order, "shipment_groups", None) or []
+    releasable = {ItemStatus.SHIPPED, ItemStatus.ARRIVED}
     deadlines = [
         g.final_release_after
         for g in groups
-        if g.final_release_after is not None and g.release_stage < 3
+        if g.final_release_after is not None
+        and g.release_stage < 3
+        and any(it.status in releasable for it in (g.items or []))
     ]
     return min(deadlines) if deadlines else None
 

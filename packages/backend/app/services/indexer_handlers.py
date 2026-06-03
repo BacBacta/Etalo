@@ -15,6 +15,7 @@ or in-line with endpoint needs.
 """
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
@@ -42,6 +43,8 @@ from app.models.user import User
 
 
 HandlerType = Callable[[Any, AsyncSession, dict[str, Any]], Awaitable[None]]
+
+logger = logging.getLogger(__name__)
 
 
 # ============================================================
@@ -242,16 +245,6 @@ async def handle_shipment_group_created(
     db.add(group)
     await db.flush()
 
-    # For intra orders the contract sets finalReleaseAfter = shippedAt +
-    # 3d at ship time (cross-border sets it later at markGroupArrived).
-    # The ShipmentGroupCreated event doesn't carry it, so re-read from
-    # chain — otherwise the mirror's final_release_after stays NULL and
-    # both the auto-release keeper and the seller payout-ETA chip have
-    # nothing to act on (intra is V1's only flow per ADR-041).
-    chain_group = await services["celo"].get_shipment_group(group_id)
-    if chain_group is not None and chain_group.final_release_after:
-        group.final_release_after = _to_dt(chain_group.final_release_after)
-
     # Attach items to the group + transition to Shipped
     for iid in item_ids:
         item = await _get_item_by_onchain_id(db, iid)
@@ -264,6 +257,31 @@ async def handle_shipment_group_created(
     # this the order stayed in Funded even after every item shipped
     # (J12 mainnet smoke bug, order #1).
     await _sync_order_global_status(order, services)
+
+    # For intra orders the contract sets finalReleaseAfter = shippedAt +
+    # 3d at ship time (cross-border sets it later at markGroupArrived).
+    # The ShipmentGroupCreated event doesn't carry it, so re-read from
+    # chain — otherwise the mirror's final_release_after stays NULL and
+    # both the auto-release keeper and the seller payout-ETA chip have
+    # nothing to act on (intra is V1's only flow per ADR-041).
+    #
+    # Best-effort: this RPC runs AFTER the critical item-attach + status
+    # sync above, and a failure is swallowed, so a flaky node can never
+    # strand the order in Funded (the J12 bug). A NULL final_release_after
+    # self-heals — if it isn't backfilled here, the seller can still
+    # accelerate via requestEarlyRelease, and a re-index of this event
+    # repopulates it.
+    try:
+        chain_group = await services["celo"].get_shipment_group(group_id)
+        if chain_group is not None and chain_group.final_release_after:
+            group.final_release_after = _to_dt(chain_group.final_release_after)
+    except Exception:  # noqa: BLE001
+        logger.warning(
+            "handle_shipment_group_created: final_release_after backfill "
+            "failed for group %s (best-effort, order state already synced)",
+            group_id,
+            exc_info=True,
+        )
 
 
 async def handle_group_arrived(

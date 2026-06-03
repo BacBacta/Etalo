@@ -43,6 +43,7 @@ from app.models.enums import ItemStatus
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.shipment_group import ShipmentGroup
+from app.services.relayer import RELAYER_NONCE_BLOCK, RELAYER_TX_LOCK
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
@@ -185,34 +186,39 @@ class AutoReleaseKeeper:
         w3 = self._celo._w3
         escrow = self._celo._escrow
 
-        try:
-            tx = await escrow.functions.triggerAutoReleaseForItem(
-                int(onchain_order_id), int(onchain_item_id)
-            ).build_transaction(
-                {
-                    "from": self._relayer_address,
-                    "nonce": await w3.eth.get_transaction_count(
-                        self._relayer_address
-                    ),
-                    "gas": 300_000,
-                    "gasPrice": await w3.eth.gas_price,
-                    "chainId": await w3.eth.chain_id,
-                }
-            )
-        except Exception as exc:  # noqa: BLE001
-            # eth_estimateGas revert preview — not yet releasable, already
-            # released, or disputed. Benign skip.
-            logger.info(
-                "auto_release_keeper.release_skipped onchain_order=%s "
-                "onchain_item=%s reason=%r",
-                onchain_order_id,
-                onchain_item_id,
-                exc,
-            )
-            return
+        # Serialize nonce-read → sign → broadcast across both keepers
+        # (shared relayer key). "pending" nonce + the shared lock prevent
+        # the auto-refund and auto-release keepers from grabbing the same
+        # nonce and dropping each other's tx. Receipt wait stays outside.
+        async with RELAYER_TX_LOCK:
+            try:
+                tx = await escrow.functions.triggerAutoReleaseForItem(
+                    int(onchain_order_id), int(onchain_item_id)
+                ).build_transaction(
+                    {
+                        "from": self._relayer_address,
+                        "nonce": await w3.eth.get_transaction_count(
+                            self._relayer_address, RELAYER_NONCE_BLOCK
+                        ),
+                        "gas": 300_000,
+                        "gasPrice": await w3.eth.gas_price,
+                        "chainId": await w3.eth.chain_id,
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                # eth_estimateGas revert preview — not yet releasable,
+                # already released, or disputed. Benign skip.
+                logger.info(
+                    "auto_release_keeper.release_skipped onchain_order=%s "
+                    "onchain_item=%s reason=%r",
+                    onchain_order_id,
+                    onchain_item_id,
+                    exc,
+                )
+                return
 
-        signed = self._account.sign_transaction(tx)
-        tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
+            signed = self._account.sign_transaction(tx)
+            tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
         logger.info(
             "auto_release_keeper.release_sent onchain_order=%s "
             "onchain_item=%s tx=%s",
