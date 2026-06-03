@@ -47,7 +47,11 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Hardhat 3 requires Node 22.10+ (its build system uses
+          # Iterator.prototype.flatMap, which is Node 22+). Node 20
+          # fails with "this[#dependenciesMap].values(...).flatMap is
+          # not a function".
+          node-version: "22"
 
       - name: Install contracts dependencies
         run: npm install --no-audit --no-fund
