@@ -113,7 +113,20 @@ shadow Mike multisig ADR-055-3, tag `v1.4-mainnet`). Owned by the
 - EtaloVoting: `0xa1C48f2f962484D63D4D1b04C9c2574Da2C0EcBA`
 - EtaloDispute: `0x6d5Aa5e0EAE407688E99492213849D9a608D63d2`
 - EtaloEscrow: `0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92`
+  **← still the LIVE/canonical escrow** until the ADR-057 cutover.
 - EtaloCredits: `0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6`
+
+**ADR-057 escrow redeploy — deployed 2026-06-03, NOT yet cut over.**
+New EtaloEscrow (intra-only guard + per-buyer cap + delivery-proof early
+release, ADR-058) deployed at
+`0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` (block 68596818), owned by
+the Safe, wired to the same satellites + treasuries, `totalEscrowed = 0`.
+It is **inert**: the old escrow above still serves all traffic and the
+satellites (Dispute/Stake/Reputation) still point at it. Cutover happens
+only after the old escrow drains to 0 — see
+`docs/MIGRATION_ESCROW_ADR057.md`. The off-chain `NEXT_PUBLIC_ESCROW_ADDRESS`
++ indexer `ESCROW_ADDRESS` stay on the OLD address until then. Swap this
+list's EtaloEscrow entry (old → `previous_deployments`) at cutover.
 
 ### Multisig Safe (2-of-3 — owns all 6 contracts + 3 treasury slots)
 
