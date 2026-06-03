@@ -46,6 +46,7 @@ from app.services.auto_refund_keeper import build_keeper
 from app.services.auto_release_keeper import build_release_keeper
 from app.services.celo import CeloService
 from app.services.indexer import Indexer
+from app.services.relayer import RelayerTxSender
 
 
 logger = logging.getLogger(__name__)
@@ -77,6 +78,16 @@ async def lifespan(app: FastAPI):
     else:
         app.state.indexer = None
 
+    # One shared relayer tx-sender for BOTH keepers (#134) — owns the
+    # lock + in-process nonce tracking so the auto-refund and auto-release
+    # keepers, signing from the same key, never collide on a nonce. None
+    # when no relayer key is configured (keepers then stay disabled).
+    relayer_sender = (
+        RelayerTxSender(app.state.celo_service._w3, settings.relayer_private_key)
+        if settings.relayer_private_key
+        else None
+    )
+
     # ADR-019 auto-refund keeper. Returns None when disabled (no
     # relayer key set or `auto_refund_keeper_enabled = false`) ; the
     # contract function is permissionless so buyers can still self-claim
@@ -84,6 +95,7 @@ async def lifespan(app: FastAPI):
     keeper = build_keeper(
         celo=app.state.celo_service,
         session_factory=get_async_session_factory(),
+        sender=relayer_sender,
     )
     keeper_task: asyncio.Task | None = None
     if keeper is not None:
@@ -109,6 +121,7 @@ async def lifespan(app: FastAPI):
     release_keeper = build_release_keeper(
         celo=app.state.celo_service,
         session_factory=get_async_session_factory(),
+        sender=relayer_sender,
     )
     release_keeper_task: asyncio.Task | None = None
     if release_keeper is not None:

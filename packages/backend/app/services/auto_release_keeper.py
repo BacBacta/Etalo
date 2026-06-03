@@ -43,12 +43,12 @@ from app.models.enums import ItemStatus
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.shipment_group import ShipmentGroup
-from app.services.relayer import RELAYER_NONCE_BLOCK, RELAYER_TX_LOCK
 
 if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
     from app.services.celo import CeloService
+    from app.services.relayer import RelayerTxSender
 
 logger = logging.getLogger(__name__)
 
@@ -77,24 +77,17 @@ class AutoReleaseKeeper:
         self,
         celo: "CeloService",
         session_factory: "async_sessionmaker[AsyncSession]",
-        relayer_private_key: str,
+        sender: "RelayerTxSender",
         interval_hours: float,
     ) -> None:
         self._celo = celo
         self._session_factory = session_factory
+        self._sender = sender
         self._interval_seconds = max(60, int(interval_hours * 3600))
         self._stop_event = asyncio.Event()
-
-        from eth_account import Account
-
-        key = relayer_private_key.strip()
-        if not key.startswith("0x"):
-            key = "0x" + key
-        self._account = Account.from_key(key)
-        self._relayer_address = self._account.address
         logger.info(
             "auto_release_keeper.initialised relayer=%s interval_seconds=%d",
-            self._relayer_address,
+            sender.address,
             self._interval_seconds,
         )
 
@@ -183,94 +176,36 @@ class AutoReleaseKeeper:
     async def _send_release_tx(
         self, onchain_order_id: int, onchain_item_id: int
     ) -> None:
-        w3 = self._celo._w3
-        escrow = self._celo._escrow
-
-        # Serialize nonce-read → sign → broadcast across both keepers
-        # (shared relayer key). "pending" nonce + the shared lock prevent
-        # the auto-refund and auto-release keepers from grabbing the same
-        # nonce and dropping each other's tx. Receipt wait stays outside.
-        async with RELAYER_TX_LOCK:
-            try:
-                tx = await escrow.functions.triggerAutoReleaseForItem(
-                    int(onchain_order_id), int(onchain_item_id)
-                ).build_transaction(
-                    {
-                        "from": self._relayer_address,
-                        "nonce": await w3.eth.get_transaction_count(
-                            self._relayer_address, RELAYER_NONCE_BLOCK
-                        ),
-                        "gas": 300_000,
-                        "gasPrice": await w3.eth.gas_price,
-                        "chainId": await w3.eth.chain_id,
-                    }
-                )
-            except Exception as exc:  # noqa: BLE001
-                # eth_estimateGas revert preview — not yet releasable,
-                # already released, or disputed. Benign skip.
-                logger.info(
-                    "auto_release_keeper.release_skipped onchain_order=%s "
-                    "onchain_item=%s reason=%r",
-                    onchain_order_id,
-                    onchain_item_id,
-                    exc,
-                )
-                return
-
-            signed = self._account.sign_transaction(tx)
-            tx_hash = await w3.eth.send_raw_transaction(signed.raw_transaction)
-        logger.info(
-            "auto_release_keeper.release_sent onchain_order=%s "
-            "onchain_item=%s tx=%s",
-            onchain_order_id,
-            onchain_item_id,
-            tx_hash.hex(),
+        # Delegate the nonce/lock/sign/broadcast/receipt mechanics to the
+        # shared RelayerTxSender (one authority for both keepers, #134).
+        fn = self._celo._escrow.functions.triggerAutoReleaseForItem(
+            int(onchain_order_id), int(onchain_item_id)
         )
-
-        try:
-            receipt = await asyncio.wait_for(
-                w3.eth.wait_for_transaction_receipt(tx_hash, poll_latency=2),
-                timeout=120,
-            )
-        except asyncio.TimeoutError:
-            logger.warning(
-                "auto_release_keeper.receipt_timeout onchain_order=%s "
-                "onchain_item=%s tx=%s",
-                onchain_order_id,
-                onchain_item_id,
-                tx_hash.hex(),
-            )
-            return
-
-        if receipt["status"] != 1:
-            logger.warning(
-                "auto_release_keeper.tx_reverted onchain_order=%s "
-                "onchain_item=%s tx=%s",
-                onchain_order_id,
-                onchain_item_id,
-                tx_hash.hex(),
-            )
-        else:
-            logger.info(
-                "auto_release_keeper.release_confirmed onchain_order=%s "
-                "onchain_item=%s",
-                onchain_order_id,
-                onchain_item_id,
-            )
+        await self._sender.send(
+            fn,
+            gas=300_000,
+            label=(
+                f"auto_release order={onchain_order_id} "
+                f"item={onchain_item_id}"
+            ),
+        )
 
 
 def build_release_keeper(
     celo: "CeloService",
     session_factory: "async_sessionmaker[AsyncSession]",
+    sender: "RelayerTxSender | None",
 ) -> AutoReleaseKeeper | None:
     """Construct a release keeper from settings, or None if disabled.
 
-    Caller (FastAPI lifespan) treats None as "do not start the task".
+    `sender` is the shared RelayerTxSender (None when no relayer key is
+    configured). Caller (FastAPI lifespan) treats None as "do not start
+    the task".
     """
     if not settings.auto_release_keeper_enabled:
         logger.info("auto_release_keeper.disabled_via_setting")
         return None
-    if not settings.relayer_private_key:
+    if sender is None:
         logger.warning(
             "auto_release_keeper.disabled_no_relayer_key — set "
             "RELAYER_PRIVATE_KEY to enable"
@@ -279,6 +214,6 @@ def build_release_keeper(
     return AutoReleaseKeeper(
         celo=celo,
         session_factory=session_factory,
-        relayer_private_key=settings.relayer_private_key,
+        sender=sender,
         interval_hours=settings.auto_release_keeper_interval_hours,
     )
