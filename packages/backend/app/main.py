@@ -82,11 +82,24 @@ async def lifespan(app: FastAPI):
     # lock + in-process nonce tracking so the auto-refund and auto-release
     # keepers, signing from the same key, never collide on a nonce. None
     # when no relayer key is configured (keepers then stay disabled).
-    relayer_sender = (
-        RelayerTxSender(app.state.celo_service._w3, settings.relayer_private_key)
-        if settings.relayer_private_key
-        else None
-    )
+    #
+    # A MALFORMED key must NOT take down the whole API: derive the account
+    # in a try/except and, on failure, log + disable the keepers (sender
+    # = None) instead of crashing startup. The keepers are a non-critical
+    # background convenience (their triggers are permissionless on-chain),
+    # so the API must stay up even with a bad RELAYER_PRIVATE_KEY.
+    relayer_sender = None
+    if settings.relayer_private_key:
+        try:
+            relayer_sender = RelayerTxSender(
+                app.state.celo_service._w3, settings.relayer_private_key
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.error(
+                "Invalid RELAYER_PRIVATE_KEY (%r) — keepers DISABLED, API "
+                "continues. Fix the secret to re-enable auto-release/refund.",
+                exc,
+            )
 
     # ADR-019 auto-refund keeper. Returns None when disabled (no
     # relayer key set or `auto_refund_keeper_enabled = false`) ; the

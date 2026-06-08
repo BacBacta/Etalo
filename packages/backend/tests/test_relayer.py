@@ -87,6 +87,17 @@ def test_accepts_key_without_0x_prefix() -> None:
     assert s.address == DEV_TEST_ADDR
 
 
+def test_malformed_key_raises_so_lifespan_can_catch() -> None:
+    """A non-hex / accented placeholder (e.g. the literal '<clé>') must
+    raise here — the FastAPI lifespan wraps this in try/except and
+    disables the keepers instead of crashing the API. Guards the prod
+    incident where RELAYER_PRIVATE_KEY='<clé>' took the backend down."""
+    import pytest
+
+    with pytest.raises(Exception):
+        RelayerTxSender(_fake_w3(0), "<clé>")
+
+
 def test_happy_send_commits_nonce_and_confirms() -> None:
     w3 = _fake_w3(pending=5)
     s = _sender(w3)
