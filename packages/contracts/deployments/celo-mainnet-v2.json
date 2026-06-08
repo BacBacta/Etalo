@@ -34,11 +34,19 @@
       "block": "67832979"
     },
     "EtaloEscrow": {
-      "address": "0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92",
-      "txHash": "0x5789d53c9cfc2b24939e69e55589c68ec484d9d8940e842dea0e97e8ec0c651b",
-      "block": "67832984",
+      "address": "0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671",
+      "block": "68596818",
       "constructorArgs": [
         "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
+      ],
+      "deployedAt": "2026-06-03",
+      "adr": [
+        "ADR-057",
+        "ADR-058"
+      ],
+      "verified": [
+        "blockscout",
+        "sourcify"
       ]
     },
     "EtaloCredits": {
@@ -55,19 +63,14 @@
   "deployedAt": "2026-05-25T18:30:05.844Z",
   "tag": "v1.4-mainnet",
   "adr": "ADR-054 (audit fixes) + ADR-055 third update (shadow Mike multisig)",
-  "adr057_redeploy": {
-    "_note": "New EtaloEscrow (ADR-057 audit hardening + ADR-058 delivery-proof early release). DEPLOYED but NOT cut over: the contracts.EtaloEscrow above is still live/canonical until the old escrow drains to 0 and the Safe re-points Dispute/Stake/Reputation (see docs/MIGRATION_ESCROW_ADR057.md). Off-chain NEXT_PUBLIC_ESCROW_ADDRESS + indexer ESCROW_ADDRESS stay on the OLD address until cutover.",
-    "status": "deployed_pending_cutover",
-    "address": "0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671",
-    "block": "68596818",
-    "deployedAt": "2026-06-03",
-    "owner": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
-    "constructorArgs": [
-      "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e"
-    ],
-    "adr": [
-      "ADR-057",
-      "ADR-058"
-    ]
-  }
+  "previous_deployments": [
+    {
+      "contract": "EtaloEscrow",
+      "address": "0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92",
+      "block": "67832984",
+      "retiredAt": "2026-06-06",
+      "reason": "ADR-057 cutover \u2014 drained to 0 (13 orders settled), satellites re-pointed to new escrow via Safe",
+      "txHash": "0x5789d53c9cfc2b24939e69e55589c68ec484d9d8940e842dea0e97e8ec0c651b"
+    }
+  ]
 }
