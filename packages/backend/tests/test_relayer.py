@@ -77,6 +77,27 @@ def _fn_revert():
     return fn
 
 
+def _fn_rec(calls: list):
+    """Records (nonce, gasPrice) for each build — for RBF assertions."""
+    fn = MagicMock()
+
+    async def _build(tx):
+        calls.append((tx["nonce"], tx["gasPrice"]))
+        return dict(tx)
+
+    fn.build_transaction = _build
+    return fn
+
+
+def _set_nonces(w3, *, pending: int, latest: int) -> None:
+    """Make get_transaction_count return distinct values per block tag."""
+
+    async def _gtc(addr, block):
+        return latest if block == "latest" else pending
+
+    w3.eth.get_transaction_count = AsyncMock(side_effect=_gtc)
+
+
 def test_address_derived_from_key() -> None:
     s = RelayerTxSender(_fake_w3(0), DEV_TEST_KEY)
     assert s.address == DEV_TEST_ADDR
@@ -145,11 +166,58 @@ def test_reverted_receipt_returns_reverted() -> None:
     assert status == "reverted"
 
 
-def test_receipt_timeout_returns_sent() -> None:
+def test_persistent_timeout_rbf_then_sent() -> None:
+    """Every receipt wait times out + nonce never advances → RBF retries
+    up to the cap, then returns 'sent'. Total broadcasts = 1 + RBF_MAX."""
+    from app.services.relayer import RBF_MAX_ATTEMPTS
+
     w3 = _fake_w3(pending=0)
-    # The receipt wait raising TimeoutError → send returns "sent".
+    _set_nonces(w3, pending=0, latest=0)  # nonce 0 never mines
     w3.eth.wait_for_transaction_receipt = AsyncMock(side_effect=asyncio.TimeoutError)
     s = _sender(w3)
     s._receipt_timeout_s = 0
-    status = asyncio.run(s.send(_fn_ok([]), gas=1, label="t"))
+    calls: list = []
+    status = asyncio.run(s.send(_fn_rec(calls), gas=1, label="t"))
     assert status == "sent"
+    assert len(calls) == 1 + RBF_MAX_ATTEMPTS
+    # All re-broadcasts reuse the SAME nonce…
+    assert {n for n, _ in calls} == {0}
+    # …at strictly increasing gas prices (+50% each).
+    prices = [p for _, p in calls]
+    assert prices == sorted(prices) and prices[1] > prices[0]
+    assert prices[1] == prices[0] * 150 // 100
+
+
+def test_rbf_resends_same_nonce_bumped_then_confirms() -> None:
+    """Timeout once, nonce not advanced → one RBF resend (same nonce,
+    +50% gas), which then confirms."""
+    w3 = _fake_w3(pending=7)
+    _set_nonces(w3, pending=7, latest=7)
+    # First wait raises TimeoutError (simulated stuck tx), second returns
+    # a receipt. Non-zero timeout so asyncio.wait_for lets the mock's
+    # return value through on the second call.
+    w3.eth.wait_for_transaction_receipt = AsyncMock(
+        side_effect=[asyncio.TimeoutError, {"status": 1}]
+    )
+    s = _sender(w3)
+    s._receipt_timeout_s = 5
+    calls: list = []
+    status = asyncio.run(s.send(_fn_rec(calls), gas=1, label="t"))
+    assert status == "confirmed"
+    assert len(calls) == 2
+    assert calls[0][0] == calls[1][0] == 7  # same nonce
+    assert calls[1][1] == calls[0][1] * 150 // 100  # bumped gas price
+
+
+def test_timeout_but_nonce_mined_late_returns_confirmed_no_resend() -> None:
+    """Receipt wait times out, but the mined-nonce advanced past ours —
+    the original landed late, so we must NOT re-broadcast."""
+    w3 = _fake_w3(pending=3)
+    _set_nonces(w3, pending=3, latest=4)  # latest=4 > nonce 3 → mined
+    w3.eth.wait_for_transaction_receipt = AsyncMock(side_effect=asyncio.TimeoutError)
+    s = _sender(w3)
+    s._receipt_timeout_s = 0
+    calls: list = []
+    status = asyncio.run(s.send(_fn_rec(calls), gas=1, label="t"))
+    assert status == "confirmed"
+    assert len(calls) == 1, "must not re-broadcast a nonce that already mined"
