@@ -78,6 +78,9 @@ class CeloService:
     ) -> None:
         self._rpc_url = rpc_url
         self._w3 = web3 or AsyncWeb3(AsyncHTTPProvider(rpc_url))
+        # Persistent aiohttp session, seeded by init_async_session() at
+        # startup so web3 reuses it instead of leaking one per request.
+        self._http_session = None
         abis = abis or _load_abis()
 
         # Checksum addresses for contract instantiation
@@ -107,6 +110,43 @@ class CeloService:
         self._credits = self._w3.eth.contract(
             address=self._addresses["credits"], abi=abis["EtaloCredits"]
         )
+
+    async def init_async_session(self) -> None:
+        """Register ONE long-lived aiohttp session for web3 to reuse on
+        every RPC call.
+
+        web3's AsyncHTTPProvider caches a session per
+        (event-loop, endpoint), but under the indexer's steady polling we
+        saw recurring `asyncio — Unclosed client session` errors every
+        cycle — sessions created then dropped without close (leaking file
+        descriptors over a long uptime). Pre-seeding the cache with our
+        own session at startup (in the running loop) makes all requests
+        reuse it. We hold the reference so shutdown can close it cleanly.
+
+        Mirrors web3's own default session kwargs (raise_for_status +
+        force_close/cleanup connector) so behaviour is unchanged — only
+        the lifetime differs. Idempotent-safe to call once at startup;
+        a no-op for injected test web3 instances without an
+        AsyncHTTPProvider.
+        """
+        provider = self._w3.provider
+        if not isinstance(provider, AsyncHTTPProvider):
+            return
+        from aiohttp import ClientSession, TCPConnector
+
+        self._http_session = ClientSession(
+            raise_for_status=True,
+            connector=TCPConnector(force_close=True, enable_cleanup_closed=True),
+        )
+        await provider.cache_async_session(self._http_session)
+
+    async def close_async_session(self) -> None:
+        """Close the session opened by init_async_session (clean teardown
+        at FastAPI shutdown). Best-effort + idempotent."""
+        session = getattr(self, "_http_session", None)
+        if session is not None and not session.closed:
+            await session.close()
+            self._http_session = None
 
     @classmethod
     def from_settings(cls) -> "CeloService":

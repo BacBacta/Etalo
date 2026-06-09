@@ -57,6 +57,10 @@ async def lifespan(app: FastAPI):
     # Startup — instantiate the V2 CeloService (no RPC call yet) and
     # launch the background indexer if enabled.
     app.state.celo_service = CeloService.from_settings()
+    # Seed one persistent aiohttp session so web3 reuses it for every RPC
+    # call instead of creating + leaking one per request (the recurring
+    # "Unclosed client session" errors on every indexer poll cycle).
+    await app.state.celo_service.init_async_session()
 
     indexer_task: asyncio.Task | None = None
     if settings.indexer_enabled:
@@ -183,6 +187,9 @@ async def lifespan(app: FastAPI):
                 "Auto-release keeper did not stop within 10s; cancelling"
             )
             release_keeper_task.cancel()
+
+    # Close the persistent web3 aiohttp session opened at startup.
+    await app.state.celo_service.close_async_session()
 
 
 def get_celo_service(request) -> CeloService:

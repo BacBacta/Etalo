@@ -70,6 +70,29 @@ def _set_call(contract_mock, fn_name: str, return_value):
 
 
 # ============================================================
+# Persistent aiohttp session (Unclosed-client-session leak fix)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_init_async_session_noop_on_injected_web3():
+    """With an injected (mock) web3 — no AsyncHTTPProvider — init is a
+    safe no-op and never opens a real session. Guards test/CI usage."""
+    service = _make_service()
+    assert service._http_session is None
+    await service.init_async_session()
+    assert service._http_session is None  # nothing opened
+
+
+@pytest.mark.asyncio
+async def test_close_async_session_idempotent():
+    """close is safe when no session was opened, and when called twice."""
+    service = _make_service()
+    await service.close_async_session()  # no session yet
+    await service.close_async_session()  # twice
+    assert service._http_session is None
+
+
+# ============================================================
 # Escrow reads
 # ============================================================
 
