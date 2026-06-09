@@ -148,6 +148,16 @@ class CeloService:
             await session.close()
             self._http_session = None
 
+    async def latest_block(self) -> int:
+        """Current chain head, via the shared (seeded) web3 session.
+
+        Used by the /health endpoint as an RPC-connectivity probe. Going
+        through this service — instead of spinning up a throwaway
+        AsyncWeb3 per request — means the health check reuses the
+        persistent aiohttp session instead of leaking one ClientSession
+        on every poll (Fly hits /health every ~15s)."""
+        return await self._w3.eth.block_number
+
     @classmethod
     def from_settings(cls) -> "CeloService":
         return cls(

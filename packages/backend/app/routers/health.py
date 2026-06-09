@@ -1,9 +1,8 @@
 import re
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-from web3 import AsyncWeb3, AsyncHTTPProvider
 
 from app.config import settings
 from app.database import get_db
@@ -17,17 +16,21 @@ def _redact_rpc(url: str) -> str:
 
 
 @router.get("/health")
-async def health():
+async def health(request: Request):
     """Liveness + Celo Sepolia RPC connectivity check.
 
     Returns latest_block from the configured Celo RPC to prove the
     backend can reach the chain. If the RPC fails, status flips to
     `degraded` and the error is included.
+
+    Goes through the shared, startup-seeded CeloService rather than a
+    throwaway AsyncWeb3 — building one per request leaked an unclosed
+    aiohttp ClientSession on every health poll (Fly probes ~every 15s).
     """
     rpc_url = settings.celo_sepolia_rpc
     try:
-        w3 = AsyncWeb3(AsyncHTTPProvider(rpc_url))
-        latest_block = await w3.eth.block_number
+        celo = request.app.state.celo_service
+        latest_block = await celo.latest_block()
         return {
             "status": "ok",
             "environment": settings.environment,

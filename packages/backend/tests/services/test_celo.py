@@ -92,6 +92,27 @@ async def test_close_async_session_idempotent():
     assert service._http_session is None
 
 
+@pytest.mark.asyncio
+async def test_latest_block_uses_shared_web3():
+    """/health probes the chain head through the shared service (reusing
+    the seeded session) instead of a throwaway AsyncWeb3 that leaks an
+    unclosed aiohttp session on every poll."""
+
+    class _Awaitable:
+        def __init__(self, value):
+            self._value = value
+
+        def __await__(self):
+            async def _coro():
+                return self._value
+
+            return _coro().__await__()
+
+    service = _make_service()
+    service._w3.eth.block_number = _Awaitable(69_131_999)
+    assert await service.latest_block() == 69_131_999
+
+
 # ============================================================
 # Escrow reads
 # ============================================================
