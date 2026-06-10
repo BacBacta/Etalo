@@ -18,6 +18,7 @@ import {
 } from "@/hooks/useAnalyticsSummary";
 import { useSellerOrders } from "@/hooks/useSellerOrders";
 import { AnimateIn } from "@/components/ui/v5/AnimateIn";
+import { ELEVATION } from "@/components/ui/v5/elevation";
 import { CardV4 } from "@/components/ui/v4/Card";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
@@ -25,13 +26,6 @@ import { formatChartDate, formatRowDate } from "@/lib/format";
 import { IPFS_GATEWAY } from "@/lib/ipfs";
 import { type SellerProfilePublic } from "@/lib/seller-api";
 import { displayUsdtFromHumanNumber, formatRawUsdt } from "@/lib/usdt";
-
-// Conservative elevation — a soft two-layer shadow in light mode (Stripe/
-// Linear feel) that lifts cards off the page without changing the palette.
-// Dark mode already reads "elevated" via the celo-dark-elevated surface,
-// so we drop the shadow and add a hairline ring instead.
-const ELEVATION =
-  "shadow-[0_1px_2px_rgba(16,24,40,0.06),0_2px_6px_rgba(16,24,40,0.06)] dark:shadow-none dark:ring-1 dark:ring-white/[6%]";
 
 // Status → dot color (same palette as OrdersTab for visual continuity).
 const STATUS_DOT: Record<string, string> = {

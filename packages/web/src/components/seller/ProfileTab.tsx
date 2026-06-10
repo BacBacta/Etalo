@@ -22,6 +22,7 @@ import {
 } from "@/components/CountrySelector";
 import { ImageUploader } from "@/components/seller/ImageUploader";
 import { Button } from "@/components/ui/button";
+import { ELEVATION } from "@/components/ui/v5/elevation";
 import { countryName } from "@/lib/country";
 import { IPFS_GATEWAY } from "@/lib/ipfs";
 import {
@@ -376,7 +377,7 @@ function IdentityHeaderCard({
   copied,
 }: IdentityHeaderCardProps) {
   return (
-    <div className="rounded-2xl border border-celo-forest/20 bg-gradient-to-br from-celo-light to-celo-yellow-soft p-4 dark:border-celo-green/20 dark:from-celo-dark-elevated dark:to-celo-dark-bg sm:p-5">
+    <div className={`rounded-2xl border border-celo-forest/20 bg-gradient-to-br from-celo-light to-celo-yellow-soft p-4 dark:border-celo-green/20 dark:from-celo-dark-elevated dark:to-celo-dark-bg sm:p-5 ${ELEVATION}`}>
       <div className="flex items-start gap-4">
         {/* Logo preview — circle, falls back to a Storefront glyph
             when no logo uploaded. Identifies the seller visually. */}
@@ -484,7 +485,7 @@ interface SectionCardProps {
 
 function SectionCard({ title, subtitle, icon, children }: SectionCardProps) {
   return (
-    <section className="rounded-2xl border border-neutral-200 bg-white p-4 dark:border-celo-light/10 dark:bg-celo-dark-elevated sm:p-5">
+    <section className={`rounded-2xl border border-neutral-200 bg-white p-4 dark:border-celo-light/10 dark:bg-celo-dark-elevated sm:p-5 ${ELEVATION}`}>
       <header className="mb-4 flex items-start gap-3">
         <span
           aria-hidden
