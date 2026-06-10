@@ -63,6 +63,16 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
             retry: 1,
             refetchOnReconnect: true,
             refetchOnWindowFocus: true,
+            // Live by default: refresh every 30 s while the surface is
+            // mounted so lists/KPIs don't sit frozen when the user stays
+            // put (the reported "I must leave the tab and come back to
+            // see a new order" symptom). Aligned with the indexer poll.
+            // `…InBackground: false` pauses polling once the MiniPay tab
+            // is hidden — no battery/data drain when the app isn't on
+            // screen. Per-query hooks can override (e.g. order detail
+            // stops at a terminal status).
+            refetchInterval: 30_000,
+            refetchIntervalInBackground: false,
           },
         },
       }),

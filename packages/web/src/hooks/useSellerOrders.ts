@@ -20,6 +20,11 @@ import { isTransientStatus } from "@/lib/orders/state";
 import { fetchSellerOrders, type SellerOrdersPage } from "@/lib/seller-api";
 
 const TRANSIENT_REFETCH_INTERVAL_MS = 15_000;
+// A quiet (all-terminal or empty) list still polls — slower — so a
+// brand-new incoming order surfaces live. Gating polling on "already
+// has a transient row" was a chicken-and-egg trap: a seller watching
+// the Orders tab would never see a fresh order until they re-mounted.
+const IDLE_REFETCH_INTERVAL_MS = 30_000;
 
 export const SELLER_ORDERS_QUERY_KEY = ["seller-orders"] as const;
 
@@ -70,17 +75,17 @@ export function useSellerOrders(options: UseSellerOrdersOptions) {
     enabled: enabled && !!address,
     staleTime: 30_000,
     retry: 1,
-    // Background poll only while at least one row is in a transient
-    // state (Funded / shipping in-flight / disputed). A list with only
-    // terminal rows doesn't move ; we skip the indexer round-trip and
-    // wait for window-focus/manual invalidation. Saves mobile data on
-    // sellers with hundreds of completed orders.
+    // Always poll while mounted so a seller watching the Orders tab
+    // sees new orders without re-navigating. Fast (15 s) when a row is
+    // mid-flight (Funded / shipping / disputed) ; steady (30 s) when the
+    // list is quiet or empty — still enough to surface a fresh incoming
+    // order. `refetchIntervalInBackground` stays false (global default)
+    // so it pauses when the tab is hidden.
     refetchInterval: (query) => {
-      const data = query.state.data;
-      if (!data || data.orders.length === 0) return false;
-      return data.orders.some((o) => isTransientStatus(o.global_status))
+      const orders = query.state.data?.orders ?? [];
+      return orders.some((o) => isTransientStatus(o.global_status))
         ? TRANSIENT_REFETCH_INTERVAL_MS
-        : false;
+        : IDLE_REFETCH_INTERVAL_MS;
     },
   });
 }
