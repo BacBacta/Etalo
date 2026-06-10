@@ -61,9 +61,13 @@ class Indexer:
         celo: CeloService,
         session_factory: async_sessionmaker[AsyncSession],
         contracts_to_index: list[str] | None = None,
+        notifier: Any | None = None,
     ) -> None:
         self._celo = celo
         self._session_factory = session_factory
+        # Optional WhatsAppNotifier — handlers fire seller pings through
+        # it. None (or a disabled one) makes the indexer behave identically.
+        self._notifier = notifier
         self._stop = asyncio.Event()
         # Default: index the contracts we have handlers for. Credits
         # added in J7 Block 6 ; EtaloVoting added with the N3 vote mirror
@@ -199,7 +203,11 @@ class Indexer:
 
             # Run handler then mark processed (same transaction)
             try:
-                await handler(event_data, db, {"celo": self._celo})
+                await handler(
+                    event_data,
+                    db,
+                    {"celo": self._celo, "notifier": self._notifier},
+                )
                 db.add(
                     IndexerEvent(
                         tx_hash=tx_hash,

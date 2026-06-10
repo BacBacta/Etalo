@@ -47,6 +47,7 @@ from app.services.auto_release_keeper import build_release_keeper
 from app.services.celo import CeloService
 from app.services.indexer import Indexer
 from app.services.relayer import RelayerTxSender
+from app.services.whatsapp import WhatsAppNotifier
 
 
 logger = logging.getLogger(__name__)
@@ -62,11 +63,22 @@ async def lifespan(app: FastAPI):
     # "Unclosed client session" errors on every indexer poll cycle).
     await app.state.celo_service.init_async_session()
 
+    # WhatsApp seller pings (new-order notifications). Self-disabling
+    # when the Twilio creds aren't set — the indexer runs identically
+    # until the secrets are configured. Best-effort, fire-and-forget.
+    whatsapp_notifier = WhatsAppNotifier.from_settings()
+    app.state.whatsapp_notifier = whatsapp_notifier
+    if whatsapp_notifier.enabled:
+        logger.info("WhatsApp notifier enabled (Twilio configured)")
+    else:
+        logger.info("WhatsApp notifier disabled (no Twilio creds)")
+
     indexer_task: asyncio.Task | None = None
     if settings.indexer_enabled:
         indexer = Indexer(
             celo=app.state.celo_service,
             session_factory=get_async_session_factory(),
+            notifier=whatsapp_notifier,
         )
         app.state.indexer = indexer
         indexer_task = asyncio.create_task(indexer.run(), name="v2-indexer")
