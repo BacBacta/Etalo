@@ -17,6 +17,7 @@ import {
   type AnalyticsSummaryParsed,
 } from "@/hooks/useAnalyticsSummary";
 import { useSellerOrders } from "@/hooks/useSellerOrders";
+import { AnimateIn } from "@/components/ui/v5/AnimateIn";
 import { CardV4 } from "@/components/ui/v4/Card";
 import { ChartLineV5 } from "@/components/ui/v5/ChartLineV5";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
@@ -24,6 +25,13 @@ import { formatChartDate, formatRowDate } from "@/lib/format";
 import { IPFS_GATEWAY } from "@/lib/ipfs";
 import { type SellerProfilePublic } from "@/lib/seller-api";
 import { displayUsdtFromHumanNumber, formatRawUsdt } from "@/lib/usdt";
+
+// Conservative elevation — a soft two-layer shadow in light mode (Stripe/
+// Linear feel) that lifts cards off the page without changing the palette.
+// Dark mode already reads "elevated" via the celo-dark-elevated surface,
+// so we drop the shadow and add a hairline ring instead.
+const ELEVATION =
+  "shadow-[0_1px_2px_rgba(16,24,40,0.06),0_2px_6px_rgba(16,24,40,0.06)] dark:shadow-none dark:ring-1 dark:ring-white/[6%]";
 
 // Status → dot color (same palette as OrdersTab for visual continuity).
 const STATUS_DOT: Record<string, string> = {
@@ -62,13 +70,16 @@ export function OverviewTab({ profile, address }: Props) {
       {/* Hero header — gives the dashboard a sense of place + a brief
           actionable sentence pulled from the live analytics. Avoids
           the "wall of tiles" feeling that the previous Overview had. */}
-      <HeroHeader profile={profile} analytics={analytics.data ?? null} />
+      <AnimateIn>
+        <HeroHeader profile={profile} analytics={analytics.data ?? null} />
+      </AnimateIn>
 
       {/* 4 KPI tiles : In escrow / Active orders / Revenue 24h / 7d.
           Layout : 2x2 on mobile (each tile ≥ 150 px wide on 360 px
           viewport, CLAUDE.md min) ; widens to 1x4 at lg: ≥ 1024 px.
           Each tile now carries an icon + tone-coded color so a glance
           at the dashboard tells you which numbers are good/bad. */}
+      <AnimateIn delay={0.06}>
       <div
         className="grid grid-cols-2 gap-3 lg:grid-cols-4"
         data-testid="overview-kpi-grid"
@@ -125,15 +136,18 @@ export function OverviewTab({ profile, address }: Props) {
           tone="emerald"
         />
       </div>
+      </AnimateIn>
 
       {/* Revenue chart — last 7 rolling days. The backend zero-fills
           the timeline so an all-zero week renders as a flat baseline
           (correct visual for "no sales yet"). ChartLineV5 is dynamic
           ssr:false with a SkeletonV5 fallback bundled in. */}
+      <AnimateIn delay={0.12}>
       <CardV4
         variant="default"
         padding="default"
         interactive={false}
+        className={ELEVATION}
         data-testid="overview-revenue-chart-card"
       >
         <div className="mb-4 flex items-baseline justify-between gap-2">
@@ -201,14 +215,17 @@ export function OverviewTab({ profile, address }: Props) {
           />
         )}
       </CardV4>
+      </AnimateIn>
 
       {/* Top products — capped at 3 entries server-side (analytics
           router `_top_products` LIMIT 3, sub-block 5.2a). Empty array
           is a normal happy-path state for new sellers, not an error. */}
+      <AnimateIn delay={0.18}>
       <CardV4
         variant="default"
         padding="default"
         interactive={false}
+        className={ELEVATION}
         data-testid="overview-top-products-card"
       >
         <div className="mb-4 flex items-center gap-2">
@@ -267,11 +284,13 @@ export function OverviewTab({ profile, address }: Props) {
           </ul>
         )}
       </CardV4>
+      </AnimateIn>
 
       {/* CLS fix : the recent-orders block was 3 skeleton rows while
           DashboardSkeleton expected 5 (~70 px each = ~140 px shift on
           first paint). Both branches reserve at least 5 rows of
           vertical space (matches DashboardSkeleton's 5 row placeholders). */}
+      <AnimateIn delay={0.24}>
       <div className="min-h-[360px]">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-celo-dark dark:text-celo-light">
@@ -294,7 +313,7 @@ export function OverviewTab({ profile, address }: Props) {
             <SkeletonV5 variant="card" className="h-16" />
           </div>
         ) : recent.orders.length === 0 ? (
-          <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center dark:border-celo-light/10 dark:bg-celo-dark-elevated">
+          <div className={`rounded-xl border border-neutral-200 bg-white p-8 text-center dark:border-celo-light/10 dark:bg-celo-dark-elevated ${ELEVATION}`}>
             <ShoppingBag
               className="mx-auto h-8 w-8 text-celo-dark/30 dark:text-celo-light/30"
               aria-hidden
@@ -314,6 +333,7 @@ export function OverviewTab({ profile, address }: Props) {
           </ul>
         )}
       </div>
+      </AnimateIn>
     </div>
   );
 }
@@ -423,7 +443,7 @@ function KpiTile({
       interactive={false}
       data-testid="overview-kpi-tile"
       data-label={label}
-      className={`min-h-[112px] ${toneClasses.ring}`}
+      className={`min-h-[112px] ${ELEVATION} ${toneClasses.ring}`}
     >
       <div className="flex items-center gap-2">
         {icon ? (
