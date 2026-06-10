@@ -36,11 +36,11 @@ describe("NotificationBell", () => {
     useNotificationsMock.mockReset();
   });
 
-  it("shows no unread badge on first mount (existing history is baselined)", () => {
+  it("shows unread for existing notifications until the bell is first opened", () => {
     mockItems([orderFunded("1", "2020-01-01T00:00:00Z")]);
     render(<NotificationBell address={ADDR} />);
-    // Baseline = now on first mount → an old notification isn't "unread".
-    expect(screen.queryByRole("button", { name: /unread/i })).toBeNull();
+    // No stored last-seen → inbox shows the unread count (standard bell).
+    expect(screen.getByRole("button", { name: /1 unread/i })).toBeTruthy();
   });
 
   it("shows the unread count when a notification is newer than last-seen", () => {

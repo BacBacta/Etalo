@@ -66,19 +66,14 @@ export function NotificationBell({ address }: Props) {
   const [lastSeen, setLastSeen] = useState<number>(0);
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Baseline on first mount: if we've never recorded a last-seen for this
-  // wallet, set it to now so the seller's existing history doesn't show
-  // up as a wall of "unread". New notifications after this count.
+  // Read the last time the seller opened the bell. If they never have
+  // (no stored value), lastSeen stays 0 → every notification counts as
+  // unread until they open the bell once (standard inbox behavior).
+  // Opening the panel persists "now" and clears the badge.
   useEffect(() => {
     if (typeof window === "undefined") return;
     const stored = window.localStorage.getItem(lastSeenKey(address));
-    if (stored === null) {
-      const now = Date.now();
-      window.localStorage.setItem(lastSeenKey(address), String(now));
-      setLastSeen(now);
-    } else {
-      setLastSeen(Number(stored));
-    }
+    if (stored !== null) setLastSeen(Number(stored));
   }, [address]);
 
   const unreadCount = useMemo(
