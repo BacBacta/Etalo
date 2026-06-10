@@ -14,6 +14,7 @@ import { OverviewTab } from "@/components/seller/OverviewTab";
 import { CreditsChip } from "@/components/seller/CreditsChip";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 import { AnimateIn } from "@/components/ui/v5/AnimateIn";
+import { NotificationBell } from "@/components/NotificationBell";
 import { useMinipay } from "@/hooks/useMinipay";
 import { useNewSellerOrderAlerts } from "@/hooks/useNewSellerOrderAlerts";
 
@@ -378,7 +379,10 @@ export function SellerDashboardInner() {
             <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
             <p className="text-sm text-neutral-600">@{profile.shop_handle}</p>
           </div>
-          <CreditsChip />
+          <div className="flex items-center gap-1">
+            <NotificationBell address={stableAddress as string} />
+            <CreditsChip />
+          </div>
         </div>
 
         <TabsV4Root value={safeTab} onValueChange={setTab}>
