@@ -15,6 +15,7 @@ import { CreditsChip } from "@/components/seller/CreditsChip";
 import { ProfileTab } from "@/components/seller/ProfileTab";
 import { AnimateIn } from "@/components/ui/v5/AnimateIn";
 import { useMinipay } from "@/hooks/useMinipay";
+import { useNewSellerOrderAlerts } from "@/hooks/useNewSellerOrderAlerts";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
 // First Load JS was 276 kB (perf score 27). Three of these imports
@@ -234,6 +235,16 @@ export function SellerDashboardInner() {
     });
   }, [safeTab]);
 
+  // Proactive new-order signal — toasts on arrival + a count badge on the
+  // Orders tab when a fresh order lands while the seller is elsewhere in
+  // the app. Reuses the polled orders cache (no extra request). Cleared
+  // when the seller opens the Orders tab (they've now seen them).
+  const { newCount: newOrderCount, markSeen: markOrdersSeen } =
+    useNewSellerOrderAlerts(stableAddress);
+  useEffect(() => {
+    if (safeTab === "orders") markOrdersSeen();
+  }, [safeTab, markOrdersSeen]);
+
   if (minipayConnectFailed) {
     return (
       <StatusShell>
@@ -397,7 +408,19 @@ export function SellerDashboardInner() {
             <TabsV4Trigger value="overview">Overview</TabsV4Trigger>
             <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
             <TabsV4Trigger value="products">Products</TabsV4Trigger>
-            <TabsV4Trigger value="orders">Orders</TabsV4Trigger>
+            <TabsV4Trigger value="orders">
+              <span className="inline-flex items-center gap-1.5">
+                Orders
+                {newOrderCount > 0 ? (
+                  <span
+                    aria-label={`${newOrderCount} new ${newOrderCount === 1 ? "order" : "orders"}`}
+                    className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-celo-forest px-1.5 py-0.5 text-sm font-semibold leading-none text-white dark:bg-celo-green dark:text-celo-dark"
+                  >
+                    {newOrderCount}
+                  </span>
+                ) : null}
+              </span>
+            </TabsV4Trigger>
             {MARKETING_TAB_ENABLED ? (
               <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
             ) : null}
