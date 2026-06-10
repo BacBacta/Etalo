@@ -13,6 +13,7 @@ import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { CreditsChip } from "@/components/seller/CreditsChip";
 import { ProfileTab } from "@/components/seller/ProfileTab";
+import { AnimateIn } from "@/components/ui/v5/AnimateIn";
 import { useMinipay } from "@/hooks/useMinipay";
 
 // Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
@@ -402,25 +403,39 @@ export function SellerDashboardInner() {
             ) : null}
           </TabsV4List>
 
+          {/* Each tab's content slides in on switch (AnimateIn). Radix
+              unmounts the inactive content, so switching tabs remounts
+              the new one and replays the entrance — the dashboard feels
+              alive instead of snapping between static panels. */}
           <TabsV4Content value="overview">
-            <OverviewTab profile={profile} address={stableAddress as string} />
+            <AnimateIn>
+              <OverviewTab profile={profile} address={stableAddress as string} />
+            </AnimateIn>
           </TabsV4Content>
           <TabsV4Content value="products">
-            <ProductsTab profile={profile} walletAddress={stableAddress as string} />
+            <AnimateIn>
+              <ProductsTab profile={profile} walletAddress={stableAddress as string} />
+            </AnimateIn>
           </TabsV4Content>
           <TabsV4Content value="orders">
-            <OrdersTab address={stableAddress as string} />
+            <AnimateIn>
+              <OrdersTab address={stableAddress as string} />
+            </AnimateIn>
           </TabsV4Content>
           <TabsV4Content value="profile">
-            <ProfileTab
-              profile={profile}
-              address={stableAddress as string}
-              onUpdated={setProfile}
-            />
+            <AnimateIn>
+              <ProfileTab
+                profile={profile}
+                address={stableAddress as string}
+                onUpdated={setProfile}
+              />
+            </AnimateIn>
           </TabsV4Content>
           {MARKETING_TAB_ENABLED ? (
             <TabsV4Content value="marketing">
-              <MarketingTab />
+              <AnimateIn>
+                <MarketingTab />
+              </AnimateIn>
             </TabsV4Content>
           ) : null}
         </TabsV4Root>

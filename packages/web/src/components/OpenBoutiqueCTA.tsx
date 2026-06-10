@@ -10,7 +10,7 @@
  * Behavior :
  * - Click on web (no MiniPay context) → modal with Get MiniPay store
  *   links (Play / App Store). Sellers AND buyers go through the same
- *   path — install MiniPay first, then the next visit to etalo.app
+ *   path — install MiniPay first, then the next visit to etalo.xyz
  *   inside MiniPay routes to /marketplace via HomeRouter.
  * - Click in MiniPay (shouldn't happen — HomeRouter redirects MiniPay
  *   visitors to /marketplace before this CTA renders) — opens the
@@ -54,7 +54,7 @@ export function OpenBoutiqueCTA() {
             <DialogDescription>
               Etalo runs inside MiniPay — your wallet, payments, and
               orders all live there. Install MiniPay (free) and open
-              etalo.app from inside the app to browse the marketplace
+              etalo.xyz from inside the app to browse the marketplace
               and pay with USDT escrow.
             </DialogDescription>
           </DialogHeader>
