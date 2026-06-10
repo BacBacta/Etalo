@@ -379,9 +379,12 @@ export function SellerDashboardInner() {
             <h1 className="mb-1 text-xl font-semibold">Your shop</h1>
             <p className="text-sm text-neutral-600">@{profile.shop_handle}</p>
           </div>
+          {/* Bell is the right-most action so its dropdown (anchored to
+              the bell's right edge) opens leftward and stays on-screen on
+              a 360px viewport instead of clipping off the left. */}
           <div className="flex items-center gap-1">
-            <NotificationBell address={stableAddress as string} />
             <CreditsChip />
+            <NotificationBell address={stableAddress as string} />
           </div>
         </div>
 
