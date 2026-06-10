@@ -4,6 +4,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { useAccount } from "wagmi";
+import {
+  Megaphone,
+  Package,
+  Receipt,
+  SquaresFour,
+  Storefront,
+} from "@phosphor-icons/react";
 
 import dynamic from "next/dynamic";
 
@@ -412,11 +419,27 @@ export function SellerDashboardInner() {
             ref={tabsListRef}
             className="mb-6 w-full overflow-x-auto"
           >
-            <TabsV4Trigger value="overview">Overview</TabsV4Trigger>
-            <TabsV4Trigger value="profile">Profile</TabsV4Trigger>
-            <TabsV4Trigger value="products">Products</TabsV4Trigger>
+            <TabsV4Trigger value="overview">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <SquaresFour className="h-4 w-4" weight="regular" aria-hidden />
+                Overview
+              </span>
+            </TabsV4Trigger>
+            <TabsV4Trigger value="profile">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <Storefront className="h-4 w-4" weight="regular" aria-hidden />
+                Profile
+              </span>
+            </TabsV4Trigger>
+            <TabsV4Trigger value="products">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <Package className="h-4 w-4" weight="regular" aria-hidden />
+                Products
+              </span>
+            </TabsV4Trigger>
             <TabsV4Trigger value="orders">
-              <span className="inline-flex items-center gap-1.5">
+              <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                <Receipt className="h-4 w-4" weight="regular" aria-hidden />
                 Orders
                 {newOrderCount > 0 ? (
                   <span
@@ -429,7 +452,12 @@ export function SellerDashboardInner() {
               </span>
             </TabsV4Trigger>
             {MARKETING_TAB_ENABLED ? (
-              <TabsV4Trigger value="marketing">Marketing</TabsV4Trigger>
+              <TabsV4Trigger value="marketing">
+                <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                  <Megaphone className="h-4 w-4" weight="regular" aria-hidden />
+                  Marketing
+                </span>
+              </TabsV4Trigger>
             ) : null}
           </TabsV4List>
 
