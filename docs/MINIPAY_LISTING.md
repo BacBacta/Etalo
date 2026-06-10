@@ -26,7 +26,7 @@ submission.
 | **Support URL** | `https://etalo.xyz/support` |
 | **Terms of Service** | `https://etalo.xyz/legal/terms` |
 | **Privacy Policy** | `https://etalo.xyz/legal/privacy` |
-| **Icon** | 512×512 PNG — **TO PRODUCE** (see §3) |
+| **Icon** | 512×512 PNG — ✅ `packages/web/public/icon-512.png` (§3) |
 
 ### Longer description (if the form / directory asks for one)
 
@@ -65,7 +65,7 @@ screenshots.
 | Graceful wallet-operation error handling | ✅ | root `error.tsx` + ErrorBoundary ; checkout tx state machine (rule #8) |
 | In-app Terms + Privacy links | ✅ | `/legal/terms`, `/legal/privacy` (linked in `Footer.tsx`) |
 | In-app Support link | ✅ | `/support` (email + buyer/seller FAQ) |
-| PageSpeed score for production URL | ⚠️ | have Lighthouse (perf avg ~64, 6/7 routes "Good" LCP) — **re-run on `https://etalo.xyz` prod and capture the number** (see `docs/PRE_MAINNET_QA.md`) |
+| PageSpeed score for production URL | ✅ | PSI mobile on `https://etalo.xyz` (2026-06-10) : **Performance 80, Accessibility 100, Best Practices 100, SEO 100**. Lab : FCP 1.1s, TBT 100ms, CLS 0, SI 2.6s ; LCP 5.1s is the lone weak metric (home/marketplace hero — V1.5 SSR work, not a blocker) |
 | Full URL/subdomain/origin manifest | ✅ | `docs/NETWORK_MANIFEST.md` — **needs an etalo.app→etalo.xyz pass before submission** |
 
 ### Dependency security (MiniPay supply-chain checks)
@@ -81,17 +81,22 @@ screenshots.
 
 ## 3. Assets to produce
 
-### App icon — **the one hard blocker**
+### App icon — ✅ DONE
 
-- **Spec:** 512×512 px, PNG, square. High-quality (no upscaled
-  favicon). Should read at small sizes (directory grid thumbnail).
-- **Today:** only `packages/web/src/app/favicon.ico` exists — no
-  512×512 source.
-- **Action:** export a 512×512 PNG from the Etalo logo/brand source
-  (V5 design system). Drop it at `packages/web/public/icon-512.png`
-  and reference it in the submission form. Also wire it as the PWA /
-  Apple touch icon (`app/icon.png` + `app/apple-icon.png`) so the
-  in-MiniPay home-screen add looks right.
+- **Spec:** 512×512 px, PNG, square, full-bleed (no transparent
+  corners — MiniPay applies its own masking).
+- **Source:** the existing V4 brand mark (`docs/DESIGN_V4_PREVIEW.md`,
+  inlined as `EtaloLogo` in `PublicHeader.tsx`) — dark square + sun +
+  arc + 2 forest dots. Authored as `public/icon-512.svg` and
+  rasterized deterministically via the already-installed Playwright
+  chromium (`scripts/rasterize-icon.py` — no sharp/imagemagick dep).
+- **Produced:** `packages/web/public/icon-512.png` (submission form
+  icon) + wired as the Next App-Router PWA / Apple touch icons
+  (`src/app/icon.png` + `src/app/apple-icon.png`).
+- **Re-export** (if the brand mark changes): edit `public/icon-512.svg`
+  then `../backend/venv/Scripts/python.exe scripts/rasterize-icon.py`.
+- *Mike: swap if you prefer the rounded-corner variant over full-bleed
+  — change the `<rect>` to `rx="64"` in the SVG and re-run.*
 
 ### Screenshots (optional for the form, recommended for press)
 
@@ -111,14 +116,15 @@ press kit / future store surfaces:
 
 ## 4. Pre-submission checklist (close these, then submit)
 
-- [ ] **512×512 icon produced** (`public/icon-512.png`) + PWA/apple
+- [x] **512×512 icon produced** (`public/icon-512.png`) + PWA/apple
       icons wired — §3.
-- [ ] **`packages/web/.npmrc`** with `ignore-scripts=true` +
-      `minimumReleaseAge` configured — §2.
-- [ ] **`package.json` dependency ranges audited** → pin exact
-      versions where MiniPay's supply-chain check expects it.
-- [ ] **PageSpeed Insights run on `https://etalo.xyz`** (production)
-      → record the score to paste into the form.
+- [x] **`packages/web/.npmrc`** with `ignore-scripts=true` configured
+      (+ exact pins ; `minimumReleaseAge` is pnpm-only — see §2) — #148.
+- [x] **`package.json` dependency ranges audited** → all 40 web deps
+      pinned to exact versions — #148.
+- [x] **PageSpeed Insights run on `https://etalo.xyz`** (production,
+      2026-06-10, mobile) → Performance **80**, Accessibility **100**,
+      Best Practices **100**, SEO **100**. Paste into the form.
 - [ ] **`NETWORK_MANIFEST.md` pass**: confirm canonical `etalo.xyz`
       origins, mark `*.etalo.app` as unused/future, list the real RPC
       + Pinata/IPFS + Fly API origins the app calls.
