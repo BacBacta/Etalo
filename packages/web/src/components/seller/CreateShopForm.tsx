@@ -12,7 +12,7 @@
  *  - One scrollable page, sectioned by intent (Identity → Pitch →
  *    Location → Social) — multi-step wizards feel heavy on a 360 px
  *    MiniPay viewport.
- *  - Live `etalo.app/@<handle>` preview keeps the seller anchored in
+ *  - Live `etalo.xyz/<handle>` preview keeps the seller anchored in
  *    what they're actually building.
  *  - Handle is auto-suggested from `shop_name` until the seller edits
  *    it themselves — most informal sellers type their shop name first.
@@ -265,7 +265,7 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
               >
                 Your boutique URL :{" "}
                 <span className="font-medium text-celo-dark dark:text-celo-light">
-                  etalo.app/@{previewHandle}
+                  etalo.xyz/{previewHandle}
                 </span>
               </p>
               {(handleValidationError || handleError) && (
