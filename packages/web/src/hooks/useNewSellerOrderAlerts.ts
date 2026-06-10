@@ -32,11 +32,15 @@ export interface UseNewSellerOrderAlertsResult {
 }
 
 export function useNewSellerOrderAlerts(
-  address: string | undefined,
+  address: string | null | undefined,
 ): UseNewSellerOrderAlertsResult {
   // Shares the OrdersTab cache slot exactly (page 1, pageSize 20) so this
   // is a free subscriber, not a second network poll.
-  const { data } = useSellerOrders({ address, page: 1, pageSize: 20 });
+  const { data } = useSellerOrders({
+    address: address ?? undefined,
+    page: 1,
+    pageSize: 20,
+  });
   const seenRef = useRef<Set<number> | null>(null);
   const [newCount, setNewCount] = useState(0);
 
