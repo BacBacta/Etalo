@@ -72,9 +72,9 @@ screenshots.
 
 | Requirement | Status | Action |
 |-------------|--------|--------|
-| Pin exact npm versions (no `^`/`~` ranges) | ⚠️ TBD | audit `packages/web/package.json` for ranges |
-| Minimum 7-day published age for deps (`minimumReleaseAge`) | ❌ | add to npm config |
-| `ignore-scripts=true` in `.npmrc` | ❌ | **no `.npmrc` exists** — create `packages/web/.npmrc` |
+| Pin exact npm versions (no `^`/`~` ranges) | ✅ | all 40 web deps pinned to their locked versions ; `save-exact=true` keeps new adds exact |
+| Minimum 7-day published age for deps (`minimumReleaseAge`) | ⚠️ n/a on npm | `minimumReleaseAge` is a **pnpm-only** setting ; npm 11.9 has no native equivalent. Mitigated by exact pins + committed lockfile + `npm ci` + manual age review (documented in `packages/web/.npmrc`) |
+| `ignore-scripts=true` in `.npmrc` | ✅ | `packages/web/.npmrc` created |
 | Commit lockfile ; `npm ci` in CI | ✅ | `packages/web/package-lock.json` committed (web is npm) |
 
 ---
