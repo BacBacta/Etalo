@@ -39,6 +39,7 @@ const DeleteProductDialog = dynamic(
 );
 import { Button } from "@/components/ui/button";
 import { EmptyStateV5 } from "@/components/ui/v5/EmptyState";
+import { ELEVATION } from "@/components/ui/v5/elevation";
 import { SkeletonV5 } from "@/components/ui/v5/Skeleton";
 import {
   MY_PRODUCTS_QUERY_KEY,
@@ -456,7 +457,7 @@ export function ProductsTab({ profile, walletAddress }: Props) {
           overall (the top-level no-products branch already handled the
           "really empty" case). */}
       {filteredSorted.length === 0 ? (
-        <div className="rounded-xl border border-neutral-200 bg-white p-8 text-center dark:border-celo-light/10 dark:bg-celo-dark-elevated">
+        <div className={`rounded-xl border border-neutral-200 bg-white p-8 text-center dark:border-celo-light/10 dark:bg-celo-dark-elevated ${ELEVATION}`}>
           <h3 className="text-base font-medium text-celo-dark dark:text-celo-light">
             No matching products
           </h3>
@@ -553,7 +554,7 @@ function KpiTile({ label, value, tone = "neutral", hint }: KpiTileProps) {
           ? "text-rose-700 dark:text-rose-300"
           : "text-celo-dark dark:text-celo-light";
   return (
-    <div className="rounded-xl border border-neutral-200 bg-white p-3 dark:border-celo-light/10 dark:bg-celo-dark-elevated">
+    <div className={`rounded-xl border border-neutral-200 bg-white p-3 dark:border-celo-light/10 dark:bg-celo-dark-elevated ${ELEVATION}`}>
       <div className="text-sm text-neutral-500 dark:text-celo-light/60">
         {label}
         {hint ? (
@@ -623,7 +624,7 @@ function ProductRow({ product, onEdit, onDelete }: ProductRowProps) {
   const needsEnhance = firstImage !== null && !product.enhanced_at;
 
   return (
-    <li className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated">
+    <li className={`overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated ${ELEVATION}`}>
       <div className="flex items-stretch gap-3 p-3">
         {/* Thumbnail bumped 56 → 72 px so the seller can visually
             identify products at scale without opening each row. */}
@@ -717,7 +718,7 @@ function ProductGridCard({ product, onEdit, onDelete }: ProductGridCardProps) {
   const needsEnhance = firstImage !== null && !product.enhanced_at;
 
   return (
-    <li className="overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated">
+    <li className={`overflow-hidden rounded-xl border border-neutral-200 bg-white dark:border-celo-light/10 dark:bg-celo-dark-elevated ${ELEVATION}`}>
       <div className="relative aspect-square w-full bg-neutral-100 dark:bg-celo-dark-bg">
         {firstImage ? (
           <Image
