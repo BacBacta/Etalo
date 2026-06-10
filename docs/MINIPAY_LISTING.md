@@ -26,7 +26,7 @@ submission.
 | **Support URL** | `https://etalo.xyz/support` |
 | **Terms of Service** | `https://etalo.xyz/legal/terms` |
 | **Privacy Policy** | `https://etalo.xyz/legal/privacy` |
-| **Icon** | 512×512 PNG — **TO PRODUCE** (see §3) |
+| **Icon** | 512×512 PNG — ✅ `packages/web/public/icon-512.png` (§3) |
 
 ### Longer description (if the form / directory asks for one)
 
@@ -81,17 +81,22 @@ screenshots.
 
 ## 3. Assets to produce
 
-### App icon — **the one hard blocker**
+### App icon — ✅ DONE
 
-- **Spec:** 512×512 px, PNG, square. High-quality (no upscaled
-  favicon). Should read at small sizes (directory grid thumbnail).
-- **Today:** only `packages/web/src/app/favicon.ico` exists — no
-  512×512 source.
-- **Action:** export a 512×512 PNG from the Etalo logo/brand source
-  (V5 design system). Drop it at `packages/web/public/icon-512.png`
-  and reference it in the submission form. Also wire it as the PWA /
-  Apple touch icon (`app/icon.png` + `app/apple-icon.png`) so the
-  in-MiniPay home-screen add looks right.
+- **Spec:** 512×512 px, PNG, square, full-bleed (no transparent
+  corners — MiniPay applies its own masking).
+- **Source:** the existing V4 brand mark (`docs/DESIGN_V4_PREVIEW.md`,
+  inlined as `EtaloLogo` in `PublicHeader.tsx`) — dark square + sun +
+  arc + 2 forest dots. Authored as `public/icon-512.svg` and
+  rasterized deterministically via the already-installed Playwright
+  chromium (`scripts/rasterize-icon.py` — no sharp/imagemagick dep).
+- **Produced:** `packages/web/public/icon-512.png` (submission form
+  icon) + wired as the Next App-Router PWA / Apple touch icons
+  (`src/app/icon.png` + `src/app/apple-icon.png`).
+- **Re-export** (if the brand mark changes): edit `public/icon-512.svg`
+  then `../backend/venv/Scripts/python.exe scripts/rasterize-icon.py`.
+- *Mike: swap if you prefer the rounded-corner variant over full-bleed
+  — change the `<rect>` to `rx="64"` in the SVG and re-run.*
 
 ### Screenshots (optional for the form, recommended for press)
 
@@ -111,12 +116,12 @@ press kit / future store surfaces:
 
 ## 4. Pre-submission checklist (close these, then submit)
 
-- [ ] **512×512 icon produced** (`public/icon-512.png`) + PWA/apple
+- [x] **512×512 icon produced** (`public/icon-512.png`) + PWA/apple
       icons wired — §3.
-- [ ] **`packages/web/.npmrc`** with `ignore-scripts=true` +
-      `minimumReleaseAge` configured — §2.
-- [ ] **`package.json` dependency ranges audited** → pin exact
-      versions where MiniPay's supply-chain check expects it.
+- [x] **`packages/web/.npmrc`** with `ignore-scripts=true` configured
+      (+ exact pins ; `minimumReleaseAge` is pnpm-only — see §2) — #148.
+- [x] **`package.json` dependency ranges audited** → all 40 web deps
+      pinned to exact versions — #148.
 - [ ] **PageSpeed Insights run on `https://etalo.xyz`** (production)
       → record the score to paste into the form.
 - [ ] **`NETWORK_MANIFEST.md` pass**: confirm canonical `etalo.xyz`
