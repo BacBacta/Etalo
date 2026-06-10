@@ -1,18 +1,19 @@
 # Etalo Network Manifest
 
-Required by MiniPay submission (minipay-requirements.md §2 : "provide a full manifest of every URL, subdomain, and origin your app calls"). MiniPay reviews this for supply-chain risk before listing.
+Required by MiniPay submission (`docs/MINIPAY_LISTING.md` §2 : "provide a full manifest of every URL, subdomain, and origin your app calls"). MiniPay reviews this for supply-chain risk before listing.
 
 This file is the canonical inventory of every network destination Etalo touches at runtime, along with the role and verification status. Each section MUST be empirically verified via DevTools Network panel on the 6 hot-path surfaces before submission (audit checklist at the bottom).
 
 Last verified : `[date YYYY-MM-DD]`
 Verifier : `[name]`
-Submission target : Sprint J11 (MiniPay listing pre-submission)
+Submission target : Sprint J12 (MiniPay listing submission)
 
 ## Domains & origins
 
 ### Production
-- `etalo.app` — root domain, public funnel + MiniPay surface
-- `*.etalo.app` — subdomains TBD (status / blog / docs)
+- `etalo.xyz` — **canonical V1 root domain** (Vercel alias since 2026-05-25), public funnel + MiniPay surface
+- `etalo.app` — reserved/future, NOT wired in V1 (do not submit etalo.app URLs)
+- `*.etalo.xyz` — no subdomains in use (confirm at submission)
 
 ### Staging
 - TBD (will surface during Sprint J11 staging environment setup)
@@ -48,7 +49,7 @@ FastAPI service rooted at `/api/v1` :
 - `GET /api/v1/credits/ledger` — credits ledger entries
 - `[other]` — to be enumerated exhaustively at submission time via FastAPI OpenAPI introspection (`/api/openapi.json`)
 
-Backend exposed at the production URL TBD ; dev exposes via ngrok rewrite (`LOCAL_API_REWRITE_TARGET=http://localhost:8000` in `.env.local`).
+Backend exposed in production at `etalo-api.fly.dev` (Fly.io, region jnb) ; dev exposes via ngrok rewrite (`LOCAL_API_REWRITE_TARGET=http://localhost:8000` in `.env.local`).
 
 ## RPC providers
 
@@ -96,13 +97,25 @@ Treasury wallets (3 separated per ADR-024) :
 | commissionTreasury | `0x9819c9E1b4F634784fd9A286240ecACd297823fa` |
 | communityFund | `0x0B15983B6fBF7A6F3f542447cdE7F553cA07A8d6` |
 
-### Celo Mainnet (V1 production target Q2 2027)
+### Celo Mainnet (V1 production — LIVE)
+
+Deployed 2026-05-25 (`v1.4-mainnet`), owned by the 2-of-3 Safe
+`0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F`. EtaloEscrow is the
+ADR-057 redeploy (canonical since the 2026-06-06 cutover ; the old
+escrow `0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92` is retained for
+history only). Source of truth :
+`packages/contracts/deployments/celo-mainnet-v2.json`.
 
 | Contract | Address |
 |---|---|
 | USDT token (Celo native) | `0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e` |
 | USDT adapter (CIP-64 fee currency) | `0x0E2A3e05bc9A16F5292A6170456A710cb89C6f72` |
-| Etalo contracts | TBD — deploy Sprint J12 mainnet launch |
+| EtaloReputation | `0xaF890609a3B2AF6E1E2Ebf91267347133b5065AD` |
+| EtaloStake | `0x3D588192BC76e38a3f6453E45A9B9aD0Dc85bc9A` |
+| EtaloVoting | `0xa1C48f2f962484D63D4D1b04C9c2574Da2C0EcBA` |
+| EtaloDispute | `0x6d5Aa5e0EAE407688E99492213849D9a608D63d2` |
+| EtaloEscrow (canonical, ADR-057) | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` |
+| EtaloCredits | `0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6` |
 
 ## External assets / fonts / CDN
 
@@ -121,10 +134,10 @@ Treasury wallets (3 separated per ADR-024) :
 - [ ] Toutes les origines listées vérifiées via DevTools Network panel sur les 6 surfaces hot-path : `/`, `/marketplace`, `/[handle]`, `/[handle]/[slug]`, `/checkout`, `/seller/dashboard`
 - [ ] FastAPI endpoints enumerated exhaustively from `/api/openapi.json` (replace placeholder list above with full set)
 - [ ] Aucun tracker tiers non documenté (verify zero analytics, zero pixel trackers, zero CDN font fetches)
-- [ ] Production URL `etalo.app` resolves and serves the same bundle as the staging audit
-- [ ] All `*.etalo.app` subdomains documented (or confirmed unused)
+- [ ] Production URL `etalo.xyz` resolves and serves the same bundle as the staging audit
+- [ ] All `*.etalo.xyz` subdomains documented (or confirmed unused)
 - [ ] Twilio webhook destination URL filled in
-- [ ] Mainnet contract addresses filled in post Sprint J12 deploy
+- [x] Mainnet contract addresses filled in (LIVE — see Celo Mainnet table above)
 - [ ] PageSpeed Insights score captured for production URL (mobile, throttled 4G)
 - [ ] DevTools Network panel snapshot saved (HAR file or screenshots) for each of the 6 surfaces
 - [ ] Sample tx Celoscan per method (structure ready, 25/40 V1-active entries populated, 15 pending FU-J11-004 smoke E2E) → see `docs/audit/SAMPLE_TXS.md`

@@ -4,9 +4,17 @@
 Celo Sepolia to **Celo mainnet** addresses. This is the final step
 between the v1.4-mainnet contract release and real-user traffic.
 
-**Status:** ⏳ env override pending — runtime defaults in code still
-point to Sepolia by design (safer for local dev). Production deploy
-MUST set the mainnet env vars below.
+**Status:** ✅ cutover DONE — production runtime (Vercel web + Fly
+backend) runs on Celo mainnet (chainId 42220) since the V1.4 launch,
+and the **EtaloEscrow address below reflects the ADR-057 redeploy**
+(`0x44E4…`, canonical since the 2026-06-06 cutover). Runtime defaults
+in code still point to Sepolia by design (safer for local dev); the
+mainnet env vars below are the deliberate production override. Keep
+this doc as the re-apply / disaster-recovery reference.
+
+> ⚠️ The old escrow `0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92` is
+> retained for history only — do NOT set it as `ETALO_ESCROW_ADDRESS`
+> / `NEXT_PUBLIC_ESCROW_ADDRESS`. See `docs/MIGRATION_ESCROW_ADR057.md`.
 
 **Pre-conditions (all complete) :**
 
@@ -54,7 +62,7 @@ fly secrets set \
   ETALO_STAKE_ADDRESS=0x3D588192BC76e38a3f6453E45A9B9aD0Dc85bc9A \
   ETALO_VOTING_ADDRESS=0xa1C48f2f962484D63D4D1b04C9c2574Da2C0EcBA \
   ETALO_DISPUTE_ADDRESS=0x6d5Aa5e0EAE407688E99492213849D9a608D63d2 \
-  ETALO_ESCROW_ADDRESS=0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92 \
+  ETALO_ESCROW_ADDRESS=0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671 \
   ETALO_CREDITS_ADDRESS=0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6 \
   COMMISSION_TREASURY_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F \
   CREDITS_TREASURY_ADDRESS=0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F \
@@ -92,7 +100,7 @@ must be set at **build time** (not just runtime).
 | --- | --- |
 | `NEXT_PUBLIC_CELO_RPC_URL` | `https://forno.celo.org` |
 | `NEXT_PUBLIC_CHAIN_ID` | `42220` |
-| `NEXT_PUBLIC_ESCROW_ADDRESS` | `0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92` |
+| `NEXT_PUBLIC_ESCROW_ADDRESS` | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` |
 | `NEXT_PUBLIC_DISPUTE_ADDRESS` | `0x6d5Aa5e0EAE407688E99492213849D9a608D63d2` |
 | `NEXT_PUBLIC_STAKE_ADDRESS` | `0x3D588192BC76e38a3f6453E45A9B9aD0Dc85bc9A` |
 | `NEXT_PUBLIC_REPUTATION_ADDRESS` | `0xaF890609a3B2AF6E1E2Ebf91267347133b5065AD` |

@@ -632,7 +632,8 @@ SLA et avec des rate limits potentiels.
 
 ## 🟡 Recommandé — Audit relayer wallet keeper
 
-Adresse keeper auto-refund : `0xFBF50A1c8b8c7735dCFbEb40bB3413aE21918AdB`
+Adresse keeper relayer (mainnet, auto-refund + auto-release) :
+`0x365C14D81Ff130AC50b07374e95dF51140e2505A`
 - Vérifier solde CELO ≥ 1 CELO avant J12 (chaque refund coûte ~$0.0001)
 - Sinon `auto_refund_keeper.refund_failed` boucle
 - Backup : le bouton "Claim refund" buyer-side reste trustless fallback
