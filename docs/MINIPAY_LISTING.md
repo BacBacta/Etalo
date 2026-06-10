@@ -65,7 +65,7 @@ screenshots.
 | Graceful wallet-operation error handling | ✅ | root `error.tsx` + ErrorBoundary ; checkout tx state machine (rule #8) |
 | In-app Terms + Privacy links | ✅ | `/legal/terms`, `/legal/privacy` (linked in `Footer.tsx`) |
 | In-app Support link | ✅ | `/support` (email + buyer/seller FAQ) |
-| PageSpeed score for production URL | ⚠️ | have Lighthouse (perf avg ~64, 6/7 routes "Good" LCP) — **re-run on `https://etalo.xyz` prod and capture the number** (see `docs/PRE_MAINNET_QA.md`) |
+| PageSpeed score for production URL | ✅ | PSI mobile on `https://etalo.xyz` (2026-06-10) : **Performance 80, Accessibility 100, Best Practices 100, SEO 100**. Lab : FCP 1.1s, TBT 100ms, CLS 0, SI 2.6s ; LCP 5.1s is the lone weak metric (home/marketplace hero — V1.5 SSR work, not a blocker) |
 | Full URL/subdomain/origin manifest | ✅ | `docs/NETWORK_MANIFEST.md` — **needs an etalo.app→etalo.xyz pass before submission** |
 
 ### Dependency security (MiniPay supply-chain checks)
@@ -122,8 +122,9 @@ press kit / future store surfaces:
       (+ exact pins ; `minimumReleaseAge` is pnpm-only — see §2) — #148.
 - [x] **`package.json` dependency ranges audited** → all 40 web deps
       pinned to exact versions — #148.
-- [ ] **PageSpeed Insights run on `https://etalo.xyz`** (production)
-      → record the score to paste into the form.
+- [x] **PageSpeed Insights run on `https://etalo.xyz`** (production,
+      2026-06-10, mobile) → Performance **80**, Accessibility **100**,
+      Best Practices **100**, SEO **100**. Paste into the form.
 - [ ] **`NETWORK_MANIFEST.md` pass**: confirm canonical `etalo.xyz`
       origins, mark `*.etalo.app` as unused/future, list the real RPC
       + Pinata/IPFS + Fly API origins the app calls.
