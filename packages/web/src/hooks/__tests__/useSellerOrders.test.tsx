@@ -2,9 +2,11 @@
  * useSellerOrders specs — covers the smart refetchInterval gate
  * introduced in Block A of the J12-pre reactivity sprint.
  *
- * The hook should poll every 15 s while at least one order is in a
- * transient status (Funded / PartiallyShipped / AllShipped /
- * PartiallyDelivered / Disputed), and stop polling otherwise.
+ * The hook polls every 15 s while at least one order is in a transient
+ * status (Funded / PartiallyShipped / AllShipped / PartiallyDelivered /
+ * Disputed), and falls back to a steady 30 s when the list is quiet or
+ * empty — so a brand-new incoming order surfaces live without the
+ * seller having to re-navigate.
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
@@ -92,7 +94,7 @@ describe("useSellerOrders refetchInterval", () => {
     expect(fetchSellerOrdersMock).toHaveBeenCalledTimes(3);
   });
 
-  it("stops polling once all orders are terminal", async () => {
+  it("polls every 30 s when all orders are terminal (to catch new ones)", async () => {
     fetchSellerOrdersMock.mockResolvedValue(makePage(["Completed", "Refunded"]));
     const wrapper = makeWrapper();
 
@@ -102,12 +104,16 @@ describe("useSellerOrders refetchInterval", () => {
       expect(fetchSellerOrdersMock).toHaveBeenCalledTimes(1),
     );
 
-    // Past the polling cycle — no new fetch should fire.
-    await vi.advanceTimersByTimeAsync(60_000);
+    // No fast (15 s) poll on a quiet list…
+    await vi.advanceTimersByTimeAsync(15_000);
     expect(fetchSellerOrdersMock).toHaveBeenCalledTimes(1);
+
+    // …but the steady 30 s cycle still fires so a fresh order shows up.
+    await vi.advanceTimersByTimeAsync(15_000);
+    expect(fetchSellerOrdersMock).toHaveBeenCalledTimes(2);
   });
 
-  it("does not poll on an empty list", async () => {
+  it("polls every 30 s on an empty list (to catch the first order)", async () => {
     fetchSellerOrdersMock.mockResolvedValue(makePage([]));
     const wrapper = makeWrapper();
 
@@ -117,8 +123,8 @@ describe("useSellerOrders refetchInterval", () => {
       expect(fetchSellerOrdersMock).toHaveBeenCalledTimes(1),
     );
 
-    await vi.advanceTimersByTimeAsync(60_000);
-    expect(fetchSellerOrdersMock).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(fetchSellerOrdersMock).toHaveBeenCalledTimes(2);
   });
 
   it("does not fetch when address is missing", () => {
