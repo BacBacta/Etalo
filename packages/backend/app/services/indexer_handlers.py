@@ -19,10 +19,11 @@ import logging
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.dispute import Dispute
+from app.models.notification import Notification
 from app.models.dispute_vote import DisputeVote
 from app.models.mediator import Mediator
 from app.models.enums import (
@@ -207,7 +208,13 @@ async def handle_order_created(event: Any, db: AsyncSession, services: dict[str,
 
 
 async def handle_order_funded(event: Any, db: AsyncSession, services: dict[str, Any]) -> None:
-    """OrderFunded(orderId, fundedAt)."""
+    """OrderFunded(orderId, fundedAt).
+
+    Marks the order funded (money now in escrow → the seller must ship)
+    and notifies the seller: a durable in-app Notification row + a
+    best-effort WhatsApp ping so they hear about it with the phone in
+    their pocket, not only if they're staring at the dashboard.
+    """
     args = event["args"]
     order_id = args["orderId"]
     funded_at = args["fundedAt"]
@@ -216,6 +223,56 @@ async def handle_order_funded(event: Any, db: AsyncSession, services: dict[str, 
         return
     order.funded_at = _to_dt(funded_at)
     order.global_status = OrderStatus.FUNDED
+
+    await _notify_seller_new_order(db, order, services.get("notifier"))
+
+
+async def _notify_seller_new_order(
+    db: AsyncSession, order: Order, notifier: Any | None
+) -> None:
+    """Record an in-app notification for the order's seller and fire a
+    best-effort WhatsApp ping. Never raises — a notification failure must
+    not roll back the order mirror."""
+    try:
+        result = await db.execute(
+            select(SellerProfile, User.id)
+            .join(User, User.id == SellerProfile.user_id)
+            .where(func.lower(User.wallet_address) == _to_lower(order.seller_address))
+        )
+        row = result.first()
+        if row is None:
+            return  # seller has no profile row — nothing to notify
+        profile, user_id = row
+        amount_human = f"{order.total_amount_usdt / 1_000_000:.2f}"
+
+        db.add(
+            Notification(
+                user_id=user_id,
+                channel="whatsapp",
+                notification_type="order_funded",
+                template="order_funded",
+                payload={
+                    "onchain_order_id": order.onchain_order_id,
+                    "amount_usdt": order.total_amount_usdt,
+                },
+                sent=False,
+            )
+        )
+
+        whatsapp = (
+            (profile.socials or {}).get("whatsapp") if profile.socials else None
+        )
+        if notifier is not None and whatsapp:
+            # Fire-and-forget; runs outside this DB transaction.
+            notifier.dispatch_new_order(
+                whatsapp,
+                order_id=order.onchain_order_id,
+                amount_human=amount_human,
+            )
+    except Exception:  # noqa: BLE001 — notification is best-effort
+        logger.exception(
+            "notify_seller_new_order failed order=%s", order.onchain_order_id
+        )
 
 
 async def handle_shipment_group_created(

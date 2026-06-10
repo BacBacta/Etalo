@@ -249,9 +249,16 @@ async def test_handle_order_funded_updates_status():
     fake_order.global_status = OrderStatus.CREATED
     fake_order.funded_at = None
 
+    fake_order.seller_address = "0xabc0000000000000000000000000000000000001"
+    fake_order.onchain_order_id = 7
+    fake_order.total_amount_usdt = 5_000_000
+
     async def execute_returning_order(stmt):
         result = MagicMock()
         result.scalar_one_or_none = MagicMock(return_value=fake_order)
+        # The seller-profile join in _notify_seller_new_order uses .first();
+        # no profile row here → notification path is a clean no-op.
+        result.first = MagicMock(return_value=None)
         return result
 
     session.execute = execute_returning_order  # type: ignore
@@ -264,6 +271,56 @@ async def test_handle_order_funded_updates_status():
 
     assert fake_order.global_status == OrderStatus.FUNDED
     assert fake_order.funded_at is not None  # tz-aware datetime
+
+
+@pytest.mark.asyncio
+async def test_handle_order_funded_notifies_seller():
+    """A funded order records an in-app Notification for the seller and
+    fires a best-effort WhatsApp ping with the order id + amount."""
+    from uuid import uuid4
+
+    from app.models.notification import Notification
+
+    session = FakeAsyncSession()
+    fake_order = MagicMock()
+    fake_order.global_status = OrderStatus.CREATED
+    fake_order.funded_at = None
+    fake_order.onchain_order_id = 7
+    fake_order.total_amount_usdt = 5_000_000
+    fake_order.seller_address = "0xabc0000000000000000000000000000000000001"
+
+    fake_profile = MagicMock()
+    fake_profile.socials = {"whatsapp": "+234 901 123 4567"}
+    fake_profile.shop_name = "Mama Adaeze"
+    seller_user_id = uuid4()
+
+    calls = {"n": 0}
+
+    async def execute(stmt):
+        calls["n"] += 1
+        result = MagicMock()
+        if calls["n"] == 1:
+            # order lookup
+            result.scalar_one_or_none = MagicMock(return_value=fake_order)
+        else:
+            # seller-profile join
+            result.first = MagicMock(return_value=(fake_profile, seller_user_id))
+        return result
+
+    session.execute = execute  # type: ignore
+
+    notifier = MagicMock()
+    event = {"args": {"orderId": 7, "fundedAt": 1700001000}, "blockNumber": 100}
+    await handle_order_funded(event, session, {"notifier": notifier})
+
+    assert fake_order.global_status == OrderStatus.FUNDED
+    # A durable in-app notification row was queued for the seller.
+    assert any(isinstance(o, Notification) for o in session.added)
+    # The WhatsApp ping was dispatched with the right details.
+    notifier.dispatch_new_order.assert_called_once()
+    kwargs = notifier.dispatch_new_order.call_args.kwargs
+    assert kwargs["order_id"] == 7
+    assert kwargs["amount_human"] == "5.00"
 
 
 @pytest.mark.asyncio

@@ -77,6 +77,12 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_whatsapp_from: str = ""
+    # Approved WhatsApp Content Template SID for business-initiated
+    # new-order pings (outside the 24h customer-care window WhatsApp
+    # requires a pre-approved template). Empty → fall back to a plain
+    # Body, which only delivers from the Twilio sandbox or inside the
+    # 24h window. Template variables: {{1}} = order id, {{2}} = amount.
+    twilio_order_template_sid: str = ""
 
     # Frontend base URL — used to compose deeplinks in
     # notifications (J11.5 Block 7, ADR-043). Default points at
