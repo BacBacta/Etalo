@@ -30,8 +30,10 @@ import {
   PULL_VISUAL_CAP_PX,
   shouldTriggerRefreshOnRelease,
 } from "@/app/(app)/marketplace/pull-to-refresh";
+import { BuyerProtectionStrip } from "@/components/BuyerProtectionBadge";
 import { CountryPromptBanner } from "@/components/CountryPromptBanner";
 import { MarketplaceGrid } from "@/components/MarketplaceGrid";
+import type { MarketplaceProductItem } from "@/lib/api";
 import {
   CategoryFilterChips,
   type CategoryFilterValue,
@@ -66,6 +68,23 @@ function readDismissedFromStorage(): boolean {
   } catch {
     return false;
   }
+}
+
+// Curated featured pick — promote a *credible* product to the hero, not
+// just the newest (`products[0]`). Prefer one that has an image, then a
+// top-seller / proven boutique (most completed orders). Falls back to the
+// first product so the hero never renders empty.
+function pickFeaturedProduct(
+  products: MarketplaceProductItem[],
+): MarketplaceProductItem {
+  const withImage = products.filter((p) => p.primary_image_url);
+  const pool = withImage.length > 0 ? withImage : products;
+  return [...pool].sort((a, b) => {
+    const topDelta =
+      (b.seller_is_top_seller ? 1 : 0) - (a.seller_is_top_seller ? 1 : 0);
+    if (topDelta !== 0) return topDelta;
+    return (b.seller_orders_completed ?? 0) - (a.seller_orders_completed ?? 0);
+  })[0];
 }
 
 function MarketplaceLoadingShell() {
@@ -253,8 +272,13 @@ function MarketplaceClientInner() {
   // to avoid a duplicate card. A country filter is fine: a featured pick
   // from that market still reads as curated.
   const showFeatured = isDiscovery && products.length > 4;
-  const featuredProduct = showFeatured ? products[0] : null;
-  const gridProducts = showFeatured ? products.slice(1) : products;
+  const featuredProduct = showFeatured ? pickFeaturedProduct(products) : null;
+  // Exclude the featured pick from the grid by id (it may not be index 0
+  // anymore now that the hero is curated rather than newest-first).
+  const gridProducts =
+    featuredProduct !== null
+      ? products.filter((p) => p.id !== featuredProduct.id)
+      : products;
 
   // Curated discovery rails (New this week / Top-rated boutiques). Only
   // fetched on the discovery view ; scoped to the active country filter.
@@ -518,6 +542,10 @@ function MarketplaceClientInner() {
             />
           </div>
 
+          {/* Escrow guarantee — Etalo's core trust signal, stated once
+              prominently at the top of the shopping surface. */}
+          <BuyerProtectionStrip className="mt-4" />
+
           {showCountryBanner ? (
             <div className="mt-4">
               <CountryPromptBanner
@@ -565,7 +593,14 @@ function MarketplaceClientInner() {
           {sections.map((section) => (
             <MarketplaceRail
               key={section.key}
-              title={section.title}
+              // The top_rated rail shows one product per trusted boutique;
+              // "From top-rated boutiques" reads truthfully (they're
+              // products, not boutique cards).
+              title={
+                section.key === "top_rated"
+                  ? "From top-rated boutiques"
+                  : section.title
+              }
               products={section.products}
               hideSellerCountry={countryFilter !== "all"}
             />

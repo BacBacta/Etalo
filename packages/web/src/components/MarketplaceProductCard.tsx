@@ -6,6 +6,7 @@ import Link from "next/link";
 import { memo, useEffect, useRef, useState } from "react";
 
 import { AddToCartIcon } from "@/components/AddToCartIcon";
+import { BuyerProtectionBadge } from "@/components/BuyerProtectionBadge";
 import { CardV4 } from "@/components/ui/v4/Card";
 import type { MarketplaceProductItem } from "@/lib/api";
 import { countryName } from "@/lib/country";
@@ -199,6 +200,9 @@ function MarketplaceProductCardImpl({
               {product.seller_shop_name}
               {ordersCompleted > 0 ? ` · ${ordersCompleted} sold` : ""}
             </p>
+            {/* Escrow reassurance at the point of decision (universal —
+                every Etalo order is protected). */}
+            <BuyerProtectionBadge variant="inline" className="mt-1.5" />
           </div>
         </Link>
       </CardV4>

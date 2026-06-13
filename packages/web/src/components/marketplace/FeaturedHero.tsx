@@ -19,6 +19,7 @@ import { m, useReducedMotion } from "motion/react";
 import Image from "next/image";
 import Link from "next/link";
 
+import { BuyerProtectionBadge } from "@/components/BuyerProtectionBadge";
 import type { MarketplaceProductItem } from "@/lib/api";
 import { countryName } from "@/lib/country";
 
@@ -99,6 +100,8 @@ export function FeaturedHero({ product }: Props) {
               </span>
             </div>
           </div>
+
+          <BuyerProtectionBadge variant="chip" />
 
           <span className="inline-flex h-11 w-fit items-center gap-1.5 rounded-pill bg-celo-light px-5 text-base font-medium text-celo-dark transition-transform duration-200 group-hover:translate-x-0.5">
             Shop now
