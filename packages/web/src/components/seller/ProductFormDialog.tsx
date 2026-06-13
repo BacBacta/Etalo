@@ -742,12 +742,14 @@ function EnhanceSection({
         </span>
         <div className="flex-1">
           <p className="text-base font-medium text-celo-dark dark:text-celo-light">
-            Make this photo boutique-quality
+            Make this photo boutique-quality — it sells faster
           </p>
           <p className="mt-0.5 text-sm text-celo-dark/70 dark:text-celo-light/70">
             We remove the background and drop your product onto a clean
-            studio backdrop — it&apos;ll look far more professional in the
-            marketplace. AI generates 3 backdrops; you pick one.
+            studio backdrop. Products with enhanced photos look far more
+            professional and tend to sell faster in the marketplace. AI
+            generates 3 backdrops; you pick one. Optional — you can always
+            publish your original photo.
           </p>
 
           {/* Balance — always visible so credits aren't a mystery. */}

@@ -185,8 +185,10 @@ describe("MarketplacePage — sub-block 2.3a", () => {
     expect(
       screen.getByTestId("marketplace-rail-New this week"),
     ).toBeInTheDocument();
+    // Client relabels the top_rated section title for honesty (the rail
+    // shows products, one per trusted boutique).
     expect(
-      screen.getByTestId("marketplace-rail-Top-rated boutiques"),
+      screen.getByTestId("marketplace-rail-From top-rated boutiques"),
     ).toBeInTheDocument();
     expect(screen.getByText("Browse all")).toBeInTheDocument();
   });
