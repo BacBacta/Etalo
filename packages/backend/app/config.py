@@ -77,12 +77,19 @@ class Settings(BaseSettings):
     twilio_account_sid: str = ""
     twilio_auth_token: str = ""
     twilio_whatsapp_from: str = ""
-    # Approved WhatsApp Content Template SID for business-initiated
-    # new-order pings (outside the 24h customer-care window WhatsApp
-    # requires a pre-approved template). Empty → fall back to a plain
-    # Body, which only delivers from the Twilio sandbox or inside the
-    # 24h window. Template variables: {{1}} = order id, {{2}} = amount.
-    twilio_order_template_sid: str = ""
+    # Approved WhatsApp Content Template SIDs (HX…) per order-lifecycle
+    # event. Business-initiated messages need a pre-approved template
+    # outside the 24h window. Empty SID → that event's WhatsApp ping is
+    # skipped (template-only), except order_funded which has a sandbox
+    # Body fallback. Template variables: {{1}} = order id, {{2}} = amount
+    # (where the template body uses it). Catalog + SIDs documented in
+    # docs/WHATSAPP_NOTIFICATIONS.md.
+    twilio_order_template_sid: str = ""  # order_funded (seller)
+    twilio_dispute_template_sid: str = ""  # dispute_opened (seller)
+    twilio_released_template_sid: str = ""  # funds_released (seller)
+    twilio_refunded_template_sid: str = ""  # order_refunded (seller)
+    twilio_shipped_template_sid: str = ""  # order_shipped (buyer)
+    twilio_delivered_template_sid: str = ""  # order_delivered (buyer)
 
     # Frontend base URL — used to compose deeplinks in
     # notifications (J11.5 Block 7, ADR-043). Default points at

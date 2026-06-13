@@ -82,27 +82,34 @@ no "crypto"):
 All UTILITY, language `en`, variables `{{1}}` = order id, `{{2}}` =
 amount. Created + submitted via `scripts/create_whatsapp_template.py`
 (re-runnable; `--list` shows live approval status, `--status <HX>` polls
-one). Only `order_funded` is wired to a handler today; the rest are
-submitted now (Meta approval is the slow part) and wired later.
+one). **All six are now wired to indexer handlers** — each fires when
+its on-chain event is mirrored, gated on its template-SID secret being
+set (empty SID → that event is skipped, no error).
 
-| Event | Audience | friendly_name | Content SID |
-|-------|----------|---------------|-------------|
-| Order funded | seller | `order_funded_en` | `HX198c88f6ca53389677ddd791c3a3f482` |
-| Dispute opened | seller | `dispute_opened_en` | `HXac93f449a76e00219da15cbf1862a1c2` |
-| Funds released | seller | `funds_released_en` | `HXb998075babaad6ecaa13e3436b4837e0` |
-| Order refunded | seller | `order_refunded_en` | `HXf2fd32f8d2e7414a573ae6f982d2163e` |
-| Order shipped | buyer | `order_shipped_en` | `HX1421f4d610b5d4f522b846f1c5c77406` |
-| Order delivered → confirm | buyer | `order_delivered_en` | `HX7783731292dce07809e636cf830453cf` |
+| Event | Audience | friendly_name | Content SID | Secret | Handler |
+|-------|----------|---------------|-------------|--------|---------|
+| Order funded | seller | `order_funded_en` | `HX198c88f6ca53389677ddd791c3a3f482` | `TWILIO_ORDER_TEMPLATE_SID` | `handle_order_funded` |
+| Dispute opened | seller | `dispute_opened_en` | `HXac93f449a76e00219da15cbf1862a1c2` | `TWILIO_DISPUTE_TEMPLATE_SID` | `handle_dispute_opened` |
+| Funds released | seller | `funds_released_en` | `HXb998075babaad6ecaa13e3436b4837e0` | `TWILIO_RELEASED_TEMPLATE_SID` | `handle_item_released` |
+| Order refunded | seller | `order_refunded_en` | `HXf2fd32f8d2e7414a573ae6f982d2163e` | `TWILIO_REFUNDED_TEMPLATE_SID` | `handle_auto_refund_inactive` |
+| Order shipped | buyer | `order_shipped_en` | `HX1421f4d610b5d4f522b846f1c5c77406` | `TWILIO_SHIPPED_TEMPLATE_SID` | `handle_shipment_group_created` |
+| Order delivered → confirm | buyer | `order_delivered_en` | `HX7783731292dce07809e636cf830453cf` | `TWILIO_DELIVERED_TEMPLATE_SID` | `handle_group_arrived` |
 
-`TWILIO_ORDER_TEMPLATE_SID` (the funded-order ping) =
-`HX198c88f6ca53389677ddd791c3a3f482`. The buyer-facing two
-(`order_shipped`, `order_delivered`) need the buyer's number from the
-delivery snapshot — backend wiring is a later step.
+Seller pings go to the profile `socials.whatsapp`; buyer pings (shipped
+/ delivered) go to `phone_number` from the order's delivery snapshot.
+Set all six SID secrets once the templates are `approved`:
+
+```powershell
+fly secrets set `
+  TWILIO_DISPUTE_TEMPLATE_SID="HXac93f449a76e00219da15cbf1862a1c2" `
+  TWILIO_RELEASED_TEMPLATE_SID="HXb998075babaad6ecaa13e3436b4837e0" `
+  TWILIO_REFUNDED_TEMPLATE_SID="HXf2fd32f8d2e7414a573ae6f982d2163e" `
+  TWILIO_SHIPPED_TEMPLATE_SID="HX1421f4d610b5d4f522b846f1c5c77406" `
+  TWILIO_DELIVERED_TEMPLATE_SID="HX7783731292dce07809e636cf830453cf" `
+  -a etalo-api
+```
 
 ## Not in this piece (future)
 
 - An in-app **notification bell** consuming `GET /api/v1/notifications`
-  (the rows are already being written; the frontend consumer is the
-  next step).
-- Notifications for other events (shipped, dispute, refund) — the
-  handler pattern generalizes; only `order_funded` is wired for now.
+  is live for sellers (PR #157). A buyer-side feed could reuse it.
