@@ -77,6 +77,28 @@ no "crypto"):
 - The whole notify path is wrapped so a Twilio/lookup failure logs and
   is swallowed — it can never roll back the order mirror.
 
+## Template catalog (submitted 2026-06-13)
+
+All UTILITY, language `en`, variables `{{1}}` = order id, `{{2}}` =
+amount. Created + submitted via `scripts/create_whatsapp_template.py`
+(re-runnable; `--list` shows live approval status, `--status <HX>` polls
+one). Only `order_funded` is wired to a handler today; the rest are
+submitted now (Meta approval is the slow part) and wired later.
+
+| Event | Audience | friendly_name | Content SID |
+|-------|----------|---------------|-------------|
+| Order funded | seller | `order_funded_en` | `HX198c88f6ca53389677ddd791c3a3f482` |
+| Dispute opened | seller | `dispute_opened_en` | `HXac93f449a76e00219da15cbf1862a1c2` |
+| Funds released | seller | `funds_released_en` | `HXb998075babaad6ecaa13e3436b4837e0` |
+| Order refunded | seller | `order_refunded_en` | `HXf2fd32f8d2e7414a573ae6f982d2163e` |
+| Order shipped | buyer | `order_shipped_en` | `HX1421f4d610b5d4f522b846f1c5c77406` |
+| Order delivered → confirm | buyer | `order_delivered_en` | `HX7783731292dce07809e636cf830453cf` |
+
+`TWILIO_ORDER_TEMPLATE_SID` (the funded-order ping) =
+`HX198c88f6ca53389677ddd791c3a3f482`. The buyer-facing two
+(`order_shipped`, `order_delivered`) need the buyer's number from the
+delivery snapshot — backend wiring is a later step.
+
 ## Not in this piece (future)
 
 - An in-app **notification bell** consuming `GET /api/v1/notifications`
