@@ -10,11 +10,12 @@
 export const MINIPAY_DEEPLINKS = {
   /**
    * Opens the MiniPay deposit / Add Cash flow.
-   * Used by InsufficientBalanceCTA when the buyer's stablecoin
-   * balance is below the cart total (per
-   * minipay-requirements.md §4 Low-Balance Handling).
+   * Used by InsufficientBalanceCTA when the buyer's USDT balance is
+   * below the cart total (per minipay-requirements.md §6 Low-Balance
+   * Handling). `?tokens=USDT` pre-scopes the top-up to USDT since Etalo
+   * settles exclusively in USDT (single-stablecoin UX).
    */
-  ADD_CASH: "https://minipay.opera.com/add_cash",
+  ADD_CASH: "https://link.minipay.xyz/add_cash?tokens=USDT",
 } as const;
 
 export type MiniPayDeeplinkTarget = keyof typeof MINIPAY_DEEPLINKS;
