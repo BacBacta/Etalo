@@ -47,19 +47,52 @@ async def test_dispatch_noop_on_unusable_number():
 
 
 @pytest.mark.asyncio
-async def test_dispatch_schedules_send(monkeypatch):
+async def test_dispatch_new_order_schedules_send(monkeypatch):
     n = WhatsAppNotifier("sid", "tok", "+14155238886")
     sent: dict = {}
 
-    async def fake_send(to, *, order_id, amount_human):
-        sent.update(to=to, order_id=order_id, amount_human=amount_human)
+    async def fake_send(to, *, sid, variables, fallback_body, label):
+        sent.update(to=to, variables=variables, label=label)
 
-    monkeypatch.setattr(n, "_send_new_order", fake_send)
+    monkeypatch.setattr(n, "_send", fake_send)
     n.dispatch_new_order("+234 901 123 4567", order_id=42, amount_human="5.00")
     assert len(n._tasks) == 1
     await asyncio.gather(*list(n._tasks))
-    assert sent == {
-        "to": "whatsapp:+2349011234567",
-        "order_id": 42,
-        "amount_human": "5.00",
-    }
+    assert sent["to"] == "whatsapp:+2349011234567"
+    assert sent["variables"] == {"1": "42", "2": "5.00"}
+    assert sent["label"] == "order=42"
+
+
+@pytest.mark.asyncio
+async def test_dispatch_generic_event_with_template(monkeypatch):
+    n = WhatsAppNotifier(
+        "sid", "tok", "+14155238886", templates={"order_shipped": "HXship"}
+    )
+    captured: dict = {}
+
+    async def fake_send(to, *, sid, variables, fallback_body, label):
+        captured.update(sid=sid, variables=variables, fallback_body=fallback_body)
+
+    monkeypatch.setattr(n, "_send", fake_send)
+    n.dispatch(
+        "+2349011234567",
+        event="order_shipped",
+        variables={"1": "7"},
+        label="order=7",
+    )
+    assert len(n._tasks) == 1
+    await asyncio.gather(*list(n._tasks))
+    assert captured["sid"] == "HXship"
+    assert captured["variables"] == {"1": "7"}
+    assert captured["fallback_body"] is None
+
+
+@pytest.mark.asyncio
+async def test_dispatch_skips_event_without_template_or_fallback():
+    # Enabled + valid number, but the event has no configured template and
+    # no fallback body → nothing scheduled (template-only event).
+    n = WhatsAppNotifier("sid", "tok", "+14155238886")
+    n.dispatch(
+        "+2349011234567", event="order_shipped", variables={"1": "7"}, label="x"
+    )
+    assert len(n._tasks) == 0

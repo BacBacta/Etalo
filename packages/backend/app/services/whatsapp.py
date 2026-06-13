@@ -58,7 +58,7 @@ class WhatsAppNotifier:
         auth_token: str,
         from_number: str,
         *,
-        template_sid: str = "",
+        templates: dict[str, str] | None = None,
         frontend_base_url: str = "https://etalo.xyz",
     ) -> None:
         self._sid = account_sid.strip()
@@ -66,7 +66,10 @@ class WhatsAppNotifier:
         # `from` may be given with or without the `whatsapp:` prefix.
         f = from_number.strip()
         self._from = f if f.startswith("whatsapp:") else f"whatsapp:{f}" if f else ""
-        self._template_sid = template_sid.strip()
+        # event name → approved Content Template SID (HX…). Empty/missing
+        # SID means that event's notification is skipped (template-only),
+        # except order_funded which carries a sandbox Body fallback.
+        self._templates = {k: v.strip() for k, v in (templates or {}).items()}
         self._frontend = frontend_base_url.rstrip("/")
         self._tasks: set[asyncio.Task[Any]] = set()
 
@@ -82,45 +85,88 @@ class WhatsAppNotifier:
             account_sid=settings.twilio_account_sid,
             auth_token=settings.twilio_auth_token,
             from_number=settings.twilio_whatsapp_from,
-            template_sid=settings.twilio_order_template_sid,
+            templates={
+                "order_funded": settings.twilio_order_template_sid,
+                "dispute_opened": settings.twilio_dispute_template_sid,
+                "funds_released": settings.twilio_released_template_sid,
+                "order_refunded": settings.twilio_refunded_template_sid,
+                "order_shipped": settings.twilio_shipped_template_sid,
+                "order_delivered": settings.twilio_delivered_template_sid,
+            },
             frontend_base_url=settings.frontend_base_url,
         )
 
-    def dispatch_new_order(
-        self, to_raw: str | None, *, order_id: int, amount_human: str
+    def dispatch(
+        self,
+        to_raw: str | None,
+        *,
+        event: str,
+        variables: dict[str, str],
+        label: str,
+        fallback_body: str | None = None,
     ) -> None:
-        """Fire-and-forget a new-order WhatsApp ping. No-op when disabled
-        or when the number can't be normalized. Never raises."""
+        """Fire-and-forget a templated WhatsApp message for `event`. No-op
+        when disabled, when the number can't be normalized, or when the
+        event has no approved template SID and no fallback body. Never
+        raises — notifications are best-effort."""
         if not self.enabled:
             return
         to = format_whatsapp_number(to_raw)
         if to is None:
-            logger.info(
-                "whatsapp.skip order=%s reason=unusable_number", order_id
-            )
+            logger.info("whatsapp.skip event=%s reason=unusable_number", label)
+            return
+        sid = self._templates.get(event, "")
+        if not sid and not fallback_body:
+            logger.info("whatsapp.skip event=%s reason=no_template", label)
             return
         task = asyncio.create_task(
-            self._send_new_order(to, order_id=order_id, amount_human=amount_human)
+            self._send(
+                to,
+                sid=sid,
+                variables=variables,
+                fallback_body=fallback_body,
+                label=label,
+            )
         )
         # Keep a reference so the task isn't GC'd mid-flight.
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
-    async def _send_new_order(
-        self, to: str, *, order_id: int, amount_human: str
+    def dispatch_new_order(
+        self, to_raw: str | None, *, order_id: int, amount_human: str
     ) -> None:
-        body_fields: dict[str, str] = {"From": self._from, "To": to}
-        if self._template_sid:
-            body_fields["ContentSid"] = self._template_sid
-            body_fields["ContentVariables"] = json.dumps(
-                {"1": str(order_id), "2": amount_human}
-            )
-        else:
-            body_fields["Body"] = (
+        """New funded-order ping to the seller. Kept as a named method
+        (the order_funded path also has a sandbox Body fallback so it
+        works before the prod template is approved)."""
+        self.dispatch(
+            to_raw,
+            event="order_funded",
+            variables={"1": str(order_id), "2": amount_human},
+            label=f"order={order_id}",
+            fallback_body=(
                 f"New order on Etalo — #{order_id} for {amount_human} USDT. "
                 f"Open your shop to ship and release your funds: "
                 f"{self._frontend}/seller/dashboard?tab=orders"
-            )
+            ),
+        )
+
+    async def _send(
+        self,
+        to: str,
+        *,
+        sid: str,
+        variables: dict[str, str],
+        fallback_body: str | None,
+        label: str,
+    ) -> None:
+        body_fields: dict[str, str] = {"From": self._from, "To": to}
+        if sid:
+            body_fields["ContentSid"] = sid
+            body_fields["ContentVariables"] = json.dumps(variables)
+        elif fallback_body:
+            body_fields["Body"] = fallback_body
+        else:
+            return  # guarded in dispatch(), defensive here
 
         url = f"{_TWILIO_BASE}/Accounts/{self._sid}/Messages.json"
         try:
@@ -133,12 +179,12 @@ class WhatsAppNotifier:
                     if resp.status >= 400:
                         text = await resp.text()
                         logger.warning(
-                            "whatsapp.send_failed order=%s status=%s body=%s",
-                            order_id,
+                            "whatsapp.send_failed event=%s status=%s body=%s",
+                            label,
                             resp.status,
                             text[:300],
                         )
                         return
-            logger.info("whatsapp.sent order=%s", order_id)
+            logger.info("whatsapp.sent event=%s", label)
         except Exception as exc:  # noqa: BLE001 — best-effort, never break indexing
-            logger.warning("whatsapp.send_error order=%s err=%r", order_id, exc)
+            logger.warning("whatsapp.send_error event=%s err=%r", label, exc)
