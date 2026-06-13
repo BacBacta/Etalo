@@ -227,24 +227,53 @@ async def handle_order_funded(event: Any, db: AsyncSession, services: dict[str, 
     await _notify_seller_new_order(db, order, services.get("notifier"))
 
 
+def _usdt_human(raw: int) -> str:
+    return f"{raw / 1_000_000:.2f}"
+
+
+async def _seller_contact(
+    db: AsyncSession, seller_address: Any
+) -> tuple[Any, str | None] | None:
+    """(seller user_id, whatsapp number) for a seller wallet, or None when
+    the seller has no profile row."""
+    result = await db.execute(
+        select(SellerProfile, User.id)
+        .join(User, User.id == SellerProfile.user_id)
+        .where(func.lower(User.wallet_address) == _to_lower(seller_address))
+    )
+    row = result.first()
+    if row is None:
+        return None
+    profile, user_id = row
+    whatsapp = (profile.socials or {}).get("whatsapp") if profile.socials else None
+    return user_id, whatsapp
+
+
+async def _buyer_contact(
+    db: AsyncSession, order: Order
+) -> tuple[Any | None, str | None]:
+    """(buyer user_id | None, delivery phone | None). The phone comes from
+    the immutable delivery snapshot captured at fund time."""
+    snapshot = order.delivery_address_snapshot or {}
+    phone = snapshot.get("phone_number") if isinstance(snapshot, dict) else None
+    user_id = await db.scalar(
+        select(User.id).where(
+            func.lower(User.wallet_address) == _to_lower(order.buyer_address)
+        )
+    )
+    return user_id, phone
+
+
 async def _notify_seller_new_order(
     db: AsyncSession, order: Order, notifier: Any | None
 ) -> None:
-    """Record an in-app notification for the order's seller and fire a
-    best-effort WhatsApp ping. Never raises — a notification failure must
-    not roll back the order mirror."""
+    """Funded-order notification — keeps the sandbox Body fallback via
+    notifier.dispatch_new_order. Never raises."""
     try:
-        result = await db.execute(
-            select(SellerProfile, User.id)
-            .join(User, User.id == SellerProfile.user_id)
-            .where(func.lower(User.wallet_address) == _to_lower(order.seller_address))
-        )
-        row = result.first()
-        if row is None:
-            return  # seller has no profile row — nothing to notify
-        profile, user_id = row
-        amount_human = f"{order.total_amount_usdt / 1_000_000:.2f}"
-
+        contact = await _seller_contact(db, order.seller_address)
+        if contact is None:
+            return
+        user_id, whatsapp = contact
         db.add(
             Notification(
                 user_id=user_id,
@@ -258,20 +287,94 @@ async def _notify_seller_new_order(
                 sent=False,
             )
         )
-
-        whatsapp = (
-            (profile.socials or {}).get("whatsapp") if profile.socials else None
-        )
         if notifier is not None and whatsapp:
-            # Fire-and-forget; runs outside this DB transaction.
             notifier.dispatch_new_order(
                 whatsapp,
                 order_id=order.onchain_order_id,
-                amount_human=amount_human,
+                amount_human=_usdt_human(order.total_amount_usdt),
             )
     except Exception:  # noqa: BLE001 — notification is best-effort
         logger.exception(
             "notify_seller_new_order failed order=%s", order.onchain_order_id
+        )
+
+
+async def _notify_seller_event(
+    db: AsyncSession,
+    order: Order,
+    notifier: Any | None,
+    *,
+    event: str,
+    variables: dict[str, str],
+) -> None:
+    """Generic seller-facing notification (dispute / release / refund) —
+    in-app Notification row + best-effort templated WhatsApp. Never raises."""
+    try:
+        contact = await _seller_contact(db, order.seller_address)
+        if contact is None:
+            return
+        user_id, whatsapp = contact
+        db.add(
+            Notification(
+                user_id=user_id,
+                channel="whatsapp",
+                notification_type=event,
+                template=event,
+                payload={"onchain_order_id": order.onchain_order_id},
+                sent=False,
+            )
+        )
+        if notifier is not None and whatsapp:
+            notifier.dispatch(
+                whatsapp,
+                event=event,
+                variables=variables,
+                label=f"order={order.onchain_order_id}",
+            )
+    except Exception:  # noqa: BLE001 — notification is best-effort
+        logger.exception(
+            "notify_seller_event failed event=%s order=%s",
+            event,
+            order.onchain_order_id,
+        )
+
+
+async def _notify_buyer_event(
+    db: AsyncSession,
+    order: Order,
+    notifier: Any | None,
+    *,
+    event: str,
+    variables: dict[str, str],
+) -> None:
+    """Generic buyer-facing notification (shipped / delivered) — in-app
+    Notification row (when the buyer has a User row) + best-effort
+    templated WhatsApp to the delivery phone. Never raises."""
+    try:
+        user_id, phone = await _buyer_contact(db, order)
+        if user_id is not None:
+            db.add(
+                Notification(
+                    user_id=user_id,
+                    channel="whatsapp",
+                    notification_type=event,
+                    template=event,
+                    payload={"onchain_order_id": order.onchain_order_id},
+                    sent=False,
+                )
+            )
+        if notifier is not None and phone:
+            notifier.dispatch(
+                phone,
+                event=event,
+                variables=variables,
+                label=f"order={order.onchain_order_id}",
+            )
+    except Exception:  # noqa: BLE001 — notification is best-effort
+        logger.exception(
+            "notify_buyer_event failed event=%s order=%s",
+            event,
+            order.onchain_order_id,
         )
 
 
@@ -314,6 +417,15 @@ async def handle_shipment_group_created(
     # this the order stayed in Funded even after every item shipped
     # (J12 mainnet smoke bug, order #1).
     await _sync_order_global_status(order, services)
+
+    # Buyer ping — "your order shipped" (template {{1}} = order id).
+    await _notify_buyer_event(
+        db,
+        order,
+        services.get("notifier"),
+        event="order_shipped",
+        variables={"1": str(order.onchain_order_id)},
+    )
 
     # For intra orders the contract sets finalReleaseAfter = shippedAt +
     # 3d at ship time (cross-border sets it later at markGroupArrived).
@@ -373,6 +485,15 @@ async def handle_group_arrived(
     order = await _get_order_by_onchain_id(db, args["orderId"])
     if order is not None:
         await _sync_order_global_status(order, services)
+        # Buyer ping — "delivered, confirm to release funds" (the escrow-
+        # closing nudge ; template {{1}} = order id).
+        await _notify_buyer_event(
+            db,
+            order,
+            services.get("notifier"),
+            event="order_delivered",
+            variables={"1": str(order.onchain_order_id)},
+        )
 
 
 async def handle_partial_release_triggered(
@@ -449,6 +570,18 @@ async def handle_item_released(
     order = await _get_order_by_onchain_id(db, args["orderId"])
     if order is not None:
         await _sync_order_global_status(order, services)
+        # Seller ping — "funds released to your wallet" (template
+        # {{1}} = order id, {{2}} = released amount).
+        await _notify_seller_event(
+            db,
+            order,
+            services.get("notifier"),
+            event="funds_released",
+            variables={
+                "1": str(order.onchain_order_id),
+                "2": _usdt_human(amount),
+            },
+        )
 
 
 async def handle_order_completed(
@@ -496,6 +629,19 @@ async def handle_auto_refund_inactive(
         if item is None:
             continue
         item.status = ItemStatus.REFUNDED
+
+    # Seller ping — "order auto-refunded (not shipped in time)". Runs once:
+    # the early-return above skips an already-Refunded order on replay.
+    await _notify_seller_event(
+        db,
+        order,
+        services.get("notifier"),
+        event="order_refunded",
+        variables={
+            "1": str(order.onchain_order_id),
+            "2": _usdt_human(order.total_amount_usdt),
+        },
+    )
 
 
 async def handle_item_disputed(
@@ -583,6 +729,16 @@ async def handle_dispute_opened(
             opened_at=opened_at,
             n1_deadline=n1_deadline,
         )
+    )
+
+    # Seller ping — "a buyer opened a dispute, respond within 72h"
+    # (template {{1}} = order id).
+    await _notify_seller_event(
+        db,
+        order,
+        services.get("notifier"),
+        event="dispute_opened",
+        variables={"1": str(order.onchain_order_id)},
     )
 
 

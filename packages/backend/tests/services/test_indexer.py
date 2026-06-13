@@ -411,6 +411,10 @@ async def test_handle_auto_refund_inactive_flips_order_and_items_to_refunded():
     fake_order = MagicMock()
     fake_order.id = "order-uuid"
     fake_order.global_status = OrderStatus.FUNDED
+    # Read by the seller refund notification (formatted into the template).
+    fake_order.onchain_order_id = 9
+    fake_order.total_amount_usdt = 5_000_000
+    fake_order.seller_address = "0xabc0000000000000000000000000000000000001"
 
     fake_item_a = MagicMock(status=ItemStatus.PENDING)
     fake_item_b = MagicMock(status=ItemStatus.PENDING)
