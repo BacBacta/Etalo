@@ -43,11 +43,12 @@ export function InsufficientBalanceCTA({ deficitRaw, onDeposit }: Props) {
       data-testid="insufficient-balance-cta"
     >
       <h2 className="mb-2 text-base font-semibold">
-        Insufficient stablecoin balance
+        Add USDT to continue
       </h2>
       <p id={DEFICIT_ID} className="mb-4 text-base">
-        You need {displayUsdtFromBigint(deficitRaw)} more to complete
-        this order. Deposit in MiniPay to continue.
+        Etalo orders are paid in USDT. You need{" "}
+        {displayUsdtFromBigint(deficitRaw)} more to complete this order —
+        deposit in MiniPay to continue.
       </p>
       <Button
         ref={buttonRef}

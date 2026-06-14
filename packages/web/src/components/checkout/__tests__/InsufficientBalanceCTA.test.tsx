@@ -21,9 +21,7 @@ describe("InsufficientBalanceCTA — render + content", () => {
     expect(
       screen.getByText(/You need 12\.35 USDT more to complete this order/),
     ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Insufficient stablecoin balance/),
-    ).toBeInTheDocument();
+    expect(screen.getByText(/Add USDT to continue/)).toBeInTheDocument();
   });
 
   it("renders the Deposit in MiniPay button label (MiniPay-compliant copy)", () => {
@@ -85,6 +83,8 @@ describe("InsufficientBalanceCTA — click behaviour", () => {
     // the constant value the production handler navigates to. The
     // navigateToMiniPayDeeplink helper in src/lib/minipay-deeplinks.ts
     // accepts an injectable navigate fn (covered separately).
-    expect(MINIPAY_DEEPLINKS.ADD_CASH).toBe("https://minipay.opera.com/add_cash");
+    expect(MINIPAY_DEEPLINKS.ADD_CASH).toBe(
+      "https://link.minipay.xyz/add_cash?tokens=USDT",
+    );
   });
 });

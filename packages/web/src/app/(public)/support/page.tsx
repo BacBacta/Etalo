@@ -48,9 +48,9 @@ const BUYER_FAQ: FaqItem[] = [
       "Confirming delivery releases escrow funds to the seller and cannot be undone. If the item is defective or wrong, contact the seller first ; if unresolved, open a dispute from the order page — the dispute process can request a partial refund.",
   },
   {
-    question: "I do not see USDT in my wallet for the gas fee.",
+    question: "Do I need anything besides USDT to pay?",
     answer:
-      "Etalo uses MiniPay fee abstraction — gas is paid in USDT, not CELO. If your USDT balance is too low for the transaction, the Start checkout button will guide you to the MiniPay Add Cash flow.",
+      "No. The network fee is handled in USDT through MiniPay — there is no separate token to buy or hold. If your USDT balance is too low for a purchase, the Start checkout button guides you to the MiniPay Add Cash flow.",
   },
 ];
 
