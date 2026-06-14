@@ -16,24 +16,21 @@ import dynamic from "next/dynamic";
 
 import { DashboardSkeleton } from "@/app/(app)/seller/dashboard/DashboardSkeleton";
 import { ConnectWalletButton } from "@/components/ConnectWalletButton";
-import { CreateShopForm } from "@/components/seller/CreateShopForm";
 import { OverviewTab } from "@/components/seller/OverviewTab";
 import { CreditsChip } from "@/components/seller/CreditsChip";
-import { ProfileTab } from "@/components/seller/ProfileTab";
 import { AnimateIn } from "@/components/ui/v5/AnimateIn";
 import { NotificationBell } from "@/components/NotificationBell";
 import { useMinipay } from "@/hooks/useMinipay";
 import { useNewSellerOrderAlerts } from "@/hooks/useNewSellerOrderAlerts";
 
-// Phase A P0-2 (2026-05-15) — bundle reduction. The dashboard's eager
-// First Load JS was 276 kB (perf score 27). Three of these imports
-// (MarketingTab, OrdersTab, ProductsTab) only render based on tab
-// selection — perfect lazy candidates. Overview + Profile stay eager
-// because Overview is the default landing tab and Profile is the
-// second-priority tab (Mike's audit J10-V5 Phase 5 Track 2 fix #2).
-// Loading fallback null because the parent Suspense /
-// DashboardSkeleton already covers first paint and tab switches are
-// user-initiated.
+// Bundle reduction — only OverviewTab (the default landing tab) is
+// eager. Every other tab is user-initiated, so it's lazy: it loads on
+// the first switch, off the dashboard's critical First Load JS. Profile
+// + CreateShopForm drag in ImageUploader + CountrySelector, and
+// CreateShopForm only renders for the rare no-profile onboarding state —
+// keeping them eager bloated the dashboard's First Load JS (324 kB).
+// Loading fallback null because the parent Suspense / DashboardSkeleton
+// covers first paint and tab switches are instant from cache.
 const ProductsTab = dynamic(
   () =>
     import("@/components/seller/ProductsTab").then((m) => m.ProductsTab),
@@ -47,6 +44,15 @@ const OrdersTab = dynamic(
 const MarketingTab = dynamic(
   () =>
     import("@/components/seller/MarketingTab").then((m) => m.MarketingTab),
+  { ssr: false, loading: () => null },
+);
+const ProfileTab = dynamic(
+  () => import("@/components/seller/ProfileTab").then((m) => m.ProfileTab),
+  { ssr: false, loading: () => null },
+);
+const CreateShopForm = dynamic(
+  () =>
+    import("@/components/seller/CreateShopForm").then((m) => m.CreateShopForm),
   { ssr: false, loading: () => null },
 );
 import {
