@@ -8,6 +8,7 @@ from app.models.product import Product
 from app.models.seller_profile import SellerProfile
 from app.models.user import User
 from app.dependencies.wallet_auth import get_current_wallet
+from app.services.boutique_billing import require_creation_fee_paid
 from app.services.slug import build_unique_slug
 from app.schemas.onboarding import (
     OnboardingCompleteProduct,
@@ -38,8 +39,16 @@ def complete_onboarding(
     User/SellerProfile rows are created.
 
     Rejects with 409 when the wallet already has a seller profile, or
-    when the requested handle is taken by another seller.
+    when the requested handle is taken by another seller. Once the
+    Proof-of-Ship free window elapses (ADR-059, `FEES_ENFORCED_FROM`),
+    rejects with 402 `creation_fee_required` until the wallet pays the
+    one-time on-chain boutique creation fee.
     """
+    # ADR-059 — gate boutique creation on the one-time fee once the free
+    # window has passed. No-op during the free window. Checked before any
+    # write so an unpaid wallet never creates a User/SellerProfile row.
+    require_creation_fee_paid(db, wallet)
+
     # Enforce handle uniqueness up-front so we return 409 instead of
     # leaking a DB IntegrityError.
     existing_handle = (

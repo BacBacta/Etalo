@@ -16,6 +16,7 @@ from app.models.indexer_state import IndexerState
 from app.models.indexer_event import IndexerEvent
 from app.models.marketing_image import MarketingImage
 from app.models.seller_credits_ledger import SellerCreditsLedger
+from app.models.boutique_billing import BoutiqueBilling
 
 __all__ = [
     "User",
@@ -36,4 +37,5 @@ __all__ = [
     "IndexerEvent",
     "MarketingImage",
     "SellerCreditsLedger",
+    "BoutiqueBilling",
 ]
