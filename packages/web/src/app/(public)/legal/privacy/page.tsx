@@ -7,7 +7,7 @@ export const metadata: Metadata = {
 };
 
 const LAST_UPDATED = "14 June 2026";
-const SUPPORT_EMAIL = "support@etalo.app";
+const SUPPORT_EMAIL = "support@etalo.xyz";
 
 function Section({
   n,
