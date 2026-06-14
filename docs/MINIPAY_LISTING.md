@@ -128,9 +128,11 @@ press kit / future store surfaces:
 - [ ] **`NETWORK_MANIFEST.md` pass**: confirm canonical `etalo.xyz`
       origins, mark `*.etalo.app` as unused/future, list the real RPC
       + Pinata/IPFS + Fly API origins the app calls.
-- [ ] **Support email reachable**: `support@etalo.xyz` is referenced in
-      `/support`, Terms, and Privacy — confirm the etalo.xyz MX is set up
-      so mail actually reaches an inbox you monitor.
+- [x] **Support email reachable**: `support@etalo.xyz` is referenced in
+      `/support`, Terms, and Privacy. MX/SPF set on the etalo.xyz Vercel
+      DNS (ImprovMX `mx1`/`mx2` + `v=spf1 include:spf.improvmx.com ~all`),
+      `support@etalo.xyz` alias forwards to a monitored inbox — delivery
+      confirmed 2026-06-14.
 - [ ] Terms + Privacy pages reviewed for accuracy against V1 reality
       (non-custodial, intra-Africa, 1.8% commission, dispute flow).
 - [ ] Final manual smoke on `https://etalo.xyz` inside real MiniPay
