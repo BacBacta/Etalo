@@ -18,6 +18,7 @@
  */
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import {
@@ -33,16 +34,22 @@ export function HomeMiniPay() {
       <section className="mx-auto max-w-3xl px-4 py-12">
         <div className="flex flex-col items-center gap-8 text-center">
           {/*
-            Vector SVG (~3.5 KB) — same illustration consumed on the
-            web HomeLanding hero. Reuse keeps bundle frugal and the
-            visual identity continuous across web ↔ MiniPay contexts.
-            eager loading because the hero is above-the-fold.
+            Vector SVG hero (1808×1024) — the LCP element on `/`.
+            next/image with `priority` emits a <link rel=preload>
+            (fixes the "LCP request discovery" diagnostic) + sets
+            fetchpriority=high, and the explicit width/height reserve
+            the aspect ratio (no CLS, fixes the "image without explicit
+            width/height" diagnostic). `unoptimized` passes the SVG
+            through as-is (no raster pipeline). Same asset as the web
+            HomeLanding hero — visual identity stays continuous.
           */}
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src="/illustrations/v5/landing-hero.svg"
             alt="Etalo seller boutique illustrating sellers reaching customers across Africa via USDT escrow"
-            loading="eager"
+            width={1808}
+            height={1024}
+            priority
+            unoptimized
             className="block h-auto w-full max-w-sm"
           />
 
