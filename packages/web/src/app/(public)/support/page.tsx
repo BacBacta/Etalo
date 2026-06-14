@@ -6,7 +6,7 @@ export const metadata: Metadata = {
     "Get help with Etalo — common issues, response time, and how to reach us.",
 };
 
-const SUPPORT_EMAIL = "support@etalo.app";
+const SUPPORT_EMAIL = "support@etalo.xyz";
 
 // Pre-filled subject + body. Helps users (and us) by funnelling all
 // emails into a predictable shape — order/wallet/device up front, so
