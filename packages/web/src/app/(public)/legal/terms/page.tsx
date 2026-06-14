@@ -209,14 +209,22 @@ export default function TermsPage() {
         </p>
       </Section>
 
-      <Section n="13" title="Governing law and disputes with Etalo">
+      <Section n="13" title="Applicable law and disputes with Etalo">
         <p>
-          These Terms are governed by Belgian law, without prejudice to mandatory
-          consumer-protection rules of your country of residence. Disputes will
-          be subject to the competent courts of Belgium, again without prejudice
-          to mandatory rules that give you the right to bring proceedings
-          elsewhere. EU consumers can also use the European Commission&rsquo;s
-          Online Dispute Resolution platform at{" "}
+          Because our operator is established in Belgium, these Terms are
+          governed by Belgian and EU law. However, this never overrides the
+          <strong> mandatory consumer-protection and data-protection rules of
+          your own country</strong> — in our launch markets, that includes
+          Nigeria (the Federal Competition and Consumer Protection Act and the
+          Nigeria Data Protection Act 2023), Ghana (consumer and electronic
+          transactions law and the Data Protection Act 2012), and Kenya (the
+          Consumer Protection Act 2012 and the Data Protection Act 2019). You
+          keep every right those laws give you, and you may bring proceedings and
+          complain to the authorities of your country.
+        </p>
+        <p>
+          EU-based users may also use the European Commission&rsquo;s Online
+          Dispute Resolution platform at{" "}
           <a
             href="https://ec.europa.eu/consumers/odr"
             target="_blank"

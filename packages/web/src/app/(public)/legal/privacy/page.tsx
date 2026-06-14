@@ -43,10 +43,16 @@ export default function PrivacyPage() {
       <p className="text-base leading-relaxed text-neutral-700 dark:text-celo-light/80">
         This Privacy Policy explains how Etalo (&ldquo;Etalo&rdquo;,
         &ldquo;we&rdquo;, &ldquo;us&rdquo;) processes personal data when you use
-        the Etalo marketplace at etalo.xyz and inside MiniPay. We follow the EU
-        General Data Protection Regulation (GDPR). Etalo is a{" "}
-        <strong>non-custodial</strong> platform: payments are held by audited
-        smart contracts on the Celo blockchain, never by us.
+        the Etalo marketplace at etalo.xyz and inside MiniPay. Two layers of law
+        apply, and we comply with both: because our operator is established in
+        the EU, the EU General Data Protection Regulation (GDPR) applies; and
+        because you use Etalo from an African market, your country&rsquo;s
+        data-protection law also applies — in our launch markets, Nigeria&rsquo;s
+        Data Protection Act 2023, Ghana&rsquo;s Data Protection Act 2012 (Act
+        843), and Kenya&rsquo;s Data Protection Act 2019. Where these differ, we
+        apply the higher standard. Etalo is a <strong>non-custodial</strong>{" "}
+        platform: payments are held by audited smart contracts on the Celo
+        blockchain, never by us.
       </p>
 
       <Section n="1" title="Who is responsible (data controller)">
@@ -221,20 +227,35 @@ export default function PrivacyPage() {
           >
             {SUPPORT_EMAIL}
           </a>
-          . You also have the right to lodge a complaint with a supervisory
-          authority — in Belgium, the Data Protection Authority (Autorité de
-          protection des données / Gegevensbeschermingsautoriteit), Rue de la
-          Presse 35, 1000 Brussels,{" "}
-          <a
-            href="https://www.dataprotectionauthority.be"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-celo-forest underline dark:text-celo-forest-bright"
-          >
-            dataprotectionauthority.be
-          </a>
-          .
+          . You also have the right to complain to the data-protection
+          authority in your country:
         </p>
+        <ul className="list-disc space-y-1 pl-6">
+          <li>
+            <strong>Nigeria</strong> — Nigeria Data Protection Commission (NDPC).
+          </li>
+          <li>
+            <strong>Ghana</strong> — Data Protection Commission (DPC).
+          </li>
+          <li>
+            <strong>Kenya</strong> — Office of the Data Protection Commissioner
+            (ODPC).
+          </li>
+          <li>
+            <strong>EU/EEA</strong> — your local authority, or, for our operator,
+            the Belgian Data Protection Authority (Rue de la Presse 35, 1000
+            Brussels,{" "}
+            <a
+              href="https://www.dataprotectionauthority.be"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-celo-forest underline dark:text-celo-forest-bright"
+            >
+              dataprotectionauthority.be
+            </a>
+            ).
+          </li>
+        </ul>
       </Section>
 
       <Section n="9" title="Security">
