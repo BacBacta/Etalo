@@ -14,7 +14,10 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { CreateShopForm } from "@/components/seller/CreateShopForm";
-import { ShopHandleTakenError } from "@/lib/seller-api";
+import {
+  CreationFeeRequiredError,
+  ShopHandleTakenError,
+} from "@/lib/seller-api";
 
 const createSellerProfileMock = vi.fn();
 vi.mock("@/lib/seller-api", async () => {
@@ -30,6 +33,19 @@ vi.mock("@/lib/seller-api", async () => {
 
 vi.mock("sonner", () => ({
   toast: { success: vi.fn(), error: vi.fn() },
+}));
+
+// ADR-059 — the creation-fee hook pulls wagmi hooks; stub it so the
+// form renders without a WagmiProvider. `payMock` is hoisted so fee-flow
+// tests can drive the on-chain payment outcome.
+const { payMock } = vi.hoisted(() => ({ payMock: vi.fn() }));
+vi.mock("@/hooks/useBoutiqueCreationFee", () => ({
+  useBoutiqueCreationFee: () => ({
+    state: { phase: "idle" },
+    pay: payMock,
+    cancel: vi.fn(),
+    reset: vi.fn(),
+  }),
 }));
 
 const TEST_ADDR = "0xabcd1234abcd1234abcd1234abcd1234abcd1234";
@@ -118,5 +134,41 @@ describe("CreateShopForm", () => {
 
     const error = await screen.findByTestId("create-shop-handle-error");
     expect(error.textContent).toMatch(/handle is already taken/i);
+  });
+
+  // ADR-059 — fee gate
+  it("shows the creation-fee panel when the backend returns 402", async () => {
+    createSellerProfileMock.mockRejectedValueOnce(
+      new CreationFeeRequiredError("1"),
+    );
+    render(<CreateShopForm walletAddress={TEST_ADDR} onCreated={vi.fn()} />);
+    fillRequired();
+    fireEvent.click(screen.getByTestId("create-shop-submit"));
+
+    const payBtn = await screen.findByTestId("create-shop-pay-fee");
+    expect(payBtn.textContent).toMatch(/pay 1 usdt/i);
+    // The normal submit CTA is replaced by the fee panel.
+    expect(screen.queryByTestId("create-shop-submit")).toBeNull();
+  });
+
+  it("pays the fee then retries onboarding to completion", async () => {
+    // 1st call → 402 ; after payment, 2nd call succeeds.
+    createSellerProfileMock
+      .mockRejectedValueOnce(new CreationFeeRequiredError("1"))
+      .mockResolvedValueOnce(fakeProfile);
+    payMock.mockResolvedValueOnce(true);
+    const onCreated = vi.fn();
+    render(<CreateShopForm walletAddress={TEST_ADDR} onCreated={onCreated} />);
+    fillRequired();
+    fireEvent.click(screen.getByTestId("create-shop-submit"));
+
+    const payBtn = await screen.findByTestId("create-shop-pay-fee");
+    fireEvent.click(payBtn);
+
+    await waitFor(() => {
+      expect(payMock).toHaveBeenCalled();
+      expect(onCreated).toHaveBeenCalledWith(fakeProfile);
+    });
+    expect(createSellerProfileMock).toHaveBeenCalledTimes(2);
   });
 });
