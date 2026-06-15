@@ -77,7 +77,7 @@ export function HomeMiniPay() {
               data-testid="minipay-open-boutique"
               className={SECONDARY_CTA_CLASSES}
             >
-              Open my boutique
+              Open my shop
             </button>
           </div>
         </div>

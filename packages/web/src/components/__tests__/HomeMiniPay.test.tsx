@@ -37,7 +37,7 @@ describe("HomeMiniPay (Block 4c)", () => {
       screen.getByTestId("minipay-browse-marketplace"),
     ).toHaveTextContent(/Browse marketplace/i);
     expect(screen.getByTestId("minipay-open-boutique")).toHaveTextContent(
-      /Open my boutique/i,
+      /Open my shop/i,
     );
   });
 
@@ -48,7 +48,7 @@ describe("HomeMiniPay (Block 4c)", () => {
     expect(pushMock).toHaveBeenCalledWith("/marketplace");
   });
 
-  it("Open my boutique CTA navigates to /seller/dashboard", () => {
+  it("Open my shop CTA navigates to /seller/dashboard", () => {
     pushMock.mockClear();
     render(<HomeMiniPay />);
     fireEvent.click(screen.getByTestId("minipay-open-boutique"));
