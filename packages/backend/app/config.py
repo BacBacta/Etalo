@@ -91,6 +91,17 @@ class Settings(BaseSettings):
     twilio_shipped_template_sid: str = ""  # order_shipped (buyer)
     twilio_delivered_template_sid: str = ""  # order_delivered (buyer)
 
+    # Africa's Talking SMS (order notifications). WhatsApp business
+    # messaging needs a verified Meta business (blocked); SMS via the
+    # regional aggregator works today with no verification / no opt-in.
+    # Empty creds → SMS channel is a no-op (self-disabling). sandbox=true
+    # uses the AT sandbox endpoint + username "sandbox" for testing.
+    # sender_id optional (registered alphanumeric ID for African A2P).
+    africastalking_username: str = ""
+    africastalking_api_key: str = ""
+    africastalking_sender_id: str = ""
+    africastalking_sandbox: bool = False
+
     # Frontend base URL — used to compose deeplinks in
     # notifications (J11.5 Block 7, ADR-043). Default points at
     # production ; override via .env in dev (typically an ngrok

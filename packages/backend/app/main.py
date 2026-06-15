@@ -50,6 +50,7 @@ from app.services.celo import CeloService
 from app.services.indexer import Indexer
 from app.services.relayer import RelayerTxSender
 from app.services.whatsapp import WhatsAppNotifier
+from app.services.sms import CompositeNotifier, SmsNotifier
 
 
 logger = logging.getLogger(__name__)
@@ -70,17 +71,26 @@ async def lifespan(app: FastAPI):
     # until the secrets are configured. Best-effort, fire-and-forget.
     whatsapp_notifier = WhatsAppNotifier.from_settings()
     app.state.whatsapp_notifier = whatsapp_notifier
-    if whatsapp_notifier.enabled:
-        logger.info("WhatsApp notifier enabled (Twilio configured)")
-    else:
-        logger.info("WhatsApp notifier disabled (no Twilio creds)")
+    # SMS via Africa's Talking — works without Meta business verification,
+    # so it's the live channel while WhatsApp is blocked. Self-disabling.
+    sms_notifier = SmsNotifier.from_settings()
+    app.state.sms_notifier = sms_notifier
+    # Fan notifications out to every configured channel (WhatsApp + SMS)
+    # behind one object so the indexer handlers stay unchanged.
+    notifier = CompositeNotifier(
+        whatsapp=whatsapp_notifier,
+        sms=sms_notifier,
+        frontend_base_url=settings.frontend_base_url,
+    )
+    app.state.notifier = notifier
+    logger.info("Notifier channels enabled: %s", notifier.channels or "none")
 
     indexer_task: asyncio.Task | None = None
     if settings.indexer_enabled:
         indexer = Indexer(
             celo=app.state.celo_service,
             session_factory=get_async_session_factory(),
-            notifier=whatsapp_notifier,
+            notifier=notifier,
         )
         app.state.indexer = indexer
         indexer_task = asyncio.create_task(indexer.run(), name="v2-indexer")
