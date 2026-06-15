@@ -128,9 +128,12 @@ shadow Mike multisig ADR-055-3, tag `v1.4-mainnet`). Owned by the
 **ADR-057 escrow cutover — COMPLETE 2026-06-06.** The new EtaloEscrow
 (intra-only guard + per-buyer cap + delivery-proof early release,
 ADR-058) above is now canonical. The old escrow
-`0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92` was drained to 0
-(`totalEscrowedAmount == 0`, all 13 orders settled — incl. dispute #3
-resolved via N2) and the satellites (Dispute/Stake/Reputation) were
+`0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92` was drained to dust
+(`totalEscrowedAmount == 0.05 USDT` as of 2026-06-15 — the recoverable
+orders #8/#12 are settled/no-longer-Funded; the residual is unclaimable
+dust incl. disputed item #13 (0.02 USDT, would need a 2-of-3 Safe
+resolution). Not worth chasing on a retired contract — left as-is) and
+the satellites (Dispute/Stake/Reputation) were
 re-pointed to the new escrow via the 2-of-3 Safe. Off-chain
 `NEXT_PUBLIC_ESCROW_ADDRESS` (Vercel) + `ETALO_ESCROW_ADDRESS` (Fly
 indexer) swapped to the new address. The old escrow is retained for
