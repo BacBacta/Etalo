@@ -52,6 +52,7 @@ CONTRACT_ATTR = {
     "EtaloReputation": "_reputation",
     "EtaloVoting": "_voting",
     "EtaloCredits": "_credits",
+    "EtaloBoutiqueBilling": "_boutique_billing",
 }
 
 
@@ -72,7 +73,7 @@ class Indexer:
         # Default: index the contracts we have handlers for. Credits
         # added in J7 Block 6 ; EtaloVoting added with the N3 vote mirror
         # (ADR-056) so the dispute escalation tail is reflected off-chain.
-        self._contracts = contracts_to_index or [
+        default_contracts = [
             "EtaloEscrow",
             "EtaloDispute",
             "EtaloStake",
@@ -80,6 +81,12 @@ class Indexer:
             "EtaloCredits",
             "EtaloVoting",
         ]
+        # ADR-059 — only index the boutique-billing contract once it's
+        # deployed and wired (CeloService instantiates `_boutique_billing`
+        # only when its address is configured).
+        if getattr(celo, "_boutique_billing", None) is not None:
+            default_contracts.append("EtaloBoutiqueBilling")
+        self._contracts = contracts_to_index or default_contracts
 
     def stop(self) -> None:
         self._stop.set()

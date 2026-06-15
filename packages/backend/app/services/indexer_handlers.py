@@ -22,6 +22,7 @@ from typing import Any, Awaitable, Callable
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.boutique_billing import BoutiqueBilling
 from app.models.dispute import Dispute
 from app.models.notification import Notification
 from app.models.dispute_vote import DisputeVote
@@ -1040,6 +1041,52 @@ async def handle_credits_purchased(
     # the chunk (along with the IndexerEvent idempotency row).
 
 
+async def handle_creation_fee_paid(
+    event: Any, db: AsyncSession, services: dict[str, Any]
+) -> None:
+    """CreationFeePaid(seller, timestamp) — ADR-059. Mirrors the one-time
+    boutique creation-fee payment into `boutique_billing` so the
+    onboarding gate (`require_creation_fee_paid`) lets this wallet open a
+    boutique once fees are enforced.
+
+    Idempotent: the dispatcher already gates on (tx_hash, log_index). The
+    upsert is also self-idempotent (one row per wallet, PK on
+    wallet_address) — a replay just rewrites the same values.
+    """
+    args = event["args"]
+    seller = _to_lower(args["seller"])
+    paid_at = _to_dt(int(args["timestamp"]))
+
+    raw_tx_hash = event["transactionHash"]
+    tx_hash = (
+        raw_tx_hash.hex() if hasattr(raw_tx_hash, "hex") else str(raw_tx_hash)
+    )
+    if not tx_hash.startswith("0x"):
+        tx_hash = "0x" + tx_hash
+    tx_hash = tx_hash.lower()
+
+    row = (
+        await db.execute(
+            select(BoutiqueBilling).where(
+                BoutiqueBilling.wallet_address == seller
+            )
+        )
+    ).scalar_one_or_none()
+
+    if row is None:
+        db.add(
+            BoutiqueBilling(
+                wallet_address=seller,
+                creation_paid_at=paid_at,
+                creation_tx_hash=tx_hash,
+            )
+        )
+    else:
+        row.creation_paid_at = paid_at
+        row.creation_tx_hash = tx_hash
+    # No commit — the dispatcher commits the chunk with the IndexerEvent.
+
+
 # ============================================================
 # Registry — keyed by (contract_name, event_name)
 # ============================================================
@@ -1068,4 +1115,5 @@ HANDLERS: dict[tuple[str, str], HandlerType] = {
     ("EtaloStake", "TierAutoDowngraded"): handle_tier_auto_downgraded,
     ("EtaloReputation", "OrderRecorded"): handle_order_recorded,
     ("EtaloCredits", "CreditsPurchased"): handle_credits_purchased,
+    ("EtaloBoutiqueBilling", "CreationFeePaid"): handle_creation_fee_paid,
 }

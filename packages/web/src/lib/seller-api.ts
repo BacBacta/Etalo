@@ -120,6 +120,20 @@ export class WalletAlreadyHasShopError extends Error {
   }
 }
 
+// ADR-059 — onboarding is gated on the one-time boutique creation fee
+// once FEES_ENFORCED_FROM passes. The backend returns 402 with
+// detail.code === "creation_fee_required" + the fee amount. The form
+// catches this to route the seller through the on-chain payment, then
+// retries onboarding.
+export class CreationFeeRequiredError extends Error {
+  feeUsdt: string;
+  constructor(feeUsdt: string) {
+    super("A one-time boutique creation fee is required.");
+    this.name = "CreationFeeRequiredError";
+    this.feeUsdt = feeUsdt;
+  }
+}
+
 // === POST /onboarding/complete — create the boutique shell ===
 // `first_product` is intentionally omitted from the input type : the
 // "create boutique without product" flow is the V1 default. Future
@@ -169,6 +183,20 @@ export async function createSellerProfile(
       throw new ShopHandleTakenError();
     }
     throw new WalletAlreadyHasShopError();
+  }
+  if (res.status === 402) {
+    // ADR-059 — creation fee required (free window has elapsed). The
+    // detail is a structured object {code, fee_usdt, message}.
+    let feeUsdt = "1";
+    try {
+      const body = (await res.json()) as {
+        detail?: { code?: string; fee_usdt?: string };
+      };
+      feeUsdt = body.detail?.fee_usdt ?? feeUsdt;
+    } catch {
+      // ignore — fall back to the default fee string
+    }
+    throw new CreationFeeRequiredError(feeUsdt);
   }
   if (!res.ok) {
     throw new Error(`Shop creation failed: ${res.status}`);

@@ -50,6 +50,7 @@ ABI_FILES = {
     "EtaloDispute": "EtaloDispute.json",
     "EtaloEscrow": "EtaloEscrow.json",
     "EtaloCredits": "EtaloCredits.json",
+    "EtaloBoutiqueBilling": "EtaloBoutiqueBilling.json",
 }
 
 
@@ -83,10 +84,13 @@ class CeloService:
         self._http_session = None
         abis = abis or _load_abis()
 
-        # Checksum addresses for contract instantiation
+        # Checksum addresses for contract instantiation. Skip empty
+        # values so optional contracts (e.g. EtaloBoutiqueBilling before
+        # deploy) don't crash to_checksum_address("").
         self._addresses = {
             name: AsyncWeb3.to_checksum_address(addr)
             for name, addr in addresses.items()
+            if addr
         }
 
         self._mock_usdt = self._w3.eth.contract(
@@ -110,6 +114,15 @@ class CeloService:
         self._credits = self._w3.eth.contract(
             address=self._addresses["credits"], abi=abis["EtaloCredits"]
         )
+        # ADR-059 — optional one-time boutique creation-fee contract. Only
+        # instantiated once an address is configured (empty before deploy),
+        # so the indexer skips it until then.
+        self._boutique_billing = None
+        if self._addresses.get("boutique_billing"):
+            self._boutique_billing = self._w3.eth.contract(
+                address=self._addresses["boutique_billing"],
+                abi=abis["EtaloBoutiqueBilling"],
+            )
 
     async def init_async_session(self) -> None:
         """Register ONE long-lived aiohttp session for web3 to reuse on
@@ -170,6 +183,7 @@ class CeloService:
                 "dispute": settings.etalo_dispute_address,
                 "escrow": settings.etalo_escrow_address,
                 "credits": settings.etalo_credits_address,
+                "boutique_billing": settings.etalo_boutique_billing_address,
             },
         )
 

@@ -4350,3 +4350,71 @@ noted for a future ghost-variable invariant.
 Post-re-audit suite: **162 passing · 31 skipped · 0 failing**; Foundry
 **10/10 invariants** green. This commit supersedes the pre-deploy
 "re-audit" checklist item — the gate is now satisfied.
+
+---
+
+## ADR-059 · 2026-06-15 — One-time boutique creation fee (1 USDT); monthly maintenance dropped (amends ADR-024, ADR-041)
+
+**Status**: Accepted.
+
+**Context**: V1 monetisation to date is the single 1.8% order commission
+(ADR-041) plus credits for photo enhancement (ADR-049). To add a second
+revenue line tied to seller onboarding, an initial proposal layered a
+boutique **creation fee** *and* a **1.5 USDT/month maintenance
+subscription** onto each seller. The subscription was dropped during
+design review.
+
+**Why the monthly subscription was dropped**: Etalo is non-custodial —
+there is no way to auto-debit a seller's wallet; every payment is a
+*push*. A monthly fee therefore requires the seller to actively re-pay
+each month or fall into a read-only/suspended state. On informal African
+sellers (the core V1 user), that recurring-friction + churn risk
+outweighs the revenue. A one-time fee keeps onboarding intent (skin in
+the game, anti-spam-boutique) without the recurring-payment trap. This
+also keeps ADR-041's "no subscription" stance literally true — a one-shot
+fee is not a subscription.
+
+**Decision**:
+
+1. **One-time boutique creation fee = 1 USDT** (`CREATION_FEE = 1_000_000`
+   raw, 6 decimals), paid once per wallet when opening a boutique. No
+   recurring/maintenance fee. No read-only/suspension states.
+2. **On-chain rail**: new standalone `EtaloBoutiqueBilling` contract
+   (`Ownable` + `Pausable` + `ReentrancyGuard`, mirrors `EtaloCredits`).
+   `payCreationFee()` pushes 1 USDT via `SafeERC20.safeTransferFrom` to
+   the treasury, sets `creationPaid[msg.sender] = true` (one-shot guard),
+   and emits `CreationFeePaid(seller, timestamp)`. The event is the
+   source of truth; the indexer mirrors it and the seller-profile
+   activation gate reads the mirror.
+3. **Treasury = `commissionTreasury`** (amends ADR-024): boutique fees
+   share the commission slot rather than spawning a 4th treasury.
+   Logical separation, if ever needed, is handled off-chain via the
+   Safe, consistent with ADR-024's V1 posture.
+4. **Proof-of-Ship free window (off-chain)**: a single backend/ frontend
+   constant `FEES_ENFORCED_FROM` (= submission date + 60 days) gates the
+   fee. While `now < FEES_ENFORCED_FROM`, boutique creation is free and
+   the contract is never called. After that timestamp the fee applies.
+   The window is deliberately **not** encoded on-chain so the contract
+   carries no date and needs no upgrade around the launch promo. "Free
+   for 2 months, globally, from launch."
+
+**Rationale**: Minimal, audited-pattern contract (clone of the already
+deployed `EtaloCredits` shape) → low marginal audit surface. Off-chain
+gating keeps the promo window flexible. One-shot push fee fits
+non-custodial constraints with zero recurring friction.
+
+**Impact**:
+
+- New contract `EtaloBoutiqueBilling.sol` + 18 Hardhat tests + Sepolia
+  deploy script. Mainnet deploy is a Safe operation (not broadcast by an
+  agent); `commissionTreasury` on mainnet is the 2-of-3 Safe.
+- Backend: additive `boutique_billing` mirror table (indexer is sole
+  writer, invariant #14), `handle_creation_fee_paid` indexer handler,
+  `FEES_ENFORCED_FROM` config, and a profile-activation gate
+  (`402 creation_fee_required` when enforced and unpaid). No gating
+  anywhere else — no read-only path exists.
+- Frontend: `payCreationFee` step in the create-shop flow when outside
+  the free window; unchanged during it.
+- Amends ADR-024 (treasury destinations) and refines ADR-041 (adds a
+  one-time fee while preserving "no subscription"). ADR-049 credits are
+  untouched.

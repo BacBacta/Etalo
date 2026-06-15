@@ -1,3 +1,4 @@
+import boutiqueBillingAbi from "@/abis/v2/EtaloBoutiqueBilling.json";
 import creditsAbi from "@/abis/v2/EtaloCredits.json";
 import disputeAbi from "@/abis/v2/EtaloDispute.json";
 import escrowAbi from "@/abis/v2/EtaloEscrow.json";
@@ -52,9 +53,23 @@ export const CONTRACTS = {
     address: process.env.NEXT_PUBLIC_CREDITS_ADDRESS,
     abi: creditsAbi,
   },
+  // ADR-059 — one-time boutique creation fee (1 USDT). Address empty
+  // until deployed; the create-shop flow only calls it when the backend
+  // returns 402 creation_fee_required (i.e. once FEES_ENFORCED_FROM
+  // passes), so an unset address never blocks the free-window path.
+  boutiqueBilling: {
+    address: process.env.NEXT_PUBLIC_BOUTIQUE_BILLING_ADDRESS,
+    abi: boutiqueBillingAbi,
+  },
 } as const;
 
 export type ContractName = keyof typeof CONTRACTS;
+
+// ADR-059 — one-time boutique creation fee in raw USDT (6 decimals).
+// Mirrors EtaloBoutiqueBilling.CREATION_FEE (1_000_000 = 1 USDT),
+// immutable on-chain so safe to hardcode. `BigInt(...)` (not a literal)
+// for the same tsconfig reason as USDT_PER_CREDIT above.
+export const BOUTIQUE_CREATION_FEE = BigInt(1_000_000);
 
 // Sprint J7 Block 5b — pricing constant (raw USDT 6 decimals).
 // Mirrors EtaloCredits.USDT_PER_CREDIT. Immutable on-chain (ADR-014),

@@ -128,6 +128,12 @@ class Settings(BaseSettings):
     etalo_escrow_address: str = "0xc8174b1218fEbD7d49B982cB3f1De83e411FbEA1"
     # EtaloCredits (Sprint J7 Block 5b, redeployed post-H-1)
     etalo_credits_address: str = "0x778a6bda524F4D396F9566c0dF131F76b0E15CA3"
+    # EtaloBoutiqueBilling (ADR-059 — one-time 1 USDT boutique creation
+    # fee). Empty until deployed: the indexer skips it and CeloService
+    # does not instantiate it when unset. Set to the Sepolia/mainnet
+    # address once deployed (Sepolia via deploy-boutique-billing-sepolia.ts,
+    # mainnet via Safe).
+    etalo_boutique_billing_address: str = ""
 
     # Treasuries (three-wallet separation per ADR-024).
     # On mainnet, all 3 point to the multisig Safe at
@@ -236,6 +242,16 @@ class Settings(BaseSettings):
     # frontend reads the 503 and shows a maintenance message, so this
     # flag alone produces correct UX without a frontend rebuild.
     orders_frozen: bool = False
+
+    # ADR-059 — boutique creation fee enforcement date. ISO 8601, tz-aware
+    # (e.g. "2026-08-15T00:00:00+00:00"). While now < this date the
+    # Proof-of-Ship free window is open: boutique creation is free and
+    # the EtaloBoutiqueBilling contract is never called. Empty string
+    # (default) = fees not yet enforced (free indefinitely) — the safe
+    # default so we never charge before Mike sets the launch date. Set to
+    # submission-date + 60 days in production. The frontend reads the same
+    # date via NEXT_PUBLIC_FEES_ENFORCED_FROM.
+    fees_enforced_from: str = ""
 
     # Legacy V1 fields (kept for the V1 stub in app/services/celo.py;
     # removed in Block 4).

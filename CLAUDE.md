@@ -164,6 +164,13 @@ tag `v1.3-audit-fixes`). Predecessor addresses retained in
 
 - Commission V1: **1.8% single rate** (ADR-041) — Top Seller 1.2%
   program deferred V1.1 with volume / ratings / dispute criteria.
+- Boutique creation fee: **one-time 1 USDT** (ADR-059) — paid on-chain
+  via `EtaloBoutiqueBilling.payCreationFee()` → `commissionTreasury`.
+  **No monthly/maintenance fee** (a recurring push-payment was rejected
+  for non-custodial friction; "no subscription" stays true). Gated
+  off-chain by `FEES_ENFORCED_FROM`: free during the Proof-of-Ship
+  window (free creation + 2 months global from launch), enforced after.
+  See `docs/PRICING_BOUTIQUE_FEES.md`.
 - Auto-release intra: **3 days standard** (ADR-041) — single timer V1.
 - Seller inactivity deadline (ADR-019 intra clause): 7 days intra →
   permissionless auto-refund.

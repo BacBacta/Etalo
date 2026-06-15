@@ -35,14 +35,34 @@ import { ImageUploader } from "@/components/seller/ImageUploader";
 import { Button } from "@/components/ui/button";
 import {
   createSellerProfile,
+  CreationFeeRequiredError,
   ShopHandleTakenError,
   WalletAlreadyHasShopError,
   type SellerProfilePublic,
 } from "@/lib/seller-api";
+import { useBoutiqueCreationFee } from "@/hooks/useBoutiqueCreationFee";
 
 interface Props {
   walletAddress: string;
   onCreated: (profile: SellerProfilePublic) => void;
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+// Friendly status for each on-chain payment phase (rule #8 tx states).
+function feePhaseLabel(phase: string): string | null {
+  switch (phase) {
+    case "checkingAllowance":
+      return "Preparing payment…";
+    case "approving":
+    case "awaitingApproveReceipt":
+      return "Approve USDT in your wallet…";
+    case "paying":
+    case "awaitingPayReceipt":
+      return "Confirming payment…";
+    default:
+      return null;
+  }
 }
 
 const HANDLE_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])?$/;
@@ -66,6 +86,62 @@ function validateHandle(handle: string): string | null {
   return null;
 }
 
+/** One-time creation-fee panel (ADR-059), shown when the backend gate
+ * returns 402. Uses "network fee" / "USDT" wording (rule #4) and the
+ * 4-state tx feedback (rule #8) via the status label. */
+function FeePanel({
+  feeUsdt,
+  busy,
+  statusLabel,
+  errorMessage,
+  onPay,
+}: {
+  feeUsdt: string;
+  busy: boolean;
+  statusLabel: string | null;
+  errorMessage: string | null;
+  onPay: () => void;
+}) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-celo-forest/30 bg-celo-forest/5 p-5 dark:border-celo-forest-bright/30 dark:bg-celo-forest-bright/10">
+      <h2 className="text-base font-semibold text-celo-dark dark:text-celo-light">
+        One-time setup — {feeUsdt} USDT
+      </h2>
+      <p className="text-sm text-neutral-600 dark:text-celo-light/70">
+        Opening a boutique is a one-time {feeUsdt} USDT payment. No
+        monthly fees, ever. The network fee is paid in USDT through
+        MiniPay — there&rsquo;s no separate token to hold.
+      </p>
+      <Button
+        type="button"
+        onClick={onPay}
+        disabled={busy}
+        className="min-h-[48px] w-full"
+        data-testid="create-shop-pay-fee"
+      >
+        {busy ? statusLabel ?? "Working…" : `Pay ${feeUsdt} USDT & open shop`}
+      </Button>
+      {statusLabel && busy && (
+        <p
+          className="text-center text-sm text-neutral-500 dark:text-celo-light/60"
+          aria-live="polite"
+        >
+          {statusLabel}
+        </p>
+      )}
+      {errorMessage && (
+        <p
+          role="alert"
+          data-testid="create-shop-fee-error"
+          className="text-center text-sm text-red-600 dark:text-celo-red-bright"
+        >
+          {errorMessage}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function CreateShopForm({ walletAddress, onCreated }: Props) {
   const [shopName, setShopName] = useState("");
   const [handle, setHandle] = useState("");
@@ -75,6 +151,14 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
   const [logoIpfsHash, setLogoIpfsHash] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [handleError, setHandleError] = useState<string | null>(null);
+
+  // ADR-059 — boutique creation fee. `feeRequired` flips when the
+  // backend returns 402 (free window elapsed). `finalizing` covers the
+  // post-payment retry window while the indexer mirrors CreationFeePaid.
+  const [feeRequired, setFeeRequired] = useState(false);
+  const [feeUsdt, setFeeUsdt] = useState("1");
+  const [finalizing, setFinalizing] = useState(false);
+  const creationFee = useBoutiqueCreationFee();
 
   // Auto-suggest the handle from the shop name as long as the seller
   // hasn't touched the handle field. The moment they edit the handle
@@ -109,36 +193,94 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
     setHandleError(null);
   };
 
+  // Single source of truth for the actual create call. Throws on error
+  // (incl. CreationFeeRequiredError) so callers can branch; calls
+  // onCreated on success.
+  const submitOnboarding = async () => {
+    const profile = await createSellerProfile(walletAddress, {
+      shop_handle: handle,
+      shop_name: shopName.trim(),
+      country: country as CountryCode,
+      description: description.trim() || null,
+      logo_ipfs_hash: logoIpfsHash,
+    });
+    toast.success("Your shop is live");
+    onCreated(profile);
+  };
+
+  // Maps non-fee errors to UI. Returns true if handled here.
+  const handleCreateError = (err: unknown): void => {
+    if (err instanceof ShopHandleTakenError) {
+      setHandleError("This handle is already taken — try another.");
+    } else if (err instanceof WalletAlreadyHasShopError) {
+      toast.error("This wallet already has a shop. Reloading…");
+      setTimeout(() => window.location.reload(), 1200);
+    } else {
+      toast.error("Couldn't create the shop. Please try again.");
+    }
+  };
+
   const onSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     setSubmitting(true);
     setHandleError(null);
     try {
-      const profile = await createSellerProfile(walletAddress, {
-        shop_handle: handle,
-        shop_name: shopName.trim(),
-        country: country as CountryCode,
-        description: description.trim() || null,
-        logo_ipfs_hash: logoIpfsHash,
-      });
-      toast.success("Your shop is live");
-      onCreated(profile);
+      await submitOnboarding();
     } catch (err) {
-      if (err instanceof ShopHandleTakenError) {
-        setHandleError("This handle is already taken — try another.");
-      } else if (err instanceof WalletAlreadyHasShopError) {
-        toast.error("This wallet already has a shop. Reloading…");
-        setTimeout(() => window.location.reload(), 1200);
+      if (err instanceof CreationFeeRequiredError) {
+        // Free window has elapsed — surface the one-time fee panel.
+        setFeeUsdt(err.feeUsdt);
+        setFeeRequired(true);
       } else {
-        toast.error("Couldn't create the shop. Please try again.");
+        handleCreateError(err);
       }
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Pay the one-time fee on-chain, then retry onboarding with a short
+  // backoff to absorb indexer lag (the gate reads the CreationFeePaid
+  // mirror, written on the next indexer cycle ≤ ~30s).
+  const onPayAndCreate = async () => {
+    creationFee.reset();
+    const paid = await creationFee.pay();
+    if (!paid) return; // hook state shows error / canceled
+    setFinalizing(true);
+    setHandleError(null);
+    for (const delayMs of [0, 4000, 8000, 12000, 20000]) {
+      if (delayMs) await sleep(delayMs);
+      try {
+        await submitOnboarding();
+        return; // onCreated fired — unmount imminent
+      } catch (err) {
+        if (err instanceof CreationFeeRequiredError) {
+          continue; // mirror not caught up yet — retry
+        }
+        handleCreateError(err);
+        setFinalizing(false);
+        return;
+      }
+    }
+    setFinalizing(false);
+    toast.success(
+      "Payment confirmed. Your boutique will be ready in a moment — please refresh.",
+    );
+  };
+
   const previewHandle = effectiveHandle || "yourhandle";
+
+  // Derived fee-flow UI state.
+  const feePhase = creationFee.state.phase;
+  const busyFee =
+    finalizing ||
+    (feePhase !== "idle" && feePhase !== "error" && feePhase !== "canceled");
+  const feeStatusLabel = finalizing
+    ? "Finalizing your boutique…"
+    : feePhaseLabel(feePhase);
+  const feeErrorMessage =
+    feePhase === "error" ? creationFee.state.errorMessage ?? null : null;
 
   return (
     <div className="min-h-screen">
@@ -328,21 +470,31 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
           </section>
 
           {/* ─── Submit ─── */}
-          <div className="space-y-2">
-            <Button
-              type="submit"
-              disabled={!canSubmit}
-              className="min-h-[48px] w-full"
-              data-testid="create-shop-submit"
-            >
-              {submitting ? "Opening your shop…" : "Open my shop"}
-              {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
-            </Button>
-            <p className="text-center text-sm text-neutral-500 dark:text-celo-light/60">
-              No products required — add them right after from the
-              Products tab.
-            </p>
-          </div>
+          {feeRequired ? (
+            <FeePanel
+              feeUsdt={feeUsdt}
+              busy={busyFee}
+              statusLabel={feeStatusLabel}
+              errorMessage={feeErrorMessage}
+              onPay={onPayAndCreate}
+            />
+          ) : (
+            <div className="space-y-2">
+              <Button
+                type="submit"
+                disabled={!canSubmit}
+                className="min-h-[48px] w-full"
+                data-testid="create-shop-submit"
+              >
+                {submitting ? "Opening your shop…" : "Open my shop"}
+                {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
+              </Button>
+              <p className="text-center text-sm text-neutral-500 dark:text-celo-light/60">
+                No products required — add them right after from the
+                Products tab.
+              </p>
+            </div>
+          )}
         </form>
       </div>
     </div>
