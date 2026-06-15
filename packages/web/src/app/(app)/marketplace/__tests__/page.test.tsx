@@ -176,7 +176,7 @@ describe("MarketplacePage — sub-block 2.3a", () => {
       data: {
         sections: [
           { key: "new", title: "New this week", products: [] },
-          { key: "top_rated", title: "Top-rated boutiques", products: [] },
+          { key: "top_rated", title: "Top-rated shops", products: [] },
         ],
       },
     });
@@ -188,7 +188,7 @@ describe("MarketplacePage — sub-block 2.3a", () => {
     // Client relabels the top_rated section title for honesty (the rail
     // shows products, one per trusted boutique).
     expect(
-      screen.getByTestId("marketplace-rail-From top-rated boutiques"),
+      screen.getByTestId("marketplace-rail-From top-rated shops"),
     ).toBeInTheDocument();
     expect(screen.getByText("Browse all")).toBeInTheDocument();
   });

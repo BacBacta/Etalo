@@ -196,7 +196,7 @@ export function OverviewTab({ profile, address }: Props) {
               Waiting for your first sale
             </p>
             <p className="text-sm text-celo-dark/60 dark:text-celo-light/60">
-              Share your boutique link to start receiving orders.
+              Share your shop link to start receiving orders.
             </p>
           </div>
         ) : (
@@ -356,7 +356,7 @@ function HeroHeader({ profile, analytics }: HeroHeaderProps) {
     if (analytics.revenue.h24 > 0) {
       return `Strong day — ${displayUsdtFromHumanNumber(analytics.revenue.h24)} in the last 24 h.`;
     }
-    return "All caught up. Share your boutique link to drive new orders.";
+    return "All caught up. Share your shop link to drive new orders.";
   })();
   // The shop name comes from the off-chain profile ; safe to render
   // even when analytics is pending so the seller sees their identity

@@ -183,7 +183,7 @@ export default async function ProductPage({ params }: PageProps) {
             </span>
           </div>
           <span className="ml-auto inline-flex shrink-0 items-center gap-0.5 text-sm font-medium text-celo-forest transition-transform group-hover:translate-x-0.5 dark:text-celo-forest-bright">
-            Boutique
+            Shop
             <ArrowUpRight weight="bold" className="h-4 w-4" aria-hidden />
           </span>
         </Link>

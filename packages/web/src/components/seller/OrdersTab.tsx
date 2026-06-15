@@ -352,7 +352,7 @@ export function OrdersTab({ address }: Props) {
           <EmptyStateV5
             illustration="no-orders"
             title="No orders yet"
-            description="Share your boutique link with customers to receive your first sale."
+            description="Share your shop link with customers to receive your first sale."
           />
         )
       ) : (
@@ -415,7 +415,7 @@ export function OrdersTab({ address }: Props) {
         onOpenChange={setMilestoneOpen}
         variant="first-sale"
         title="First sale!"
-        description="Congratulations on your first completed order. Keep growing your boutique — momentum builds from here."
+        description="Congratulations on your first completed order. Keep growing your shop — momentum builds from here."
         ctaLabel="Continue"
         onCtaClick={markFirstSaleShown}
       />

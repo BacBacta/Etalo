@@ -6,7 +6,7 @@ import { countryName } from "@/lib/country";
 // next/og runs on the edge runtime by default — kept explicit so the
 // constraint is visible to readers who add fetches later.
 export const runtime = "edge";
-export const alt = "Etalo Boutique";
+export const alt = "Etalo Shop";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

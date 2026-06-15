@@ -324,7 +324,8 @@ export function SellerDashboardInner() {
       <StatusShell>
         <div className="mx-auto max-w-md py-12 text-center">
           <h2 className="mb-3 text-xl font-semibold text-celo-dark dark:text-celo-light">
-            Connect your wallet to open your boutique
+
+            Connect your wallet to open your shop
           </h2>
           <p className="mb-4 text-base text-neutral-700 dark:text-celo-light/70">
             Your seller dashboard is tied to the wallet that owns the

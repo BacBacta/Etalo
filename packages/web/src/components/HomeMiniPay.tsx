@@ -45,7 +45,7 @@ export function HomeMiniPay() {
           */}
           <Image
             src="/illustrations/v5/landing-hero.svg"
-            alt="Etalo seller boutique illustrating sellers reaching customers across Africa via USDT escrow"
+            alt="Etalo seller shop illustrating sellers reaching customers across Africa via USDT escrow"
             width={1808}
             height={1024}
             priority
@@ -77,7 +77,7 @@ export function HomeMiniPay() {
               data-testid="minipay-open-boutique"
               className={SECONDARY_CTA_CLASSES}
             >
-              Open my boutique
+              Open my shop
             </button>
           </div>
         </div>

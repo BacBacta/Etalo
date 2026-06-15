@@ -307,7 +307,7 @@ async def list_marketplace_sections(
         sections.append(
             MarketplaceSection(
                 key="top_rated",
-                title="Top-rated boutiques",
+                title="Top-rated shops",
                 products=top_items,
             )
         )
