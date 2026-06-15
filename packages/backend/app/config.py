@@ -259,6 +259,20 @@ class Settings(BaseSettings):
     reputation_contract_address: str = ""
     usdt_contract_address: str = ""
 
+    # Treasury revenue report (ADR-059 follow-up) — comma-separated
+    # allowlist of wallet addresses authorised to pull the revenue
+    # export (commission + credits + boutique fees). Default = the
+    # mainnet Safe + its 3 owner EOAs (a Safe is a contract, so in
+    # MiniPay the owner connects as an EOA — both forms are allowed).
+    # Matched case-insensitively against X-Wallet-Address (V1 auth
+    # posture, ADR-046 — no new EIP-191 per ADR-034). Override per env.
+    treasury_admin_allowlist: str = (
+        "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F,"
+        "0xCb56A1f46f8bC0ef9a83161678DAbE49b847d047,"
+        "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8,"
+        "0x1B26f42Cc3b1e21AfE33756b9282a5514f030A12"
+    )
+
     # Bearer-style token required on the /admin/* routes (ADR-056 — the
     # admin triage page reads dispute PII so we keep it gated). Empty in
     # dev → all admin endpoints reject. Set via ADMIN_API_TOKEN env var
@@ -268,6 +282,15 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def treasury_admin_set(self) -> set[str]:
+        """Lowercased set of treasury-admin wallet addresses."""
+        return {
+            a.strip().lower()
+            for a in self.treasury_admin_allowlist.split(",")
+            if a.strip()
+        }
 
     @property
     def is_production(self) -> bool:
