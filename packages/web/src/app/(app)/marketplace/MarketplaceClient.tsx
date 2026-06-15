@@ -598,7 +598,7 @@ function MarketplaceClientInner() {
               // products, not boutique cards).
               title={
                 section.key === "top_rated"
-                  ? "From top-rated boutiques"
+                  ? "From top-rated shops"
                   : section.title
               }
               products={section.products}

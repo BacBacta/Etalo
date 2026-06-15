@@ -19,12 +19,12 @@ describe("EmptyStateV5", () => {
       <EmptyStateV5
         illustration="no-orders"
         title="No orders yet"
-        description="Share your boutique link to get your first sale."
+        description="Share your shop link to get your first sale."
       />,
     );
     expect(screen.getByRole("heading", { name: /No orders yet/i })).toBeInTheDocument();
     expect(
-      screen.getByText(/Share your boutique link/i),
+      screen.getByText(/Share your shop link/i),
     ).toBeInTheDocument();
 
     const img = screen.getByTestId("empty-illustration");

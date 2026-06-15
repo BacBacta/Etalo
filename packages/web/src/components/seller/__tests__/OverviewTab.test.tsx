@@ -454,7 +454,7 @@ describe("OverviewTab — revenue trend ChartLineV5 (Block 5 sub-block 5.5)", ()
     const empty = screen.getByTestId("overview-revenue-chart-empty");
     expect(empty).toHaveTextContent(/Waiting for your first sale/i);
     expect(empty).toHaveTextContent(
-      /Share your boutique link to start receiving orders/i,
+      /Share your shop link to start receiving orders/i,
     );
     // The chart itself must not render under this branch.
     expect(screen.queryByTestId("chart-line-mock")).not.toBeInTheDocument();

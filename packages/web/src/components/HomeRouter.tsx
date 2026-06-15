@@ -72,7 +72,7 @@ export function HomeRouter({ featuredSellers }: Props = {}) {
       {showOnboarding ? (
         <OnboardingScreenV5
           title="Welcome to Etalo"
-          description="Browse boutiques across Africa and pay with USDT escrow — your funds stay locked until you receive your order."
+          description="Browse shops across Africa and pay with USDT escrow — your funds stay locked until you receive your order."
           ctaLabel="Get started"
           onCtaClick={handleOnboarded}
         />

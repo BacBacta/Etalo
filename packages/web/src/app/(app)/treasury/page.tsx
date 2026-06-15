@@ -29,7 +29,7 @@ import {
 const SOURCE_LABELS: Record<string, string> = {
   commission: "Commission (1.8%)",
   credits: "Credits",
-  creation_fee: "Boutique creation",
+  creation_fee: "Shop creation",
   total: "Total",
 };
 

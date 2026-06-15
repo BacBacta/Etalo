@@ -532,7 +532,7 @@ export function ProductFormDialog({
               </p>
               <p className="mt-1 text-sm text-celo-dark/70 dark:text-celo-light/70">
                 Enhanced photos get a clean studio backdrop and look far
-                more professional in the marketplace — boutiques that
+                more professional in the marketplace — shops that
                 enhance tend to sell more.
               </p>
               <div className="mt-3 flex flex-col gap-2 sm:flex-row">
@@ -742,7 +742,7 @@ function EnhanceSection({
         </span>
         <div className="flex-1">
           <p className="text-base font-medium text-celo-dark dark:text-celo-light">
-            Make this photo boutique-quality — it sells faster
+            Make this photo studio-quality — it sells faster
           </p>
           <p className="mt-0.5 text-sm text-celo-dark/70 dark:text-celo-light/70">
             We remove the background and drop your product onto a clean

@@ -108,7 +108,7 @@ function FeePanel({
         One-time setup — {feeUsdt} USDT
       </h2>
       <p className="text-sm text-neutral-600 dark:text-celo-light/70">
-        Opening a boutique is a one-time {feeUsdt} USDT payment. No
+        Opening a shop is a one-time {feeUsdt} USDT payment. No
         monthly fees, ever. The network fee is paid in USDT through
         MiniPay — there&rsquo;s no separate token to hold.
       </p>
@@ -265,7 +265,7 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
     }
     setFinalizing(false);
     toast.success(
-      "Payment confirmed. Your boutique will be ready in a moment — please refresh.",
+      "Payment confirmed. Your shop will be ready in a moment — please refresh.",
     );
   };
 
@@ -277,7 +277,7 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
     finalizing ||
     (feePhase !== "idle" && feePhase !== "error" && feePhase !== "canceled");
   const feeStatusLabel = finalizing
-    ? "Finalizing your boutique…"
+    ? "Finalizing your shop…"
     : feePhaseLabel(feePhase);
   const feeErrorMessage =
     feePhase === "error" ? creationFee.state.errorMessage ?? null : null;
@@ -359,7 +359,7 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
                 onChange={(e) => handleShopNameChange(e.target.value)}
                 disabled={submitting}
                 maxLength={100}
-                placeholder="Mama Adaeze's Boutique"
+                placeholder="Mama Adaeze's Shop"
                 autoComplete="off"
                 data-testid="create-shop-name"
                 className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark placeholder:text-neutral-400 dark:border-celo-light/20 dark:bg-celo-dark-bg dark:text-celo-light"
@@ -405,7 +405,7 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
                 id="create-shop-handle-help"
                 className="mt-1 break-all text-sm text-neutral-500 dark:text-celo-light/60"
               >
-                Your boutique URL :{" "}
+                Your shop URL :{" "}
                 <span className="font-medium text-celo-dark dark:text-celo-light">
                   etalo.xyz/{previewHandle}
                 </span>
@@ -429,7 +429,7 @@ export function CreateShopForm({ walletAddress, onCreated }: Props) {
                 Your pitch
               </h2>
               <p className="text-sm text-neutral-500 dark:text-celo-light/60">
-                One short paragraph buyers see on your boutique page.
+                One short paragraph buyers see on your shop page.
               </p>
             </div>
             <textarea

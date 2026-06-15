@@ -150,7 +150,7 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
       .writeText(boutiqueUrl)
       .then(() => {
         setCopied(true);
-        toast.success("Boutique link copied");
+        toast.success("Shop link copied");
         setTimeout(() => setCopied(false), 2000);
       })
       .catch(() => toast.error("Couldn't copy"));
@@ -186,7 +186,7 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
             Shop logo
           </span>
           <p className="mb-2 text-sm text-neutral-500 dark:text-celo-light/60">
-            Square image, JPEG/PNG, max 5 MB. Shown on your boutique
+            Square image, JPEG/PNG, max 5 MB. Shown on your shop
             page + the marketplace seller line.
           </p>
           <ImageUploader
@@ -209,7 +209,7 @@ export function ProfileTab({ profile, address, onUpdated }: Props) {
             type="text"
             value={shopName}
             onChange={(e) => setShopName(e.target.value)}
-            placeholder="Sarah's Handmade Boutique"
+            placeholder="Sarah's Handmade Shop"
             maxLength={80}
             className="min-h-[44px] w-full rounded-md border border-neutral-300 bg-white p-2 text-base text-celo-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-light/20 dark:bg-celo-dark-elevated dark:text-celo-light"
           />
@@ -439,7 +439,7 @@ function IdentityHeaderCard({
           <button
             type="button"
             onClick={onCopyUrl}
-            aria-label="Copy boutique URL"
+            aria-label="Copy shop URL"
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-celo-forest/30 bg-celo-light px-3 text-sm font-medium text-celo-dark hover:bg-celo-light/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest dark:border-celo-green/30 dark:bg-celo-dark-bg dark:text-celo-light dark:hover:bg-celo-dark-elevated"
           >
             {copied ? (
@@ -458,7 +458,7 @@ function IdentityHeaderCard({
             href={boutiqueUrl}
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="Open boutique in a new tab"
+            aria-label="Open shop in a new tab"
             className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md bg-celo-forest px-3 text-sm font-medium text-celo-light hover:bg-celo-forest-dark focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-celo-forest focus-visible:ring-offset-2 dark:bg-celo-green dark:text-celo-dark dark:hover:bg-celo-green-hover"
           >
             <ArrowSquareOut className="h-4 w-4" weight="regular" />
