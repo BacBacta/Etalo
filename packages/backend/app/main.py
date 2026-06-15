@@ -29,6 +29,7 @@ from app.routers import (
     sellers,
     short_links,
     sitemap,
+    sms,
     stats,
     treasury,
     uploads,
@@ -265,6 +266,7 @@ def create_app() -> FastAPI:
     app.include_router(sitemap.router, prefix="/api/v1")
     app.include_router(stats.router, prefix="/api/v1")
     app.include_router(treasury.router, prefix="/api/v1")
+    app.include_router(sms.router, prefix="/api/v1")
     app.include_router(cart.router, prefix="/api/v1")
     app.include_router(marketplace.router, prefix="/api/v1")
     app.include_router(marketing.router, prefix="/api/v1")
