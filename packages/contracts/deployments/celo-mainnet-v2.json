@@ -3,7 +3,7 @@
   "chainId": 42220,
   "deployer": "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8",
   "realUsdt": "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
-  "_treasuriesNote": "ADR-024: on mainnet all 3 slots point to the 2-of-3 Safe (verified on-chain against the live v1.4 escrow 0x0890\u00e2\u20ac\u00a6 on 2026-06-02). Logical separation is preserved off-chain in V1. The prior Sepolia EOAs (commission 0x9819\u00e2\u20ac\u00a6, credits 0x4515\u00e2\u20ac\u00a6, community 0x0B15\u00e2\u20ac\u00a6) were a templating carry-over and would have mis-routed mainnet revenue \u00e2\u20ac\u201d corrected before the ADR-057 redeploy.",
+  "_treasuriesNote": "ADR-024: on mainnet all 3 slots point to the 2-of-3 Safe (verified on-chain against the live v1.4 escrow 0x0890â€¦ on 2026-06-02). Logical separation is preserved off-chain in V1. The prior Sepolia EOAs (commission 0x9819â€¦, credits 0x4515â€¦, community 0x0B15â€¦) were a templating carry-over and would have mis-routed mainnet revenue â€” corrected before the ADR-057 redeploy.",
   "treasuries": {
     "commission": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
     "credits": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
@@ -58,6 +58,13 @@
         "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
         "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8"
       ]
+    },
+    "EtaloBoutiqueBilling": {
+      "address": "0x67764186d69A9871ab4F5f3fA7Ba3d8d6dE230e7",
+      "deployedBlock": 69615063,
+      "adr": "ADR-059",
+      "owner": "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
+      "note": "One-time boutique creation fee (1 USDT) → commissionTreasury (Safe)"
     }
   },
   "deployedAt": "2026-05-25T18:30:05.844Z",
@@ -69,7 +76,7 @@
       "address": "0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92",
       "block": "67832984",
       "retiredAt": "2026-06-06",
-      "reason": "ADR-057 cutover \u2014 drained to 0 (13 orders settled), satellites re-pointed to new escrow via Safe",
+      "reason": "ADR-057 cutover — drained to 0 (13 orders settled), satellites re-pointed to new escrow via Safe",
       "txHash": "0x5789d53c9cfc2b24939e69e55589c68ec484d9d8940e842dea0e97e8ec0c651b"
     }
   ]

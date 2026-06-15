@@ -115,6 +115,10 @@ shadow Mike multisig ADR-055-3, tag `v1.4-mainnet`). Owned by the
 - EtaloEscrow: `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671`
   **← LIVE/canonical escrow** (ADR-057 redeploy, block 68596818).
 - EtaloCredits: `0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6`
+- EtaloBoutiqueBilling: `0x67764186d69A9871ab4F5f3fA7Ba3d8d6dE230e7`
+  (ADR-059 — one-time 1 USDT boutique creation fee, deploy 2026-06-15
+  block 69615063, owned by the Safe; fee → `commissionTreasury`). Inert
+  until `FEES_ENFORCED_FROM` is set (creation free until then).
 
 **ADR-057 escrow cutover — COMPLETE 2026-06-06.** The new EtaloEscrow
 (intra-only guard + per-buyer cap + delivery-proof early release,
