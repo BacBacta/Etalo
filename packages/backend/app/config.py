@@ -129,11 +129,10 @@ class Settings(BaseSettings):
     # EtaloCredits (Sprint J7 Block 5b, redeployed post-H-1)
     etalo_credits_address: str = "0x778a6bda524F4D396F9566c0dF131F76b0E15CA3"
     # EtaloBoutiqueBilling (ADR-059 — one-time 1 USDT boutique creation
-    # fee). Empty until deployed: the indexer skips it and CeloService
-    # does not instantiate it when unset. Set to the Sepolia/mainnet
-    # address once deployed (Sepolia via deploy-boutique-billing-sepolia.ts,
-    # mainnet via Safe).
-    etalo_boutique_billing_address: str = ""
+    # fee). Sepolia deploy 2026-06-15 (block 28229689). Mainnet overrides
+    # via ETALO_BOUTIQUE_BILLING_ADDRESS once deployed (deploy-boutique-
+    # billing-mainnet.ts). Empty disables indexing + the fee gate.
+    etalo_boutique_billing_address: str = "0x9a39921f1A53e23103634b350F7f2c717e7b0216"
 
     # Treasuries (three-wallet separation per ADR-024).
     # On mainnet, all 3 point to the multisig Safe at

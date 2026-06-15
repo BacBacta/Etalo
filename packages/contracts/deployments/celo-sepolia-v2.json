@@ -43,6 +43,12 @@
       "constructorArgs": [
         "0xd34428140Fc8D6Be523d9A14C4E215F5709f9427"
       ]
+    },
+    "EtaloBoutiqueBilling": {
+      "address": "0x9a39921f1A53e23103634b350F7f2c717e7b0216",
+      "deployedBlock": 28229689,
+      "adr": "ADR-059",
+      "note": "One-time boutique creation fee (1 USDT) → commissionTreasury"
     }
   },
   "deployedAt": "2026-05-25T09:11:30.339Z",
