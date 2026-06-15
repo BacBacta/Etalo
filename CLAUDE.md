@@ -114,7 +114,12 @@ shadow Mike multisig ADR-055-3, tag `v1.4-mainnet`). Owned by the
 - EtaloDispute: `0x6d5Aa5e0EAE407688E99492213849D9a608D63d2`
 - EtaloEscrow: `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671`
   **← LIVE/canonical escrow** (ADR-057 redeploy, block 68596818).
-- EtaloCredits: `0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6`
+- EtaloCredits: `0x6DF4a45886D4972C388413cCABe9B724A73560E8`
+  (redeploy 2026-06-15 block 69623446 — `creditsTreasury` + owner now =
+  the Safe. The original `0xDDbE5BEC…` was deployed with
+  `creditsTreasury = 0x4515D79C…A060AA`, a leftover Sepolia EOA, NOT the
+  Safe — retired, see `deployments/celo-mainnet-v2.json`
+  `previous_deployments[]`. Off-chain credit balances unaffected.)
 - EtaloBoutiqueBilling: `0x67764186d69A9871ab4F5f3fA7Ba3d8d6dE230e7`
   (ADR-059 — one-time 1 USDT boutique creation fee, deploy 2026-06-15
   block 69615063, owned by the Safe; fee → `commissionTreasury`). Inert

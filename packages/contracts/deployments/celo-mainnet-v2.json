@@ -50,14 +50,14 @@
       ]
     },
     "EtaloCredits": {
-      "address": "0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6",
-      "txHash": "0xce04a53eba6db3edb4240bf0e8b8afe45cfdb7b5d556cb245855326550f02431",
-      "block": "67832987",
+      "address": "0x6DF4a45886D4972C388413cCABe9B724A73560E8",
+      "block": "69623446",
       "constructorArgs": [
         "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
-        "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
-        "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8"
-      ]
+        "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F",
+        "0x10d6Ff4eb8372aE20638db1f87a60f31fdF13E0F"
+      ],
+      "note": "Redeploy — creditsTreasury + owner = Safe (fix; ADR-024/ADR-059 follow-up)"
     },
     "EtaloBoutiqueBilling": {
       "address": "0x67764186d69A9871ab4F5f3fA7Ba3d8d6dE230e7",
@@ -78,6 +78,19 @@
       "retiredAt": "2026-06-06",
       "reason": "ADR-057 cutover — drained to 0 (13 orders settled), satellites re-pointed to new escrow via Safe",
       "txHash": "0x5789d53c9cfc2b24939e69e55589c68ec484d9d8940e842dea0e97e8ec0c651b"
+    },
+    {
+      "contract": "EtaloCredits",
+      "address": "0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6",
+      "txHash": "0xce04a53eba6db3edb4240bf0e8b8afe45cfdb7b5d556cb245855326550f02431",
+      "block": "67832987",
+      "constructorArgs": [
+        "0x48065fbBE25f71C9282ddf5e1cD6D6A887483D5e",
+        "0x4515D79C44fEaa848c3C33983F4c9C4BcA9060AA",
+        "0xfcfE723245e1e926Ae676025138cA2C38ecBA8D8"
+      ],
+      "retiredAt": "2026-06-15T11:52:20.558Z",
+      "reason": "creditsTreasury was non-Safe EOA 0x4515…A060AA; redeployed to Safe"
     }
   ]
 }

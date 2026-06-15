@@ -102,21 +102,9 @@ async function main() {
   const address = getAddress(receipt.contractAddress!);
   console.log(`Deployed NEW EtaloCredits: ${address} (block ${receipt.blockNumber})`);
 
-  const reads: Array<[string, `0x${string}`]> = [
-    ["usdt", usdt],
-    ["creditsTreasury", safe],
-    ["owner", safe],
-  ];
-  for (const [fn, expected] of reads) {
-    const got = getAddress(
-      (await publicClient.readContract({ address, abi, functionName: fn })) as `0x${string}`,
-    );
-    console.log(got === expected ? `  [OK] ${fn}=${got}` : `  [MISMATCH] ${fn}: ${got} != ${expected}`);
-  }
-  const perCredit = (await publicClient.readContract({ address, abi, functionName: "USDT_PER_CREDIT" })) as bigint;
-  console.log(perCredit === 150_000n ? `  [OK] USDT_PER_CREDIT=0.15 USDT` : `  [WARN] USDT_PER_CREDIT=${perCredit}`);
-
-  // Retain the old deploy for history, then record the new one.
+  // Record FIRST, before any sanity read, so a transient forno read race
+  // (eth_call hitting a node that hasn't propagated the new code yet)
+  // can never lose the deployed address.
   dep.previous_deployments = dep.previous_deployments || [];
   if (dep.contracts.EtaloCredits) {
     dep.previous_deployments.push({
@@ -134,6 +122,36 @@ async function main() {
     note: "Redeploy — creditsTreasury + owner = Safe (fix; ADR-024/ADR-059 follow-up)",
   };
   fs.writeFileSync(DEPLOYMENT_PATH, JSON.stringify(dep, null, 2) + "\n");
+  console.log(`Recorded in ${DEPLOYMENT_PATH}`);
+
+  // Sanity reads (informational) — retry to absorb forno propagation lag.
+  const readRetry = async (fn: string, tries = 6): Promise<unknown> => {
+    for (let i = 0; i < tries; i++) {
+      try {
+        return await publicClient.readContract({ address, abi, functionName: fn });
+      } catch {
+        await new Promise((r) => setTimeout(r, 2500));
+      }
+    }
+    return undefined;
+  };
+  for (const [fn, expected] of [
+    ["usdt", usdt],
+    ["creditsTreasury", safe],
+    ["owner", safe],
+  ] as Array<[string, `0x${string}`]>) {
+    const raw = await readRetry(fn);
+    if (!raw) {
+      console.log(`  [skip] ${fn} (read race — verify on Celoscan)`);
+      continue;
+    }
+    const got = getAddress(raw as `0x${string}`);
+    console.log(got === expected ? `  [OK] ${fn}=${got}` : `  [MISMATCH] ${fn}: ${got} != ${expected}`);
+  }
+  const perCredit = await readRetry("USDT_PER_CREDIT");
+  if (perCredit !== undefined) {
+    console.log(perCredit === 150_000n ? `  [OK] USDT_PER_CREDIT=0.15 USDT` : `  [WARN] USDT_PER_CREDIT=${perCredit}`);
+  }
 
   console.log(`\n✅ Redeployed. NEW_CREDITS=${address}`);
   console.log("NEXT: swap NEXT_PUBLIC_CREDITS_ADDRESS (Vercel) + ETALO_CREDITS_ADDRESS (Fly),");
