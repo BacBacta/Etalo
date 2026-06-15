@@ -4,16 +4,20 @@ Required by MiniPay submission (`docs/MINIPAY_LISTING.md` §2 : "provide a full 
 
 This file is the canonical inventory of every network destination Etalo touches at runtime, along with the role and verification status. Each section MUST be empirically verified via DevTools Network panel on the 6 hot-path surfaces before submission (audit checklist at the bottom).
 
-Last verified : `[date YYYY-MM-DD]`
-Verifier : `[name]`
+Last updated : `2026-06-15` (doc refresh — mainnet contract addresses +
+notification providers). **Empirical hot-path network-panel verification
+(the 6 surfaces below) is still pending — see the audit checklist.**
+Verifier (empirical) : `[name — pending]`
 Submission target : Sprint J12 (MiniPay listing submission)
 
 ## Domains & origins
 
 ### Production
-- `etalo.xyz` — **canonical V1 root domain** (Vercel alias since 2026-05-25), public funnel + MiniPay surface
-- `etalo.app` — reserved/future, NOT wired in V1 (do not submit etalo.app URLs)
+- `etalo.xyz` — **canonical V1 root domain** (Vercel alias since 2026-05-25), public funnel + MiniPay surface. **All submitted URLs use `etalo.xyz`.**
+- `etalo.app` — reserved/future, **NOT wired in V1** (do NOT submit etalo.app URLs). No runtime call targets `*.etalo.app`.
 - `*.etalo.xyz` — no subdomains in use (confirm at submission)
+- `etalo-api.fly.dev` — backend API host (Fly.io, region jnb)
+- ImprovMX MX/SPF on `etalo.xyz` route `support@etalo.xyz` (inbound email only — not a runtime app origin)
 
 ### Staging
 - TBD (will surface during Sprint J11 staging environment setup)
@@ -41,12 +45,15 @@ FastAPI service rooted at `/api/v1` :
 - `POST /api/v1/cart/checkout-token` — cart token creation (HMAC-signed)
 - `GET /api/v1/cart/resolve/{token}` — cart token resolution
 - `POST /api/v1/uploads/image` — IPFS upload via Pinata
-- `POST /api/v1/onboarding` — atomic seller onboarding
+- `POST /api/v1/onboarding/complete` — atomic seller onboarding (gated by the one-time boutique creation fee once `FEES_ENFORCED_FROM` passes, ADR-059)
 - `GET /api/v1/notifications` — wallet notifications feed
 - `GET /api/v1/analytics/summary` — seller dashboard aggregates
 - `GET /api/v1/sitemap/data` — public sitemap data
-- `GET /api/v1/credits/balance` — credits balance for asset generator
-- `GET /api/v1/credits/ledger` — credits ledger entries
+- `GET /api/v1/sellers/me/credits/balance` — credits balance for asset generator
+- `GET /api/v1/sellers/me/credits/history` — credits ledger entries
+- `GET /api/v1/stats` — public platform stats (orders/GMV/commission aggregates)
+- `GET /api/v1/treasury/revenue/summary` — owner-only revenue recap (allowlist-gated)
+- `GET /api/v1/treasury/revenue.csv` — owner-only revenue CSV export (allowlist-gated)
 - `[other]` — to be enumerated exhaustively at submission time via FastAPI OpenAPI introspection (`/api/openapi.json`)
 
 Backend exposed in production at `etalo-api.fly.dev` (Fly.io, region jnb) ; dev exposes via ngrok rewrite (`LOCAL_API_REWRITE_TARGET=http://localhost:8000` in `.env.local`).
@@ -67,8 +74,9 @@ Frontend uses `NEXT_PUBLIC_CELO_RPC_URL` env var (set in `.env.local` per enviro
 
 ## Notifications
 
-- Twilio WhatsApp Business API : `api.twilio.com` (backend calls only)
-- Webhook destination : TBD (Twilio Studio Flow or direct backend endpoint TBD per ADR)
+- Twilio WhatsApp Business API : `api.twilio.com` (backend calls only ; WhatsApp channel, pending Meta business verification)
+- Africa's Talking SMS : `api.africastalking.com` (prod) / `api.sandbox.africastalking.com` (sandbox) — backend calls only (SMS channel, regional aggregator for NG/GH/KE)
+- Webhook destination : none (notifications are outbound-only ; no inbound webhook wired)
 
 ## Smart contract addresses (V2)
 
@@ -115,7 +123,14 @@ history only). Source of truth :
 | EtaloVoting | `0xa1C48f2f962484D63D4D1b04C9c2574Da2C0EcBA` |
 | EtaloDispute | `0x6d5Aa5e0EAE407688E99492213849D9a608D63d2` |
 | EtaloEscrow (canonical, ADR-057) | `0x44E4Aafb22ac1Af3ea005EBa7384Fa310b6fA671` |
-| EtaloCredits | `0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6` |
+| EtaloCredits (redeploy 2026-06-15, creditsTreasury=Safe) | `0x6DF4a45886D4972C388413cCABe9B724A73560E8` |
+| EtaloBoutiqueBilling (ADR-059, one-time 1 USDT fee) | `0x67764186d69A9871ab4F5f3fA7Ba3d8d6dE230e7` |
+
+> Retired (history only, do not call) : old EtaloEscrow
+> `0x0890D9bCE4E71148b135A99Cf501DE52Aa05Ee92` (pre-ADR-057) and old
+> EtaloCredits `0xDDbE5BEC28B4eC0a309fca87047750EF4b42F7d6`
+> (creditsTreasury was a non-Safe EOA) — see
+> `deployments/celo-mainnet-v2.json` `previous_deployments[]`.
 
 ## External assets / fonts / CDN
 
@@ -135,10 +150,10 @@ history only). Source of truth :
 - [ ] FastAPI endpoints enumerated exhaustively from `/api/openapi.json` (replace placeholder list above with full set)
 - [ ] Aucun tracker tiers non documenté (verify zero analytics, zero pixel trackers, zero CDN font fetches)
 - [ ] Production URL `etalo.xyz` resolves and serves the same bundle as the staging audit
-- [ ] All `*.etalo.xyz` subdomains documented (or confirmed unused)
-- [ ] Twilio webhook destination URL filled in
-- [x] Mainnet contract addresses filled in (LIVE — see Celo Mainnet table above)
-- [ ] PageSpeed Insights score captured for production URL (mobile, throttled 4G)
+- [x] All `*.etalo.xyz` subdomains documented (confirmed **unused** — no subdomains in V1; no `*.etalo.app` runtime targets)
+- [x] Notification webhook destination — **none** (notifications are outbound-only: Twilio WhatsApp + Africa's Talking SMS; no inbound webhook)
+- [x] Mainnet contract addresses filled in (LIVE — see Celo Mainnet table above ; incl. ADR-059 EtaloBoutiqueBilling + redeployed EtaloCredits)
+- [x] PageSpeed Insights score captured for production URL (mobile) — Performance **95** (2026-06-10, see `docs/PRE_MAINNET_QA.md`)
 - [ ] DevTools Network panel snapshot saved (HAR file or screenshots) for each of the 6 surfaces
 - [ ] Sample tx Celoscan per method (structure ready, 25/40 V1-active entries populated, 15 pending FU-J11-004 smoke E2E) → see `docs/audit/SAMPLE_TXS.md`
 

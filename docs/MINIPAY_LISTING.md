@@ -125,9 +125,13 @@ press kit / future store surfaces:
 - [x] **PageSpeed Insights run on `https://etalo.xyz`** (production,
       2026-06-10, mobile) → Performance **80**, Accessibility **100**,
       Best Practices **100**, SEO **100**. Paste into the form.
-- [ ] **`NETWORK_MANIFEST.md` pass**: confirm canonical `etalo.xyz`
-      origins, mark `*.etalo.app` as unused/future, list the real RPC
-      + Pinata/IPFS + Fly API origins the app calls.
+- [x] **`NETWORK_MANIFEST.md` pass** (2026-06-15): canonical `etalo.xyz`
+      origins confirmed, `*.etalo.app` marked unused/future, RPC (forno) +
+      Pinata/IPFS + Fly API + Twilio + Africa's Talking origins listed,
+      mainnet contract table refreshed (ADR-059 billing + redeployed
+      credits). **Remaining: empirical DevTools network-panel capture on
+      the 6 hot-path surfaces** (needs a browser session) — tracked in the
+      NETWORK_MANIFEST audit checklist.
 - [x] **Support email reachable**: `support@etalo.xyz` is referenced in
       `/support`, Terms, and Privacy. MX/SPF set on the etalo.xyz Vercel
       DNS (ImprovMX `mx1`/`mx2` + `v=spf1 include:spf.improvmx.com ~all`),
