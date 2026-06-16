@@ -50,6 +50,12 @@ export const metadata: Metadata = {
       "Non-custodial social commerce for African sellers. Secure payments, buyer protection, no middleman.",
   },
   twitter: { card: "summary_large_image" },
+  // Talent Protocol (talentapp) project-ownership verification — renders
+  // <meta name="talentapp:project_verification" content="…"> in <head>.
+  other: {
+    "talentapp:project_verification":
+      "1bba99341bb106cf87c8e330685c080922d6ecadd2ed7d7c5e145561cbddd3d75fff5b107415cb533d0ace8e36f74ccebb0c0420f139938e26e0fc02e5a17d04",
+  },
 };
 
 export default function RootLayout({
