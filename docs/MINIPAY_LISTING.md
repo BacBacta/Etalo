@@ -65,8 +65,8 @@ screenshots.
 | Graceful wallet-operation error handling | ✅ | root `error.tsx` + ErrorBoundary ; checkout tx state machine (rule #8) |
 | In-app Terms + Privacy links | ✅ | `/legal/terms`, `/legal/privacy` (linked in `Footer.tsx`) |
 | In-app Support link | ✅ | `/support` (email + buyer/seller FAQ) |
-| PageSpeed score for production URL | ✅ | PSI mobile on `https://etalo.xyz` (2026-06-10) : **Performance 80, Accessibility 100, Best Practices 100, SEO 100**. Lab : FCP 1.1s, TBT 100ms, CLS 0, SI 2.6s ; LCP 5.1s is the lone weak metric (home/marketplace hero — V1.5 SSR work, not a blocker) |
-| Full URL/subdomain/origin manifest | ✅ | `docs/NETWORK_MANIFEST.md` — **needs an etalo.app→etalo.xyz pass before submission** |
+| PageSpeed score for production URL | ✅ | PSI mobile on `https://etalo.xyz` : **Performance 95** (after the #165 LCP fix, LCP 5.1→2.8s), Accessibility 100, Best Practices 100, SEO 100 |
+| Full URL/subdomain/origin manifest | ✅ | `docs/NETWORK_MANIFEST.md` — pass done (#176) + **empirically verified via HAR 2026-06-17** (only etalo.xyz, etalo-api.fly.dev, forno.celo.org, ipfs.io ; WalletConnect removed in prod) |
 
 ### Dependency security (MiniPay supply-chain checks)
 
@@ -123,24 +123,26 @@ press kit / future store surfaces:
 - [x] **`package.json` dependency ranges audited** → all 40 web deps
       pinned to exact versions — #148.
 - [x] **PageSpeed Insights run on `https://etalo.xyz`** (production,
-      2026-06-10, mobile) → Performance **80**, Accessibility **100**,
-      Best Practices **100**, SEO **100**. Paste into the form.
-- [x] **`NETWORK_MANIFEST.md` pass** (2026-06-15): canonical `etalo.xyz`
-      origins confirmed, `*.etalo.app` marked unused/future, RPC (forno) +
-      Pinata/IPFS + Fly API + Twilio + Africa's Talking origins listed,
-      mainnet contract table refreshed (ADR-059 billing + redeployed
-      credits). **Remaining: empirical DevTools network-panel capture on
-      the 6 hot-path surfaces** (needs a browser session) — tracked in the
-      NETWORK_MANIFEST audit checklist.
+      mobile) → Performance **95** (after the #165 LCP fix, LCP 5.1→2.8s),
+      Accessibility **100**, Best Practices **100**, SEO **100**. Paste
+      into the form.
+- [x] **`NETWORK_MANIFEST.md` pass + empirical verification** (2026-06-17):
+      canonical `etalo.xyz` origins, `*.etalo.app` unused/future, mainnet
+      contract table refreshed. **HAR capture confirms** the only runtime
+      origins are `etalo.xyz`, `etalo-api.fly.dev`, `forno.celo.org`,
+      `ipfs.io` — zero third-party trackers. **WalletConnect/web3modal
+      removed in prod** (`NEXT_PUBLIC_WC_PROJECT_ID` unset) to keep the
+      surface minimal.
 - [x] **Support email reachable**: `support@etalo.xyz` is referenced in
       `/support`, Terms, and Privacy. MX/SPF set on the etalo.xyz Vercel
       DNS (ImprovMX `mx1`/`mx2` + `v=spf1 include:spf.improvmx.com ~all`),
       `support@etalo.xyz` alias forwards to a monitored inbox — delivery
       confirmed 2026-06-14.
-- [ ] Terms + Privacy pages reviewed for accuracy against V1 reality
-      (non-custodial, intra-Africa, 1.8% commission, dispute flow).
-- [ ] Final manual smoke on `https://etalo.xyz` inside real MiniPay
-      (Phase C sign-off, `docs/PHASE_C_SMOKE_CHECKLIST.md`).
+- [x] Terms + Privacy pages reviewed/rewritten for V1 reality
+      (non-custodial, intra-Africa, 1.8% commission, dispute flow) — GDPR
+      + Nigeria/Ghana/Kenya data-protection rewrite, #166.
+- [x] Final manual smoke on `https://etalo.xyz` inside real MiniPay
+      (Phase C sign-off) — done by Mike.
 
 When every box is checked → fill the form at
 <https://developer.minipay.to/mini-app-listing> with the §1 copy.
