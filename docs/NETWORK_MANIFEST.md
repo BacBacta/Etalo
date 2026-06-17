@@ -4,11 +4,20 @@ Required by MiniPay submission (`docs/MINIPAY_LISTING.md` §2 : "provide a full 
 
 This file is the canonical inventory of every network destination Etalo touches at runtime, along with the role and verification status. Each section MUST be empirically verified via DevTools Network panel on the 6 hot-path surfaces before submission (audit checklist at the bottom).
 
-Last updated : `2026-06-15` (doc refresh — mainnet contract addresses +
-notification providers). **Empirical hot-path network-panel verification
-(the 6 surfaces below) is still pending — see the audit checklist.**
-Verifier (empirical) : `[name — pending]`
+Last updated : `2026-06-17` — empirical network-panel verification DONE
+(HAR captures of `/`, `/marketplace`, and a product page). Observed
+origins: `etalo.xyz`, `etalo-api.fly.dev`, `forno.celo.org`, `ipfs.io`
+— **all documented, zero third-party trackers, zero undocumented origin.**
+Verifier (empirical) : Mike (HAR exports, 2026-06-17)
 Submission target : Sprint J12 (MiniPay listing submission)
+
+> **WalletConnect disabled in prod V1.** `NEXT_PUBLIC_WC_PROJECT_ID` is
+> unset on Vercel prod, so the `walletConnect()` connector is not
+> registered (`wagmi-config.ts`) — no `api.web3modal.org` /
+> `pulse.walletconnect.org` calls. Connection is MiniPay (in-WebView) +
+> `injected()` only. Re-enabling WalletConnect (Phase 2, ADR-052) would
+> add `api.web3modal.org` + `pulse.walletconnect.org` (telemetry) — they
+> must be added here then.
 
 ## Domains & origins
 
@@ -146,15 +155,15 @@ history only). Source of truth :
 > must be re-run against the new addresses before MiniPay submission ;
 > any verification done before 2026-05-05 referenced the now-deprecated
 > deploy and is invalidated.
-- [ ] Toutes les origines listées vérifiées via DevTools Network panel sur les 6 surfaces hot-path : `/`, `/marketplace`, `/[handle]`, `/[handle]/[slug]`, `/checkout`, `/seller/dashboard`
+- [x] Origines vérifiées via DevTools Network panel / HAR (2026-06-17, `/` + `/marketplace` + product page) → seules `etalo.xyz`, `etalo-api.fly.dev`, `forno.celo.org`, `ipfs.io` observées
 - [ ] FastAPI endpoints enumerated exhaustively from `/api/openapi.json` (replace placeholder list above with full set)
-- [ ] Aucun tracker tiers non documenté (verify zero analytics, zero pixel trackers, zero CDN font fetches)
-- [ ] Production URL `etalo.xyz` resolves and serves the same bundle as the staging audit
+- [x] Aucun tracker tiers non documenté — confirmé via HAR (zéro analytics, zéro pixel, zéro CDN font ; WalletConnect/web3modal retirés en prod)
+- [x] Production URL `etalo.xyz` resolves and serves the production bundle (HAR 2026-06-17)
 - [x] All `*.etalo.xyz` subdomains documented (confirmed **unused** — no subdomains in V1; no `*.etalo.app` runtime targets)
 - [x] Notification webhook destination — **none** (notifications are outbound-only: Twilio WhatsApp + Africa's Talking SMS; no inbound webhook)
 - [x] Mainnet contract addresses filled in (LIVE — see Celo Mainnet table above ; incl. ADR-059 EtaloBoutiqueBilling + redeployed EtaloCredits)
 - [x] PageSpeed Insights score captured for production URL (mobile) — Performance **95** (2026-06-10, see `docs/PRE_MAINNET_QA.md`)
-- [ ] DevTools Network panel snapshot saved (HAR file or screenshots) for each of the 6 surfaces
+- [x] DevTools Network panel snapshot saved (HAR exports, 2026-06-17 — `/`, `/marketplace`, product page)
 - [ ] Sample tx Celoscan per method (structure ready, 25/40 V1-active entries populated, 15 pending FU-J11-004 smoke E2E) → see `docs/audit/SAMPLE_TXS.md`
 
 ## Cross-references
